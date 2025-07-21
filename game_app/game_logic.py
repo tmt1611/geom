@@ -237,21 +237,28 @@ class Game:
     def expand_action_extend_line(self, teamId):
         """[EXPAND ACTION]: Extend a line to the border to create a new point."""
         team_lines = self.get_team_lines(teamId)
-        if not team_lines:
-            return {'success': False, 'reason': 'no lines to extend'}
-
-        line = random.choice(team_lines)
         points = self.state['points']
-        p1 = points[line['p1_id']]
-        p2 = points[line['p2_id']]
+        
+        possible_extensions = []
+        for line in team_lines:
+            if line['p1_id'] not in points or line['p2_id'] not in points:
+                continue
+            p1 = points[line['p1_id']]
+            p2 = points[line['p2_id']]
+            
+            # Check both directions
+            border_point1 = self._get_extended_border_point(p1, p2)
+            if border_point1:
+                possible_extensions.append(border_point1)
+            
+            border_point2 = self._get_extended_border_point(p2, p1)
+            if border_point2:
+                possible_extensions.append(border_point2)
 
-        # Randomly choose which direction to extend from
-        if random.random() > 0.5:
-            p1, p2 = p2, p1 # Extend from p2, using p1 for direction
+        if not possible_extensions:
+            return {'success': False, 'reason': 'no lines can be extended to the border'}
 
-        border_point = self._get_extended_border_point(p1, p2)
-        if not border_point:
-            return {'success': False, 'reason': 'line cannot be extended'}
+        border_point = random.choice(possible_extensions)
 
         # Create new point with a unique ID
         new_point_id = f"p_{uuid.uuid4().hex[:6]}"
@@ -262,123 +269,117 @@ class Game:
     def expand_action_fracture_line(self, teamId):
         """[EXPAND ACTION]: Splits a line into two, creating a new point."""
         team_lines = self.get_team_lines(teamId)
-        if not team_lines:
-            return {'success': False, 'reason': 'no lines to fracture'}
+        points = self.state['points']
 
-        # Try a few times to find a suitable line
-        for _ in range(5):
-            line_to_fracture = random.choice(team_lines)
-            
-            points = self.state['points']
-            if line_to_fracture['p1_id'] not in points or line_to_fracture['p2_id'] not in points:
-                continue # This line's points are gone, try another
-
-            p1 = points[line_to_fracture['p1_id']]
-            p2 = points[line_to_fracture['p2_id']]
-
-            # Don't fracture very short lines
-            if distance_sq(p1, p2) < 4.0: # min length of 2
+        fracturable_lines = []
+        for line in team_lines:
+            if line['p1_id'] not in points or line['p2_id'] not in points:
                 continue
+            p1 = points[line['p1_id']]
+            p2 = points[line['p2_id']]
+            if distance_sq(p1, p2) >= 4.0: # min length of 2
+                fracturable_lines.append(line)
 
-            # Find a new point on the segment
-            ratio = random.uniform(0.25, 0.75)
-            new_x = p1['x'] + (p2['x'] - p1['x']) * ratio
-            new_y = p1['y'] + (p2['y'] - p1['y']) * ratio
+        if not fracturable_lines:
+            return {'success': False, 'reason': 'no lines long enough to fracture'}
 
-            # Create new point
-            new_point_id = f"p_{uuid.uuid4().hex[:6]}"
-            new_point = {"x": new_x, "y": new_y, "teamId": teamId, "id": new_point_id}
-            self.state['points'][new_point_id] = new_point
+        line_to_fracture = random.choice(fracturable_lines)
+        p1 = points[line_to_fracture['p1_id']]
+        p2 = points[line_to_fracture['p2_id']]
 
-            # Remove old line and its potential shield
-            self.state['lines'].remove(line_to_fracture)
-            self.state['shields'].pop(line_to_fracture.get('id'), None)
+        # Find a new point on the segment
+        ratio = random.uniform(0.25, 0.75)
+        new_x = p1['x'] + (p2['x'] - p1['x']) * ratio
+        new_y = p1['y'] + (p2['y'] - p1['y']) * ratio
 
-            # Create two new lines
-            line_id_1 = f"l_{uuid.uuid4().hex[:6]}"
-            new_line_1 = {"id": line_id_1, "p1_id": line_to_fracture['p1_id'], "p2_id": new_point_id, "teamId": teamId}
-            line_id_2 = f"l_{uuid.uuid4().hex[:6]}"
-            new_line_2 = {"id": line_id_2, "p1_id": new_point_id, "p2_id": line_to_fracture['p2_id'], "teamId": teamId}
-            self.state['lines'].extend([new_line_1, new_line_2])
+        # Create new point, ensuring integer coordinates
+        new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+        new_point = {"x": round(new_x), "y": round(new_y), "teamId": teamId, "id": new_point_id}
+        self.state['points'][new_point_id] = new_point
 
-            return {
-                'success': True, 
-                'type': 'fracture_line', 
-                'new_point': new_point, 
-                'new_line1': new_line_1,
-                'new_line2': new_line_2,
-                'old_line': line_to_fracture
-            }
-        
-        return {'success': False, 'reason': 'line is too short to fracture'}
+        # Remove old line and its potential shield
+        self.state['lines'].remove(line_to_fracture)
+        self.state['shields'].pop(line_to_fracture.get('id'), None)
+
+        # Create two new lines
+        line_id_1 = f"l_{uuid.uuid4().hex[:6]}"
+        new_line_1 = {"id": line_id_1, "p1_id": line_to_fracture['p1_id'], "p2_id": new_point_id, "teamId": teamId}
+        line_id_2 = f"l_{uuid.uuid4().hex[:6]}"
+        new_line_2 = {"id": line_id_2, "p1_id": new_point_id, "p2_id": line_to_fracture['p2_id'], "teamId": teamId}
+        self.state['lines'].extend([new_line_1, new_line_2])
+
+        return {
+            'success': True,
+            'type': 'fracture_line',
+            'new_point': new_point,
+            'new_line1': new_line_1,
+            'new_line2': new_line_2,
+            'old_line': line_to_fracture
+        }
 
 
     def fight_action_attack_line(self, teamId):
         """[FIGHT ACTION]: Extend a line to hit an enemy line, destroying it."""
+        # Find all possible successful attacks first.
+        possible_attacks = []
         team_lines = self.get_team_lines(teamId)
-        if not team_lines:
-            return {'success': False, 'reason': 'no lines to attack with'}
-
-        # Create a copy to iterate over while modifying the original list
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        if not enemy_lines:
-            return {'success': False, 'reason': 'no enemy lines to attack'}
-
-        random.shuffle(team_lines)
         points = self.state['points']
 
+        if not team_lines or not enemy_lines:
+            return {'success': False, 'reason': 'not enough lines to perform an attack'}
+
         for line in team_lines:
-            # Skip if line points are gone (can happen after sacrifice)
-            if line['p1_id'] not in points or line['p2_id'] not in points:
-                continue
-            
+            if line['p1_id'] not in points or line['p2_id'] not in points: continue
             p1 = points[line['p1_id']]
             p2 = points[line['p2_id']]
 
-            # Try extending from both ends of the segment
             for p_start, p_end in [(p1, p2), (p2, p1)]:
                 border_point = self._get_extended_border_point(p_start, p_end)
-                if not border_point:
-                    continue
+                if not border_point: continue
 
-                # The attacking ray is the segment from the line's endpoint to the border
                 attack_segment_p1 = p_end
                 attack_segment_p2 = border_point
 
                 for enemy_line in enemy_lines:
-                    # Skip if enemy line points are gone
-                    if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points:
-                        continue
+                    if enemy_line.get('id') in self.state['shields']: continue
+                    if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
                     
-                    # Check if enemy line is shielded
-                    if enemy_line.get('id') in self.state['shields']:
-                        continue # Can't attack a shielded line
-
                     ep1 = points[enemy_line['p1_id']]
                     ep2 = points[enemy_line['p2_id']]
 
                     if segments_intersect(attack_segment_p1, attack_segment_p2, ep1, ep2):
-                        # Target found! Remove the enemy line.
-                        self.state['lines'].remove(enemy_line)
-                        # Also remove any shield it might have had (e.g. if shield expired same turn)
-                        self.state['shields'].pop(enemy_line.get('id'), None)
-                        enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
-                        return {
-                            'success': True, 
-                            'type': 'attack_line', 
-                            'destroyed_team': enemy_team_name, 
-                            'destroyed_line': enemy_line,
+                        possible_attacks.append({
                             'attacker_line': line,
+                            'target_line': enemy_line,
                             'attack_ray': {'p1': attack_segment_p1, 'p2': attack_segment_p2}
-                        }
+                        })
 
-        return {'success': False, 'reason': 'no target was hit'}
+        if not possible_attacks:
+            return {'success': False, 'reason': 'no target in range'}
+
+        # Choose one of the possible attacks and execute it.
+        chosen_attack = random.choice(possible_attacks)
+        enemy_line = chosen_attack['target_line']
+        
+        self.state['lines'].remove(enemy_line)
+        self.state['shields'].pop(enemy_line.get('id'), None)
+        enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
+        
+        return {
+            'success': True, 
+            'type': 'attack_line', 
+            'destroyed_team': enemy_team_name, 
+            'destroyed_line': enemy_line,
+            'attacker_line': chosen_attack['attacker_line'],
+            'attack_ray': chosen_attack['attack_ray']
+        }
 
     def sacrifice_action_nova_burst(self, teamId):
         """[SACRIFICE ACTION]: A point is destroyed, removing nearby enemy lines."""
         team_point_ids = self.get_team_point_ids(teamId)
-        # A team cannot sacrifice its last point, as this is self-destructive.
-        if len(team_point_ids) <= 1:
+        # A team should not sacrifice down to a single point, as it's too risky.
+        if len(team_point_ids) <= 2:
             return {'success': False, 'reason': 'not enough points to sacrifice safely'}
 
         sac_point_id = random.choice(team_point_ids)
@@ -424,6 +425,48 @@ class Game:
         self.state['territories'] = [t for t in self.state['territories'] if sac_point_id not in t['point_ids']]
 
         return {'success': True, 'type': 'nova_burst', 'sacrificed_point': sac_point, 'lines_destroyed': len(lines_to_remove)}
+
+    def expand_action_spawn_point(self, teamId):
+        """[EXPAND ACTION]: Creates a new point near an existing one. A last resort action."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if not team_point_ids:
+            return {'success': False, 'reason': 'no points to spawn from'}
+
+        # Try a few times to find a valid empty spot
+        for _ in range(10):
+            p_origin_id = random.choice(team_point_ids)
+            p_origin = self.state['points'][p_origin_id]
+
+            # Spawn in a small radius
+            angle = random.uniform(0, 2 * math.pi)
+            radius = self.state['grid_size'] * random.uniform(0.05, 0.15)
+            
+            new_x = p_origin['x'] + math.cos(angle) * radius
+            new_y = p_origin['y'] + math.sin(angle) * radius
+            
+            # Clamp to grid and round to integer
+            grid_size = self.state['grid_size']
+            final_x = round(max(0, min(grid_size - 1, new_x)))
+            final_y = round(max(0, min(grid_size - 1, new_y)))
+
+            # Check if it's too close to any existing point
+            is_too_close = False
+            new_p_coords = {'x': final_x, 'y': final_y}
+            for existing_p in self.state['points'].values():
+                if distance_sq(new_p_coords, existing_p) < 1.0: # min dist of 1 unit
+                    is_too_close = True
+                    break
+            if is_too_close:
+                continue
+
+            # We found a valid spawn, create the new point
+            new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+            new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
+            self.state['points'][new_point_id] = new_point
+
+            return {'success': True, 'type': 'spawn_point', 'new_point': new_point}
+
+        return {'success': False, 'reason': 'could not find a valid position to spawn'}
 
     def shield_action_protect_line(self, teamId):
         """[DEFEND ACTION]: Applies a temporary shield to a line, protecting it from attacks."""
@@ -678,54 +721,52 @@ class Game:
     def fight_action_convert_point(self, teamId):
         """[FIGHT ACTION]: Sacrifice a line to convert a nearby enemy point."""
         team_lines = self.get_team_lines(teamId)
-        if not team_lines:
-            return {'success': False, 'reason': 'no lines to sacrifice'}
-
         enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
-        if not enemy_points:
-            return {'success': False, 'reason': 'no enemy points to convert'}
-
-        random.shuffle(team_lines)
         points_map = self.state['points']
 
+        if not team_lines or not enemy_points:
+            return {'success': False, 'reason': 'no lines to sacrifice or no enemy points'}
+
+        possible_conversions = []
+        conversion_range_sq = (self.state['grid_size'] * 0.3)**2
+
         for line_to_sac in team_lines:
-            # Ensure line points exist
             if line_to_sac['p1_id'] not in points_map or line_to_sac['p2_id'] not in points_map:
                 continue
             
             p1 = points_map[line_to_sac['p1_id']]
             p2 = points_map[line_to_sac['p2_id']]
             midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
-            
-            # Find the closest enemy point to the line's midpoint
-            closest_enemy_point = min(enemy_points, key=lambda p: distance_sq(midpoint, p))
-            
-            dist_sq = distance_sq(midpoint, closest_enemy_point)
-            
-            # Define conversion range (squared for efficiency)
-            conversion_range_sq = (self.state['grid_size'] * 0.3)**2
-            
-            if dist_sq < conversion_range_sq:
-                # Success! Sacrifice the line and convert the point.
-                
-                # 1. Remove the sacrificed line
-                self.state['lines'].remove(line_to_sac)
-                self.state['shields'].pop(line_to_sac.get('id'), None) # Remove shield if it had one
-                
-                # 2. Convert the enemy point
-                original_team_id = closest_enemy_point['teamId']
-                original_team_name = self.state['teams'][original_team_id]['name']
-                closest_enemy_point['teamId'] = teamId
-                
-                return {
-                    'success': True,
-                    'type': 'convert_point',
-                    'converted_point': closest_enemy_point,
-                    'sacrificed_line': line_to_sac,
-                    'original_team_name': original_team_name
-                }
-        
-        return {'success': False, 'reason': 'no enemy points in range'}
+
+            for enemy_point in enemy_points:
+                dist_sq = distance_sq(midpoint, enemy_point)
+                if dist_sq < conversion_range_sq:
+                    possible_conversions.append({'line': line_to_sac, 'point': enemy_point})
+
+        if not possible_conversions:
+            return {'success': False, 'reason': 'no enemy points in range'}
+
+        # Choose a random valid conversion and execute it
+        chosen_conversion = random.choice(possible_conversions)
+        line_to_sac = chosen_conversion['line']
+        point_to_convert = chosen_conversion['point']
+
+        # 1. Remove the sacrificed line
+        self.state['lines'].remove(line_to_sac)
+        self.state['shields'].pop(line_to_sac.get('id'), None)
+
+        # 2. Convert the enemy point
+        original_team_id = point_to_convert['teamId']
+        original_team_name = self.state['teams'][original_team_id]['name']
+        point_to_convert['teamId'] = teamId
+
+        return {
+            'success': True,
+            'type': 'convert_point',
+            'converted_point': point_to_convert,
+            'sacrificed_line': line_to_sac,
+            'original_team_name': original_team_name
+        }
 
     def _choose_action_for_team(self, teamId, exclude_actions=None):
         """Intelligently chooses an action for a team, excluding any that have already failed this turn."""
@@ -741,6 +782,7 @@ class Game:
             'expand_extend': self.expand_action_extend_line,
             'expand_grow': self.expand_action_grow_line,
             'expand_fracture': self.expand_action_fracture_line,
+            'expand_spawn': self.expand_action_spawn_point,
             'fight_attack': self.fight_action_attack_line,
             'fight_convert': self.fight_action_convert_point,
             'fortify_claim': self.fortify_action_claim_territory,
@@ -756,14 +798,15 @@ class Game:
             'expand_add': len(team_point_ids) >= 2,
             'expand_extend': bool(team_lines),
             'expand_grow': bool(team_lines),
-            'expand_fracture': bool(team_lines),
+            'expand_fracture': any(distance_sq(self.state['points'][l['p1_id']], self.state['points'][l['p2_id']]) >= 4.0 for l in team_lines if l['p1_id'] in self.state['points'] and l['p2_id'] in self.state['points']),
+            'expand_spawn': len(team_point_ids) > 0,
             'fight_attack': bool(team_lines) and any(l['teamId'] != teamId for l in self.state['lines']),
             'fight_convert': bool(team_lines) and any(p['teamId'] != teamId for p in self.state['points'].values()),
             'defend_shield': any(l.get('id') not in self.state['shields'] for l in team_lines),
             'fortify_claim': len(team_point_ids) >= 3,
             'fortify_anchor': len(team_point_ids) >= 3,
             'fortify_mirror': len(team_point_ids) >= 3,
-            'sacrifice_nova': len(team_point_ids) > 1,
+            'sacrifice_nova': len(team_point_ids) > 2,
         }
 
         for name, is_possible in action_preconditions.items():
@@ -775,7 +818,8 @@ class Game:
 
         # --- Apply trait-based weights to the *possible* actions ---
         base_weights = {
-            'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'fight_attack': 10, 'fight_convert': 8,
+            'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
+            'fight_attack': 10, 'fight_convert': 8,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'sacrifice_nova': 3, 'defend_shield': 8,
         }
         trait_multipliers = {
@@ -943,6 +987,7 @@ class Game:
             elif action_type == 'extend_line': log_message += "extended a line to the border, creating a new point."
             elif action_type == 'grow_line': log_message += "grew a new branch, creating a new point."
             elif action_type == 'fracture_line': log_message += "fractured a line, creating a new point."
+            elif action_type == 'spawn_point': log_message += "spawned a new point from an existing one."
             elif action_type == 'attack_line': log_message += f"attacked and destroyed a line from Team {result['destroyed_team']}."
             elif action_type == 'convert_point': log_message += f"sacrificed a line to convert a point from Team {result['original_team_name']}."
             elif action_type == 'claim_territory': log_message += "fortified its position, claiming new territory."

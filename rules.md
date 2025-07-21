@@ -13,6 +13,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[EXPAND] Extend Line:** Extend an existing line to the border of the grid, creating a new point.
 *   **[EXPAND] Grow Line (Vine):** Grow a new, short line segment from an existing point, creating organic, branching structures.
 *   **[EXPAND] Fracture Line:** Splits an existing line into two, creating a new point along the line's original path. This helps create denser networks.
+*   **[EXPAND] Spawn Point:** Creates a new point near an existing one. This is a last-resort action to ensure a team can recover even from a single point.
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
 *   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range.
 *   **[FIGHT] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
