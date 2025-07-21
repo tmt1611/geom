@@ -90,8 +90,13 @@
                 </div>
                 <div id="final-stats-content"></div>
             </div>
-            <h3>Game Log</h3>
-            <div id="log" class="log-box">Awaiting game start...</div>
+            <div class="log-container">
+                <div class="log-header">
+                    <h3>Game Log</h3>
+                    <label><input type="checkbox" id="compact-log-toggle"> Compact Log</label>
+                </div>
+                <div id="log" class="log-box">Awaiting game start...</div>
+            </div>
         </div>
     </div>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>

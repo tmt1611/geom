@@ -13,7 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showPointIds: false,
         showLineIds: false,
         highlightLastAction: false,
-        showHulls: false
+        showHulls: false,
+        compactLog: false
     };
     let currentGameState = {}; // Cache the latest game state
     let hasResizedInitially = false;
@@ -48,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusBar = document.getElementById('status-bar');
     const finalInterpDiv = document.getElementById('final-interpretation');
     const finalInterpContent = document.getElementById('final-stats-content');
+    const compactLogToggle = document.getElementById('compact-log-toggle'); // New element
 
     // Debug Toggles
     const debugPointIdsToggle = document.getElementById('debug-point-ids');
@@ -639,17 +641,39 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!log) return;
 
         let lastMessage = 'Game log is empty.';
+        // Find the last message from a team for the status bar
+        for(let i = log.length - 1; i >= 0; i--) {
+            if (log[i].teamId) {
+                lastMessage = log[i].message;
+                break;
+            }
+        }
+
         log.forEach(entry => {
             const logEntryDiv = document.createElement('div');
             logEntryDiv.className = 'log-entry';
-            logEntryDiv.textContent = entry.message;
+
+            const message = (debugOptions.compactLog && entry.short_message) ? entry.short_message : entry.message;
+            logEntryDiv.textContent = message;
+
             if (entry.teamId && teams[entry.teamId]) {
                 logEntryDiv.style.borderLeftColor = teams[entry.teamId].color;
+                if (debugOptions.compactLog) {
+                    // In compact mode, add team color to text for visibility
+                    logEntryDiv.style.color = teams[entry.teamId].color;
+                    logEntryDiv.style.fontWeight = 'bold';
+                }
+            } else { // Non-team messages (Turn counter, etc)
+                 logEntryDiv.style.textAlign = 'center';
+                 logEntryDiv.style.borderLeftColor = '#ccc';
+                 logEntryDiv.style.background = '#f0f0f0';
+                 if (debugOptions.compactLog) {
+                     logEntryDiv.style.fontWeight = 'bold';
+                 }
             }
-            logDiv.appendChild(logEntryDiv);
-            lastMessage = entry.message;
+            logDiv.prepend(logEntryDiv); // Prepend to put new entries on top
         });
-        logDiv.scrollTop = logDiv.scrollHeight;
+        logDiv.scrollTop = 0; // Scroll to top to see latest entries
 
         // Update status bar
         if (currentGameState.game_phase === 'RUNNING') {
@@ -797,6 +821,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Handlers & API Calls ---
+
+    compactLogToggle.addEventListener('click', () => {
+        debugOptions.compactLog = compactLogToggle.checked;
+        // We need to re-render the log with the new setting
+        updateLog(currentGameState.game_log, currentGameState.teams);
+    });
 
     debugPointIdsToggle.addEventListener('click', () => {
         debugOptions.showPointIds = debugPointIdsToggle.checked;

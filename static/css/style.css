@@ -272,6 +272,30 @@ legend {
     font-size: 0.95em;
 }
 
+.log-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+.log-header h3 {
+    margin: 0;
+}
+.log-header label {
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-weight: normal;
+    color: #555;
+}
+
 .final-analysis-header {
     display: flex;
     justify-content: space-between;

@@ -71,7 +71,7 @@ class Game:
             "anchors": {}, # {point_id: {teamId: teamId, turns_left: N}}
             "territories": [], # Added for claimed triangles
             "runes": {}, # {teamId: {'cross': [], 'v_shape': []}}
-            "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin."}],
+            "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
             "max_turns": 100,
             "game_phase": "SETUP", # SETUP, RUNNING, FINISHED
@@ -155,7 +155,7 @@ class Game:
         self.state['max_turns'] = max_turns
         self.state['grid_size'] = grid_size
         self.state['game_phase'] = "RUNNING" if len(points) > 0 else "SETUP"
-        self.state['game_log'].append({'message': "Game initialized."})
+        self.state['game_log'].append({'message': "Game initialized.", 'short_message': '[INIT]'})
         self.state['action_in_turn'] = 0
         self.state['active_teams_this_turn'] = []
         
@@ -1082,7 +1082,7 @@ class Game:
         active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
         random.shuffle(active_teams) # Randomize action order each turn
         self.state['active_teams_this_turn'] = active_teams
-        self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---"})
+        self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
 
     def _check_end_of_turn_victory_conditions(self):
         """Checks for victory conditions that are evaluated at the end of a full turn."""
@@ -1103,7 +1103,7 @@ class Game:
                 self.state['game_phase'] = 'FINISHED'
                 team_name = self.state['teams'][sole_survivor_id]['name']
                 self.state['victory_condition'] = f"Team '{team_name}' achieved dominance."
-                self.state['game_log'].append({'message': self.state['victory_condition']})
+                self.state['game_log'].append({'message': self.state['victory_condition'], 'short_message': '[VICTORY]'})
                 return
         else:
             self.state['sole_survivor_tracker'] = {'teamId': None, 'turns': 0}
@@ -1112,7 +1112,7 @@ class Game:
         if self.state['turn'] >= self.state['max_turns']:
             self.state['game_phase'] = 'FINISHED'
             self.state['victory_condition'] = "Max turns reached."
-            self.state['game_log'].append({'message': "Max turns reached. Game finished."})
+            self.state['game_log'].append({'message': "Max turns reached. Game finished.", 'short_message': '[END]'})
 
     def run_next_action(self):
         """Runs a single successful action for the next team in the current turn."""
@@ -1128,7 +1128,7 @@ class Game:
             if not self.state['active_teams_this_turn']:
                 self.state['game_phase'] = 'FINISHED'
                 self.state['victory_condition'] = "Extinction"
-                self.state['game_log'].append({'message': "All teams have been eliminated. Game over."})
+                self.state['game_log'].append({'message': "All teams have been eliminated. Game over.", 'short_message': '[EXTINCTION]'})
                 return
 
         # Get the current team to act
@@ -1188,8 +1188,12 @@ class Game:
             elif action_type == 'create_anchor': log_message += "sacrificed a point to create a gravitational anchor."
             elif action_type == 'nova_burst': log_message += f"sacrificed a point in a nova burst, destroying {result['lines_destroyed']} lines."
             elif action_type == 'shield_line': log_message += "raised a defensive shield on one of its lines."
-            elif action_type == 'rune_shoot_bisector': log_message += "unleashed a powerful beam from a V-Rune, destroying an enemy line."
-            else: log_message += "performed a successful action."
+            elif action_type == 'rune_shoot_bisector':
+                log_message += "unleashed a powerful beam from a V-Rune, destroying an enemy line."
+                short_log_message = "[V-RUNE BEAM]"
+            else:
+                log_message += "performed a successful action."
+                short_log_message = "[ACTION]"
         else:
             log_message += "could not find a valid move and passed its turn."
             
