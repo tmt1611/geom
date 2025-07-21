@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetBtn = document.getElementById('reset-btn');
     const restartSimulationBtn = document.getElementById('restart-simulation-btn');
     const undoPointBtn = document.getElementById('undo-point-btn');
+    const clearPointsBtn = document.getElementById('clear-points-btn');
     const randomizePointsBtn = document.getElementById('randomize-points-btn');
     const maxTurnsInput = document.getElementById('max-turns');
     const gridSizeInput = document.getElementById('grid-size');
@@ -772,11 +773,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    clearPointsBtn.addEventListener('click', () => {
+        if (initialPoints.length > 0) {
+            if (confirm("Are you sure you want to clear all points from the grid?")) {
+                initialPoints = [];
+                // Grid updates via animation loop
+            }
+        }
+    });
+
     randomizePointsBtn.addEventListener('click', () => {
         if (Object.keys(localTeams).length === 0) {
             alert("Please add at least one team before randomizing points.");
             return;
         }
+
+        if (initialPoints.length > 0) {
+            if (!confirm("This will replace all existing points on the grid with new random ones. Are you sure?")) {
+                return;
+            }
+        }
+
         const pointsPerTeam = parseInt(prompt("How many points per team?", "5"));
         if (isNaN(pointsPerTeam) || pointsPerTeam <= 0) return;
 
@@ -979,6 +996,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function init() {
+        // --- Live grid size update ---
+        gridSizeInput.addEventListener('input', () => {
+            if (currentGameState.game_phase === 'SETUP') {
+                const newSize = parseInt(gridSizeInput.value, 10);
+                if (newSize >= 5 && newSize <= 50) {
+                    const oldSize = currentGameState.grid_size;
+                    const outOfBoundsPoints = initialPoints.filter(p => p.x >= newSize || p.y >= newSize);
+
+                    if (outOfBoundsPoints.length > 0) {
+                        if (!confirm(`Changing grid size to ${newSize}x${newSize} will remove ${outOfBoundsPoints.length} point(s) that are now out of bounds. Continue?`)) {
+                            gridSizeInput.value = oldSize; // Revert input
+                            return;
+                        }
+                    }
+
+                    // Update grid size and filter points
+                    currentGameState.grid_size = newSize;
+                    initialPoints = initialPoints.filter(p => p.x < newSize && p.y < newSize);
+                    resizeCanvas();
+                }
+            }
+        });
+
         // Setup resize observer
         const gridContainer = document.querySelector('.grid-container');
         const resizeObserver = new ResizeObserver(() => {

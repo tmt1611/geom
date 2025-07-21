@@ -32,6 +32,7 @@
                     <div class="placement-section">
                         <p>Select a team, then click on the grid to place points.</p>
                         <button id="undo-point-btn">Undo Last Point</button>
+                        <button id="clear-points-btn">Clear All Points</button>
                         <button id="randomize-points-btn">Randomize Points</button>
                     </div>
                 </fieldset>
@@ -72,14 +73,14 @@
             <h2>Analysis</h2>
             <div id="turn-counter">Turn: 0 / 100</div>
             <div id="stats"></div>
-            <fieldset>
-                <legend>Debug Tools</legend>
+            <details class="debug-fieldset">
+                <summary>Debug Tools</summary>
                 <div class="debug-options">
                     <label><input type="checkbox" id="debug-point-ids"> Show Point IDs</label>
                     <label><input type="checkbox" id="debug-line-ids"> Show Line IDs</label>
                     <label><input type="checkbox" id="debug-last-action"> Highlight Last Action</label>
                 </div>
-            </fieldset>
+            </details>
             <div id="final-interpretation" style="display: none;">
                 <div class="final-analysis-header">
                     <h4>Final Analysis</h4>

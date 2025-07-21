@@ -1,28 +1,21 @@
 # Iteration Analysis and Changelog
 
 ## 1. Analysis Summary
-This iteration focused on improving the backend game logic based on user feedback, specifically addressing suggestions #7 and #8. The primary goals were to make the action system more robust, ensure all point coordinates are integers, and guarantee that teams always have a valid move available.
+This iteration focused on improving the frontend user experience (UX) and interface (UI), particularly during the setup phase of the game. Based on a user workflow analysis, several small but impactful changes were identified to make game setup more intuitive and flexible.
 
 ## 2. Implemented Features and Improvements
 
-### Backend (`game_logic.py`)
+### Frontend UI/UX (`templates/index.html`, `static/css/style.css`, `static/js/main.js`)
 
-1.  **Robust Action System (Suggestion #8):**
-    -   Several actions that could previously "miss" or fail after being selected (e.g., `attack_line`, `extend_line`, `convert_point`, `fracture_line`) have been refactored.
-    -   These actions now first find all possible *successful* outcomes, then randomly choose one to execute. This prevents turns where a team attempts an action that is impossible to complete (like an attack that can't hit anything), making the simulation flow more logically and efficiently.
-    -   The `run_next_action` loop is now primarily for handling actions with inherent randomness or for cases where simple preconditions pass but no complex valid outcome is found.
+1.  **Live Grid Size Updates:**
+    -   The grid on the canvas now updates instantly when the "Grid Size" input is changed during the setup phase.
+    -   If changing the size would cause existing points to be out of bounds, a confirmation dialog now warns the user before those points are removed.
 
-2.  **Guaranteed Valid Actions (Suggestion #8):**
-    -   A new action, **`expand_action_spawn_point`**, has been added. This allows a team to create a new point near an existing one.
-    -   This action is available even if a team has only one point left, ensuring that no team is ever completely "stuck" without a valid move.
-    -   It is given a low weight in the action selection process, making it a last-resort or recovery-style move.
+2.  **Improved Point Placement Controls:**
+    -   A new **"Clear All Points"** button has been added to the setup controls, allowing users to quickly clear the board with a confirmation prompt.
+    -   The **"Randomize Points"** button now checks if there are already points on the grid and asks for confirmation before replacing them. This prevents accidental loss of a manual setup.
 
-3.  **Integer Coordinates (Suggestion #7):**
-    -   The `expand_action_fracture_line` was updated to ensure the new point it creates always has integer coordinates by rounding the calculated position. This brings it in line with other actions and maintains grid consistency.
+3.  **Cleaner Interface:**
+    -   The "Debug Tools" section in the analysis panel has been placed inside a collapsible `<details>` element. This declutters the main interface for regular users while keeping debug options easily accessible for developers or power users. Custom styling was added to make the collapsible section look clean and modern.
 
-4.  **Action Balancing and Preconditions:**
-    -   The `sacrifice_action_nova_burst` now requires a team to have more than two points, making it a more strategic and less self-destructive choice.
-    -   Precondition checks for actions like `expand_fracture_line` and `sacrifice_nova` have been made more precise in the `_choose_action_for_team` method to better reflect their possibilities.
-
-### Rules (`rules.md`)
--   The new "Spawn Point" action has been documented in `rules.md` to reflect its addition to the game.
+This set of changes makes the initial interaction with the application smoother and gives the user more control and better feedback during the critical setup stage.
