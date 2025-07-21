@@ -26,9 +26,9 @@ def get_game_state():
     """Returns the complete current game state."""
     return jsonify(game_logic.game_state)
 
-@main_routes.route('/api/game/reset', methods=['POST'])
-def reset_game():
-    """Resets the game with new initial settings from the client."""
+@main_routes.route('/api/game/start', methods=['POST'])
+def start_game():
+    """Resets the game state and initializes it with new settings from the client."""
     game_logic.init_game_state()
     data = request.json
     gs = game_logic.game_state # Use a shorter alias for readability

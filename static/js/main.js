@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
             points: initialPoints,
             maxTurns: maxTurnsInput.value
         };
-        const response = await fetch('/api/game/reset', {
+        const response = await fetch('/api/game/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -239,15 +239,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    resetBtn.addEventListener('click', async () => {
+    resetBtn.addEventListener('click', () => {
         stopAutoPlay();
-        localTeams = {};
-        initialPoints = [];
-        selectedTeamId = null;
-        renderTeamsList();
-        const response = await fetch('/api/game/state'); // Get initial empty state
-        const gameState = await response.json();
-        render(gameState);
+        // Easiest way to reset everything is to just reload the page.
+        // The server will re-initialize the game state on the '/' route.
+        window.location.reload();
     });
 
     // --- Initialization and Update Checker ---
