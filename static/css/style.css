@@ -1,0 +1,46 @@
+body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #f0f0f0;
+}
+
+.container {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.grid-container {
+    border: 1px solid black;
+}
+
+#grid {
+    background-color: white;
+}
+
+.controls, .interpretation-panel {
+    width: 300px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    background-color: #fff;
+}
+
+#teams-list {
+    list-style: none;
+    padding: 0;
+}
+
+#teams-list li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.team-color-box {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+    border: 1px solid #000;
+}
