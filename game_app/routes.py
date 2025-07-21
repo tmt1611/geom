@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, render_template, jsonify, request, current_app
 from . import game_logic
 from . import utils
 
@@ -63,3 +63,16 @@ def next_action():
     """Processes the next single action in a turn."""
     game_logic.game.run_next_action()
     return jsonify(game_logic.game.get_state())
+
+@main_routes.route('/api/dev/shutdown', methods=['POST'])
+def shutdown_server():
+    """(Dev only) Shuts down the Flask development server."""
+    if not current_app.debug:
+        return jsonify({"error": "This function is only available in debug mode."}), 403
+
+    shutdown_func = request.environ.get('werkzeug.server.shutdown')
+    if shutdown_func is None:
+        return jsonify({"error": "Not running with the Werkzeug Server or shutdown function not available."}), 500
+    
+    shutdown_func()
+    return jsonify({"message": "Server is shutting down..."})

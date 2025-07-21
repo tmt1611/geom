@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const showHullsToggle = document.getElementById('show-hulls-toggle');
     const finalAnalysisOptions = document.getElementById('final-analysis-options');
     const copyStateBtn = document.getElementById('copy-state-btn');
+    const shutdownServerBtn = document.getElementById('shutdown-server-btn');
 
     // --- Core Functions ---
 
@@ -860,6 +861,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    shutdownServerBtn.addEventListener('click', async () => {
+        if (!confirm("This will shut down the server. You will need to restart it from the command line. Are you sure?")) {
+            return;
+        }
+        try {
+            const response = await fetch('/api/dev/shutdown', { method: 'POST' });
+            if (response.ok) {
+                const data = await response.json();
+                // This message might not even be seen if the server shuts down fast enough.
+                alert(data.message || 'Shutdown request sent.');
+            } else {
+                const errorData = await response.json();
+                alert(`Error: ${errorData.error}`);
+                return; // Don't blank the page if shutdown failed
+            }
+        } catch (error) {
+            // This catch block is expected to run, as the server will likely terminate the connection
+            // before a full response is sent.
+            console.log('Server shutdown request sent. The connection was likely terminated.', error);
+        }
+        // Update the UI to show the server is down.
+        document.body.innerHTML = '<div style="text-align: center; padding-top: 50px;"><h1>Server Shut Down</h1><p>The server has been stopped. Please restart it from your command line terminal.</p></div>';
+    });
+
     // Listener for team list - now only for deletion (selection and editing are handled on elements)
     teamsList.addEventListener('click', (e) => {
         if (currentGameState.game_phase !== 'SETUP') return;
@@ -909,6 +934,13 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTeamsList();
         } else if (teamName) {
             alert('A team with this name already exists.');
+        }
+    });
+
+    newTeamNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addTeamBtn.click();
         }
     });
 
