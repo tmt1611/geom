@@ -1,34 +1,30 @@
-This iteration focuses on a major code cleanup, UI/UX enhancements for the setup phase, and the introduction of a new chaotic, map-altering gameplay mechanic.
+This iteration focuses on improving the user experience through better feedback and robustness. I've introduced a comprehensive frontend error handling system to help with debugging and stability, added more visual polish to make actions clearer, and enhanced the "Live Stats" panel to provide a more complete overview of the game state.
 
-### 1. Major Code Refactoring: Log Generation
+### 1. New Feature: Frontend Error Handling and Debugging
 
--   **File**: `game_app/game_logic.py`
--   **Change**: The large and unwieldy `if/elif` block in `run_next_action` for generating log messages has been completely replaced. A new private helper method, `_get_action_log_messages`, now uses a clean, maintainable dictionary to map action types to their corresponding log message strings.
--   **Benefit**: This resolves a significant piece of technical debt, making the `run_next_action` method much shorter and more readable. Adding or modifying log messages for new actions is now a trivial, single-line change in the dictionary, vastly improving maintainability.
+-   **Files**: `static/js/main.js`, `static/css/style.css`, `templates/index.html`
+-   **Change**: A new client-side error handling system has been implemented.
+    -   A global error handler (`window.onerror`) now catches any unhandled Javascript exceptions.
+    -   When an error occurs, the game's auto-play is immediately stopped, and a modal overlay appears, preventing further interaction with a broken state.
+    -   The modal displays the error message and stack trace. Crucially, it includes a **"Copy Details"** button, allowing users (or developers) to easily copy the full error text to their clipboard for reporting or debugging.
+-   **Benefit**: This makes the application significantly more robust. Instead of silently failing or behaving unpredictably, errors are now caught and clearly presented. This is a major improvement for debugging and for getting useful feedback from users if something goes wrong.
 
-### 2. New Gameplay Mechanic: Whirlpool
+### 2. Visual Polish: Point Destruction Animations
 
--   **Files**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
--   **Concept**: A new sacrifice action, `[SACRIFICE] Create Whirlpool`, has been introduced.
--   **Mechanics**:
-    -   **Cost**: A team sacrifices one of its non-critical points.
-    -   **Effect**: A chaotic whirlpool is created at the point's location. For 4 turns, it slowly pulls all nearby points (both friendly and enemy) towards its center while swirling them around. This can be used to disrupt enemy formations, pull targets into range, or create general chaos on the battlefield.
--   **Backend (`game_logic.py`):**
-    -   A new `whirlpools` list has been added to the game state.
-    -   The `sacrifice_action_create_whirlpool` function was implemented.
-    -   The main turn-update logic in `_start_new_turn` now processes active whirlpools, updating the coordinates of affected points each turn using polar coordinate math for the spiral motion.
--   **Frontend (`static/js/main.js`):**
-    -   A new `drawWhirlpools` function renders a visual vortex effect for active whirlpools on the canvas, providing clear visual feedback for the area of effect.
+-   **File**: `static/js/main.js`
+-   **Change**: Several actions that destroy or sacrifice points now have corresponding visual feedback, making the cause-and-effect of these powerful moves much clearer.
+    -   **New Effect**: A `point_implosion` visual effect was created for sacrificial actions. It shows a point shrinking and fading out, visually distinct from an aggressive explosion.
+    -   **Updated Actions**:
+        -   `Sentry Zap`: Now triggers a `point_explosion` on its target, in addition to the attack beam.
+        -   `Create Whirlpool`: The sacrificed point now triggers a `point_implosion`.
+        -   `Create Anchor`: The sacrificed point now triggers a `point_implosion`.
+        -   `Bastion Pulse`: The sacrificed "prong" point now triggers a `point_implosion`.
+-   **Benefit**: The battlefield is more dynamic and legible. Users can now instantly see the cost (the sacrificed point disappearing) and the effect of an action, improving the overall visual narrative of the game.
 
-### 3. UI/UX Improvements
+### 3. UI Improvement: Comprehensive Live Stats
 
--   **Files**: `static/js/main.js`, `templates/index.html`
--   **Change 1: Smarter Team Creation Defaults**:
-    -   The team color input now defaults to a new, random, visually appealing (HSL-based) color each time a team is added, encouraging more colorful and diverse-looking games without manual user effort.
-    -   The team trait selection now defaults to "Random". The backend will assign a random trait (`Aggressive`, `Expansive`, etc.) when a team is created with this option. This aligns with the game's design goal of being a "highly random" sandbox.
--   **Benefit**: These changes streamline the setup process for the user, making it quicker to get a varied and interesting game running.
-
-### 4. Documentation
-
--   **File**: `rules.md` and `README.md`
--   **Change**: The rules have been updated to include a description of the new **[SACRIFICE] Create Whirlpool** action and to mention the "Random" trait option. The `README.md` was updated to provide a better overview of game actions and direct users to `rules.md` for details.
+-   **File**: `static/js/main.js`
+-   **Change**: The "Live Stats" panel in the UI has been significantly upgraded to show a complete list of all active special structures for each team.
+    -   Previously, it only showed counts for Runes and Prisms.
+    -   Now, it also displays real-time counts for **Bastions, Sentries, Conduits, and Nexuses**.
+-   **Benefit**: This provides players with a much better at-a-glance understanding of each team's strategic assets and strengths during the simulation, making the game easier to follow and analyze in real-time.

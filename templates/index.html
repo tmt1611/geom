@@ -105,6 +105,19 @@
             </div>
         </div>
     </div>
+
+    <div id="error-overlay" style="display: none;">
+        <div id="error-modal">
+            <h3>An Unexpected Error Occurred</h3>
+            <p>A client-side error has happened, which may stop the game from functioning correctly. You can copy the details below to report it.</p>
+            <pre id="error-details"></pre>
+            <div class="error-actions">
+                <button id="copy-error-btn">Copy Details</button>
+                <button id="close-error-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

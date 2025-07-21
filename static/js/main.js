@@ -742,6 +742,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
                 ctx.fillStyle = `rgba(255, 180, 50, ${1 - progress})`; // Orange-ish fade out
                 ctx.fill();
+            } else if (effect.type === 'point_implosion') {
+                ctx.beginPath();
+                const startRadius = 15;
+                const endRadius = 3;
+                const currentRadius = startRadius - (startRadius - endRadius) * progress;
+                ctx.arc(
+                    (effect.x + 0.5) * cellSize,
+                    (effect.y + 0.5) * cellSize,
+                    currentRadius,
+                    0, 2 * Math.PI
+                );
+                ctx.fillStyle = effect.color || `rgba(200, 180, 255, ${1 - progress})`; // Purple-ish fade out
+                ctx.fill();
             }
             
             return true; // Keep active effects
@@ -865,6 +878,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (details.type === 'create_anchor' && details.anchor_point) {
             lastActionHighlights.points.add(details.anchor_point.id);
+            if(details.sacrificed_point) {
+                 visualEffects.push({
+                    type: 'point_implosion',
+                    x: details.sacrificed_point.x,
+                    y: details.sacrificed_point.y,
+                    startTime: Date.now(),
+                    duration: 800
+                });
+            }
+        }
+        if (details.type === 'create_whirlpool' && details.sacrificed_point) {
+            visualEffects.push({
+                type: 'point_implosion',
+                x: details.sacrificed_point.x,
+                y: details.sacrificed_point.y,
+                startTime: Date.now(),
+                duration: 1200,
+                color: `rgba(150, 220, 255, ${1-0})` // Blueish for water
+            });
         }
         if (details.type === 'mirror_structure' && details.new_points) {
             details.new_points.forEach(p => lastActionHighlights.points.add(p.id));
@@ -939,7 +971,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 // The sacrificed prong is already gone, so we highlight the remaining ones
                 bastion.prong_ids.forEach(pid => lastActionHighlights.points.add(pid));
             }
-             // Visual effect for the pulse itself could be added here
+            visualEffects.push({
+                type: 'point_implosion',
+                x: details.sacrificed_prong.x,
+                y: details.sacrificed_prong.y,
+                startTime: Date.now(),
+                duration: 800
+            });
+        }
+        if (details.type === 'sentry_zap' && details.destroyed_point) {
+            details.sentry_points.forEach(pid => lastActionHighlights.points.add(pid));
+             visualEffects.push({
+                type: 'attack_ray',
+                p1: details.attack_ray.p1,
+                p2: details.attack_ray.p2,
+                startTime: Date.now(),
+                duration: 400,
+                color: `rgba(255, 100, 100, ${1-0})`,
+                lineWidth: 2
+            });
+            visualEffects.push({
+                type: 'point_explosion',
+                x: details.destroyed_point.x,
+                y: details.destroyed_point.y,
+                startTime: Date.now(),
+                duration: 600
+            });
         }
         if (details.type === 'cultivate_heartwood' && details.heartwood) {
             // Highlight sacrificed points
@@ -1186,7 +1243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms, sentries, conduits, nexuses, bastions } = gameState;
 
         let turnText = `Turn: ${turn} / ${max_turns}`;
         if (game_phase === 'RUNNING' && actions_queue_this_turn && actions_queue_this_turn.length > 0) {
@@ -1209,17 +1266,25 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${stats.controlled_area} area`;
                     
                     const teamRunes = runes[teamId] || {};
-                    const teamPrisms = prisms[teamId] || [];
-                    const crossRunesCount = teamRunes.cross ? teamRunes.cross.length : 0;
-                    const vRunesCount = teamRunes.v_shape ? teamRunes.v_shape.length : 0;
-                    const prismCount = teamPrisms.length;
+                    const allStructures = {
+                        'Cross': teamRunes.cross ? teamRunes.cross.length : 0,
+                        'V-Rune': teamRunes.v_shape ? teamRunes.v_shape.length : 0,
+                        'Prism': (prisms && prisms[teamId]) ? prisms[teamId].length : 0,
+                        'Sentry': (sentries && sentries[teamId]) ? sentries[teamId].length : 0,
+                        'Conduit': (conduits && conduits[teamId]) ? conduits[teamId].length : 0,
+                        'Nexus': (nexuses && nexuses[teamId]) ? nexuses[teamId].length : 0,
+                        'Bastion': Object.values(bastions || {}).filter(b => b.teamId === teamId).length
+                    };
 
-                    if (crossRunesCount > 0 || vRunesCount > 0 || prismCount > 0) {
-                        let structureStrings = [];
-                        if (crossRunesCount > 0) structureStrings.push(`Cross (${crossRunesCount})`);
-                        if (vRunesCount > 0) structureStrings.push(`V-Shape (${vRunesCount})`);
-                        if (prismCount > 0) structureStrings.push(`Prism (${prismCount})`);
-                        teamHTML += `<br/><span style="font-size: 0.9em; padding-left: 10px;">Structures: ${structureStrings.join(', ')}</span>`;
+                    let structureStrings = [];
+                    for (const [name, count] of Object.entries(allStructures)) {
+                        if (count > 0) {
+                            structureStrings.push(`${name}(${count})`);
+                        }
+                    }
+
+                    if (structureStrings.length > 0) {
+                        teamHTML += `<br/><span style="font-size: 0.9em; padding-left: 10px;">Formations: ${structureStrings.join(', ')}</span>`;
                     }
 
                     teamHTML += `</div>`;
@@ -1691,6 +1756,45 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- Initialization and Update Checker ---
 
+    function setupErrorHandling() {
+        const errorOverlay = document.getElementById('error-overlay');
+        const errorDetails = document.getElementById('error-details');
+        const copyErrorBtn = document.getElementById('copy-error-btn');
+        const closeErrorBtn = document.getElementById('close-error-btn');
+    
+        window.onerror = function (message, source, lineno, colno, error) {
+            // Stop any game loops
+            stopAutoPlay();
+            
+            const errorText = `Error: ${message}\nSource: ${source}\nLine: ${lineno}, Column: ${colno}\nStack: ${error ? error.stack : 'N/A'}`;
+            errorDetails.textContent = errorText;
+            errorOverlay.style.display = 'flex';
+            return true; // Prevents the default browser error handling
+        };
+        
+        // Also catch promise rejections
+        window.addEventListener('unhandledrejection', event => {
+            stopAutoPlay();
+            const errorText = `Unhandled Promise Rejection:\nReason: ${event.reason}`;
+            errorDetails.textContent = errorText;
+            errorOverlay.style.display = 'flex';
+        });
+    
+        closeErrorBtn.addEventListener('click', () => {
+            errorOverlay.style.display = 'none';
+        });
+    
+        copyErrorBtn.addEventListener('click', () => {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(errorDetails.textContent).then(() => {
+                    showTemporaryButtonFeedback(copyErrorBtn, 'Copied!', 1000);
+                }).catch(err => {
+                    alert('Could not copy error details.');
+                });
+            }
+        });
+    }
+
     function checkForUpdates() {
         setInterval(async () => {
             try {
@@ -1711,6 +1815,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function init() {
         setNewTeamDefaults();
+        setupErrorHandling();
 
         // --- Live grid size update ---
         gridSizeInput.addEventListener('input', () => {
