@@ -134,6 +134,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.lineTo(cx - size, cy); // Left
                     ctx.closePath();
                     ctx.fill();
+                } else if (p.is_sentry_eye) {
+                    // Draw Sentry eyes as a circle with a dot
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius * 0.4, 0, 2 * Math.PI);
+                    ctx.fill();
+                } else if (p.is_sentry_post) {
+                    // Draw Sentry posts as smaller circles
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius * 0.7, 0, 2 * Math.PI);
+                    ctx.fill();
                 } else if (p.is_anchor) {
                     // Draw anchors as squares
                     const squareSize = radius * 1.8;
@@ -141,6 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.fill();
                 } else {
                     // Draw normal points as circles
+                    ctx.beginPath();
                     ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
                     ctx.fill();
                 }
@@ -382,6 +397,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.stroke();
                     ctx.restore();
                 }
+            } else if (effect.type === 'point_explosion') {
+                ctx.beginPath();
+                const startRadius = 5;
+                const endRadius = 15;
+                const currentRadius = startRadius + (endRadius - startRadius) * progress;
+                ctx.arc(
+                    (effect.x + 0.5) * cellSize,
+                    (effect.y + 0.5) * cellSize,
+                    currentRadius,
+                    0, 2 * Math.PI
+                );
+                ctx.fillStyle = `rgba(255, 180, 50, ${1 - progress})`; // Orange-ish fade out
+                ctx.fill();
             }
             
             return true; // Keep active effects

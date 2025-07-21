@@ -107,6 +107,16 @@ class Game:
         # Augment points with anchor and fortified status
         fortified_point_ids = self._get_fortified_point_ids()
         bastion_point_ids = self._get_bastion_point_ids()
+        
+        # Get all Sentry point IDs for quick lookup
+        sentry_eye_ids = set()
+        sentry_post_ids = set()
+        for team_sentries in self.state.get('sentries', {}).values():
+            for sentry in team_sentries:
+                sentry_eye_ids.add(sentry['eye_id'])
+                sentry_post_ids.add(sentry['post1_id'])
+                sentry_post_ids.add(sentry['post2_id'])
+
         augmented_points = {}
         for pid, point in self.state['points'].items():
             augmented_point = point.copy()
@@ -114,6 +124,8 @@ class Game:
             augmented_point['is_fortified'] = pid in fortified_point_ids
             augmented_point['is_bastion_core'] = pid in bastion_point_ids['cores']
             augmented_point['is_bastion_prong'] = pid in bastion_point_ids['prongs']
+            augmented_point['is_sentry_eye'] = pid in sentry_eye_ids
+            augmented_point['is_sentry_post'] = pid in sentry_post_ids
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
 
@@ -211,6 +223,48 @@ class Game:
                 if line_key in all_lines_by_points:
                     bastion_lines.add(all_lines_by_points[line_key])
         return bastion_lines
+
+    def _delete_point_and_connections(self, point_id):
+        """A robust helper to delete a point and handle all cascading effects."""
+        if point_id not in self.state['points']:
+            return None # Point already gone
+
+        # 1. Delete the point object itself, returning its data
+        deleted_point_data = self.state['points'].pop(point_id)
+
+        # 2. Remove connected lines (and their shields)
+        lines_before = self.state['lines'][:]
+        self.state['lines'] = []
+        for l in lines_before:
+            if point_id in (l['p1_id'], l['p2_id']):
+                self.state['shields'].pop(l.get('id'), None)
+            else:
+                self.state['lines'].append(l)
+
+        # 3. Remove territories that used this point
+        self.state['territories'] = [t for t in self.state['territories'] if point_id not in t['point_ids']]
+
+        # 4. Handle anchors
+        self.state['anchors'].pop(point_id, None)
+
+        # 5. Handle bastions
+        bastions_to_dissolve = []
+        for bastion_id, bastion in list(self.state['bastions'].items()):
+            if bastion['core_id'] == point_id:
+                # Core is gone, bastion dissolves completely
+                bastions_to_dissolve.append(bastion_id)
+            elif point_id in bastion['prong_ids']:
+                # A prong is gone, update the bastion
+                bastion['prong_ids'].remove(point_id)
+                # If bastion has too few prongs, it dissolves
+                if len(bastion['prong_ids']) < 2:
+                    bastions_to_dissolve.append(bastion_id)
+        
+        for bastion_id in bastions_to_dissolve:
+            if bastion_id in self.state['bastions']:
+                del self.state['bastions'][bastion_id]
+        
+        return deleted_point_data
 
     # --- Game Actions ---
 
@@ -445,58 +499,48 @@ class Game:
     def sacrifice_action_nova_burst(self, teamId):
         """[SACRIFICE ACTION]: A point is destroyed, removing nearby enemy lines."""
         team_point_ids = self.get_team_point_ids(teamId)
-        # A team should not sacrifice down to a single point, as it's too risky.
         if len(team_point_ids) <= 2:
             return {'success': False, 'reason': 'not enough points to sacrifice safely'}
 
         sac_point_id = random.choice(team_point_ids)
-        sac_point = self.state['points'][sac_point_id]
+        # We must copy the point's data before it's deleted by the helper function.
+        sac_point_coords = self.state['points'][sac_point_id].copy()
         
         # Define the blast radius (squared for efficiency)
         blast_radius_sq = (self.state['grid_size'] * 0.25)**2 
 
-        lines_to_remove = []
-        points_to_check = self.state['points']
-
-        # 1. Remove all lines connected to the sacrificed point
-        for line in self.state['lines']:
-            if line['p1_id'] == sac_point_id or line['p2_id'] == sac_point_id:
-                lines_to_remove.append(line)
+        # Temporarily store lines connected to the sacrificed point to count them later
+        connected_lines_before = [l for l in self.state['lines'] if sac_point_id in (l['p1_id'], l['p2_id'])]
         
-        # 2. Remove nearby enemy lines
+        # 1. Sacrifice the point and its direct connections/structures
+        self._delete_point_and_connections(sac_point_id)
+        
+        # 2. Find and remove nearby enemy lines that still exist
+        lines_to_remove_by_proximity = []
+        points_to_check = self.state['points']
         bastion_line_ids = self._get_bastion_line_ids()
-        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId and l not in lines_to_remove]
+        # Only check enemy lines that are still in the game state
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+
         for line in enemy_lines:
-            # Check if line points exist
-            if not (line['p1_id'] in points_to_check and line['p2_id'] in points_to_check):
-                continue
-
-            # Bastion lines are immune to nova burst
-            if line.get('id') in bastion_line_ids:
-                continue
-
+            if line.get('id') in bastion_line_ids: continue
+            if not (line['p1_id'] in points_to_check and line['p2_id'] in points_to_check): continue
+            
             p1 = points_to_check[line['p1_id']]
             p2 = points_to_check[line['p2_id']]
 
-            # Check if either end of the enemy line is within the blast radius
-            if distance_sq(sac_point, p1) < blast_radius_sq or distance_sq(sac_point, p2) < blast_radius_sq:
-                 if line not in lines_to_remove:
-                    lines_to_remove.append(line)
-
-        if not lines_to_remove:
-             # Even if no lines are destroyed, the point is still sacrificed
-             pass
+            if distance_sq(sac_point_coords, p1) < blast_radius_sq or distance_sq(sac_point_coords, p2) < blast_radius_sq:
+                lines_to_remove_by_proximity.append(line)
 
         # Perform removals
-        for l in lines_to_remove:
-            self.state['shields'].pop(l.get('id'), None) # Remove shield if line is destroyed
-        self.state['lines'] = [l for l in self.state['lines'] if l not in lines_to_remove]
-        del self.state['points'][sac_point_id]
+        for l in lines_to_remove_by_proximity:
+            self.state['shields'].pop(l.get('id'), None)
         
-        # Also remove any territories that used this point
-        self.state['territories'] = [t for t in self.state['territories'] if sac_point_id not in t['point_ids']]
+        self.state['lines'] = [l for l in self.state['lines'] if l not in lines_to_remove_by_proximity]
+        
+        total_destroyed = len(connected_lines_before) + len(lines_to_remove_by_proximity)
 
-        return {'success': True, 'type': 'nova_burst', 'sacrificed_point': sac_point, 'lines_destroyed': len(lines_to_remove)}
+        return {'success': True, 'type': 'nova_burst', 'sacrificed_point': sac_point_coords, 'lines_destroyed': total_destroyed}
 
     def expand_action_spawn_point(self, teamId):
         """[EXPAND ACTION]: Creates a new point near an existing one. A last resort action."""
@@ -887,14 +931,10 @@ class Game:
         # Ensure they are not the same point
         p_to_sac_id, p_to_anchor_id = random.sample(team_point_ids, 2)
         
-        # 1. Sacrifice the first point
-        sacrificed_point = self.state['points'].pop(p_to_sac_id)
-
-        # Also remove any lines or territories that used the sacrificed point
-        self.state['lines'] = [l for l in self.state['lines'] if p_to_sac_id not in (l['p1_id'], l['p2_id'])]
-        self.state['territories'] = [t for t in self.state['territories'] if p_to_sac_id not in t['point_ids']]
-        self.state['shields'].pop(p_to_sac_id, None) # A point ID can't be a line ID, but good practice
-        self.state['anchors'].pop(p_to_sac_id, None) # Can't sacrifice an anchor to make another
+        # 1. Sacrifice the first point using the robust helper
+        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id)
+        if not sacrificed_point_data:
+             return {'success': False, 'reason': 'failed to sacrifice point'}
 
         # 2. Create the anchor
         anchor_duration = 5 # turns
@@ -906,7 +946,7 @@ class Game:
             'success': True, 
             'type': 'create_anchor', 
             'anchor_point': anchor_point,
-            'sacrificed_point': sacrificed_point
+            'sacrificed_point': sacrificed_point_data
         }
 
     def fight_action_convert_point(self, teamId):
@@ -973,34 +1013,30 @@ class Game:
         if len(bastion_to_pulse['prong_ids']) == 0:
              return {'success': False, 'reason': 'bastion has no prongs to sacrifice'}
 
-        # 1. Sacrifice a prong point
+        # 1. Sacrifice a prong point using the robust helper.
+        # This also updates the bastion state (removes prong, may dissolve bastion).
         prong_to_sac_id = random.choice(bastion_to_pulse['prong_ids'])
-        sacrificed_prong = self.state['points'].pop(prong_to_sac_id, None)
-        if not sacrificed_prong: # Should not happen, but defensive
+        sacrificed_prong_data = self._delete_point_and_connections(prong_to_sac_id)
+
+        if not sacrificed_prong_data: # Should not happen, but defensive
             return {'success': False, 'reason': 'selected prong point does not exist'}
+        
+        # After deletion, bastion might no longer exist in the state, so we get a fresh reference
+        current_bastion_state = self.state['bastions'].get(bastion_to_pulse['id'])
 
-        # Update bastion state
-        bastion_to_pulse['prong_ids'].remove(prong_to_sac_id)
-
-        # Also remove any lines connected to the sacrificed prong
-        lines_before_pulse = self.state['lines'][:]
-        self.state['lines'] = [l for l in lines_before_pulse if prong_to_sac_id not in (l['p1_id'], l['p2_id'])]
-        for l in lines_before_pulse:
-             if prong_to_sac_id in (l['p1_id'], l['p2_id']):
-                 self.state['shields'].pop(l.get('id'), None)
-
-        # If bastion has fewer than 2 prongs left, it dissolves. The core remains fortified.
-        if len(bastion_to_pulse['prong_ids']) < 2:
-            del self.state['bastions'][bastion_to_pulse['id']]
+        # If bastion was dissolved, we can't pulse. But the sacrifice is already done.
+        # This is a fair outcome of the action. The pulse fizzles.
+        if not current_bastion_state:
+             return {'success': True, 'type': 'bastion_pulse', 'sacrificed_prong': sacrificed_prong_data, 'lines_destroyed': [], 'bastion_id': bastion_to_pulse['id']}
 
         # 2. Define the bastion's perimeter polygon for checking intersections
         points_map = self.state['points']
-        prong_points = [points_map[pid] for pid in bastion_to_pulse['prong_ids'] if pid in points_map]
+        prong_points = [points_map[pid] for pid in current_bastion_state['prong_ids'] if pid in points_map]
         
-        # Sort points angularly to form a correct simple polygon
         if len(prong_points) < 2: # Need at least a line to check against
-             return {'success': True, 'type': 'bastion_pulse', 'sacrificed_prong': sacrificed_prong, 'lines_destroyed': [], 'bastion_id': bastion_to_pulse['id']}
+             return {'success': True, 'type': 'bastion_pulse', 'sacrificed_prong': sacrificed_prong_data, 'lines_destroyed': [], 'bastion_id': bastion_to_pulse['id']}
 
+        # Sort points angularly to form a correct simple polygon
         centroid = {
             'x': sum(p['x'] for p in prong_points) / len(prong_points),
             'y': sum(p['y'] for p in prong_points) / len(prong_points),
@@ -1034,9 +1070,90 @@ class Game:
         return {
             'success': True,
             'type': 'bastion_pulse',
-            'sacrificed_prong': sacrificed_prong,
+            'sacrificed_prong': sacrificed_prong_data,
             'lines_destroyed': lines_destroyed,
             'bastion_id': bastion_to_pulse['id']
+        }
+
+    def fight_action_sentry_zap(self, teamId):
+        """[FIGHT ACTION]: A sentry fires a short beam to destroy an enemy point."""
+        team_sentries = self.state.get('sentries', {}).get(teamId, [])
+        if not team_sentries:
+            return {'success': False, 'reason': 'no active sentries'}
+
+        sentry = random.choice(team_sentries)
+        points = self.state['points']
+        
+        p_eye = points[sentry['eye_id']]
+        p_post1 = points[sentry['post1_id']]
+        
+        # Vector of the sentry's alignment
+        vx = p_post1['x'] - p_eye['x']
+        vy = p_post1['y'] - p_eye['y']
+        
+        # Perpendicular vector (for the zap)
+        zap_vx, zap_vy = -vy, vx
+        
+        zap_range_sq = (self.state['grid_size'] * 0.35)**2
+        
+        # Check both directions of the perpendicular
+        possible_targets = []
+        for direction in [1, -1]:
+            zap_dir_x = zap_vx * direction
+            zap_dir_y = zap_vy * direction
+            
+            # Find all enemy points
+            enemy_points = [p for p in points.values() if p['teamId'] != teamId]
+            
+            for enemy_p in enemy_points:
+                # Vector from eye to enemy
+                enemy_vx = enemy_p['x'] - p_eye['x']
+                enemy_vy = enemy_p['y'] - p_eye['y']
+                
+                # Check if enemy is within range
+                if (enemy_vx**2 + enemy_vy**2) > zap_range_sq:
+                    continue
+
+                # Check for near-collinearity with the zap vector using cross product
+                cross_product = zap_dir_x * enemy_vy - zap_dir_y * enemy_vx
+                
+                # Also check dot product to ensure it's in the correct direction
+                dot_product = zap_dir_x * enemy_vx + zap_dir_y * enemy_vy
+
+                # Allow for a small tolerance: point can be within 0.5 units of the ray
+                # Distance from point to line is |cross_product| / |zap_dir|
+                mag_zap_dir_sq = zap_dir_x**2 + zap_dir_y**2
+                if mag_zap_dir_sq == 0: continue
+                
+                distance_from_ray_sq = cross_product**2 / mag_zap_dir_sq
+                
+                if distance_from_ray_sq < 0.5**2 and dot_product > 0:
+                    possible_targets.append(enemy_p)
+
+        if not possible_targets:
+            return {'success': False, 'reason': 'no enemy point in zap path'}
+            
+        # Find the closest target among the possibilities
+        target_point = min(possible_targets, key=lambda p: distance_sq(p_eye, p))
+
+        # Destroy the point and all its connections
+        destroyed_point_data = self._delete_point_and_connections(target_point['id'])
+        if not destroyed_point_data:
+            return {'success': False, 'reason': 'failed to destroy target point'}
+
+        # Create data for the visual effect
+        zap_ray_p1 = p_eye
+        # For visualization, find where the ray to the target would hit a border
+        zap_ray_end = self._get_extended_border_point(p_eye, target_point)
+        if not zap_ray_end: # Should not happen if target is found
+            zap_ray_end = target_point
+        
+        return {
+            'success': True,
+            'type': 'sentry_zap',
+            'destroyed_point': destroyed_point_data,
+            'sentry_points': [sentry['eye_id'], sentry['post1_id'], sentry['post2_id']],
+            'attack_ray': {'p1': zap_ray_p1, 'p2': zap_ray_end}
         }
 
     def rune_action_shoot_bisector(self, teamId):
@@ -1141,11 +1258,13 @@ class Game:
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'defend_shield': self.shield_action_protect_line,
             'rune_shoot_bisector': self.rune_action_shoot_bisector,
+            'fight_sentry_zap': self.fight_action_sentry_zap,
         }
 
         # --- Evaluate possible actions based on game state and exclusion list ---
         possible_actions = []
         action_preconditions = {
+            'fight_sentry_zap': bool(self.state.get('sentries', {}).get(teamId, [])),
             'expand_add': len(team_point_ids) >= 2,
             'expand_extend': bool(team_lines),
             'expand_grow': bool(team_lines),
@@ -1175,13 +1294,13 @@ class Game:
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
-            'fight_attack': 10, 'fight_convert': 8, 'fight_bastion_pulse': 15,
+            'fight_attack': 10, 'fight_convert': 8, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7,
             'sacrifice_nova': 3, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
-            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0},
+            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0},
             'Balanced':   {}
@@ -1310,8 +1429,9 @@ class Game:
         # Get the current team to act
         teamId = self.state['active_teams_this_turn'][self.state['action_in_turn']]
         
-        # Update runes for the current team before it acts
+        # Update runes and other special structures for the current team before it acts
         self._update_runes_for_team(teamId)
+        self._update_sentries_for_team(teamId)
 
         team_name = self.state['teams'][teamId]['name']
         
@@ -1401,6 +1521,10 @@ class Game:
             elif action_type == 'rune_shoot_bisector':
                 log_message += "unleashed a powerful beam from a V-Rune, destroying an enemy line."
                 short_log_message = "[V-BEAM!]"
+            elif action_type == 'sentry_zap':
+                destroyed_point_team_name = self.state['teams'][result['destroyed_point']['teamId']]['name']
+                log_message += f"fired a precision shot from a Sentry, obliterating a point from Team {destroyed_point_team_name}."
+                short_log_message = "[ZAP!]"
             else:
                 log_message += "performed a successful action."
                 short_log_message = "[ACTION]"
@@ -1567,6 +1691,42 @@ class Game:
         
         self.state['runes'][teamId]['cross'] = self._check_cross_rune(teamId)
         self.state['runes'][teamId]['v_shape'] = self._check_v_rune(teamId)
+
+    def _update_sentries_for_team(self, teamId):
+        """Checks for Sentry formations (3 collinear points with lines)."""
+        if 'sentries' not in self.state: self.state['sentries'] = {}
+        self.state['sentries'][teamId] = [] # Recalculate each time
+        
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 3:
+            return
+
+        points = self.state['points']
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
+        
+        for p_ids in combinations(team_point_ids, 3):
+            # Ensure all points still exist before lookup
+            if not all(pid in points for pid in p_ids): continue
+            p1, p2, p3 = points[p_ids[0]], points[p_ids[1]], points[p_ids[2]]
+
+            # Check for collinearity
+            if orientation(p1, p2, p3) == 0:
+                # Identify the middle point ('eye')
+                eye, post1, post2 = None, None, None
+                if on_segment(p1, p2, p3): eye, post1, post2 = p2, p1, p3
+                elif on_segment(p2, p1, p3): eye, post1, post2 = p1, p2, p3
+                elif on_segment(p1, p3, p2): eye, post1, post2 = p3, p1, p2
+                
+                if eye:
+                    # Check if lines from eye to posts exist
+                    line1_exists = tuple(sorted((eye['id'], post1['id']))) in existing_lines
+                    line2_exists = tuple(sorted((eye['id'], post2['id']))) in existing_lines
+                    if line1_exists and line2_exists:
+                        self.state['sentries'][teamId].append({
+                            'eye_id': eye['id'],
+                            'post1_id': post1['id'],
+                            'post2_id': post2['id'],
+                        })
 
     def _check_v_rune(self, teamId):
         """Finds all 'V' shapes for a team.
