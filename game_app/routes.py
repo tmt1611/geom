@@ -44,8 +44,16 @@ def start_game():
     game_logic.game.start_game(teams, points, max_turns, grid_size)
     return jsonify(game_logic.game.get_state())
 
-@main_routes.route('/api/game/next_turn', methods=['POST'])
-def next_turn():
-    """Processes the next turn."""
-    game_logic.game.run_next_turn()
+@main_routes.route('/api/game/restart', methods=['POST'])
+def restart_game():
+    """Restarts the simulation with the same initial settings."""
+    result = game_logic.game.restart_game()
+    if "error" in result:
+        return jsonify(result), 400
+    return jsonify(result)
+
+@main_routes.route('/api/game/next_action', methods=['POST'])
+def next_action():
+    """Processes the next single action in a turn."""
+    game_logic.game.run_next_action()
     return jsonify(game_logic.game.get_state())

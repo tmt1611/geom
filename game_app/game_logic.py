@@ -71,7 +71,10 @@ class Game:
             "victory_condition": None,
             "sole_survivor_tracker": {'teamId': None, 'turns': 0},
             "interpretation": {},
-            "last_action_details": {} # For frontend visualization
+            "last_action_details": {}, # For frontend visualization
+            "initial_state": None, # Store the setup config for restarts
+            "action_in_turn": 0, # Which team's action in the current turn
+            "active_teams_this_turn": [] # List of team IDs for the current turn
         }
 
     def get_state(self):
@@ -80,15 +83,15 @@ class Game:
         if self.state['game_phase'] == 'FINISHED' and not self.state['interpretation']:
             self.state['interpretation'] = self.calculate_interpretation()
 
+        # Create a copy to avoid modifying original state
+        state_copy = self.state.copy()
+        
         # Augment lines with shield status for easier rendering
         augmented_lines = []
         for line in self.state['lines']:
             augmented_line = line.copy()
             augmented_line['is_shielded'] = line.get('id') in self.state['shields']
             augmented_lines.append(augmented_line)
-
-        # Create a copy to avoid modifying original state
-        state_copy = self.state.copy()
         state_copy['lines'] = augmented_lines
 
         # Augment points with anchor status
@@ -144,6 +147,16 @@ class Game:
         self.state['grid_size'] = grid_size
         self.state['game_phase'] = "RUNNING" if len(points) > 0 else "SETUP"
         self.state['game_log'].append({'message': "Game initialized."})
+        self.state['action_in_turn'] = 0
+        self.state['active_teams_this_turn'] = []
+        
+        # Store the initial state for restarting
+        self.state['initial_state'] = {
+            'teams': self.state['teams'],
+            'points': points, # Use original point list before IDs are added
+            'max_turns': max_turns,
+            'grid_size': grid_size
+        }
 
     def get_team_point_ids(self, teamId):
         """Returns IDs of points belonging to a team."""
@@ -240,6 +253,60 @@ class Game:
         new_point = {**border_point, "teamId": teamId, "id": new_point_id}
         self.state['points'][new_point_id] = new_point
         return {'success': True, 'type': 'extend_line', 'new_point': new_point}
+
+    def expand_action_fracture_line(self, teamId):
+        """[EXPAND ACTION]: Splits a line into two, creating a new point."""
+        team_lines = self.get_team_lines(teamId)
+        if not team_lines:
+            return {'success': False, 'reason': 'no lines to fracture'}
+
+        # Try a few times to find a suitable line
+        for _ in range(5):
+            line_to_fracture = random.choice(team_lines)
+            
+            points = self.state['points']
+            if line_to_fracture['p1_id'] not in points or line_to_fracture['p2_id'] not in points:
+                continue # This line's points are gone, try another
+
+            p1 = points[line_to_fracture['p1_id']]
+            p2 = points[line_to_fracture['p2_id']]
+
+            # Don't fracture very short lines
+            if distance_sq(p1, p2) < 4.0: # min length of 2
+                continue
+
+            # Find a new point on the segment
+            ratio = random.uniform(0.25, 0.75)
+            new_x = p1['x'] + (p2['x'] - p1['x']) * ratio
+            new_y = p1['y'] + (p2['y'] - p1['y']) * ratio
+
+            # Create new point
+            new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+            new_point = {"x": new_x, "y": new_y, "teamId": teamId, "id": new_point_id}
+            self.state['points'][new_point_id] = new_point
+
+            # Remove old line and its potential shield
+            self.state['lines'].remove(line_to_fracture)
+            self.state['shields'].pop(line_to_fracture.get('id'), None)
+
+            # Create two new lines
+            line_id_1 = f"l_{uuid.uuid4().hex[:6]}"
+            new_line_1 = {"id": line_id_1, "p1_id": line_to_fracture['p1_id'], "p2_id": new_point_id, "teamId": teamId}
+            line_id_2 = f"l_{uuid.uuid4().hex[:6]}"
+            new_line_2 = {"id": line_id_2, "p1_id": new_point_id, "p2_id": line_to_fracture['p2_id'], "teamId": teamId}
+            self.state['lines'].extend([new_line_1, new_line_2])
+
+            return {
+                'success': True, 
+                'type': 'fracture_line', 
+                'new_point': new_point, 
+                'new_line1': new_line_1,
+                'new_line2': new_line_2,
+                'old_line': line_to_fracture
+            }
+        
+        return {'success': False, 'reason': 'line is too short to fracture'}
+
 
     def fight_action_attack_line(self, teamId):
         """[FIGHT ACTION]: Extend a line to hit an enemy line, destroying it."""
@@ -678,8 +745,12 @@ class Game:
         # 3. Expand (grow line)
         if team_lines:
             possible_actions.append('expand_grow')
+        
+        # 4. Expand (fracture line)
+        if team_lines:
+            possible_actions.append('expand_fracture')
 
-        # 4. Fight (attack line)
+        # 5. Fight (attack line)
         has_enemy_lines = any(l['teamId'] != teamId for l in self.state['lines'])
         if team_lines and has_enemy_lines:
             possible_actions.append('fight_attack')
@@ -721,6 +792,7 @@ class Game:
             'expand_add': self.expand_action_add_line,
             'expand_extend': self.expand_action_extend_line,
             'expand_grow': self.expand_action_grow_line,
+            'expand_fracture': self.expand_action_fracture_line,
             'fight_attack': self.fight_action_attack_line,
             'fight_convert': self.fight_action_convert_point,
             'fortify_claim': self.fortify_action_claim_territory,
@@ -732,13 +804,13 @@ class Game:
 
         # Base weights for actions
         base_weights = {
-            'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'fight_attack': 10, 'fight_convert': 8,
+            'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'fight_attack': 10, 'fight_convert': 8,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'sacrifice_nova': 3, 'defend_shield': 8,
         }
         
         trait_multipliers = {
             'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5},
-            'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'fortify_claim': 0.5, 'fortify_mirror': 2.0},
+            'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5},
             'Balanced':   {}
         }
@@ -759,155 +831,68 @@ class Game:
         return action_map[chosen_action_name]
 
 
-    def run_next_turn(self):
-        """Runs one turn of the game."""
-        if self.state['game_phase'] != 'RUNNING':
-            return
+    def restart_game(self):
+        """Restarts the game from its initial configuration."""
+        if not self.state.get('initial_state'):
+            return {"error": "No initial state saved to restart from."}
+        
+        initial_config = self.state['initial_state']
+        
+        # We need to create fresh copies of mutable objects
+        teams = {tid: t.copy() for tid, t in initial_config['teams'].items()}
+        points = [p.copy() for p in initial_config['points']]
 
+        self.start_game(
+            teams=teams,
+            points=points,
+            max_turns=initial_config['max_turns'],
+            grid_size=initial_config['grid_size']
+        )
+        return self.get_state()
+
+    def _start_new_turn(self):
+        """Performs start-of-turn maintenance and identifies active teams."""
         self.state['turn'] += 1
+        self.state['action_in_turn'] = 0
         
         # --- Start of Turn Maintenance ---
-        
         # 1. Manage shields
-        expired_shields = []
-        for line_id, turns_left in list(self.state['shields'].items()):
-            self.state['shields'][line_id] = turns_left - 1
-            if self.state['shields'][line_id] <= 0:
-                expired_shields.append(line_id)
-        for line_id in expired_shields:
-            if line_id in self.state['shields']:
-                del self.state['shields'][line_id]
+        expired_shields = [lid for lid, turns in self.state['shields'].items() if turns - 1 <= 0]
+        self.state['shields'] = {lid: turns - 1 for lid, turns in self.state['shields'].items() if turns - 1 > 0}
 
         # 2. Process anchors
         expired_anchors = []
-        pull_strength = 0.2  # How strongly points are pulled each turn
+        pull_strength = 0.2
         grid_size = self.state['grid_size']
         for anchor_pid, anchor_data in list(self.state['anchors'].items()):
             if anchor_pid not in self.state['points']:
                 expired_anchors.append(anchor_pid)
                 continue
-
+            
             anchor_point = self.state['points'][anchor_pid]
             anchor_radius_sq = (grid_size * 0.4)**2
+            for point in self.state['points'].values():
+                if point['teamId'] != anchor_data['teamId'] and distance_sq(anchor_point, point) < anchor_radius_sq:
+                    dx, dy = anchor_point['x'] - point['x'], anchor_point['y'] - point['y']
+                    point['x'] = max(0, min(grid_size - 1, point['x'] + dx * pull_strength))
+                    point['y'] = max(0, min(grid_size - 1, point['y'] + dy * pull_strength))
 
-            # Find all enemy points within the radius
-            for pid, point in self.state['points'].items():
-                if point['teamId'] != anchor_data['teamId']:
-                    if distance_sq(anchor_point, point) < anchor_radius_sq:
-                        # Pull the point towards the anchor
-                        dx = anchor_point['x'] - point['x']
-                        dy = anchor_point['y'] - point['y']
-                        
-                        point['x'] += dx * pull_strength
-                        point['y'] += dy * pull_strength
-
-                        # Clamp to grid boundaries
-                        point['x'] = max(0, min(grid_size - 1, point['x']))
-                        point['y'] = max(0, min(grid_size - 1, point['y']))
-
-            # Decrement anchor life
             anchor_data['turns_left'] -= 1
             if anchor_data['turns_left'] <= 0:
                 expired_anchors.append(anchor_pid)
-
         for anchor_pid in expired_anchors:
-            if anchor_pid in self.state['anchors']:
-                del self.state['anchors'][anchor_pid]
+            if anchor_pid in self.state['anchors']: del self.state['anchors'][anchor_pid]
 
-        # --- End of Maintenance ---
-
-        self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---"})
-        self.state['last_action_details'] = {} # Reset visualizer
-
+        # --- Set up active teams for the turn ---
         active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
-        if not active_teams:
-            self.state['game_phase'] = 'FINISHED'
-            self.state['victory_condition'] = "Extinction"
-            self.state['game_log'].append({'message': "All teams have been eliminated. Game over."})
-            return
+        random.shuffle(active_teams) # Randomize action order each turn
+        self.state['active_teams_this_turn'] = active_teams
+        self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---"})
 
-        for teamId in active_teams:
-            team_name = self.state['teams'][teamId]['name']
-            
-            action_to_perform = self._choose_action_for_team(teamId)
-            
-            if not action_to_perform:
-                log_message = f"Team {team_name} had no possible actions."
-                self.state['game_log'].append({'teamId': teamId, 'message': log_message})
-                continue # Skip to next team
-
-            result = action_to_perform(teamId)
-
-            if result.get('success'):
-                # Store details for frontend visualization
-                self.state['last_action_details'] = result
-
-            # Log the result
-            log_message = f"Team {team_name} "
-            if result.get('success'):
-                action_type = result.get('type')
-                if action_type == 'add_line':
-                    log_message += "connected two points."
-                elif action_type == 'extend_line':
-                    log_message += "extended a line to the border, creating a new point."
-                elif action_type == 'grow_line':
-                    log_message += "grew a new branch, creating a new point."
-                elif action_type == 'attack_line':
-                    log_message += f"attacked and destroyed a line from Team {result['destroyed_team']}."
-                elif action_type == 'convert_point':
-                    log_message += f"sacrificed a line to convert a point from Team {result['original_team_name']}."
-                elif action_type == 'claim_territory':
-                    log_message += "fortified its position, claiming new territory."
-                elif action_type == 'mirror_structure':
-                    log_message += f"mirrored its structure across an axis, creating {len(result['new_points'])} new points."
-                elif action_type == 'create_anchor':
-                    log_message += "sacrificed a point to create a gravitational anchor."
-                elif action_type == 'nova_burst':
-                    log_message += f"sacrificed a point in a nova burst, destroying {result['lines_destroyed']} lines."
-                elif action_type == 'shield_line':
-                    log_message += "raised a defensive shield on one of its lines."
-                else:
-                    log_message += "performed a successful action."
-            else:
-                reason = result.get('reason', 'an unknown reason')
-                if reason == 'not enough points':
-                    log_message += "could not act (not enough points)."
-                elif reason == 'no new lines possible':
-                    log_message += "failed to add a new line (all points connected)."
-                elif reason == 'no lines to extend':
-                     log_message += "had no lines to extend."
-                elif reason == 'no lines to attack with':
-                     log_message += "had no lines to attack with."
-                elif reason == 'no enemy lines to attack':
-                    log_message += "found no enemy lines to attack."
-                elif reason == 'no target was hit':
-                    log_message += "attempted an attack but missed."
-                elif reason == 'no enemy points to convert':
-                    log_message += "found no enemy points to convert."
-                elif reason == 'no enemy points in range':
-                    log_message += "attempted to convert a point but none were in range."
-                elif reason == 'no triangles formed':
-                    log_message += "could not find any triangles to fortify."
-                elif reason == 'all triangles already claimed':
-                    log_message += "found no new territory to claim."
-                elif reason == 'could not find a valid reflection':
-                    log_message += "attempted to mirror its structure but failed to find a valid reflection."
-                elif reason == 'not enough points to create anchor':
-                    log_message += "could not create an anchor (not enough points)."
-                elif reason == 'no points to sacrifice':
-                    log_message += "had no points to sacrifice."
-                elif reason == 'no lines to shield':
-                    log_message += "could not find any lines to shield."
-                elif reason == 'all lines are already shielded':
-                    log_message += "could not shield a line (all are protected)."
-                else:
-                    log_message += f"failed an action: {reason}."
-
-            self.state['game_log'].append({'teamId': teamId, 'message': log_message})
-
-
-        # --- End of Turn: Check for Victory Conditions ---
-
+    def _check_end_of_turn_victory_conditions(self):
+        """Checks for victory conditions that are evaluated at the end of a full turn."""
+        active_teams = self.state['active_teams_this_turn']
+        
         # 1. Dominance Victory
         DOMINANCE_TURNS_REQUIRED = 3
         if len(active_teams) == 1:
@@ -924,9 +909,8 @@ class Game:
                 team_name = self.state['teams'][sole_survivor_id]['name']
                 self.state['victory_condition'] = f"Team '{team_name}' achieved dominance."
                 self.state['game_log'].append({'message': self.state['victory_condition']})
-                return # End turn processing
+                return
         else:
-            # If there isn't a single survivor, reset the tracker
             self.state['sole_survivor_tracker'] = {'teamId': None, 'turns': 0}
 
         # 2. Max Turns Reached
@@ -934,6 +918,81 @@ class Game:
             self.state['game_phase'] = 'FINISHED'
             self.state['victory_condition'] = "Max turns reached."
             self.state['game_log'].append({'message': "Max turns reached. Game finished."})
+
+    def run_next_action(self):
+        """Runs a single action for the next team in the current turn."""
+        if self.state['game_phase'] != 'RUNNING':
+            return
+
+        # Check if we need to start a new turn
+        turn_is_over = self.state['action_in_turn'] >= len(self.state['active_teams_this_turn'])
+        if turn_is_over:
+            self._start_new_turn()
+            
+            # Check for immediate extinction after maintenance and team setup
+            if not self.state['active_teams_this_turn']:
+                self.state['game_phase'] = 'FINISHED'
+                self.state['victory_condition'] = "Extinction"
+                self.state['game_log'].append({'message': "All teams have been eliminated. Game over."})
+                return
+
+        # Get the current team to act
+        teamId = self.state['active_teams_this_turn'][self.state['action_in_turn']]
+        team_name = self.state['teams'][teamId]['name']
+        
+        # --- Perform action for this team ---
+        action_to_perform = self._choose_action_for_team(teamId)
+        if not action_to_perform:
+            log_message = f"Team {team_name} had no possible actions."
+            result = {'success': False, 'reason': 'no possible actions'}
+        else:
+            result = action_to_perform(teamId)
+
+        self.state['last_action_details'] = result if result.get('success') else {}
+        
+        # Log the result
+        log_message = f"Team {team_name} "
+        if result.get('success'):
+            action_type = result.get('type')
+            if action_type == 'add_line': log_message += "connected two points."
+            elif action_type == 'extend_line': log_message += "extended a line to the border, creating a new point."
+            elif action_type == 'grow_line': log_message += "grew a new branch, creating a new point."
+            elif action_type == 'fracture_line': log_message += "fractured a line, creating a new point."
+            elif action_type == 'attack_line': log_message += f"attacked and destroyed a line from Team {result['destroyed_team']}."
+            elif action_type == 'convert_point': log_message += f"sacrificed a line to convert a point from Team {result['original_team_name']}."
+            elif action_type == 'claim_territory': log_message += "fortified its position, claiming new territory."
+            elif action_type == 'mirror_structure': log_message += f"mirrored its structure, creating {len(result['new_points'])} new points."
+            elif action_type == 'create_anchor': log_message += "sacrificed a point to create a gravitational anchor."
+            elif action_type == 'nova_burst': log_message += f"sacrificed a point in a nova burst, destroying {result['lines_destroyed']} lines."
+            elif action_type == 'shield_line': log_message += "raised a defensive shield on one of its lines."
+            else: log_message += "performed a successful action."
+        else:
+            reason = result.get('reason', 'an unknown reason')
+            if reason == 'not enough points': log_message += "could not act (not enough points)."
+            elif reason == 'no new lines possible': log_message += "failed to add a new line (all points connected)."
+            elif reason == 'line is too short to fracture': log_message += "failed to fracture a line (it was too short)."
+            elif reason == 'no lines to extend': log_message += "had no lines to extend."
+            elif reason == 'no lines to attack with': log_message += "had no lines to attack with."
+            elif reason == 'no enemy lines to attack': log_message += "found no enemy lines to attack."
+            elif reason == 'no target was hit': log_message += "attempted an attack but missed."
+            elif reason == 'no enemy points to convert': log_message += "found no enemy points to convert."
+            elif reason == 'no enemy points in range': log_message += "attempted to convert a point but none were in range."
+            elif reason == 'no triangles formed': log_message += "could not find any triangles to fortify."
+            elif reason == 'all triangles already claimed': log_message += "found no new territory to claim."
+            elif reason == 'could not find a valid reflection': log_message += "attempted to mirror its structure but failed."
+            elif reason == 'not enough points to create anchor': log_message += "could not create an anchor (not enough points)."
+            elif reason == 'no points to sacrifice': log_message += "had no points to sacrifice."
+            elif reason == 'no lines to shield': log_message += "could not find any lines to shield."
+            elif reason == 'all lines are already shielded': log_message += "could not shield a line (all are protected)."
+            else: log_message += f"failed an action: {reason}."
+        self.state['game_log'].append({'teamId': teamId, 'message': log_message})
+        
+        # Increment for next action
+        self.state['action_in_turn'] += 1
+        
+        # If this was the last action of the turn, check for victory conditions
+        if self.state['action_in_turn'] >= len(self.state['active_teams_this_turn']):
+            self._check_end_of_turn_victory_conditions()
     
     # --- Interpretation ---
 

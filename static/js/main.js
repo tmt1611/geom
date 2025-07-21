@@ -31,11 +31,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const newTeamTraitSelect = document.getElementById('new-team-trait');
     const addTeamBtn = document.getElementById('add-team-btn');
     const startGameBtn = document.getElementById('start-game-btn');
-    const nextTurnBtn = document.getElementById('next-turn-btn');
+    const nextActionBtn = document.getElementById('next-action-btn');
     const autoPlayBtn = document.getElementById('auto-play-btn');
     const autoPlaySpeedSlider = document.getElementById('auto-play-speed');
     const speedValueSpan = document.getElementById('speed-value');
     const resetBtn = document.getElementById('reset-btn');
+    const restartSimulationBtn = document.getElementById('restart-simulation-btn');
     const undoPointBtn = document.getElementById('undo-point-btn');
     const randomizePointsBtn = document.getElementById('randomize-points-btn');
     const maxTurnsInput = document.getElementById('max-turns');
@@ -302,25 +303,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function fullRender() {
-        if (!currentGameState || !currentGameState.teams) return;
-        
-        // Update grid scaling is now implicitly handled by drawGrid and cellSize updates
-        // cellSize = canvas.width / currentGameState.grid_size;
+        if (!currentGameState) return;
 
-        // Drawing functions
+        // Central drawing function, called every frame by animationLoop
         drawGrid();
-        drawTerritories(currentGameState.points, currentGameState.territories || [], currentGameState.teams);
-        drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
-        drawPoints(currentGameState.points, currentGameState.teams);
-        
-        // Draw hulls if game is finished and toggled on
-        if (currentGameState.game_phase === 'FINISHED') {
-            drawHulls(currentGameState.interpretation, currentGameState.teams);
+
+        if (currentGameState.game_phase === 'SETUP') {
+             // During setup, draw the temporary points from the local array
+             const tempPointsDict = {};
+             initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
+             drawPoints(tempPointsDict, localTeams); // Use localTeams for colors
+        } else {
+            // During RUNNING or FINISHED, draw from the official game state
+            if (currentGameState.teams) {
+                drawTerritories(currentGameState.points, currentGameState.territories || [], currentGameState.teams);
+                drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
+                drawPoints(currentGameState.points, currentGameState.teams);
+                
+                // Draw hulls if game is finished and toggled on
+                if (currentGameState.game_phase === 'FINISHED') {
+                    drawHulls(currentGameState.interpretation, currentGameState.teams);
+                }
+            }
         }
 
         drawVisualEffects();
-
-        // UI update functions are less frequent, no need to be in animation loop
     }
 
     // Main animation loop
@@ -359,6 +366,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 startTime: Date.now(),
                 duration: 500 // ms
             });
+        }
+        if (details.type === 'fracture_line' && details.new_point) {
+            lastActionHighlights.points.add(details.new_point.id);
+            lastActionHighlights.lines.add(details.new_line1.id);
+            lastActionHighlights.lines.add(details.new_line2.id);
         }
         if (details.type === 'convert_point' && details.converted_point) {
             lastActionHighlights.points.add(details.converted_point.id);
@@ -465,7 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         localTeams[teamId].color = colorInput.value;
                         localTeams[teamId].isEditing = false;
                         renderTeamsList();
-                        redrawSetupPoints(); // Update point colors
+                        // No need to call redraw, animation loop will handle it
                     }
                 };
                 
@@ -563,9 +575,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, active_teams_this_turn } = gameState;
 
-        turnCounter.textContent = `Turn: ${turn} / ${max_turns}`;
+        let turnText = `Turn: ${turn} / ${max_turns}`;
+        if (game_phase === 'RUNNING' && active_teams_this_turn && active_teams_this_turn.length > 0) {
+            turnText += ` (Action ${action_in_turn} / ${active_teams_this_turn.length})`;
+        }
+        turnCounter.textContent = turnText;
 
         // Live stats
         let statsHTML = '<h4>Live Stats</h4>';
@@ -662,12 +678,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateControls(gameState) {
         const gamePhase = gameState.game_phase;
-        document.getElementById('setup-phase').style.display = gamePhase === 'SETUP' ? 'block' : 'none';
-        document.getElementById('action-phase').style.display = gamePhase === 'RUNNING' ? 'block' : 'none';
-
+        const inSetup = gamePhase === 'SETUP';
+        const isRunning = gamePhase === 'RUNNING';
         const isFinished = gamePhase === 'FINISHED';
-        nextTurnBtn.disabled = isFinished;
-        autoPlayBtn.disabled = isFinished;
+
+        document.getElementById('setup-phase').style.display = inSetup ? 'block' : 'none';
+        document.getElementById('simulation-controls').style.display = inSetup ? 'none' : 'block';
+        
+        // Only show live controls (next, auto-play) when the simulation is actually running
+        const liveControls = document.getElementById('live-controls');
+        liveControls.style.display = isRunning ? 'block' : 'none';
+
+        // Restart button is available when running or finished
+        restartSimulationBtn.style.display = isRunning || isFinished ? 'block' : 'none';
 
         if (isFinished) {
             if (autoPlayInterval) stopAutoPlay();
@@ -715,9 +738,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Remove points associated with that team
             initialPoints = initialPoints.filter(p => p.teamId !== teamId);
             
-            // Re-render teams list and the grid
+            // Re-render teams list. Grid will update via animation loop.
             renderTeamsList();
-            redrawSetupPoints();
         }
     });
 
@@ -745,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
     undoPointBtn.addEventListener('click', () => {
         if (initialPoints.length > 0) {
             initialPoints.pop();
-            redrawSetupPoints();
+            // Grid updates via animation loop
         }
     });
 
@@ -771,22 +793,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 initialPoints.push({ x, y, teamId });
             }
         }
-        
-        // Render the changes
-        redrawSetupPoints();
+        // Grid updates via animation loop
     });
 
     function findPointAtCoord(x, y) {
         // Find the index of the point in the initialPoints array
         return initialPoints.findIndex(p => p.x === x && p.y === y);
-    }
-
-    function redrawSetupPoints() {
-        drawGrid();
-        const tempPointsDict = {};
-        // Convert the list of setup points to the dictionary format expected by drawing functions
-        initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
-        drawPoints(tempPointsDict, localTeams);
     }
 
     canvas.addEventListener('mousemove', (e) => {
@@ -828,8 +840,7 @@ document.addEventListener('DOMContentLoaded', () => {
             initialPoints.push({ x, y, teamId: selectedTeamId });
         }
         
-        // Redraw to show the change immediately
-        redrawSetupPoints();
+        // Grid will update on the next frame via animation loop.
     });
 
     startGameBtn.addEventListener('click', async () => {
@@ -853,8 +864,23 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStateAndRender(gameState);
     });
 
-    nextTurnBtn.addEventListener('click', async () => {
-        const response = await fetch('/api/game/next_turn', { method: 'POST' });
+    restartSimulationBtn.addEventListener('click', async () => {
+        if (!confirm("This will restart the simulation from the beginning with the same setup. Continue?")) {
+            return;
+        }
+        stopAutoPlay();
+        const response = await fetch('/api/game/restart', { method: 'POST' });
+        if (response.ok) {
+            const gameState = await response.json();
+            updateStateAndRender(gameState);
+        } else {
+            const error = await response.json();
+            alert(`Could not restart game: ${error.message || 'Unknown error'}`);
+        }
+    });
+
+    nextActionBtn.addEventListener('click', async () => {
+        const response = await fetch('/api/game/next_action', { method: 'POST' });
         const gameState = await response.json();
         updateStateAndRender(gameState);
     });
@@ -872,12 +898,11 @@ document.addEventListener('DOMContentLoaded', () => {
         autoPlayBtn.textContent = 'Stop';
         const delay = parseInt(autoPlaySpeedSlider.value, 10);
         autoPlayInterval = setInterval(async () => {
-            // Check if game is still running before fetching
-            if (currentGameState.game_phase === 'FINISHED') {
+            if (currentGameState.game_phase !== 'RUNNING') {
                  stopAutoPlay();
                  return;
             }
-            const response = await fetch('/api/game/next_turn', { method: 'POST' });
+            const response = await fetch('/api/game/next_action', { method: 'POST' });
             const gameState = await response.json();
             updateStateAndRender(gameState);
             if (gameState.game_phase === 'FINISHED') {

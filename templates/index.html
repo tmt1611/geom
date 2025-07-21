@@ -47,11 +47,11 @@
                 </fieldset>
                 <button id="start-game-btn" style="width:100%; padding: 10px; font-size: 1.1em; margin-top: 10px;">Start Game</button>
             </div>
-            <div id="action-phase" style="display: none;">
-                <h2>2. Game In Progress</h2>
-                 <fieldset>
-                    <legend>Controls</legend>
-                    <button id="next-turn-btn">Play Next Turn</button>
+            <div id="simulation-controls" style="display: none;">
+                <h2>2. Simulation</h2>
+                 <fieldset id="live-controls" style="display: none;">
+                    <legend>Live Controls</legend>
+                    <button id="next-action-btn">Next Action</button>
                     <button id="auto-play-btn">Auto-Play</button>
                     <div class="speed-control">
                         <label for="auto-play-speed">Speed:</label>
@@ -59,9 +59,10 @@
                         <span id="speed-value">500ms</span>
                     </div>
                 </fieldset>
+                <button id="restart-simulation-btn" style="width:100%; margin-top: 10px; display:none;">Restart Simulation</button>
             </div>
             <hr style="width: 100%; border-color: #dfe4ea; border-style: solid; margin: 15px 0;">
-            <button id="reset-btn">Reset Game & Start Over</button>
+            <button id="reset-btn">Reset Game (New Setup)</button>
         </div>
         <div class="grid-container">
             <canvas id="grid" width="600" height="600"></canvas>
