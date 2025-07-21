@@ -1,5 +1,6 @@
 import random
 import math
+import uuid # For unique point IDs
 
 # --- Geometric Helper Functions ---
 
@@ -58,7 +59,7 @@ class Game:
         self.state = {
             "grid_size": 10,
             "teams": {},
-            "points": [],
+            "points": {}, # Changed from list to dict
             "lines": [],
             "territories": [], # Added for claimed triangles
             "game_log": [],
@@ -66,7 +67,8 @@ class Game:
             "max_turns": 100,
             "is_running": False,
             "is_finished": False,
-            "interpretation": {}
+            "interpretation": {},
+            "last_action_details": {} # For frontend visualization
         }
 
     def get_state(self):
@@ -80,15 +82,18 @@ class Game:
         """Starts a new game with the given parameters."""
         self.reset()
         self.state['teams'] = teams
-        self.state['points'] = points
+        # Convert points list to a dictionary with unique IDs
+        for i, p in enumerate(points):
+            point_id = f"p_{i}" # Simple, predictable ID
+            self.state['points'][point_id] = {**p, 'id': point_id}
         self.state['max_turns'] = max_turns
         self.state['grid_size'] = grid_size
         self.state['is_running'] = len(points) > 0
         self.state['game_log'].append({'message': "Game initialized."})
 
-    def get_team_points_indices(self, teamId):
-        """Returns indices of points belonging to a team."""
-        return [i for i, p in enumerate(self.state['points']) if p['teamId'] == teamId]
+    def get_team_point_ids(self, teamId):
+        """Returns IDs of points belonging to a team."""
+        return [pid for pid, p in self.state['points'].items() if p['teamId'] == teamId]
 
     def get_team_lines(self, teamId):
         """Returns lines belonging to a team."""
@@ -98,31 +103,32 @@ class Game:
 
     def expand_action_add_line(self, teamId):
         """[EXPAND ACTION]: Add a line between two random points."""
-        team_points_indices = self.get_team_points_indices(teamId)
-        if len(team_points_indices) < 2:
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 2:
             return {'success': False, 'reason': 'not enough points'}
 
         # Create a set of existing lines for quick lookup
         existing_lines = set()
         for line in self.state['lines']:
             if line['teamId'] == teamId:
-                existing_lines.add(tuple(sorted((line['p1_idx'], line['p2_idx']))))
+                existing_lines.add(tuple(sorted((line['p1_id'], line['p2_id']))))
 
         # Try to find a non-existing line
         possible_pairs = []
-        for i in range(len(team_points_indices)):
-            for j in range(i + 1, len(team_points_indices)):
-                p1_idx = team_points_indices[i]
-                p2_idx = team_points_indices[j]
-                if tuple(sorted((p1_idx, p2_idx))) not in existing_lines:
-                    possible_pairs.append((p1_idx, p2_idx))
+        for i in range(len(team_point_ids)):
+            for j in range(i + 1, len(team_point_ids)):
+                p1_id = team_point_ids[i]
+                p2_id = team_point_ids[j]
+                if tuple(sorted((p1_id, p2_id))) not in existing_lines:
+                    possible_pairs.append((p1_id, p2_id))
         
         if not possible_pairs:
             return {'success': False, 'reason': 'no new lines possible'}
 
-        p1_idx, p2_idx = random.choice(possible_pairs)
-        self.state['lines'].append({"p1_idx": p1_idx, "p2_idx": p2_idx, "teamId": teamId})
-        return {'success': True, 'type': 'add_line'}
+        p1_id, p2_id = random.choice(possible_pairs)
+        new_line = {"p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
+        self.state['lines'].append(new_line)
+        return {'success': True, 'type': 'add_line', 'line': new_line}
 
     def _get_extended_border_point(self, p1, p2):
         """
@@ -163,8 +169,8 @@ class Game:
 
         line = random.choice(team_lines)
         points = self.state['points']
-        p1 = points[line['p1_idx']]
-        p2 = points[line['p2_idx']]
+        p1 = points[line['p1_id']]
+        p2 = points[line['p2_id']]
 
         # Randomly choose which direction to extend from
         if random.random() > 0.5:
@@ -174,8 +180,11 @@ class Game:
         if not border_point:
             return {'success': False, 'reason': 'line cannot be extended'}
 
-        self.state['points'].append({**border_point, "teamId": teamId})
-        return {'success': True, 'type': 'extend_line', 'new_point': border_point}
+        # Create new point with a unique ID
+        new_point_id = f"p_{len(self.state['points'])}_{uuid.uuid4().hex[:4]}"
+        new_point = {**border_point, "teamId": teamId, "id": new_point_id}
+        self.state['points'][new_point_id] = new_point
+        return {'success': True, 'type': 'extend_line', 'new_point': new_point}
 
     def fight_action_attack_line(self, teamId):
         """[FIGHT ACTION]: Extend a line to hit an enemy line, destroying it."""
@@ -183,6 +192,7 @@ class Game:
         if not team_lines:
             return {'success': False, 'reason': 'no lines to attack with'}
 
+        # Create a copy to iterate over while modifying the original list
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
         if not enemy_lines:
             return {'success': False, 'reason': 'no enemy lines to attack'}
@@ -191,8 +201,12 @@ class Game:
         points = self.state['points']
 
         for line in team_lines:
-            p1 = points[line['p1_idx']]
-            p2 = points[line['p2_idx']]
+            # Skip if line points are gone (can happen after sacrifice)
+            if line['p1_id'] not in points or line['p2_id'] not in points:
+                continue
+            
+            p1 = points[line['p1_id']]
+            p2 = points[line['p2_id']]
 
             # Try extending from both ends of the segment
             for p_start, p_end in [(p1, p2), (p2, p1)]:
@@ -205,32 +219,88 @@ class Game:
                 attack_segment_p2 = border_point
 
                 for enemy_line in enemy_lines:
-                    ep1 = points[enemy_line['p1_idx']]
-                    ep2 = points[enemy_line['p2_idx']]
+                    # Skip if enemy line points are gone
+                    if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points:
+                        continue
+                    
+                    ep1 = points[enemy_line['p1_id']]
+                    ep2 = points[enemy_line['p2_id']]
 
                     if segments_intersect(attack_segment_p1, attack_segment_p2, ep1, ep2):
                         # Target found! Remove the enemy line.
                         self.state['lines'].remove(enemy_line)
                         enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
-                        return {'success': True, 'type': 'attack_line', 'destroyed_team': enemy_team_name}
+                        return {'success': True, 'type': 'attack_line', 'destroyed_team': enemy_team_name, 'destroyed_line': enemy_line}
 
         return {'success': False, 'reason': 'no target was hit'}
 
+    def sacrifice_action_nova_burst(self, teamId):
+        """[SACRIFICE ACTION]: A point is destroyed, removing nearby enemy lines."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if not team_point_ids:
+            return {'success': False, 'reason': 'no points to sacrifice'}
+
+        sac_point_id = random.choice(team_point_ids)
+        sac_point = self.state['points'][sac_point_id]
+        
+        # Define the blast radius (squared for efficiency)
+        blast_radius_sq = (self.state['grid_size'] * 0.25)**2 
+
+        lines_to_remove = []
+        points_to_check = self.state['points']
+
+        # 1. Remove all lines connected to the sacrificed point
+        for line in self.state['lines']:
+            if line['p1_id'] == sac_point_id or line['p2_id'] == sac_point_id:
+                lines_to_remove.append(line)
+        
+        # 2. Remove nearby enemy lines
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId and l not in lines_to_remove]
+        for line in enemy_lines:
+            # Check if line points exist
+            if not (line['p1_id'] in points_to_check and line['p2_id'] in points_to_check):
+                continue
+            
+            p1 = points_to_check[line['p1_id']]
+            p2 = points_to_check[line['p2_id']]
+
+            # Check if either end of the enemy line is within the blast radius
+            if distance_sq(sac_point, p1) < blast_radius_sq or distance_sq(sac_point, p2) < blast_radius_sq:
+                 if line not in lines_to_remove:
+                    lines_to_remove.append(line)
+
+        if not lines_to_remove:
+             # Even if no lines are destroyed, the point is still sacrificed
+             pass
+
+        # Perform removals
+        self.state['lines'] = [l for l in self.state['lines'] if l not in lines_to_remove]
+        del self.state['points'][sac_point_id]
+        
+        # Also remove any territories that used this point
+        self.state['territories'] = [t for t in self.state['territories'] if sac_point_id not in t['point_ids']]
+
+        return {'success': True, 'type': 'nova_burst', 'sacrificed_point': sac_point, 'lines_destroyed': len(lines_to_remove)}
+
     def fortify_action_claim_territory(self, teamId):
         """[FORTIFY ACTION]: Find a triangle and claim it as territory."""
-        team_points_indices = self.get_team_points_indices(teamId)
-        if len(team_points_indices) < 3:
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 3:
             return {'success': False, 'reason': 'not enough points for a triangle'}
 
-        # Build adjacency list for the team's graph
-        adj = {i: set() for i in team_points_indices}
+        # Build adjacency list for the team's graph using point IDs
+        adj = {pid: set() for pid in team_point_ids}
         for line in self.get_team_lines(teamId):
-            adj[line['p1_idx']].add(line['p2_idx'])
-            adj[line['p2_idx']].add(line['p1_idx'])
+            # Check if points for the line still exist
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
 
         # Find all triangles
         all_triangles = set()
-        for i in team_points_indices:
+        # Sort point ids to have a consistent order for checking i,j,k
+        sorted_point_ids = sorted(list(team_point_ids)) 
+        for i in sorted_point_ids:
             for j in adj.get(i, set()):
                 if j > i:
                     for k in adj.get(j, set()):
@@ -242,7 +312,7 @@ class Game:
             return {'success': False, 'reason': 'no triangles formed'}
 
         # Find a triangle that hasn't been claimed yet
-        claimed_triangles = set(tuple(sorted(t['points_indices'])) for t in self.state['territories'])
+        claimed_triangles = set(tuple(sorted(t['point_ids'])) for t in self.state['territories'])
         
         newly_claimable_triangles = list(all_triangles - claimed_triangles)
 
@@ -251,12 +321,13 @@ class Game:
         
         # Claim a random new triangle
         triangle_to_claim = random.choice(newly_claimable_triangles)
-        self.state['territories'].append({
+        new_territory = {
             'teamId': teamId,
-            'points_indices': list(triangle_to_claim)
-        })
+            'point_ids': list(triangle_to_claim)
+        }
+        self.state['territories'].append(new_territory)
         
-        return {'success': True, 'type': 'claim_territory'}
+        return {'success': True, 'type': 'claim_territory', 'territory': new_territory}
 
     # --- Turn Logic ---
 
@@ -267,8 +338,9 @@ class Game:
 
         self.state['turn'] += 1
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---"})
+        self.state['last_action_details'] = {} # Reset visualizer
 
-        active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_points_indices(teamId)) > 0]
+        active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
         if not active_teams:
             self.state['is_finished'] = True
             self.state['game_log'].append({'message': "No active teams left. Game over."})
@@ -282,10 +354,15 @@ class Game:
                 self.expand_action_add_line,
                 self.expand_action_extend_line,
                 self.fight_action_attack_line,
-                self.fortify_action_claim_territory
+                self.fortify_action_claim_territory,
+                self.sacrifice_action_nova_burst # New action!
             ]
             action_to_perform = random.choice(possible_actions)
             result = action_to_perform(teamId)
+
+            if result.get('success'):
+                # Store details for frontend visualization
+                self.state['last_action_details'] = result
 
             # Log the result
             log_message = f"Team {team_name} "
@@ -299,6 +376,8 @@ class Game:
                     log_message += f"attacked and destroyed a line from Team {result['destroyed_team']}."
                 elif action_type == 'claim_territory':
                     log_message += "fortified its position, claiming new territory."
+                elif action_type == 'nova_burst':
+                    log_message += f"sacrificed a point in a nova burst, destroying {result['lines_destroyed']} lines."
                 else:
                     log_message += "performed a successful action."
             else:
@@ -319,6 +398,8 @@ class Game:
                     log_message += "could not find any triangles to fortify."
                 elif reason == 'all triangles already claimed':
                     log_message += "found no new territory to claim."
+                elif reason == 'no points to sacrifice':
+                    log_message += "had no points to sacrifice."
                 else:
                     log_message += f"failed an action: {reason}."
 
@@ -332,42 +413,72 @@ class Game:
     
     # --- Interpretation ---
 
+    def _generate_divination_text(self, stats):
+        """Generates a short, horoscope-like text based on team stats."""
+        if stats['point_count'] == 0:
+            return "Faded from existence, a whisper in the cosmos."
+
+        # Ratios
+        line_density = stats['line_count'] / stats['point_count'] if stats['point_count'] > 0 else 0
+        area_efficiency = stats['controlled_area'] / stats['hull_area'] if stats['hull_area'] > 0 else 0
+
+        # Dominance checks
+        if stats.get('aggression_score', 0) > 2: # Made-up stat for now
+             return "A path of conflict and dominance, shaping destiny through force."
+        if area_efficiency > 0.6 and stats['triangles'] > 2:
+            return "A builder of empires, turning chaotic space into ordered, controlled territory."
+        if stats['hull_area'] > 50 and area_efficiency < 0.2:
+            return "An expansive and ambitious spirit, reaching for the outer edges of possibility."
+        if line_density > 1.4: # Very interconnected
+            return "An intricate and thoughtful strategist, weaving a complex web of influence."
+        if stats['line_length'] > 100:
+            return "A far-reaching presence, connecting distant ideas and holding vast influence."
+        
+        return "A balanced force, showing steady and stable development."
+
+
     def calculate_interpretation(self):
         """Calculates geometric properties for each team."""
         interpretation = {}
+        all_points = self.state['points']
         for teamId, team_data in self.state['teams'].items():
-            team_points_indices = self.get_team_points_indices(teamId)
-            team_points = [self.state['points'][i] for i in team_points_indices]
+            team_point_ids = self.get_team_point_ids(teamId)
+            team_points_dict = {pid: all_points[pid] for pid in team_point_ids if pid in all_points}
+            team_points_list = list(team_points_dict.values())
+            
             team_lines = self.get_team_lines(teamId)
             team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
 
-            if len(team_points) < 1:
-                 interpretation[teamId] = { 'point_count': 0, 'line_count': 0, 'line_length': 0, 'triangles': 0, 'controlled_area': 0, 'hull_area': 0, 'hull_perimeter': 0}
+            if len(team_points_list) < 1:
+                 interpretation[teamId] = { 'point_count': 0, 'line_count': 0, 'line_length': 0, 'triangles': 0, 'controlled_area': 0, 'hull_area': 0, 'hull_perimeter': 0, 'divination_text': 'Faded from existence.'}
                  continue
 
             # 1. Total Line Length
             total_length = 0
             for line in team_lines:
-                p1 = self.state['points'][line['p1_idx']]
-                p2 = self.state['points'][line['p2_idx']]
-                total_length += math.sqrt(distance_sq(p1, p2))
+                if line['p1_id'] in all_points and line['p2_id'] in all_points:
+                    p1 = all_points[line['p1_id']]
+                    p2 = all_points[line['p2_id']]
+                    total_length += math.sqrt(distance_sq(p1, p2))
 
             # 2. Triangle Count
-            adj = {i: set() for i in team_points_indices}
+            adj = {pid: set() for pid in team_point_ids}
             for line in team_lines:
-                adj[line['p1_idx']].add(line['p2_idx'])
-                adj[line['p2_idx']].add(line['p1_idx'])
+                if line['p1_id'] in adj and line['p2_id'] in adj:
+                    adj[line['p1_id']].add(line['p2_id'])
+                    adj[line['p2_id']].add(line['p1_id'])
             
             triangles = 0
-            for i in team_points_indices:
-                for j in adj[i]:
+            sorted_point_ids = sorted(list(team_point_ids))
+            for i in sorted_point_ids:
+                for j in adj.get(i, set()):
                     if j > i:
-                        for k in adj[j]:
-                            if k > j and k in adj[i]:
+                        for k in adj.get(j, set()):
+                            if k > j and k in adj.get(i, set()):
                                 triangles += 1
             
             # 3. Convex Hull and its properties (using Graham Scan)
-            hull_points = self._get_convex_hull(team_points)
+            hull_points = self._get_convex_hull(team_points_list)
             hull_area = 0
             hull_perimeter = 0
             if len(hull_points) >= 3:
@@ -377,13 +488,15 @@ class Game:
             # 4. Total Controlled Area from territories
             controlled_area = 0
             for territory in team_territories:
-                triangle_points = [self.state['points'][i] for i in territory['points_indices']]
-                if len(triangle_points) == 3:
-                    controlled_area += self._polygon_area(triangle_points)
+                triangle_point_ids = territory['point_ids']
+                if all(pid in all_points for pid in triangle_point_ids):
+                    triangle_points = [all_points[pid] for pid in triangle_point_ids]
+                    if len(triangle_points) == 3:
+                        controlled_area += self._polygon_area(triangle_points)
 
 
-            interpretation[teamId] = {
-                'point_count': len(team_points),
+            stats = {
+                'point_count': len(team_points_list),
                 'line_count': len(team_lines),
                 'line_length': round(total_length, 2),
                 'triangles': triangles,
@@ -391,6 +504,9 @@ class Game:
                 'hull_area': round(hull_area, 2),
                 'hull_perimeter': round(hull_perimeter, 2)
             }
+            stats['divination_text'] = self._generate_divination_text(stats)
+            interpretation[teamId] = stats
+            
         return interpretation
 
     def _get_convex_hull(self, points):

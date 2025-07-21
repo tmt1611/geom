@@ -6,11 +6,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Game state - The single source of truth will be the backend
     let localTeams = {};
-    let initialPoints = [];
+    let initialPoints = []; // Still a list for setup phase
     let selectedTeamId = null;
     let autoPlayInterval = null;
     let isDebugMode = false;
     let currentGameState = {}; // Cache the latest game state
+    let visualEffects = []; // For temporary animations
 
     // UI Elements
     const teamsList = document.getElementById('teams-list');
@@ -21,7 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextTurnBtn = document.getElementById('next-turn-btn');
     const autoPlayBtn = document.getElementById('auto-play-btn');
     const resetBtn = document.getElementById('reset-btn');
+    const undoPointBtn = document.getElementById('undo-point-btn');
+    const randomizePointsBtn = document.getElementById('randomize-points-btn');
     const maxTurnsInput = document.getElementById('max-turns');
+    const gridSizeInput = document.getElementById('grid-size');
     const statsDiv = document.getElementById('stats');
     const logDiv = document.getElementById('log');
     const turnCounter = document.getElementById('turn-counter');
@@ -44,8 +48,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function drawPoints(points, teams) {
-        points.forEach((p, index) => {
+    function drawPoints(pointsDict, teams) {
+        if (!pointsDict) return;
+        Object.values(pointsDict).forEach(p => {
             const team = teams[p.teamId];
             if (team) {
                 ctx.fillStyle = team.color;
@@ -58,18 +63,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.font = '10px Arial';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'bottom';
-                    ctx.fillText(index, (p.x + 0.5) * cellSize, (p.y + 0.5) * cellSize - 7);
+                    // Display the point's unique ID
+                    ctx.fillText(p.id, (p.x + 0.5) * cellSize, (p.y + 0.5) * cellSize - 7);
                 }
             }
         });
     }
 
-    function drawLines(points, lines, teams) {
+    function drawLines(pointsDict, lines, teams) {
+        if (!pointsDict) return;
         lines.forEach(line => {
             const team = teams[line.teamId];
             if (team) {
-                const p1 = points[line.p1_idx];
-                const p2 = points[line.p2_idx];
+                const p1 = pointsDict[line.p1_id];
+                const p2 = pointsDict[line.p2_id];
                 if (p1 && p2) {
                     ctx.strokeStyle = team.color;
                     ctx.lineWidth = 2;
@@ -82,11 +89,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function drawTerritories(points, territories, teams) {
+    function drawTerritories(pointsDict, territories, teams) {
+        if (!pointsDict) return;
         territories.forEach(territory => {
             const team = teams[territory.teamId];
             if (team) {
-                const triPoints = territory.points_indices.map(idx => points[idx]);
+                const triPoints = territory.point_ids.map(id => pointsDict[id]);
                 if (triPoints.length === 3 && triPoints.every(p => p)) {
                     ctx.fillStyle = team.color;
                     ctx.globalAlpha = 0.3; // semi-transparent
@@ -102,23 +110,99 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function render(gameState) {
-        if (!gameState || !gameState.teams) return;
-        currentGameState = gameState; // Cache state
+    function drawVisualEffects() {
+        const now = Date.now();
+        visualEffects = visualEffects.filter(effect => {
+            const age = now - effect.startTime;
+            if (age > effect.duration) return false; // Remove expired effects
+
+            const progress = age / effect.duration;
+
+            if (effect.type === 'nova_burst') {
+                ctx.beginPath();
+                ctx.arc(
+                    (effect.x + 0.5) * cellSize,
+                    (effect.y + 0.5) * cellSize,
+                    effect.radius * progress, // Radius grows
+                    0, 2 * Math.PI
+                );
+                ctx.strokeStyle = `rgba(255, 100, 100, ${1 - progress})`; // Fade out
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            } else if (effect.type === 'new_line') {
+                const p1 = currentGameState.points[effect.line.p1_id];
+                const p2 = currentGameState.points[effect.line.p2_id];
+                if(p1 && p2) {
+                    ctx.beginPath();
+                    ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
+                    ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - progress)})`; // White flash
+                    ctx.lineWidth = 5;
+                    ctx.stroke();
+                }
+            }
+            
+            return true; // Keep active effects
+        });
+    }
+
+    function fullRender() {
+        if (!currentGameState || !currentGameState.teams) return;
         
         // Update grid scaling
-        cellSize = canvas.width / gameState.grid_size;
+        cellSize = canvas.width / currentGameState.grid_size;
 
         // Drawing functions
         drawGrid();
-        drawTerritories(gameState.points, gameState.territories || [], gameState.teams);
-        drawLines(gameState.points, gameState.lines, gameState.teams);
-        drawPoints(gameState.points, gameState.teams);
+        drawTerritories(currentGameState.points, currentGameState.territories || [], currentGameState.teams);
+        drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
+        drawPoints(currentGameState.points, currentGameState.teams);
+        drawVisualEffects();
 
-        // UI update functions
+        // UI update functions are less frequent, no need to be in animation loop
+    }
+
+    // Main animation loop
+    function animationLoop() {
+        fullRender();
+        requestAnimationFrame(animationLoop);
+    }
+    
+    function processActionVisuals(gameState) {
+        const details = gameState.last_action_details;
+        if (!details || !details.type) return;
+
+        if (details.type === 'nova_burst' && details.sacrificed_point) {
+            visualEffects.push({
+                type: 'nova_burst',
+                x: details.sacrificed_point.x,
+                y: details.sacrificed_point.y,
+                radius: (gameState.grid_size * 0.25) * cellSize,
+                startTime: Date.now(),
+                duration: 750 // ms
+            });
+        }
+        if (details.type === 'add_line' && details.line) {
+            visualEffects.push({
+                type: 'new_line',
+                line: details.line,
+                startTime: Date.now(),
+                duration: 500 // ms
+            });
+        }
+    }
+
+    function updateStateAndRender(gameState) {
+        if (!gameState || !gameState.teams) return;
+        currentGameState = gameState; // Cache state
+        
+        processActionVisuals(gameState);
+
+        // UI update functions (don't need to be in every frame)
         updateLog(gameState.game_log, gameState.teams);
         updateInterpretationPanel(gameState);
         updateControls(gameState);
+        // The animation loop will handle the drawing
     }
 
     // --- UI Update Functions ---
@@ -179,10 +263,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
         // Live stats
         let statsHTML = '<h4>Live Stats</h4>';
-        if (Object.keys(teams).length > 0) {
-            for (const teamId in teams) {
+        if (teams && Object.keys(teams).length > 0) {
+             for (const teamId in teams) {
                 const team = teams[teamId];
-                const pointCount = points.filter(p => p.teamId === teamId).length;
+                const pointCount = points ? Object.values(points).filter(p => p.teamId === teamId).length : 0;
                 const lineCount = lines.filter(l => l.teamId === teamId).length;
                 statsHTML += `<div><strong style="color:${team.color};">${team.name}</strong>: ${pointCount} points, ${lineCount} lines</div>`;
             }
@@ -201,6 +285,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const teamName = teams[teamId].name;
                 const teamColor = teams[teamId].color;
                 
+                // Add Divination Text
+                let divinationRow = `<td colspan="2" style="font-style: italic; background-color: #f8f9fa;">"${teamData.divination_text}"</td>`;
+
                 const allStatRows = [
                     ['Points', teamData.point_count],
                     ['Lines', teamData.line_count],
@@ -213,11 +300,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Filter out stats with a value of 0 or undefined
                 const statRows = allStatRows.filter(row => row[1] > 0);
+                
+                const totalRows = statRows.length + (teamData.divination_text ? 1 : 0);
 
-                if (statRows.length > 0) {
-                    finalStatsHTML += `<tr><td rowspan="${statRows.length}" style="font-weight:bold; color:${teamColor};">${teamName}</td><td>${statRows[0][0]}</td><td>${statRows[0][1]}</td></tr>`;
-                    for(let i = 1; i < statRows.length; i++) {
-                        finalStatsHTML += `<tr><td>${statRows[i][0]}</td><td>${statRows[i][1]}</td></tr>`;
+                if (totalRows > 0) {
+                    finalStatsHTML += `<tr><td rowspan="${totalRows}" style="font-weight:bold; color:${teamColor};">${teamName}</td>`;
+
+                    if (statRows.length > 0) {
+                         finalStatsHTML += `<td>${statRows[0][0]}</td><td>${statRows[0][1]}</td></tr>`;
+                        for(let i = 1; i < statRows.length; i++) {
+                            finalStatsHTML += `<tr><td>${statRows[i][0]}</td><td>${statRows[i][1]}</td></tr>`;
+                        }
+                        if (teamData.divination_text) {
+                            finalStatsHTML += `<tr>${divinationRow}</tr>`;
+                        }
+                    } else if (teamData.divination_text) {
+                        finalStatsHTML += `${divinationRow}</tr>`;
                     }
                 }
             }
@@ -247,7 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     debugToggle.addEventListener('click', () => {
         isDebugMode = debugToggle.checked;
-        render(currentGameState); // Re-render with the cached state
+        // The animation loop will pick up the change, no need to force render
     });
 
     addTeamBtn.addEventListener('click', () => {
@@ -265,6 +363,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderTeamsList();
             }
         }
+    });
+
+    undoPointBtn.addEventListener('click', () => {
+        if (initialPoints.length > 0) {
+            initialPoints.pop();
+            // Draw immediately for responsiveness
+            drawGrid();
+            // We need to convert the initialPoints list to a dictionary for drawing
+            const tempPointsDict = {};
+            initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
+            drawPoints(tempPointsDict, localTeams);
+        }
+    });
+
+    randomizePointsBtn.addEventListener('click', () => {
+        if (Object.keys(localTeams).length === 0) {
+            alert("Please add at least one team before randomizing points.");
+            return;
+        }
+        const pointsPerTeam = parseInt(prompt("How many points per team?", "5"));
+        if (isNaN(pointsPerTeam) || pointsPerTeam <= 0) return;
+
+        initialPoints = []; // Clear existing points
+        const currentGridSize = parseInt(gridSizeInput.value) || 10;
+
+        for (const teamId in localTeams) {
+            for (let i = 0; i < pointsPerTeam; i++) {
+                let x, y, isUnique;
+                do {
+                    x = Math.floor(Math.random() * currentGridSize);
+                    y = Math.floor(Math.random() * currentGridSize);
+                    isUnique = !initialPoints.some(p => p.x === x && p.y === y);
+                } while (!isUnique);
+                initialPoints.push({ x, y, teamId });
+            }
+        }
+        // Draw immediately
+        drawGrid();
+        const tempPointsDict = {};
+        initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
+        drawPoints(tempPointsDict, localTeams);
     });
 
     canvas.addEventListener('click', (e) => {
@@ -286,7 +425,10 @@ document.addEventListener('DOMContentLoaded', () => {
             initialPoints.push({ x, y, teamId: selectedTeamId });
             // Draw immediately for responsiveness
             drawGrid();
-            drawPoints(initialPoints, localTeams);
+            // We need to convert the initialPoints list to a dictionary for drawing
+            const tempPointsDict = {};
+            initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
+            drawPoints(tempPointsDict, localTeams);
         }
     });
 
@@ -298,7 +440,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = {
             teams: localTeams,
             points: initialPoints,
-            maxTurns: maxTurnsInput.value
+            maxTurns: parseInt(maxTurnsInput.value),
+            gridSize: parseInt(gridSizeInput.value)
         };
         const response = await fetch('/api/game/start', {
             method: 'POST',
@@ -306,13 +449,14 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify(payload)
         });
         const gameState = await response.json();
-        render(gameState);
+        initialPoints = []; // Clear setup points after game starts
+        updateStateAndRender(gameState);
     });
 
     nextTurnBtn.addEventListener('click', async () => {
         const response = await fetch('/api/game/next_turn', { method: 'POST' });
         const gameState = await response.json();
-        render(gameState);
+        updateStateAndRender(gameState);
     });
 
     function stopAutoPlay() {
@@ -331,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
             autoPlayInterval = setInterval(async () => {
                 const response = await fetch('/api/game/next_turn', { method: 'POST' });
                 const gameState = await response.json();
-                render(gameState);
+                updateStateAndRender(gameState);
                 if (gameState.is_finished) {
                     stopAutoPlay();
                 }
@@ -372,11 +516,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // Set local state based on potentially ongoing game
         if (gameState && gameState.teams && Object.keys(gameState.teams).length > 0) {
             localTeams = gameState.teams;
+            if (!gameState.is_running && !gameState.is_finished) {
+                // If game hasn't started, reconstruct initialPoints for editing
+                initialPoints = Object.values(gameState.points);
+            }
         }
-        cellSize = canvas.width / gameState.grid_size;
-        render(gameState);
+        gridSizeInput.value = gameState.grid_size;
+        maxTurnsInput.value = gameState.max_turns;
+        updateStateAndRender(gameState);
         renderTeamsList();
         checkForUpdates();
+        animationLoop(); // Start the animation loop
     }
 
     init();
