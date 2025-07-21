@@ -30,5 +30,5 @@ This iteration focuses on a major code cleanup, UI/UX enhancements for the setup
 
 ### 4. Documentation
 
--   **File**: `rules.md`
--   **Change**: The rules have been updated to include a description of the new **[SACRIFICE] Create Whirlpool** action and to mention the "Random" trait option.
+-   **File**: `rules.md` and `README.md`
+-   **Change**: The rules have been updated to include a description of the new **[SACRIFICE] Create Whirlpool** action and to mention the "Random" trait option. The `README.md` was updated to provide a better overview of game actions and direct users to `rules.md` for details.

@@ -1,5 +1,5 @@
 ## Team Traits
-When a team is created, it is assigned a random trait which influences its behavior.
+When a team is created, it is assigned a trait which influences its behavior. The default "Random" option will assign one of the following traits upon game start.
 
 *   **Aggressive:** Prefers to attack enemy lines and use high-risk actions.
 *   **Expansive:** Focuses on creating new points and lines to cover more ground.
@@ -29,7 +29,8 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
 *   **[FIGHT] Pincer Attack:** If two of a team's points are flanking a single enemy point (creating a wide angle), they can perform a joint attack to destroy it. This does not work on fortified or bastion points.
 *   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range.
-*   **[FIGHT] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
+*   **[SACRIFICE] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
+*   **[SACRIFICE] Create Whirlpool:** Sacrifices one of its own points to create a chaotic vortex on the battlefield for a few turns. The whirlpool slowly pulls all nearby points (friendly and enemy) towards its center, disrupting formations.
 *   **[FIGHT] Bastion Pulse:** _(Requires an active Bastion)_ Sacrifices one of the bastion's outer "prong" points to unleash a shockwave. The shockwave destroys all enemy lines that cross the bastion's perimeter.
 *   **[FIGHT] Sentry Zap:** _(Requires an active Sentry)_ Fires a short, high-energy beam from the Sentry's "eye" along its perpendicular axis. Destroys the first enemy **point** it hits within range. This is a powerful, precision attack capable of removing fortified points.
 *   **[FIGHT] Chain Lightning:** _(Requires a Conduit with internal points)_ Sacrifice one of the Conduit's internal points. A bolt of energy travels along the Conduit and then jumps to the nearest enemy point, destroying it.

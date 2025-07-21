@@ -58,11 +58,14 @@ As per the design, this is a minimal viable product (MVP) of a game where users 
 
 ## Game Actions
 
-The simulation runs on a simple set of rules. On its turn, a team will randomly perform one of the following actions:
-- **Add Line:** Connect two of its own points with a new line.
-- **Extend Line:** Extend an existing line to the border of the grid, creating a new point.
-- **Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
-- **Fortify Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory, shading the area in its color.
+The simulation runs on a complex set of rules. On its turn, a team will perform one of many possible actions, influenced by its Trait. Actions are broadly categorized into:
+- **Expand:** Creating new points and lines (e.g., `Add Line`, `Extend Line`, `Create Orbital`).
+- **Fight:** Directly attacking and disrupting enemy assets (e.g., `Attack Line`, `Pincer Attack`, `Sentry Zap`).
+- **Fortify/Defend:** Building defensive structures and claiming territory (e.g., `Fortify Territory`, `Form Bastion`, `Shield Line`).
+- **Sacrifice:** Destroying a team's own asset for a powerful, often area-of-effect, ability (e.g., `Nova Burst`, `Create Whirlpool`).
+- **Rune:** Special powerful actions unlocked by specific geometric formations (e.g., `Shoot Bisector`).
+
+For a full, detailed list of actions and structures, please see `rules.md`.
 
 ## Development
 

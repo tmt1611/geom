@@ -151,6 +151,7 @@ class Game:
             "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
             "prisms": {}, # {teamId: [prism1, prism2, ...]}
             "heartwoods": {}, # {teamId: {id, center_coords, growth_counter}}
+            "whirlpools": [], # {id, teamId, coords, turns_left, strength, radius_sq}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
             "max_turns": 100,
@@ -229,6 +230,7 @@ class Game:
         state_copy['nexuses'] = self.state.get('nexuses', {})
         state_copy['prisms'] = self.state.get('prisms', {})
         state_copy['heartwoods'] = self.state.get('heartwoods', {})
+        state_copy['whirlpools'] = self.state.get('whirlpools', [])
 
         # Add live stats for real-time display, regardless of phase, for consistency
         live_stats = {}
@@ -260,10 +262,11 @@ class Game:
         """Starts a new game with the given parameters."""
         self.reset()
         
-        # Add a default 'Balanced' trait if none is provided from the frontend
+        # Process team traits, handling 'Random' selection
+        available_traits = ['Aggressive', 'Expansive', 'Defensive', 'Balanced']
         for team_id, team_data in teams.items():
-            if 'trait' not in team_data:
-                team_data['trait'] = 'Balanced'
+            if team_data.get('trait') == 'Random' or 'trait' not in team_data:
+                team_data['trait'] = random.choice(available_traits)
             team_data['id'] = team_id # Ensure team object contains its own ID
 
         self.state['teams'] = teams
@@ -674,6 +677,62 @@ class Game:
         total_destroyed = len(connected_lines_before) + len(lines_to_remove_by_proximity)
 
         return {'success': True, 'type': 'nova_burst', 'sacrificed_point': sac_point_coords, 'lines_destroyed': total_destroyed}
+
+    def sacrifice_action_create_whirlpool(self, teamId):
+        """[SACRIFICE ACTION]: A point is destroyed, creating a swirling vortex."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) <= 1: # Cannot sacrifice the last point
+            return {'success': False, 'reason': 'not enough points to sacrifice'}
+
+        # To avoid destroying critical structures, prefer non-special points
+        bastion_points = self._get_bastion_point_ids()
+        non_critical_points = [
+            pid for pid in team_point_ids
+            if pid not in self._get_fortified_point_ids() and
+               pid not in bastion_points['cores'] and
+               pid not in bastion_points['prongs']
+        ]
+
+        if not non_critical_points:
+             # If all points are critical, maybe allow sacrificing a simple fortified one as a last resort
+            fortified = self._get_fortified_point_ids().intersection(team_point_ids)
+            # Exclude bastion points even from this fallback
+            eligible_fortified = [pid for pid in fortified if pid not in bastion_points['cores'] and pid not in bastion_points['prongs']]
+            if not eligible_fortified:
+                return {'success': False, 'reason': 'no non-critical points available to sacrifice'}
+            p_to_sac_id = random.choice(list(eligible_fortified))
+        else:
+            p_to_sac_id = random.choice(non_critical_points)
+        
+        # Get coords before deletion
+        sac_point_coords = self.state['points'][p_to_sac_id].copy()
+        
+        # Sacrifice the point
+        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id)
+        if not sacrificed_point_data:
+             return {'success': False, 'reason': 'failed to sacrifice point'}
+
+        # Create the whirlpool
+        whirlpool_id = f"wp_{uuid.uuid4().hex[:6]}"
+        new_whirlpool = {
+            'id': whirlpool_id,
+            'teamId': teamId,
+            'coords': sac_point_coords,
+            'turns_left': 4,
+            'strength': 0.05, # pull-in strength per turn
+            'swirl': 0.5, # radians per turn
+            'radius_sq': (self.state['grid_size'] * 0.3)**2
+        }
+        
+        if 'whirlpools' not in self.state: self.state['whirlpools'] = []
+        self.state['whirlpools'].append(new_whirlpool)
+
+        return {
+            'success': True, 
+            'type': 'create_whirlpool',
+            'whirlpool': new_whirlpool,
+            'sacrificed_point': sacrificed_point_data
+        }
 
     def expand_action_spawn_point(self, teamId):
         """[EXPAND ACTION]: Creates a new point near an existing one. A last resort action."""
@@ -1734,6 +1793,7 @@ class Game:
             'fortify_form_bastion': self.fortify_action_form_bastion,
             'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
+            'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
             'defend_shield': self.shield_action_protect_line,
             'rune_shoot_bisector': self.rune_action_shoot_bisector,
             'fight_sentry_zap': self.fight_action_sentry_zap,
@@ -1762,6 +1822,7 @@ class Game:
             'fortify_form_bastion': bool(self._get_fortified_point_ids().intersection(team_point_ids)), # Team has at least one of its own fortified points
             'fortify_cultivate_heartwood': len(team_point_ids) >= 6 and teamId not in self.state.get('heartwoods', {}),
             'sacrifice_nova': len(team_point_ids) > 2,
+            'sacrifice_whirlpool': len(team_point_ids) > 1,
             'rune_shoot_bisector': bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])),
         }
 
@@ -1778,7 +1839,7 @@ class Game:
             'expand_orbital': 7,
             'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_cultivate_heartwood': 20, # High value objective
-            'sacrifice_nova': 3, 'defend_shield': 8,
+            'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
@@ -1898,6 +1959,49 @@ class Game:
                             'heartwood_id': heartwood['id']
                         })
                         break # Stop trying to find a spot
+        
+        # 4. Process Whirlpools
+        if self.state.get('whirlpools'):
+            active_whirlpools = []
+            grid_size = self.state['grid_size']
+            for whirlpool in self.state['whirlpools']:
+                whirlpool['turns_left'] -= 1
+                if whirlpool['turns_left'] > 0:
+                    active_whirlpools.append(whirlpool)
+
+                    wp_coords = whirlpool['coords']
+                    wp_radius_sq = whirlpool['radius_sq']
+                    wp_strength = whirlpool['strength']
+                    wp_swirl = whirlpool['swirl']
+
+                    # Affect all points, regardless of team
+                    for point in self.state['points'].values():
+                        if distance_sq(wp_coords, point) < wp_radius_sq:
+                            # Vector from point to whirlpool center
+                            dx = wp_coords['x'] - point['x']
+                            dy = wp_coords['y'] - point['y']
+
+                            # Convert to polar
+                            dist = math.sqrt(dx**2 + dy**2)
+                            angle = math.atan2(dy, dx)
+                            
+                            if dist < 0.1: continue # Don't move points already at the center
+
+                            # Modify polar coordinates
+                            new_dist = dist * (1 - wp_strength) # Pull in
+                            new_angle = angle + wp_swirl # Swirl
+
+                            # Convert back to cartesian offset from whirlpool center
+                            new_dx = math.cos(new_angle) * new_dist
+                            new_dy = math.sin(new_angle) * new_dy
+
+                            # Calculate new absolute position and clamp/round
+                            new_x = wp_coords['x'] - new_dx
+                            new_y = wp_coords['y'] - new_dy
+                            point['x'] = round(max(0, min(grid_size - 1, new_x)))
+                            point['y'] = round(max(0, min(grid_size - 1, new_y)))
+
+            self.state['whirlpools'] = active_whirlpools
 
         # --- Set up action queue for the turn ---
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
@@ -1957,6 +2061,53 @@ class Game:
             self.state['game_phase'] = 'FINISHED'
             self.state['victory_condition'] = "Max turns reached."
             self.state['game_log'].append({'message': "Max turns reached. Game finished.", 'short_message': '[END]'})
+
+    def _get_action_log_messages(self, result):
+        """Generates the long and short log messages for a given action result."""
+        action_type = result.get('type')
+
+        # Lambdas are used to defer f-string evaluation until the function is called.
+        log_generators = {
+            'add_line': lambda r: ("connected two points.", "[+LINE]"),
+            'extend_line': lambda r: (
+                f"extended a line to the border, creating a new point{' with an empowered Conduit extension!' if r.get('is_empowered') else '.'}",
+                "[RAY!]" if r.get('is_empowered') else "[EXTEND]"
+            ),
+            'grow_line': lambda r: ("grew a new branch, creating a new point.", "[GROW]"),
+            'fracture_line': lambda r: ("fractured a line, creating a new point.", "[FRACTURE]"),
+            'spawn_point': lambda r: ("spawned a new point from an existing one.", "[SPAWN]"),
+            'create_orbital': lambda r: (f"created an orbital structure with {len(r['new_points'])} new points.", "[ORBITAL]"),
+            'attack_line': lambda r: (
+                f"attacked and destroyed a line from Team {r['destroyed_team']}{', bypassing its shield with a Cross Rune!' if r.get('bypassed_shield') else '.'}",
+                "[PIERCE!]" if r.get('bypassed_shield') else "[ATTACK]"
+            ),
+            'convert_point': lambda r: (f"sacrificed a line to convert a point from Team {r['original_team_name']}.", "[CONVERT]"),
+            'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
+            'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION]"),
+            'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
+            'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
+            'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
+            'create_anchor': lambda r: ("sacrificed a point to create a gravitational anchor.", "[ANCHOR]"),
+            'nova_burst': lambda r: (f"sacrificed a point in a nova burst, destroying {r['lines_destroyed']} lines.", "[NOVA]"),
+            'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
+            'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
+            'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[ZAP!]"),
+            'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
+            'chain_lightning': lambda r: (
+                f"unleashed Chain Lightning from a Conduit, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}." if r.get('destroyed_point') 
+                else "attempted to use Chain Lightning, but the attack fizzled.",
+                "[LIGHTNING!]" if r.get('destroyed_point') else "[FIZZLE]"
+            ),
+            'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[PINCER!]"),
+            'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]")
+        }
+
+        if action_type in log_generators:
+            long_msg, short_msg = log_generators[action_type](result)
+            return long_msg, short_msg
+        
+        # Fallback for any action that might not have a custom message
+        return "performed a successful action.", "[ACTION]"
 
     def run_next_action(self):
         """Runs a single successful action for the next team in the current turn."""
@@ -2018,100 +2169,16 @@ class Game:
             
         self.state['last_action_details'] = result if result.get('success') else {}
         
-        # Log the final result. Invalid/failed actions are no longer logged individually.
+        # --- Log the final result using the new helper method ---
         log_message = f"Team {team_name} "
-        short_log_message = "[ACTION]" # Default short message
+        short_log_message = "[ACTION]"
 
         if is_bonus_action:
             log_message = f"[BONUS] Team {team_name} "
 
         if result.get('success'):
-            action_type = result.get('type')
-            if action_type == 'add_line':
-                log_message += "connected two points."
-                short_log_message = "[+LINE]"
-            elif action_type == 'extend_line':
-                msg = "extended a line to the border, creating a new point"
-                if result.get('is_empowered'):
-                    msg += " with an empowered Conduit extension!"
-                    short_log_message = "[RAY!]"
-                else:
-                    msg += "."
-                    short_log_message = "[EXTEND]"
-                log_message += msg
-            elif action_type == 'grow_line':
-                log_message += "grew a new branch, creating a new point."
-                short_log_message = "[GROW]"
-            elif action_type == 'fracture_line':
-                log_message += "fractured a line, creating a new point."
-                short_log_message = "[FRACTURE]"
-            elif action_type == 'spawn_point':
-                log_message += "spawned a new point from an existing one."
-                short_log_message = "[SPAWN]"
-            elif action_type == 'create_orbital':
-                log_message += f"created an orbital structure with {len(result['new_points'])} new points."
-                short_log_message = "[ORBITAL]"
-            elif action_type == 'attack_line':
-                msg = f"attacked and destroyed a line from Team {result['destroyed_team']}"
-                short_log_message = "[ATTACK]"
-                if result.get('bypassed_shield'):
-                    msg += ", bypassing its shield with a Cross Rune!"
-                    short_log_message = "[PIERCE!]"
-                else:
-                    msg += "."
-                log_message += msg
-            elif action_type == 'convert_point':
-                log_message += f"sacrificed a line to convert a point from Team {result['original_team_name']}."
-                short_log_message = "[CONVERT]"
-            elif action_type == 'claim_territory':
-                log_message += "fortified its position, claiming new territory."
-                short_log_message = "[CLAIM]"
-            elif action_type == 'form_bastion':
-                log_message += "consolidated its power, forming a new bastion."
-                short_log_message = "[BASTION]"
-            elif action_type == 'cultivate_heartwood':
-                log_message += f"sacrificed {len(result['sacrificed_points'])} points to cultivate a mighty Heartwood."
-                short_log_message = "[HEARTWOOD!]"
-            elif action_type == 'bastion_pulse':
-                log_message += f"unleashed a defensive pulse from its bastion, destroying {len(result['lines_destroyed'])} lines."
-                short_log_message = "[PULSE!]"
-            elif action_type == 'mirror_structure':
-                log_message += f"mirrored its structure, creating {len(result['new_points'])} new points."
-                short_log_message = "[MIRROR]"
-            elif action_type == 'create_anchor':
-                log_message += "sacrificed a point to create a gravitational anchor."
-                short_log_message = "[ANCHOR]"
-            elif action_type == 'nova_burst':
-                log_message += f"sacrificed a point in a nova burst, destroying {result['lines_destroyed']} lines."
-                short_log_message = "[NOVA]"
-            elif action_type == 'shield_line':
-                log_message += "raised a defensive shield on one of its lines."
-                short_log_message = "[SHIELD]"
-            elif action_type == 'rune_shoot_bisector':
-                log_message += "unleashed a powerful beam from a V-Rune, destroying an enemy line."
-                short_log_message = "[V-BEAM!]"
-            elif action_type == 'sentry_zap':
-                destroyed_point_team_name = self.state['teams'][result['destroyed_point']['teamId']]['name']
-                log_message += f"fired a precision shot from a Sentry, obliterating a point from Team {destroyed_point_team_name}."
-                short_log_message = "[ZAP!]"
-            elif action_type == 'refraction_beam':
-                log_message += "fired a refracted beam from a Prism, destroying an enemy line."
-                short_log_message = "[REFRACT!]"
-            elif action_type == 'chain_lightning':
-                if result.get('destroyed_point'):
-                    destroyed_point_team_name = self.state['teams'][result['destroyed_point']['teamId']]['name']
-                    log_message += f"unleashed Chain Lightning from a Conduit, destroying a point from Team {destroyed_point_team_name}."
-                    short_log_message = "[LIGHTNING!]"
-                else:
-                    log_message += "attempted to use Chain Lightning, but the attack fizzled."
-                    short_log_message = "[FIZZLE]"
-            elif action_type == 'pincer_attack':
-                destroyed_point_team_name = self.state['teams'][result['destroyed_point']['teamId']]['name']
-                log_message += f"executed a pincer attack, destroying a point from Team {destroyed_point_team_name}."
-                short_log_message = "[PINCER!]"
-            else:
-                log_message += "performed a successful action."
-                short_log_message = "[ACTION]"
+            long_msg_part, short_log_message = self._get_action_log_messages(result)
+            log_message += long_msg_part
         else:
             log_message += "could not find a valid move and passed its turn."
             short_log_message = "[PASS]"

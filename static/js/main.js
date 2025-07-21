@@ -52,6 +52,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const compactLogToggle = document.getElementById('compact-log-toggle');
     const copyLogBtn = document.getElementById('copy-log-btn');
 
+    // --- Helper Functions ---
+    function getRandomHslColor() {
+        const hue = Math.floor(Math.random() * 360);
+        // Using 70% saturation and 50% lightness for bright, but not neon, colors.
+        return `hsl(${hue}, 70%, 50%)`;
+    }
+
+    function setNewTeamDefaults() {
+        newTeamNameInput.value = '';
+        newTeamColorInput.value = getRandomHslColor();
+        newTeamTraitSelect.value = 'Random'; // Set default trait
+    }
+
     // Debug Toggles
     const debugPointIdsToggle = document.getElementById('debug-point-ids');
     const debugLineIdsToggle = document.getElementById('debug-line-ids');
@@ -349,6 +362,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.globalAlpha = 1.0; // reset alpha
                 }
             }
+        });
+    }
+
+    function drawWhirlpools(gameState) {
+        if (!gameState.whirlpools) return;
+    
+        gameState.whirlpools.forEach(wp => {
+            const team = gameState.teams[wp.teamId];
+            if (!team) return;
+
+            const cx = (wp.coords.x + 0.5) * cellSize;
+            const cy = (wp.coords.y + 0.5) * cellSize;
+            const radius = Math.sqrt(wp.radius_sq) * cellSize;
+            const now = Date.now();
+            const angle_offset = (now / 2000) % (2 * Math.PI); // Full rotation every 2 seconds
+
+            ctx.save();
+            ctx.translate(cx, cy);
+
+            const num_lines = 12;
+            for (let i = 0; i < num_lines; i++) {
+                const angle = angle_offset + (i * 2 * Math.PI / num_lines);
+                const start_radius = radius * 0.2;
+                const end_radius = radius * (1 - (wp.turns_left / 4) * 0.5); // Shrinks as it expires
+
+                ctx.beginPath();
+                ctx.moveTo(
+                    Math.cos(angle) * start_radius,
+                    Math.sin(angle) * start_radius
+                );
+                // Swirly quadratic curve
+                ctx.quadraticCurveTo(
+                    Math.cos(angle + wp.swirl * 2) * radius * 0.6,
+                    Math.sin(angle + wp.swirl * 2) * radius * 0.6,
+                    Math.cos(angle + wp.swirl * 4) * end_radius,
+                    Math.sin(angle + wp.swirl * 4) * end_radius
+                );
+                ctx.strokeStyle = team.color;
+                ctx.lineWidth = 1.5;
+                ctx.globalAlpha = 0.5 * (wp.turns_left / 4); // Fade out as it expires
+                ctx.stroke();
+            }
+            ctx.restore();
         });
     }
 
@@ -1395,19 +1451,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const teamName = newTeamNameInput.value.trim();
         const trait = newTeamTraitSelect.value;
         if (teamName && !Object.values(localTeams).some(t => t.name === teamName)) {
-            const teamId = `team-${Date.now()}`; // More unique ID
+            const teamId = `team-${Date.now()}`;
             
             localTeams[teamId] = {
-                id: teamId, // Add id property to the object itself
+                id: teamId,
                 name: teamName,
                 color: newTeamColorInput.value,
                 trait: trait,
                 isEditing: false
             };
-            newTeamNameInput.value = '';
-            // Auto-select the new team
+            
+            // Set new random defaults for the next team to be added
+            setNewTeamDefaults(); 
+
+            // Auto-select the newly created team
             selectedTeamId = teamId;
             renderTeamsList();
+
         } else if (teamName) {
             alert('A team with this name already exists.');
         }
@@ -1650,6 +1710,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function init() {
+        setNewTeamDefaults();
+
         // --- Live grid size update ---
         gridSizeInput.addEventListener('input', () => {
             if (currentGameState.game_phase === 'SETUP') {
