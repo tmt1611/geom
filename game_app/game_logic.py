@@ -60,6 +60,7 @@ class Game:
             "teams": {},
             "points": [],
             "lines": [],
+            "territories": [], # Added for claimed triangles
             "game_log": [],
             "turn": 0,
             "max_turns": 100,
@@ -120,9 +121,6 @@ class Game:
             return {'success': False, 'reason': 'no new lines possible'}
 
         p1_idx, p2_idx = random.choice(possible_pairs)
-        self.state['lines'].append({"p1_idx": p1_idx, "p2_idx": p2_idx, "teamId": teamId})
-        return {'success': True, 'type': 'add_line'}
-
         self.state['lines'].append({"p1_idx": p1_idx, "p2_idx": p2_idx, "teamId": teamId})
         return {'success': True, 'type': 'add_line'}
 
@@ -218,6 +216,48 @@ class Game:
 
         return {'success': False, 'reason': 'no target was hit'}
 
+    def fortify_action_claim_territory(self, teamId):
+        """[FORTIFY ACTION]: Find a triangle and claim it as territory."""
+        team_points_indices = self.get_team_points_indices(teamId)
+        if len(team_points_indices) < 3:
+            return {'success': False, 'reason': 'not enough points for a triangle'}
+
+        # Build adjacency list for the team's graph
+        adj = {i: set() for i in team_points_indices}
+        for line in self.get_team_lines(teamId):
+            adj[line['p1_idx']].add(line['p2_idx'])
+            adj[line['p2_idx']].add(line['p1_idx'])
+
+        # Find all triangles
+        all_triangles = set()
+        for i in team_points_indices:
+            for j in adj.get(i, set()):
+                if j > i:
+                    for k in adj.get(j, set()):
+                        if k > j and k in adj.get(i, set()):
+                            # Found a triangle (i, j, k)
+                            all_triangles.add(tuple(sorted((i, j, k))))
+
+        if not all_triangles:
+            return {'success': False, 'reason': 'no triangles formed'}
+
+        # Find a triangle that hasn't been claimed yet
+        claimed_triangles = set(tuple(sorted(t['points_indices'])) for t in self.state['territories'])
+        
+        newly_claimable_triangles = list(all_triangles - claimed_triangles)
+
+        if not newly_claimable_triangles:
+            return {'success': False, 'reason': 'all triangles already claimed'}
+        
+        # Claim a random new triangle
+        triangle_to_claim = random.choice(newly_claimable_triangles)
+        self.state['territories'].append({
+            'teamId': teamId,
+            'points_indices': list(triangle_to_claim)
+        })
+        
+        return {'success': True, 'type': 'claim_territory'}
+
     # --- Turn Logic ---
 
     def run_next_turn(self):
@@ -241,7 +281,8 @@ class Game:
             possible_actions = [
                 self.expand_action_add_line,
                 self.expand_action_extend_line,
-                self.fight_action_attack_line
+                self.fight_action_attack_line,
+                self.fortify_action_claim_territory
             ]
             action_to_perform = random.choice(possible_actions)
             result = action_to_perform(teamId)
@@ -256,6 +297,8 @@ class Game:
                     log_message += "extended a line to the border, creating a new point."
                 elif action_type == 'attack_line':
                     log_message += f"attacked and destroyed a line from Team {result['destroyed_team']}."
+                elif action_type == 'claim_territory':
+                    log_message += "fortified its position, claiming new territory."
                 else:
                     log_message += "performed a successful action."
             else:
@@ -272,6 +315,10 @@ class Game:
                     log_message += "found no enemy lines to attack."
                 elif reason == 'no target was hit':
                     log_message += "attempted an attack but missed."
+                elif reason == 'no triangles formed':
+                    log_message += "could not find any triangles to fortify."
+                elif reason == 'all triangles already claimed':
+                    log_message += "found no new territory to claim."
                 else:
                     log_message += f"failed an action: {reason}."
 
@@ -292,9 +339,10 @@ class Game:
             team_points_indices = self.get_team_points_indices(teamId)
             team_points = [self.state['points'][i] for i in team_points_indices]
             team_lines = self.get_team_lines(teamId)
+            team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
 
             if len(team_points) < 1:
-                 interpretation[teamId] = { 'point_count': 0, 'line_count': 0, 'line_length': 0, 'triangles': 0, 'hull_area': 0, 'hull_perimeter': 0}
+                 interpretation[teamId] = { 'point_count': 0, 'line_count': 0, 'line_length': 0, 'triangles': 0, 'controlled_area': 0, 'hull_area': 0, 'hull_perimeter': 0}
                  continue
 
             # 1. Total Line Length
@@ -326,12 +374,20 @@ class Game:
                 hull_area = self._polygon_area(hull_points)
                 hull_perimeter = self._polygon_perimeter(hull_points)
 
+            # 4. Total Controlled Area from territories
+            controlled_area = 0
+            for territory in team_territories:
+                triangle_points = [self.state['points'][i] for i in territory['points_indices']]
+                if len(triangle_points) == 3:
+                    controlled_area += self._polygon_area(triangle_points)
+
 
             interpretation[teamId] = {
                 'point_count': len(team_points),
                 'line_count': len(team_lines),
                 'line_length': round(total_length, 2),
                 'triangles': triangles,
+                'controlled_area': round(controlled_area, 2),
                 'hull_area': round(hull_area, 2),
                 'hull_perimeter': round(hull_perimeter, 2)
             }

@@ -62,6 +62,7 @@ The simulation runs on a simple set of rules. On its turn, a team will randomly 
 - **Add Line:** Connect two of its own points with a new line.
 - **Extend Line:** Extend an existing line to the border of the grid, creating a new point.
 - **Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
+- **Fortify Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory, shading the area in its color.
 
 ## Development
 

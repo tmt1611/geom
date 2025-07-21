@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let initialPoints = [];
     let selectedTeamId = null;
     let autoPlayInterval = null;
+    let isDebugMode = false;
+    let currentGameState = {}; // Cache the latest game state
 
     // UI Elements
     const teamsList = document.getElementById('teams-list');
@@ -23,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statsDiv = document.getElementById('stats');
     const logDiv = document.getElementById('log');
     const turnCounter = document.getElementById('turn-counter');
+    const debugToggle = document.getElementById('debug-mode-toggle');
 
     // --- Core Functions ---
 
@@ -42,13 +45,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function drawPoints(points, teams) {
-        points.forEach(p => {
+        points.forEach((p, index) => {
             const team = teams[p.teamId];
             if (team) {
                 ctx.fillStyle = team.color;
                 ctx.beginPath();
                 ctx.arc((p.x + 0.5) * cellSize, (p.y + 0.5) * cellSize, 5, 0, 2 * Math.PI);
                 ctx.fill();
+
+                if (isDebugMode) {
+                    ctx.fillStyle = '#000';
+                    ctx.font = '10px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(index, (p.x + 0.5) * cellSize, (p.y + 0.5) * cellSize - 7);
+                }
             }
         });
     }
@@ -71,14 +82,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function drawTerritories(points, territories, teams) {
+        territories.forEach(territory => {
+            const team = teams[territory.teamId];
+            if (team) {
+                const triPoints = territory.points_indices.map(idx => points[idx]);
+                if (triPoints.length === 3 && triPoints.every(p => p)) {
+                    ctx.fillStyle = team.color;
+                    ctx.globalAlpha = 0.3; // semi-transparent
+                    ctx.beginPath();
+                    ctx.moveTo((triPoints[0].x + 0.5) * cellSize, (triPoints[0].y + 0.5) * cellSize);
+                    ctx.lineTo((triPoints[1].x + 0.5) * cellSize, (triPoints[1].y + 0.5) * cellSize);
+                    ctx.lineTo((triPoints[2].x + 0.5) * cellSize, (triPoints[2].y + 0.5) * cellSize);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0; // reset alpha
+                }
+            }
+        });
+    }
+
     function render(gameState) {
         if (!gameState || !gameState.teams) return;
+        currentGameState = gameState; // Cache state
         
         // Update grid scaling
         cellSize = canvas.width / gameState.grid_size;
 
         // Drawing functions
         drawGrid();
+        drawTerritories(gameState.points, gameState.territories || [], gameState.teams);
         drawLines(gameState.points, gameState.lines, gameState.teams);
         drawPoints(gameState.points, gameState.teams);
 
@@ -168,18 +201,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const teamName = teams[teamId].name;
                 const teamColor = teams[teamId].color;
                 
-                const statRows = [
+                const allStatRows = [
                     ['Points', teamData.point_count],
                     ['Lines', teamData.line_count],
                     ['Line Length', teamData.line_length],
                     ['Triangles', teamData.triangles],
+                    ['Territory Area', teamData.controlled_area],
                     ['Hull Area', teamData.hull_area],
                     ['Hull Perimeter', teamData.hull_perimeter]
                 ];
 
-                finalStatsHTML += `<tr><td rowspan="6" style="font-weight:bold; color:${teamColor};">${teamName}</td><td>${statRows[0][0]}</td><td>${statRows[0][1]}</td></tr>`;
-                for(let i = 1; i < statRows.length; i++) {
-                    finalStatsHTML += `<tr><td>${statRows[i][0]}</td><td>${statRows[i][1]}</td></tr>`;
+                // Filter out stats with a value of 0 or undefined
+                const statRows = allStatRows.filter(row => row[1] > 0);
+
+                if (statRows.length > 0) {
+                    finalStatsHTML += `<tr><td rowspan="${statRows.length}" style="font-weight:bold; color:${teamColor};">${teamName}</td><td>${statRows[0][0]}</td><td>${statRows[0][1]}</td></tr>`;
+                    for(let i = 1; i < statRows.length; i++) {
+                        finalStatsHTML += `<tr><td>${statRows[i][0]}</td><td>${statRows[i][1]}</td></tr>`;
+                    }
                 }
             }
             finalStatsHTML += '</table>';
@@ -205,6 +244,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Handlers & API Calls ---
+
+    debugToggle.addEventListener('click', () => {
+        isDebugMode = debugToggle.checked;
+        render(currentGameState); // Re-render with the cached state
+    });
 
     addTeamBtn.addEventListener('click', () => {
         const teamName = newTeamNameInput.value.trim();
@@ -325,6 +369,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function init() {
         const response = await fetch('/api/game/state');
         const gameState = await response.json();
+        // Set local state based on potentially ongoing game
+        if (gameState && gameState.teams && Object.keys(gameState.teams).length > 0) {
+            localTeams = gameState.teams;
+        }
         cellSize = canvas.width / gameState.grid_size;
         render(gameState);
         renderTeamsList();
