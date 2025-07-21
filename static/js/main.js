@@ -871,6 +871,18 @@ document.addEventListener('DOMContentLoaded', () => {
         cellSize = canvas.width / gridSize;
     }
     
+    // --- Canvas Sizing & Responsiveness ---
+
+    function resizeCanvas() {
+        // Match the drawing surface size to the element's size in the layout
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+        
+        // Recalculate cell size, use width as it's a square
+        gridSize = currentGameState.grid_size || 10;
+        cellSize = canvas.width / gridSize;
+    }
+    
     // --- Initialization and Update Checker ---
 
     function checkForUpdates() {

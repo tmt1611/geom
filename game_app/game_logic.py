@@ -418,6 +418,63 @@ class Game:
 
         return {'success': False, 'reason': 'could not find a valid position to grow'}
 
+        def expand_action_grow_line(self, teamId):
+        """[EXPAND ACTION]: Grows a new short line from an existing point, like a vine."""
+        team_lines = self.get_team_lines(teamId)
+        if not team_lines:
+            return {'success': False, 'reason': 'no lines to grow from'}
+
+        random.shuffle(team_lines)
+        points_map = self.state['points']
+        
+        for line in team_lines:
+            if not (line['p1_id'] in points_map and line['p2_id'] in points_map):
+                continue
+            
+            # Choose a random endpoint to grow from
+            p_origin_id, p_other_id = random.choice([(line['p1_id'], line['p2_id']), (line['p2_id'], line['p1_id'])])
+            p_origin = points_map[p_origin_id]
+            p_other = points_map[p_other_id]
+
+            # Vector from other to origin, defining the line's direction at the origin
+            vx = p_origin['x'] - p_other['x']
+            vy = p_origin['y'] - p_other['y']
+
+            # Rotate this vector by a random angle. Avoids growing straight back.
+            angle = random.uniform(-math.pi * 2/3, math.pi * 2/3) # -120 to +120 degrees
+            
+            new_vx = vx * math.cos(angle) - vy * math.sin(angle)
+            new_vy = vx * math.sin(angle) + vy * math.cos(angle)
+
+            # Normalize the new vector
+            mag = math.sqrt(new_vx**2 + new_vy**2)
+            if mag == 0: continue # Should not happen if line has length
+
+            # Define the length of the new "vine"
+            growth_length = self.state['grid_size'] * random.uniform(0.1, 0.2)
+            
+            # Calculate new point position
+            new_x = p_origin['x'] + (new_vx / mag) * growth_length
+            new_y = p_origin['y'] + (new_vy / mag) * growth_length
+
+            # Check if the new point is within the grid boundaries
+            grid_size = self.state['grid_size']
+            if not (0 <= new_x < grid_size and 0 <= new_y < grid_size):
+                continue # Try another line if this one grows out of bounds
+
+            # We found a valid growth, create the new point and line
+            new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+            new_point = {"x": round(new_x), "y": round(new_y), "teamId": teamId, "id": new_point_id}
+            self.state['points'][new_point_id] = new_point
+
+            line_id = f"l_{uuid.uuid4().hex[:6]}"
+            new_line = {"id": line_id, "p1_id": p_origin_id, "p2_id": new_point_id, "teamId": teamId}
+            self.state['lines'].append(new_line)
+
+            return {'success': True, 'type': 'grow_line', 'new_point': new_point, 'new_line': new_line}
+
+        return {'success': False, 'reason': 'could not find a valid position to grow'}
+
     def fortify_action_claim_territory(self, teamId):
         """[FORTIFY ACTION]: Find a triangle and claim it as territory."""
         team_point_ids = self.get_team_point_ids(teamId)
