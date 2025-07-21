@@ -139,10 +139,18 @@ legend {
     margin-top: 8px;
     gap: 5px;
     align-items: center;
+    flex-wrap: wrap;
 }
 .team-edit-controls input[type="text"] {
     flex-grow: 1;
     padding: 4px;
+    min-width: 80px;
+}
+.team-edit-controls select {
+    padding: 3px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 3px;
 }
 .team-edit-controls button {
     padding: 4px 8px;

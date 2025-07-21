@@ -1132,6 +1132,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const editNameInput = document.createElement('input');
             editNameInput.type = 'text';
             editNameInput.value = team.name;
+            editNameInput.placeholder = 'Team Name';
+    
+            const editTraitSelect = document.createElement('select');
+            const traits = ['Random', 'Balanced', 'Aggressive', 'Expansive', 'Defensive'];
+            traits.forEach(traitValue => {
+                const option = document.createElement('option');
+                option.value = traitValue;
+                option.textContent = traitValue;
+                if (team.trait === traitValue) {
+                    option.selected = true;
+                }
+                editTraitSelect.appendChild(option);
+            });
     
             const saveBtn = document.createElement('button');
             saveBtn.textContent = 'Save';
@@ -1140,6 +1153,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (newName) {
                     localTeams[teamId].name = newName;
                     localTeams[teamId].color = editColorInput.value;
+                    localTeams[teamId].trait = editTraitSelect.value;
                     localTeams[teamId].isEditing = false;
                     renderTeamsList();
                 }
@@ -1152,7 +1166,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderTeamsList();
             };
     
-            editControls.append(editColorInput, editNameInput, saveBtn, cancelBtn);
+            editControls.append(editColorInput, editNameInput, editTraitSelect, saveBtn, cancelBtn);
             li.appendChild(editControls);
     
             // --- Action Buttons ---
@@ -1731,7 +1745,29 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const response = await fetch('/api/game/reset', { method: 'POST' });
                 if (response.ok) {
-                    window.location.reload();
+                    const gameState = await response.json();
+                    
+                    // Reset local setup state
+                    // The state from the server contains the default teams.
+                    localTeams = gameState.teams || {}; 
+                    Object.values(localTeams).forEach(t => { t.isEditing = false; }); // Ensure no edit mode
+                    initialPoints = []; // Clear points
+                    const teamIds = Object.keys(localTeams);
+                    if (teamIds.length > 0) {
+                        selectedTeamId = teamIds[0];
+                    } else {
+                        selectedTeamId = null;
+                    }
+                    
+                    // Reset inputs to default
+                    gridSizeInput.value = gameState.grid_size;
+                    maxTurnsInput.value = gameState.max_turns;
+                    setNewTeamDefaults();
+    
+                    // Update the state cache and render all UI components based on the new state
+                    updateStateAndRender(gameState);
+                    // Manually call renderTeamsList because it's only called on first update inside updateStateAndRender
+                    renderTeamsList(); 
                 } else {
                     alert('Failed to reset the game on the server.');
                 }
