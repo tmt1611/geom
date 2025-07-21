@@ -1,29 +1,26 @@
 # Iteration Analysis and Changelog
 
 ## 1. Analysis Summary
-This iteration focuses on a significant expansion of the game's strategic depth and visual complexity by introducing a "Rune" system, as suggested in the design goals. The goal is to make the auto-battle more interesting by rewarding teams for forming specific geometric patterns, moving beyond simple expansion.
+This iteration focuses on increasing the strategic value of existing actions and adding a new, visually impressive action to make the battlefield more dynamic. The goal is to reward players for establishing strongholds and to add more variety to expansive strategies.
 
 ## 2. Implemented Features and Improvements
 
-### Rune System (`game_logic.py`)
-A new core mechanic, **Runes**, has been implemented. Runes are geometric patterns that grant teams passive bonuses or unlock unique, powerful actions. The game now checks for these patterns for each team before it acts.
+### "Fortified Territory" Mechanic (`game_logic.py`, `static/js/main.js`)
+The `Fortify Territory` action has been enhanced to provide significant defensive bonuses, making it a more crucial part of a defensive or "turtling" strategy.
 
-1.  **V-Rune (New Action):**
-    - **Condition:** Three points forming a 'V' shape with two connected lines of similar length.
-    - **Reward:** Unlocks a new high-priority action: `Rune Action: Shoot Bisector`. This action fires a powerful attack ray along the angle bisector of the 'V', capable of destroying an enemy line.
-2.  **Cross-Rune (New Passive):**
-    - **Condition:** Four points forming a rectangle, with both internal diagonals existing as lines.
-    - **Reward:** Grants a passive ability: `Piercing Attacks`. Any standard `attack_line` action performed by the team can now bypass one enemy shield.
+1.  **New Mechanic:** When a team claims a triangle as territory:
+    *   The three corner points become **Fortified**. Fortified points are immune to the `Convert Point` action, protecting them from being stolen by rivals.
+    - The three boundary lines become **Reinforced**. They cannot be fractured by their owner, which helps preserve the integrity of the claimed territory.
+2.  **Visual Cue:** Fortified points are now rendered as diamond shapes on the canvas, providing a clear visual distinction from regular points.
 
-### Frontend and Visualization (`static/js/main.js`, `templates/index.html`)
+### New Action: "Create Orbital" (`game_logic.py`, `static/js/main.js`, `rules.md`)
+A new high-tier expansion action has been added to create more interesting geometric patterns.
 
-1.  **Rune Visualization:** Active runes are now drawn directly on the canvas.
-    - V-Runes are highlighted with a glowing effect along their two-line shape.
-    - Cross-Runes are visualized by shading the rectangular area they form.
-2.  **UI Updates:**
-    - The "Live Stats" panel now displays a count of active `V-Shape` and `Cross` runes for each team.
-    - The game log has been updated with new messages for the rune action and for shield-bypassing attacks.
-3.  **New Visual Effects:** A distinct visual effect has been added for the `Shoot Bisector` attack ray to differentiate it from normal attacks.
+1.  **[EXPAND] Create Orbital:**
+    -   **Description:** A team with at least 5 points can perform this action. It selects one of its points as a center and creates a constellation of 3-5 new "satellite" points in a circular orbit around it, automatically connecting them to the center with new lines.
+    -   **Behavior:** This action is weighted to be preferred by the `Expansive` trait and provides a powerful way to quickly increase point and line count, creating visually distinct star-like structures.
+    -   **Visualization:** The new action is highlighted on the frontend when it occurs, and a new log message describes the event.
 
-### Documentation (`rules.md`)
-- The `rules.md` file has been updated to include detailed explanations of the new runes and their effects.
+### Minor Improvements
+-   The `Convert Point` action will now fail with a more descriptive reason (`no vulnerable enemy points in range`) if all potential targets are fortified.
+-   The `Fracture Line` action will now fail with a more descriptive reason if the only available lines are part of a reinforced territory boundary.

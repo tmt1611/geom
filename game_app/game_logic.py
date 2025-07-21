@@ -100,11 +100,13 @@ class Game:
             augmented_lines.append(augmented_line)
         state_copy['lines'] = augmented_lines
 
-        # Augment points with anchor status
+        # Augment points with anchor and fortified status
+        fortified_point_ids = self._get_fortified_point_ids()
         augmented_points = {}
         for pid, point in self.state['points'].items():
             augmented_point = point.copy()
             augmented_point['is_anchor'] = pid in self.state['anchors']
+            augmented_point['is_fortified'] = pid in fortified_point_ids
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
 
@@ -171,6 +173,14 @@ class Game:
     def get_team_lines(self, teamId):
         """Returns lines belonging to a team."""
         return [l for l in self.state['lines'] if l['teamId'] == teamId]
+
+    def _get_fortified_point_ids(self):
+        """Returns a set of all point IDs that are part of any claimed territory."""
+        fortified_ids = set()
+        for territory in self.state.get('territories', []):
+            for point_id in territory['point_ids']:
+                fortified_ids.add(point_id)
+        return fortified_ids
 
     # --- Game Actions ---
 
@@ -272,8 +282,22 @@ class Game:
         team_lines = self.get_team_lines(teamId)
         points = self.state['points']
 
+        # Get territory boundary lines to exclude them from fracturing
+        territory_lines = set()
+        for t in self.state.get('territories', []):
+            if t['teamId'] == teamId:
+                p_ids = t['point_ids']
+                # A territory is a triangle, so it has 3 sides (lines)
+                territory_lines.add(tuple(sorted((p_ids[0], p_ids[1]))))
+                territory_lines.add(tuple(sorted((p_ids[1], p_ids[2]))))
+                territory_lines.add(tuple(sorted((p_ids[2], p_ids[0]))))
+
         fracturable_lines = []
         for line in team_lines:
+            # Check if line is a territory boundary
+            if tuple(sorted((line['p1_id'], line['p2_id']))) in territory_lines:
+                continue
+
             if line['p1_id'] not in points or line['p2_id'] not in points:
                 continue
             p1 = points[line['p1_id']]
@@ -282,7 +306,7 @@ class Game:
                 fracturable_lines.append(line)
 
         if not fracturable_lines:
-            return {'success': False, 'reason': 'no lines long enough to fracture'}
+            return {'success': False, 'reason': 'no non-territory lines long enough to fracture'}
 
         line_to_fracture = random.choice(fracturable_lines)
         p1 = points[line_to_fracture['p1_id']]
@@ -474,6 +498,74 @@ class Game:
             return {'success': True, 'type': 'spawn_point', 'new_point': new_point}
 
         return {'success': False, 'reason': 'could not find a valid position to spawn'}
+
+    def expand_action_create_orbital(self, teamId):
+        """[EXPAND ACTION]: Creates a new orbital structure of points around an existing point."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 5:
+            return {'success': False, 'reason': 'not enough points to create an orbital'}
+
+        # Try a few times to find a valid spot
+        for _ in range(5):
+            p_center_id = random.choice(team_point_ids)
+            p_center = self.state['points'][p_center_id]
+            
+            num_satellites = random.randint(3, 5)
+            radius = self.state['grid_size'] * random.uniform(0.15, 0.25)
+            angle_offset = random.uniform(0, 2 * math.pi)
+            
+            new_points_to_create = []
+            valid_orbital = True
+
+            for i in range(num_satellites):
+                angle = angle_offset + (2 * math.pi * i / num_satellites)
+                new_x = p_center['x'] + math.cos(angle) * radius
+                new_y = p_center['y'] + math.sin(angle)
+                
+                # Clamp to grid and round to integer
+                grid_size = self.state['grid_size']
+                final_x = round(max(0, min(grid_size - 1, new_x)))
+                final_y = round(max(0, min(grid_size - 1, new_y)))
+
+                # Check if it's too close to any existing point
+                is_too_close = False
+                new_p_coords = {'x': final_x, 'y': final_y}
+                for existing_p in self.state['points'].values():
+                    if distance_sq(new_p_coords, existing_p) < 2.0: # min dist of sqrt(2)
+                        is_too_close = True
+                        break
+                if is_too_close:
+                    valid_orbital = False
+                    break
+                
+                new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                new_points_to_create.append({"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id})
+            
+            if not valid_orbital:
+                continue # Try with another center point
+
+            # If we're here, the orbital is valid. Create points and lines.
+            created_points = []
+            created_lines = []
+            for new_p_data in new_points_to_create:
+                self.state['points'][new_p_data['id']] = new_p_data
+                created_points.append(new_p_data)
+
+                # Add a line from the center to the new satellite point
+                line_id = f"l_{uuid.uuid4().hex[:6]}"
+                new_line = {"id": line_id, "p1_id": p_center_id, "p2_id": new_p_data['id'], "teamId": teamId}
+                self.state['lines'].append(new_line)
+                created_lines.append(new_line)
+            
+            return {
+                'success': True,
+                'type': 'create_orbital',
+                'center_point_id': p_center_id,
+                'new_points': created_points,
+                'new_lines': created_lines
+            }
+
+        return {'success': False, 'reason': 'could not find a valid position for an orbital'}
 
     def shield_action_protect_line(self, teamId):
         """[DEFEND ACTION]: Applies a temporary shield to a line, protecting it from attacks."""
@@ -728,7 +820,8 @@ class Game:
     def fight_action_convert_point(self, teamId):
         """[FIGHT ACTION]: Sacrifice a line to convert a nearby enemy point."""
         team_lines = self.get_team_lines(teamId)
-        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        fortified_point_ids = self._get_fortified_point_ids()
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in fortified_point_ids]
         points_map = self.state['points']
 
         if not team_lines or not enemy_points:
@@ -751,7 +844,7 @@ class Game:
                     possible_conversions.append({'line': line_to_sac, 'point': enemy_point})
 
         if not possible_conversions:
-            return {'success': False, 'reason': 'no enemy points in range'}
+            return {'success': False, 'reason': 'no vulnerable enemy points in range'}
 
         # Choose a random valid conversion and execute it
         chosen_conversion = random.choice(possible_conversions)
@@ -865,6 +958,7 @@ class Game:
             'expand_grow': self.expand_action_grow_line,
             'expand_fracture': self.expand_action_fracture_line,
             'expand_spawn': self.expand_action_spawn_point,
+            'expand_orbital': self.expand_action_create_orbital,
             'fight_attack': self.fight_action_attack_line,
             'fight_convert': self.fight_action_convert_point,
             'fortify_claim': self.fortify_action_claim_territory,
@@ -883,6 +977,7 @@ class Game:
             'expand_grow': bool(team_lines),
             'expand_fracture': any(distance_sq(self.state['points'][l['p1_id']], self.state['points'][l['p2_id']]) >= 4.0 for l in team_lines if l['p1_id'] in self.state['points'] and l['p2_id'] in self.state['points']),
             'expand_spawn': len(team_point_ids) > 0,
+            'expand_orbital': len(team_point_ids) >= 5,
             'fight_attack': bool(team_lines) and any(l['teamId'] != teamId for l in self.state['lines']),
             'fight_convert': bool(team_lines) and any(p['teamId'] != teamId for p in self.state['points'].values()),
             'defend_shield': any(l.get('id') not in self.state['shields'] for l in team_lines),
@@ -903,13 +998,14 @@ class Game:
         # --- Apply trait-based weights to the *possible* actions ---
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
+            'expand_orbital': 7,
             'fight_attack': 10, 'fight_convert': 8,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'sacrifice_nova': 3, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
             'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5},
-            'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0},
+            'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5},
             'Balanced':   {}
         }
@@ -1077,6 +1173,7 @@ class Game:
             elif action_type == 'grow_line': log_message += "grew a new branch, creating a new point."
             elif action_type == 'fracture_line': log_message += "fractured a line, creating a new point."
             elif action_type == 'spawn_point': log_message += "spawned a new point from an existing one."
+            elif action_type == 'create_orbital': log_message += f"created an orbital structure with {len(result['new_points'])} new points."
             elif action_type == 'attack_line':
                 msg = f"attacked and destroyed a line from Team {result['destroyed_team']}"
                 if result.get('bypassed_shield'):

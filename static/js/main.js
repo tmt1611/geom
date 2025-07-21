@@ -108,7 +108,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Main point drawing
                 ctx.fillStyle = team.color;
                 ctx.beginPath();
-                if (p.is_anchor) {
+                if (p.is_fortified) {
+                    // Draw fortified points as diamonds
+                    const size = radius * 1.7;
+                    ctx.moveTo(cx, cy - size); // Top
+                    ctx.lineTo(cx + size, cy); // Right
+                    ctx.lineTo(cx, cy + size); // Bottom
+                    ctx.lineTo(cx - size, cy); // Left
+                    ctx.closePath();
+                } else if (p.is_anchor) {
                     // Draw anchors as squares
                     const squareSize = radius * 1.8;
                     ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
@@ -483,6 +491,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 startTime: Date.now(),
                 duration: 1500 // ms
             });
+        }
+        if (details.type === 'create_orbital' && details.new_points) {
+            lastActionHighlights.points.add(details.center_point_id);
+            details.new_points.forEach(p => lastActionHighlights.points.add(p.id));
+            details.new_lines.forEach(l => lastActionHighlights.lines.add(l.id));
         }
 
         // Set a timer to clear the highlights
