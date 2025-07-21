@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('grid');
     const ctx = canvas.getContext('2d');
-    const gridSize = 10; // This will be updated from backend state
+    let gridSize = 10; // This will be updated from backend state
     let cellSize = canvas.width / gridSize;
 
     // Game state - The single source of truth will be the backend
@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showHulls: false
     };
     let currentGameState = {}; // Cache the latest game state
+    let hasResizedInitially = false;
     let visualEffects = []; // For temporary animations
     let lastActionHighlights = {
         points: new Set(),
@@ -58,6 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawGrid() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.strokeStyle = '#e0e0e0';
+        gridSize = currentGameState.grid_size || 10;
+        cellSize = canvas.width / gridSize;
         for (let i = 0; i <= gridSize; i++) {
             ctx.beginPath();
             ctx.moveTo(i * cellSize, 0);
@@ -265,8 +268,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function fullRender() {
         if (!currentGameState || !currentGameState.teams) return;
         
-        // Update grid scaling
-        cellSize = canvas.width / currentGameState.grid_size;
+        // Update grid scaling is now implicitly handled by drawGrid and cellSize updates
+        // cellSize = canvas.width / currentGameState.grid_size;
 
         // Drawing functions
         drawGrid();
@@ -355,8 +358,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateStateAndRender(gameState) {
         if (!gameState || !gameState.teams) return;
+        
+        const isFirstUpdate = !currentGameState.game_phase;
         currentGameState = gameState; // Cache state
         
+        if (isFirstUpdate) {
+            // After the first state load, ensure the teams list and controls are correctly rendered
+            renderTeamsList();
+        }
+
         processActionVisuals(gameState);
 
         // UI update functions (don't need to be in every frame)
@@ -371,9 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTeamsList() {
         teamsList.innerHTML = '';
         const inSetupPhase = currentGameState.game_phase === 'SETUP';
-
-        // Use local setup teams during setup, otherwise use teams from game state
-        const teamsToRender = inSetupPhase && Object.keys(localTeams).length > 0 ? localTeams : currentGameState.teams;
+        const teamsToRender = inSetupPhase ? localTeams : currentGameState.teams;
 
         for (const teamId in teamsToRender) {
             const team = teamsToRender[teamId];
@@ -384,35 +392,95 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.classList.add('selected');
             }
 
-            const colorBox = document.createElement('div');
-            colorBox.className = 'team-color-box';
-            colorBox.style.backgroundColor = team.color;
-            li.appendChild(colorBox);
+            if (inSetupPhase && team.isEditing) {
+                // --- EDITING MODE ---
+                const editControls = document.createElement('div');
+                editControls.className = 'team-edit-controls';
 
-            const teamInfo = document.createElement('div');
-            teamInfo.className = 'team-info';
-            const teamName = document.createElement('span');
-            teamName.className = 'team-name';
-            teamName.textContent = team.name;
-            teamInfo.appendChild(teamName);
+                const colorInput = document.createElement('input');
+                colorInput.type = 'color';
+                colorInput.value = team.color;
 
-            if (team.trait) {
-                const teamTrait = document.createElement('span');
-                teamTrait.className = 'team-trait';
-                teamTrait.textContent = `(${team.trait})`;
-                teamInfo.appendChild(teamTrait);
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.value = team.name;
+
+                const saveBtn = document.createElement('button');
+                saveBtn.textContent = 'Save';
+                saveBtn.onclick = () => {
+                    const newName = nameInput.value.trim();
+                    if (newName) {
+                        localTeams[teamId].name = newName;
+                        localTeams[teamId].color = colorInput.value;
+                        localTeams[teamId].isEditing = false;
+                        renderTeamsList();
+                        redrawSetupPoints(); // Update point colors
+                    }
+                };
+                
+                const cancelBtn = document.createElement('button');
+                cancelBtn.textContent = 'Cancel';
+                cancelBtn.onclick = () => {
+                    localTeams[teamId].isEditing = false;
+                    renderTeamsList();
+                };
+
+                editControls.append(colorInput, nameInput, saveBtn, cancelBtn);
+                li.appendChild(editControls);
+
+            } else {
+                // --- NORMAL DISPLAY MODE ---
+                const colorBox = document.createElement('div');
+                colorBox.className = 'team-color-box';
+                colorBox.style.backgroundColor = team.color;
+                li.appendChild(colorBox);
+
+                const teamInfo = document.createElement('div');
+                teamInfo.className = 'team-info';
+                teamInfo.onclick = () => { // Make the info part clickable for selection
+                    if (inSetupPhase) {
+                        selectedTeamId = teamId;
+                        renderTeamsList();
+                    }
+                };
+                const teamName = document.createElement('span');
+                teamName.className = 'team-name';
+                teamName.textContent = team.name;
+                teamInfo.appendChild(teamName);
+
+                if (team.trait) {
+                    const teamTrait = document.createElement('span');
+                    teamTrait.className = 'team-trait';
+                    teamTrait.textContent = `(${team.trait})`;
+                    teamInfo.appendChild(teamTrait);
+                }
+                li.appendChild(teamInfo);
+
+                if (inSetupPhase) {
+                    li.style.cursor = 'pointer';
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'team-actions';
+
+                    const editBtn = document.createElement('button');
+                    editBtn.innerHTML = '&#9998;'; // Pencil icon
+                    editBtn.title = 'Edit team';
+                    editBtn.onclick = () => {
+                        // Set editing flag on the specific team and re-render
+                        Object.values(localTeams).forEach(t => t.isEditing = false); // Ensure only one is edited at a time
+                        localTeams[teamId].isEditing = true;
+                        renderTeamsList();
+                    };
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.innerHTML = '&times;'; // Cross icon
+                    deleteBtn.title = 'Delete team';
+                    deleteBtn.className = 'delete-team-btn';
+                    deleteBtn.dataset.teamId = teamId; // Keep this for the main listener
+
+                    actionsDiv.append(editBtn, deleteBtn);
+                    li.appendChild(actionsDiv);
+                }
             }
-            li.appendChild(teamInfo);
-
-            if (inSetupPhase) {
-                li.style.cursor = 'pointer';
-                const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = '×';
-                deleteBtn.className = 'delete-team-btn';
-                deleteBtn.dataset.teamId = teamId;
-                li.appendChild(deleteBtn);
-            }
-
             teamsList.appendChild(li);
         }
     }
@@ -571,19 +639,16 @@ document.addEventListener('DOMContentLoaded', () => {
         debugOptions.showHulls = showHullsToggle.checked;
     });
 
-    // A single listener for team list interactions (selection and deletion)
+    // Listener for team list - now only for deletion (selection and editing are handled on elements)
     teamsList.addEventListener('click', (e) => {
         if (currentGameState.game_phase !== 'SETUP') return;
 
-        const li = e.target.closest('li');
-        if (!li) return;
-
-        const teamId = li.dataset.teamId;
-
         // Handle team deletion
-        if (e.target.classList.contains('delete-team-btn')) {
+        const deleteButton = e.target.closest('.delete-team-btn');
+        if (deleteButton) {
+            const teamId = deleteButton.dataset.teamId;
             const teamName = localTeams[teamId]?.name || 'this team';
-            if (!confirm(`Are you sure you want to remove ${teamName}?`)) return;
+            if (!confirm(`Are you sure you want to remove ${teamName}? This will also delete its points.`)) return;
 
             // If the deleted team was selected, deselect it or pick another
             if (selectedTeamId === teamId) {
@@ -602,12 +667,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Re-render teams list and the grid
             renderTeamsList();
             redrawSetupPoints();
-            return;
         }
-
-        // Handle team selection
-        selectedTeamId = teamId;
-        renderTeamsList();
     });
 
     addTeamBtn.addEventListener('click', () => {
@@ -619,7 +679,8 @@ document.addEventListener('DOMContentLoaded', () => {
             localTeams[teamId] = {
                 name: teamName,
                 color: newTeamColorInput.value,
-                trait: trait
+                trait: trait,
+                isEditing: false
             };
             newTeamNameInput.value = '';
             // Auto-select the new team
@@ -798,6 +859,18 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.reload();
     });
 
+    // --- Canvas Sizing & Responsiveness ---
+
+    function resizeCanvas() {
+        // Match the drawing surface size to the element's size in the layout
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+        
+        // Recalculate cell size, use width as it's a square
+        gridSize = currentGameState.grid_size || 10;
+        cellSize = canvas.width / gridSize;
+    }
+    
     // --- Initialization and Update Checker ---
 
     function checkForUpdates() {
@@ -819,13 +892,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function init() {
+        // Setup resize observer
+        const gridContainer = document.querySelector('.grid-container');
+        const resizeObserver = new ResizeObserver(() => {
+            if(currentGameState && currentGameState.grid_size) {
+                resizeCanvas();
+            }
+        });
+        resizeObserver.observe(gridContainer);
+
         const response = await fetch('/api/game/state');
         const gameState = await response.json();
-        currentGameState = gameState; // Initial cache
         
         // If page is refreshed during setup, reconstruct state to allow editing
         if (gameState.game_phase === 'SETUP') {
              localTeams = gameState.teams || {};
+             Object.values(localTeams).forEach(t => t.isEditing = false); // Ensure no edit mode on load
              initialPoints = Object.values(gameState.points);
         } else {
              localTeams = gameState.teams || {};
@@ -834,8 +916,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         gridSizeInput.value = gameState.grid_size;
         maxTurnsInput.value = gameState.max_turns;
+
+        // Perform initial render and resize
         updateStateAndRender(gameState);
-        renderTeamsList();
+        // A small delay lets the flexbox layout settle before the first canvas resize.
+        setTimeout(() => {
+            resizeCanvas();
+            hasResizedInitially = true;
+            // The animation loop will render the correctly sized canvas.
+        }, 50);
+
         checkForUpdates();
         animationLoop(); // Start the animation loop
     }
