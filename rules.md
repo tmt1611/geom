@@ -6,6 +6,17 @@ When a team is created, it is assigned a random trait which influences its behav
 *   **Defensive:** Favors fortifying territory and protecting its existing lines.
 *   **Balanced:** Has no strong preference for any particular type of action.
 
+## Runes
+Runes are special geometric formations that grant a team passive bonuses or unlock powerful new actions. They are checked at the start of a team's turn.
+
+*   **V-Rune:**
+    *   **Formation:** Three points forming a 'V' shape, where two connected lines originating from the same point are of similar length.
+    *   **Bonus:** Unlocks the **[RUNE] Shoot Bisector** action, a powerful, long-range attack fired from the 'V's vertex.
+
+*   **Cross-Rune:**
+    *   **Formation:** Four points that form a rectangle, with both internal diagonals existing as lines for that team.
+    *   **Bonus:** Grants the `Piercing Attacks` passive. The team's standard `Attack Line` action can now bypass one enemy shield.
+
 ## Actions
 On its turn, a team will perform one of the following actions, with the choice being influenced by its trait.
 
@@ -17,6 +28,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
 *   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range.
 *   **[FIGHT] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
+*   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Fortify Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory, shading the area in its color.
 *   **[FORTIFY] Create Anchor:** Sacrifice one of its own points to turn another into a gravitational anchor. For a few turns, the anchor will slowly pull nearby enemy points towards it.

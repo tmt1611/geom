@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function drawTerritories(pointsDict, territories, teams) {
-        if (!pointsDict) return;
+        if (!pointsDict || !territories) return;
         territories.forEach(territory => {
             const team = teams[territory.teamId];
             if (team) {
@@ -240,6 +240,64 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+    }
+
+    function drawRunes(gameState) {
+        if (!gameState.runes) return;
+    
+        for (const teamId in gameState.runes) {
+            const teamRunes = gameState.runes[teamId];
+            const team = gameState.teams[teamId];
+            if (!team) continue;
+    
+            // Draw V-Runes
+            if (teamRunes.v_shape) {
+                teamRunes.v_shape.forEach(rune => {
+                    const p_v = gameState.points[rune.vertex_id];
+                    const p_l1 = gameState.points[rune.leg1_id];
+                    const p_l2 = gameState.points[rune.leg2_id];
+                    if (!p_v || !p_l1 || !p_l2) return;
+    
+                    ctx.beginPath();
+                    ctx.moveTo((p_l1.x + 0.5) * cellSize, (p_l1.y + 0.5) * cellSize);
+                    ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
+                    ctx.lineTo((p_l2.x + 0.5) * cellSize, (p_l2.y + 0.5) * cellSize);
+                    ctx.strokeStyle = team.color;
+                    ctx.lineWidth = 6;
+                    ctx.globalAlpha = 0.4;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                });
+            }
+    
+            // Draw Cross-Runes
+            if (teamRunes.cross) {
+                teamRunes.cross.forEach(rune_p_ids => {
+                    const points = rune_p_ids.map(pid => gameState.points[pid]).filter(p => p);
+                    if (points.length !== 4) return;
+                    
+                    // Sort points angularly around their centroid to draw the polygon correctly
+                    const centroid = {
+                        x: points.reduce((acc, p) => acc + p.x, 0) / 4,
+                        y: points.reduce((acc, p) => acc + p.y, 0) / 4,
+                    };
+                    points.sort((a, b) => {
+                        return Math.atan2(a.y - centroid.y, a.x - centroid.x) - Math.atan2(b.y - centroid.y, b.x - centroid.x);
+                    });
+    
+                    ctx.beginPath();
+                    ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
+                    for (let i = 1; i < points.length; i++) {
+                         ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
+                    }
+                    ctx.closePath();
+                    ctx.fillStyle = team.color;
+                    ctx.globalAlpha = 0.2;
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                });
+            }
+        }
     }
 
     function drawVisualEffects() {
@@ -280,8 +338,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.beginPath();
                 ctx.moveTo(x1, y1);
                 ctx.lineTo(x2, y2);
-                ctx.strokeStyle = `rgba(255, 0, 0, ${1 - progress})`; // Red, fading out
-                ctx.lineWidth = 3;
+                ctx.strokeStyle = effect.color || `rgba(255, 0, 0, ${1 - progress})`; // Red, fading out
+                ctx.lineWidth = effect.lineWidth || 3;
                 ctx.stroke();
             } else if (effect.type === 'mirror_axis') {
                 const p1 = currentGameState.points[effect.p1_id];
@@ -317,7 +375,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // During RUNNING or FINISHED, draw from the official game state
             if (currentGameState.teams) {
-                drawTerritories(currentGameState.points, currentGameState.territories || [], currentGameState.teams);
+                drawTerritories(currentGameState.points, currentGameState.territories, currentGameState.teams);
+                drawRunes(currentGameState);
                 drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
                 drawPoints(currentGameState.points, currentGameState.teams);
                 
@@ -385,7 +444,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 p1: details.attack_ray.p1,
                 p2: details.attack_ray.p2,
                 startTime: Date.now(),
-                duration: 600 // ms
+                duration: 600, // ms
+                color: details.bypassed_shield ? `rgba(255, 100, 255, ${1 - 0})` : `rgba(255, 0, 0, ${1 - 0})` // Magenta if shield bypass
+            });
+        }
+        if (details.type === 'rune_shoot_bisector' && details.attack_ray) {
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'attack_ray',
+                p1: details.attack_ray.p1,
+                p2: details.attack_ray.p2,
+                startTime: Date.now(),
+                duration: 800,
+                color: `rgba(100, 255, 255, ${1-0})`, // Cyan for rune attack
+                lineWidth: 4,
             });
         }
         if (details.type === 'extend_line' && details.new_point) {
@@ -576,7 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, active_teams_this_turn } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, active_teams_this_turn, runes } = gameState;
 
         let turnText = `Turn: ${turn} / ${max_turns}`;
         if (game_phase === 'RUNNING' && active_teams_this_turn && active_teams_this_turn.length > 0) {
@@ -591,12 +663,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const team = teams[teamId];
                 const stats = live_stats[teamId];
                 if (stats) {
-                    statsHTML += `<div style="margin-bottom: 5px;">
+                    let teamHTML = `<div style="margin-bottom: 5px;">
                         <strong style="color:${team.color};">${team.name}</strong>: 
                         ${stats.point_count} pts, 
                         ${stats.line_count} lines,
-                        ${stats.controlled_area} area
-                    </div>`;
+                        ${stats.controlled_area} area`;
+                    
+                    const teamRunes = runes[teamId] || {};
+                    const crossRunesCount = teamRunes.cross ? teamRunes.cross.length : 0;
+                    const vRunesCount = teamRunes.v_shape ? teamRunes.v_shape.length : 0;
+                    if (crossRunesCount > 0 || vRunesCount > 0) {
+                        let runeStrings = [];
+                        if (crossRunesCount > 0) runeStrings.push(`Cross (${crossRunesCount})`);
+                        if (vRunesCount > 0) runeStrings.push(`V-Shape (${vRunesCount})`);
+                        teamHTML += `<br/><span style="font-size: 0.9em; padding-left: 10px;">Runes: ${runeStrings.join(', ')}</span>`;
+                    }
+
+                    teamHTML += `</div>`;
+                    statsHTML += teamHTML;
                 }
             }
         } else {

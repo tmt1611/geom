@@ -8,7 +8,8 @@ WATCHED_FILES = [
     'game_app/routes.py',
     'game_app/game_logic.py',
     'static/js/main.js',
-    'templates/index.html'
+    'templates/index.html',
+    'rules.md'
 ]
 STARTUP_HASH = ''
 

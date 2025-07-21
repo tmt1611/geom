@@ -69,6 +69,7 @@ class Game:
             "shields": {}, # {line_id: turns_left}
             "anchors": {}, # {point_id: {teamId: teamId, turns_left: N}}
             "territories": [], # Added for claimed triangles
+            "runes": {}, # {teamId: {'cross': [], 'v_shape': []}}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin."}],
             "turn": 0,
             "max_turns": 100,
@@ -320,7 +321,6 @@ class Game:
 
     def fight_action_attack_line(self, teamId):
         """[FIGHT ACTION]: Extend a line to hit an enemy line, destroying it."""
-        # Find all possible successful attacks first.
         possible_attacks = []
         team_lines = self.get_team_lines(teamId)
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
@@ -328,6 +328,8 @@ class Game:
 
         if not team_lines or not enemy_lines:
             return {'success': False, 'reason': 'not enough lines to perform an attack'}
+
+        team_has_cross_rune = len(self.state.get('runes', {}).get(teamId, {}).get('cross', [])) > 0
 
         for line in team_lines:
             if line['p1_id'] not in points or line['p2_id'] not in points: continue
@@ -342,7 +344,10 @@ class Game:
                 attack_segment_p2 = border_point
 
                 for enemy_line in enemy_lines:
-                    if enemy_line.get('id') in self.state['shields']: continue
+                    is_shielded = enemy_line.get('id') in self.state['shields']
+                    if is_shielded and not team_has_cross_rune:
+                        continue # Shield protects if attacker has no Cross Rune
+
                     if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
                     
                     ep1 = points[enemy_line['p1_id']]
@@ -352,7 +357,8 @@ class Game:
                         possible_attacks.append({
                             'attacker_line': line,
                             'target_line': enemy_line,
-                            'attack_ray': {'p1': attack_segment_p1, 'p2': attack_segment_p2}
+                            'attack_ray': {'p1': attack_segment_p1, 'p2': attack_segment_p2},
+                            'bypassed_shield': is_shielded and team_has_cross_rune
                         })
 
         if not possible_attacks:
@@ -372,7 +378,8 @@ class Game:
             'destroyed_team': enemy_team_name, 
             'destroyed_line': enemy_line,
             'attacker_line': chosen_attack['attacker_line'],
-            'attack_ray': chosen_attack['attack_ray']
+            'attack_ray': chosen_attack['attack_ray'],
+            'bypassed_shield': chosen_attack['bypassed_shield']
         }
 
     def sacrifice_action_nova_burst(self, teamId):
@@ -768,6 +775,81 @@ class Game:
             'original_team_name': original_team_name
         }
 
+    def rune_action_shoot_bisector(self, teamId):
+        """[RUNE ACTION]: Fires a powerful beam from a V-Rune."""
+        active_v_runes = self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])
+        if not active_v_runes:
+            return {'success': False, 'reason': 'no active V-runes'}
+
+        rune = random.choice(active_v_runes)
+        points = self.state['points']
+        
+        p_vertex = points[rune['vertex_id']]
+        p_leg1 = points[rune['leg1_id']]
+        p_leg2 = points[rune['leg2_id']]
+        
+        # Calculate bisector vector
+        v1 = {'x': p_leg1['x'] - p_vertex['x'], 'y': p_leg1['y'] - p_vertex['y']}
+        v2 = {'x': p_leg2['x'] - p_vertex['x'], 'y': p_leg2['y'] - p_vertex['y']}
+
+        # Normalize vectors
+        mag1 = math.sqrt(v1['x']**2 + v1['y']**2)
+        mag2 = math.sqrt(v2['x']**2 + v2['y']**2)
+        
+        if mag1 == 0 or mag2 == 0:
+            return {'success': False, 'reason': 'invalid V-rune geometry'}
+
+        v1_norm = {'x': v1['x']/mag1, 'y': v1['y']/mag1}
+        v2_norm = {'x': v2['x']/mag2, 'y': v2['y']/mag2}
+        
+        # Bisector direction is the sum of normalized vectors
+        bisector_v = {'x': v1_norm['x'] + v2_norm['x'], 'y': v1_norm['y'] + v2_norm['y']}
+
+        # Normalize bisector vector
+        mag_b = math.sqrt(bisector_v['x']**2 + bisector_v['y']**2)
+        if mag_b == 0:
+            return {'success': False, 'reason': 'V-rune legs are opposing'}
+
+        # Create a "dummy" point far along the bisector vector to define the attack ray
+        p_end = {'x': p_vertex['x'] + bisector_v['x']/mag_b, 'y': p_vertex['y'] + bisector_v['y']/mag_b}
+        
+        border_point = self._get_extended_border_point(p_vertex, p_end)
+        if not border_point:
+            return {'success': False, 'reason': 'bisector attack does not hit border'}
+        
+        attack_ray_p1 = p_vertex
+        attack_ray_p2 = border_point
+
+        # Find first enemy line intersected by this ray
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        intersected_lines = []
+        for line in enemy_lines:
+            if line['p1_id'] not in points or line['p2_id'] not in points: continue
+            ep1 = points[line['p1_id']]
+            ep2 = points[line['p2_id']]
+            if segments_intersect(attack_ray_p1, attack_ray_p2, ep1, ep2):
+                intersected_lines.append(line)
+
+        if not intersected_lines:
+            return {'success': False, 'reason': 'no target in bisector path'}
+
+        target_line = random.choice(intersected_lines)
+        
+        # This special attack does not bypass shields by default
+        if target_line.get('id') in self.state['shields']:
+            return {'success': False, 'reason': 'target is shielded'}
+
+        self.state['lines'].remove(target_line)
+        self.state['shields'].pop(target_line.get('id'), None)
+
+        return {
+            'success': True,
+            'type': 'rune_shoot_bisector',
+            'destroyed_line': target_line,
+            'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2},
+            'rune_points': [rune['vertex_id'], rune['leg1_id'], rune['leg2_id']]
+        }
+
     def _choose_action_for_team(self, teamId, exclude_actions=None):
         """Intelligently chooses an action for a team, excluding any that have already failed this turn."""
         if exclude_actions is None:
@@ -790,6 +872,7 @@ class Game:
             'fortify_mirror': self.fortify_action_mirror_structure,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'defend_shield': self.shield_action_protect_line,
+            'rune_shoot_bisector': self.rune_action_shoot_bisector,
         }
 
         # --- Evaluate possible actions based on game state and exclusion list ---
@@ -807,6 +890,7 @@ class Game:
             'fortify_anchor': len(team_point_ids) >= 3,
             'fortify_mirror': len(team_point_ids) >= 3,
             'sacrifice_nova': len(team_point_ids) > 2,
+            'rune_shoot_bisector': bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])),
         }
 
         for name, is_possible in action_preconditions.items():
@@ -821,9 +905,10 @@ class Game:
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'fight_attack': 10, 'fight_convert': 8,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'sacrifice_nova': 3, 'defend_shield': 8,
+            'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
-            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5},
+            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5},
             'Balanced':   {}
@@ -951,6 +1036,10 @@ class Game:
 
         # Get the current team to act
         teamId = self.state['active_teams_this_turn'][self.state['action_in_turn']]
+        
+        # Update runes for the current team before it acts
+        self._update_runes_for_team(teamId)
+
         team_name = self.state['teams'][teamId]['name']
         
         # --- Perform a successful action for this team, trying until one succeeds ---
@@ -988,13 +1077,20 @@ class Game:
             elif action_type == 'grow_line': log_message += "grew a new branch, creating a new point."
             elif action_type == 'fracture_line': log_message += "fractured a line, creating a new point."
             elif action_type == 'spawn_point': log_message += "spawned a new point from an existing one."
-            elif action_type == 'attack_line': log_message += f"attacked and destroyed a line from Team {result['destroyed_team']}."
+            elif action_type == 'attack_line':
+                msg = f"attacked and destroyed a line from Team {result['destroyed_team']}"
+                if result.get('bypassed_shield'):
+                    msg += ", bypassing its shield with a Cross Rune!"
+                else:
+                    msg += "."
+                log_message += msg
             elif action_type == 'convert_point': log_message += f"sacrificed a line to convert a point from Team {result['original_team_name']}."
             elif action_type == 'claim_territory': log_message += "fortified its position, claiming new territory."
             elif action_type == 'mirror_structure': log_message += f"mirrored its structure, creating {len(result['new_points'])} new points."
             elif action_type == 'create_anchor': log_message += "sacrificed a point to create a gravitational anchor."
             elif action_type == 'nova_burst': log_message += f"sacrificed a point in a nova burst, destroying {result['lines_destroyed']} lines."
             elif action_type == 'shield_line': log_message += "raised a defensive shield on one of its lines."
+            elif action_type == 'rune_shoot_bisector': log_message += "unleashed a powerful beam from a V-Rune, destroying an enemy line."
             else: log_message += "performed a successful action."
         else:
             log_message += "could not find a valid move and passed its turn."
@@ -1148,6 +1244,101 @@ class Game:
             p2 = points[(i + 1) % n]
             perimeter += math.sqrt(distance_sq(p1, p2))
         return perimeter
+
+    # --- Rune System ---
+    
+    def _update_runes_for_team(self, teamId):
+        """Checks and updates all rune states for a given team."""
+        if teamId not in self.state['runes']:
+            self.state['runes'][teamId] = {}
+        
+        self.state['runes'][teamId]['cross'] = self._check_cross_rune(teamId)
+        self.state['runes'][teamId]['v_shape'] = self._check_v_rune(teamId)
+
+    def _check_v_rune(self, teamId):
+        """Finds all 'V' shapes for a team.
+        A V-shape is two connected lines of similar length.
+        Returns a list of dictionaries, each identifying a V-rune.
+        e.g., [{'vertex_id': B, 'leg1_id': A, 'leg2_id': C}]
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        points = self.state['points']
+        lines = self.get_team_lines(teamId)
+        
+        adj_lines = {pid: [] for pid in team_point_ids}
+        for line in lines:
+            if line['p1_id'] in adj_lines and line['p2_id'] in adj_lines:
+                adj_lines[line['p1_id']].append(line)
+                adj_lines[line['p2_id']].append(line)
+
+        v_runes = []
+        for vertex_id, connected_lines in adj_lines.items():
+            if len(connected_lines) < 2: continue
+
+            for i in range(len(connected_lines)):
+                for j in range(i + 1, len(connected_lines)):
+                    line1, line2 = connected_lines[i], connected_lines[j]
+                    
+                    p_vertex = points[vertex_id]
+                    p_leg1 = points[line1['p1_id'] if line1['p2_id'] == vertex_id else line1['p2_id']]
+                    p_leg2 = points[line2['p1_id'] if line2['p2_id'] == vertex_id else line2['p2_id']]
+
+                    len1_sq = distance_sq(p_vertex, p_leg1)
+                    len2_sq = distance_sq(p_vertex, p_leg2)
+
+                    # Check for similar length (e.g., within 20% of each other)
+                    if len1_sq > 0 and len2_sq > 0 and 0.8 < (len1_sq / len2_sq) < 1.2:
+                        v_runes.append({
+                            'vertex_id': vertex_id,
+                            'leg1_id': p_leg1['id'],
+                            'leg2_id': p_leg2['id'],
+                        })
+        return v_runes
+
+    def _check_cross_rune(self, teamId):
+        """Finds all 'Cross' runes.
+        A Cross rune is a rectangle of 4 points with both diagonals drawn.
+        Returns a list of lists, each containing the 4 point IDs of a cross rune.
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 4:
+            return []
+        
+        points = self.state['points']
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
+
+        cross_runes = []
+        for p_ids in combinations(team_point_ids, 4):
+            p = [points[pid] for pid in p_ids]
+            
+            pairings = [((0, 1), (2, 3)), ((0, 2), (1, 3)), ((0, 3), (1, 2))]
+            
+            for d1_idx, d2_idx in pairings:
+                p_d1_1, p_d1_2 = p[d1_idx[0]], p[d1_idx[1]]
+                p_d2_1, p_d2_2 = p[d2_idx[0]], p[d2_idx[1]]
+
+                # Midpoints must be the same (for a parallelogram)
+                mid1_x = (p_d1_1['x'] + p_d1_2['x']) / 2
+                mid1_y = (p_d1_1['y'] + p_d1_2['y']) / 2
+                mid2_x = (p_d2_1['x'] + p_d2_2['x']) / 2
+                mid2_y = (p_d2_1['y'] + p_d2_2['y']) / 2
+                if abs(mid1_x - mid2_x) > 0.01 or abs(mid1_y - mid2_y) > 0.01:
+                    continue
+
+                # Diagonal lengths must be same (for a rectangle)
+                if abs(distance_sq(p_d1_1, p_d1_2) - distance_sq(p_d2_1, p_d2_2)) > 0.01:
+                    continue
+
+                # Both diagonals must exist as lines
+                diag1_exists = tuple(sorted((p_d1_1['id'], p_d1_2['id']))) in existing_lines
+                diag2_exists = tuple(sorted((p_d2_1['id'], p_d2_2['id']))) in existing_lines
+
+                if diag1_exists and diag2_exists:
+                    cross_runes.append(list(p_ids))
+                    break  # Found the correct diagonal pairing
+        
+        return cross_runes
+
 
 # --- Global Game Instance ---
 # This is a singleton pattern. The Flask app will interact with this instance.

@@ -1,21 +1,29 @@
 # Iteration Analysis and Changelog
 
 ## 1. Analysis Summary
-This iteration focused on improving the frontend user experience (UX) and interface (UI), particularly during the setup phase of the game. Based on a user workflow analysis, several small but impactful changes were identified to make game setup more intuitive and flexible.
+This iteration focuses on a significant expansion of the game's strategic depth and visual complexity by introducing a "Rune" system, as suggested in the design goals. The goal is to make the auto-battle more interesting by rewarding teams for forming specific geometric patterns, moving beyond simple expansion.
 
 ## 2. Implemented Features and Improvements
 
-### Frontend UI/UX (`templates/index.html`, `static/css/style.css`, `static/js/main.js`)
+### Rune System (`game_logic.py`)
+A new core mechanic, **Runes**, has been implemented. Runes are geometric patterns that grant teams passive bonuses or unlock unique, powerful actions. The game now checks for these patterns for each team before it acts.
 
-1.  **Live Grid Size Updates:**
-    -   The grid on the canvas now updates instantly when the "Grid Size" input is changed during the setup phase.
-    -   If changing the size would cause existing points to be out of bounds, a confirmation dialog now warns the user before those points are removed.
+1.  **V-Rune (New Action):**
+    - **Condition:** Three points forming a 'V' shape with two connected lines of similar length.
+    - **Reward:** Unlocks a new high-priority action: `Rune Action: Shoot Bisector`. This action fires a powerful attack ray along the angle bisector of the 'V', capable of destroying an enemy line.
+2.  **Cross-Rune (New Passive):**
+    - **Condition:** Four points forming a rectangle, with both internal diagonals existing as lines.
+    - **Reward:** Grants a passive ability: `Piercing Attacks`. Any standard `attack_line` action performed by the team can now bypass one enemy shield.
 
-2.  **Improved Point Placement Controls:**
-    -   A new **"Clear All Points"** button has been added to the setup controls, allowing users to quickly clear the board with a confirmation prompt.
-    -   The **"Randomize Points"** button now checks if there are already points on the grid and asks for confirmation before replacing them. This prevents accidental loss of a manual setup.
+### Frontend and Visualization (`static/js/main.js`, `templates/index.html`)
 
-3.  **Cleaner Interface:**
-    -   The "Debug Tools" section in the analysis panel has been placed inside a collapsible `<details>` element. This declutters the main interface for regular users while keeping debug options easily accessible for developers or power users. Custom styling was added to make the collapsible section look clean and modern.
+1.  **Rune Visualization:** Active runes are now drawn directly on the canvas.
+    - V-Runes are highlighted with a glowing effect along their two-line shape.
+    - Cross-Runes are visualized by shading the rectangular area they form.
+2.  **UI Updates:**
+    - The "Live Stats" panel now displays a count of active `V-Shape` and `Cross` runes for each team.
+    - The game log has been updated with new messages for the rune action and for shield-bypassing attacks.
+3.  **New Visual Effects:** A distinct visual effect has been added for the `Shoot Bisector` attack ray to differentiate it from normal attacks.
 
-This set of changes makes the initial interaction with the application smoother and gives the user more control and better feedback during the critical setup stage.
+### Documentation (`rules.md`)
+- The `rules.md` file has been updated to include detailed explanations of the new runes and their effects.
