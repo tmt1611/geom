@@ -1,26 +1,4 @@
-from flask import Flask, render_template, jsonify, request
-import json
 import random
-import os
-import hashlib
-
-app = Flask(__name__)
-
-# --- File Hashing for Live Update Detection ---
-WATCHED_FILES = [__file__, 'static/js/main.js', 'templates/index.html']
-STARTUP_HASH = ''
-
-def get_files_hash():
-    """Calculates a hash of the watched files."""
-    hasher = hashlib.md5()
-    for filepath in WATCHED_FILES:
-        if os.path.exists(filepath):
-            with open(filepath, 'rb') as f:
-                buf = f.read()
-                hasher.update(buf)
-    return hasher.hexdigest()
-
-STARTUP_HASH = get_files_hash()
 
 # --- Game State ---
 game_state = {}
@@ -161,48 +139,3 @@ def run_next_turn():
         game_state['is_finished'] = True
         game_state['is_running'] = False
         game_state['game_log'].append("Max turns reached. Game finished.")
-
-
-# --- API Endpoints ---
-
-@app.route('/')
-def index():
-    init_game_state()
-    return render_template('index.html')
-
-@app.route('/api/check_updates', methods=['GET'])
-def check_updates():
-    """Endpoint for the client to check for file changes."""
-    current_hash = get_files_hash()
-    if current_hash != STARTUP_HASH:
-        return jsonify({"updated": True, "message": "Source files have changed. Please restart the server and refresh the page."})
-    return jsonify({"updated": False})
-
-@app.route('/api/game/state', methods=['GET'])
-def get_game_state():
-    """Returns the complete current game state."""
-    return jsonify(game_state)
-
-@app.route('/api/game/reset', methods=['POST'])
-def reset_game():
-    """Resets the game with new initial settings from the client."""
-    init_game_state()
-    data = request.json
-    game_state['teams'] = data.get('teams', {})
-    game_state['points'] = data.get('points', [])
-    game_state['max_turns'] = int(data.get('maxTurns', 100))
-    game_state['is_running'] = len(game_state['points']) > 0
-    game_state['game_log'].append("Game initialized.")
-    return jsonify(game_state)
-
-@app.route('/api/game/next_turn', methods=['POST'])
-def next_turn():
-    """Processes the next turn."""
-    run_next_turn()
-    return jsonify(game_state)
-
-
-if __name__ == '__main__':
-    # You can run this file directly using "python app.py"
-    # The server will be available at http://127.0.0.1:8888
-    app.run(debug=True, port=8888)
