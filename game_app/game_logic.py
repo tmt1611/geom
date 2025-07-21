@@ -1,6 +1,7 @@
 import random
 import math
 import uuid  # For unique point IDs
+from itertools import combinations
 
 # --- Geometric Helper Functions ---
 
