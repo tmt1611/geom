@@ -70,6 +70,7 @@ class Game:
             "shields": {}, # {line_id: turns_left}
             "anchors": {}, # {point_id: {teamId: teamId, turns_left: N}}
             "territories": [], # Added for claimed triangles
+            "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
             "runes": {}, # {teamId: {'cross': [], 'v_shape': []}}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
@@ -93,21 +94,26 @@ class Game:
         # Create a copy to avoid modifying original state
         state_copy = self.state.copy()
         
-        # Augment lines with shield status for easier rendering
+        # Augment lines with shield/bastion status for easier rendering
+        bastion_line_ids = self._get_bastion_line_ids()
         augmented_lines = []
         for line in self.state['lines']:
             augmented_line = line.copy()
             augmented_line['is_shielded'] = line.get('id') in self.state['shields']
+            augmented_line['is_bastion_line'] = line.get('id') in bastion_line_ids
             augmented_lines.append(augmented_line)
         state_copy['lines'] = augmented_lines
 
         # Augment points with anchor and fortified status
         fortified_point_ids = self._get_fortified_point_ids()
+        bastion_point_ids = self._get_bastion_point_ids()
         augmented_points = {}
         for pid, point in self.state['points'].items():
             augmented_point = point.copy()
             augmented_point['is_anchor'] = pid in self.state['anchors']
             augmented_point['is_fortified'] = pid in fortified_point_ids
+            augmented_point['is_bastion_core'] = pid in bastion_point_ids['cores']
+            augmented_point['is_bastion_prong'] = pid in bastion_point_ids['prongs']
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
 
@@ -182,6 +188,29 @@ class Game:
             for point_id in territory['point_ids']:
                 fortified_ids.add(point_id)
         return fortified_ids
+
+    def _get_bastion_point_ids(self):
+        """Returns a dict of bastion core and prong point IDs."""
+        core_ids = set()
+        prong_ids = set()
+        for bastion in self.state.get('bastions', {}).values():
+            core_ids.add(bastion['core_id'])
+            for pid in bastion['prong_ids']:
+                prong_ids.add(pid)
+        return {'cores': core_ids, 'prongs': prong_ids}
+
+    def _get_bastion_line_ids(self):
+        """Returns a set of line IDs that are part of any bastion."""
+        bastion_lines = set()
+        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l['id'] for l in self.state['lines']}
+
+        for bastion in self.state.get('bastions', {}).values():
+            core_id = bastion['core_id']
+            for prong_id in bastion['prong_ids']:
+                line_key = tuple(sorted((core_id, prong_id)))
+                if line_key in all_lines_by_points:
+                    bastion_lines.add(all_lines_by_points[line_key])
+        return bastion_lines
 
     # --- Game Actions ---
 
@@ -370,6 +399,12 @@ class Game:
 
                 for enemy_line in enemy_lines:
                     is_shielded = enemy_line.get('id') in self.state['shields']
+                    
+                    # Bastion lines are immune to normal attacks
+                    bastion_line_ids = self._get_bastion_line_ids()
+                    if enemy_line.get('id') in bastion_line_ids:
+                        continue
+
                     if is_shielded and not team_has_cross_rune:
                         continue # Shield protects if attacker has no Cross Rune
 
@@ -429,12 +464,17 @@ class Game:
                 lines_to_remove.append(line)
         
         # 2. Remove nearby enemy lines
+        bastion_line_ids = self._get_bastion_line_ids()
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId and l not in lines_to_remove]
         for line in enemy_lines:
             # Check if line points exist
             if not (line['p1_id'] in points_to_check and line['p2_id'] in points_to_check):
                 continue
-            
+
+            # Bastion lines are immune to nova burst
+            if line.get('id') in bastion_line_ids:
+                continue
+
             p1 = points_to_check[line['p1_id']]
             p2 = points_to_check[line['p2_id']]
 
@@ -690,6 +730,57 @@ class Game:
         
         return {'success': True, 'type': 'claim_territory', 'territory': new_territory}
 
+    def fortify_action_form_bastion(self, teamId):
+        """[FORTIFY ACTION]: Converts a fortified point and its connections into a defensive bastion."""
+        # A bastion must be formed around a point that is already a vertex of a claimed territory.
+        fortified_point_ids = self._get_fortified_point_ids()
+        if not fortified_point_ids:
+            return {'success': False, 'reason': 'no fortified points to build a bastion on'}
+
+        team_point_ids = self.get_team_point_ids(teamId)
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+        
+        # Get all points that are already part of a bastion to avoid re-using them
+        existing_bastion_points = self._get_bastion_point_ids()
+        used_points = existing_bastion_points['cores'].union(existing_bastion_points['prongs'])
+
+        possible_bastions = []
+        for core_candidate_id in fortified_point_ids:
+            # The core must belong to the current team and not be part of an existing bastion
+            if core_candidate_id not in team_point_ids or core_candidate_id in used_points:
+                continue
+
+            # Find connected points ("prongs") that are NOT fortified and NOT part of another bastion
+            prong_candidates = [
+                pid for pid in adj.get(core_candidate_id, set())
+                if pid not in fortified_point_ids and pid not in used_points
+            ]
+
+            # A bastion needs at least 3 prongs
+            if len(prong_candidates) >= 3:
+                possible_bastions.append({
+                    'core_id': core_candidate_id,
+                    'prong_ids': prong_candidates
+                })
+
+        if not possible_bastions:
+            return {'success': False, 'reason': 'no valid bastion formation found'}
+        
+        chosen_bastion = random.choice(possible_bastions)
+        bastion_id = f"b_{uuid.uuid4().hex[:6]}"
+        new_bastion = {
+            'id': bastion_id,
+            'teamId': teamId,
+            **chosen_bastion
+        }
+        self.state['bastions'][bastion_id] = new_bastion
+
+        return {'success': True, 'type': 'form_bastion', 'bastion': new_bastion}
+
     def _reflect_point(self, point, p1_axis, p2_axis):
         """Reflects a point across the line defined by p1_axis and p2_axis."""
         px, py = point['x'], point['y']
@@ -822,7 +913,9 @@ class Game:
         """[FIGHT ACTION]: Sacrifice a line to convert a nearby enemy point."""
         team_lines = self.get_team_lines(teamId)
         fortified_point_ids = self._get_fortified_point_ids()
-        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in fortified_point_ids]
+        bastion_point_ids = self._get_bastion_point_ids()
+        immune_point_ids = fortified_point_ids.union(bastion_point_ids['cores']).union(bastion_point_ids['prongs'])
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
         points_map = self.state['points']
 
         if not team_lines or not enemy_points:
@@ -867,6 +960,83 @@ class Game:
             'converted_point': point_to_convert,
             'sacrificed_line': line_to_sac,
             'original_team_name': original_team_name
+        }
+
+    def fight_action_bastion_pulse(self, teamId):
+        """[FIGHT ACTION]: A bastion sacrifices a prong to destroy crossing enemy lines."""
+        team_bastions = [b for b in self.state['bastions'].values() if b['teamId'] == teamId]
+        if not team_bastions:
+            return {'success': False, 'reason': 'no active bastions'}
+
+        # Choose a bastion that has at least one prong to sacrifice
+        bastion_to_pulse = random.choice(team_bastions)
+        if len(bastion_to_pulse['prong_ids']) == 0:
+             return {'success': False, 'reason': 'bastion has no prongs to sacrifice'}
+
+        # 1. Sacrifice a prong point
+        prong_to_sac_id = random.choice(bastion_to_pulse['prong_ids'])
+        sacrificed_prong = self.state['points'].pop(prong_to_sac_id, None)
+        if not sacrificed_prong: # Should not happen, but defensive
+            return {'success': False, 'reason': 'selected prong point does not exist'}
+
+        # Update bastion state
+        bastion_to_pulse['prong_ids'].remove(prong_to_sac_id)
+
+        # Also remove any lines connected to the sacrificed prong
+        lines_before_pulse = self.state['lines'][:]
+        self.state['lines'] = [l for l in lines_before_pulse if prong_to_sac_id not in (l['p1_id'], l['p2_id'])]
+        for l in lines_before_pulse:
+             if prong_to_sac_id in (l['p1_id'], l['p2_id']):
+                 self.state['shields'].pop(l.get('id'), None)
+
+        # If bastion has fewer than 2 prongs left, it dissolves. The core remains fortified.
+        if len(bastion_to_pulse['prong_ids']) < 2:
+            del self.state['bastions'][bastion_to_pulse['id']]
+
+        # 2. Define the bastion's perimeter polygon for checking intersections
+        points_map = self.state['points']
+        prong_points = [points_map[pid] for pid in bastion_to_pulse['prong_ids'] if pid in points_map]
+        
+        # Sort points angularly to form a correct simple polygon
+        if len(prong_points) < 2: # Need at least a line to check against
+             return {'success': True, 'type': 'bastion_pulse', 'sacrificed_prong': sacrificed_prong, 'lines_destroyed': [], 'bastion_id': bastion_to_pulse['id']}
+
+        centroid = {
+            'x': sum(p['x'] for p in prong_points) / len(prong_points),
+            'y': sum(p['y'] for p in prong_points) / len(prong_points),
+        }
+        prong_points.sort(key=lambda p: math.atan2(p['y'] - centroid['y'], p['x'] - centroid['x']))
+
+        # 3. Find and destroy intersecting enemy lines
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        lines_destroyed = []
+        for enemy_line in enemy_lines:
+            if enemy_line['p1_id'] not in points_map or enemy_line['p2_id'] not in points_map:
+                continue
+            
+            ep1 = points_map[enemy_line['p1_id']]
+            ep2 = points_map[enemy_line['p2_id']]
+
+            # Check for intersection with any segment of the bastion's perimeter
+            for i in range(len(prong_points)):
+                perimeter_p1 = prong_points[i]
+                perimeter_p2 = prong_points[(i + 1) % len(prong_points)]
+                if segments_intersect(ep1, ep2, perimeter_p1, perimeter_p2):
+                    lines_destroyed.append(enemy_line)
+                    break # Don't need to check other segments for this line
+
+        # 4. Remove the destroyed lines
+        for l in lines_destroyed:
+            if l in self.state['lines']:
+                self.state['lines'].remove(l)
+                self.state['shields'].pop(l.get('id'), None)
+        
+        return {
+            'success': True,
+            'type': 'bastion_pulse',
+            'sacrificed_prong': sacrificed_prong,
+            'lines_destroyed': lines_destroyed,
+            'bastion_id': bastion_to_pulse['id']
         }
 
     def rune_action_shoot_bisector(self, teamId):
@@ -929,7 +1099,8 @@ class Game:
 
         target_line = random.choice(intersected_lines)
         
-        # This special attack does not bypass shields by default
+        # This special attack does not bypass shields by default.
+        # However, it CAN destroy bastion lines, making it a valuable counter.
         if target_line.get('id') in self.state['shields']:
             return {'success': False, 'reason': 'target is shielded'}
 
@@ -962,9 +1133,11 @@ class Game:
             'expand_orbital': self.expand_action_create_orbital,
             'fight_attack': self.fight_action_attack_line,
             'fight_convert': self.fight_action_convert_point,
+            'fight_bastion_pulse': self.fight_action_bastion_pulse,
             'fortify_claim': self.fortify_action_claim_territory,
             'fortify_anchor': self.fortify_action_create_anchor,
             'fortify_mirror': self.fortify_action_mirror_structure,
+            'fortify_form_bastion': self.fortify_action_form_bastion,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'defend_shield': self.shield_action_protect_line,
             'rune_shoot_bisector': self.rune_action_shoot_bisector,
@@ -981,10 +1154,12 @@ class Game:
             'expand_orbital': len(team_point_ids) >= 5,
             'fight_attack': bool(team_lines) and any(l['teamId'] != teamId for l in self.state['lines']),
             'fight_convert': bool(team_lines) and any(p['teamId'] != teamId for p in self.state['points'].values()),
+            'fight_bastion_pulse': any(b['teamId'] == teamId for b in self.state.get('bastions', {}).values()),
             'defend_shield': any(l.get('id') not in self.state['shields'] for l in team_lines),
             'fortify_claim': len(team_point_ids) >= 3,
             'fortify_anchor': len(team_point_ids) >= 3,
             'fortify_mirror': len(team_point_ids) >= 3,
+            'fortify_form_bastion': bool(self._get_fortified_point_ids().intersection(team_point_ids)), # Team has at least one of its own fortified points
             'sacrifice_nova': len(team_point_ids) > 2,
             'rune_shoot_bisector': bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])),
         }
@@ -1000,14 +1175,15 @@ class Game:
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
-            'fight_attack': 10, 'fight_convert': 8,
-            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'sacrifice_nova': 3, 'defend_shield': 8,
+            'fight_attack': 10, 'fight_convert': 8, 'fight_bastion_pulse': 15,
+            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7,
+            'sacrifice_nova': 3, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
-            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5},
+            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5},
-            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5},
+            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0},
             'Balanced':   {}
         }
         multipliers = trait_multipliers.get(team_trait, {})
@@ -1204,6 +1380,12 @@ class Game:
             elif action_type == 'claim_territory':
                 log_message += "fortified its position, claiming new territory."
                 short_log_message = "[CLAIM]"
+            elif action_type == 'form_bastion':
+                log_message += "consolidated its power, forming a new bastion."
+                short_log_message = "[BASTION]"
+            elif action_type == 'bastion_pulse':
+                log_message += f"unleashed a defensive pulse from its bastion, destroying {len(result['lines_destroyed'])} lines."
+                short_log_message = "[PULSE!]"
             elif action_type == 'mirror_structure':
                 log_message += f"mirrored its structure, creating {len(result['new_points'])} new points."
                 short_log_message = "[MIRROR]"

@@ -112,7 +112,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Main point drawing
                 ctx.fillStyle = team.color;
                 ctx.beginPath();
-                if (p.is_fortified) {
+                if (p.is_bastion_core) {
+                    // Draw bastion cores as large outlined squares
+                    const squareSize = radius * 2.5;
+                    ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                } else if (p.is_bastion_prong) {
+                    // Draw bastion prongs as small squares
+                    const squareSize = radius * 1.5;
+                    ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
+                    ctx.fill();
+                } else if (p.is_fortified) {
                     // Draw fortified points as diamonds
                     const size = radius * 1.7;
                     ctx.moveTo(cx, cy - size); // Top
@@ -120,15 +133,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.lineTo(cx, cy + size); // Bottom
                     ctx.lineTo(cx - size, cy); // Left
                     ctx.closePath();
+                    ctx.fill();
                 } else if (p.is_anchor) {
                     // Draw anchors as squares
                     const squareSize = radius * 1.8;
                     ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
+                    ctx.fill();
                 } else {
                     // Draw normal points as circles
                     ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                    ctx.fill();
                 }
-                ctx.fill();
 
 
                 if (debugOptions.showPointIds) {
@@ -178,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Draw the main line
                     ctx.strokeStyle = team.color;
-                    ctx.lineWidth = 2;
+                    ctx.lineWidth = line.is_bastion_line ? 4 : 2;
                     ctx.beginPath();
                     ctx.moveTo(x1, y1);
                     ctx.lineTo(x2, y2);
@@ -500,6 +515,20 @@ document.addEventListener('DOMContentLoaded', () => {
             lastActionHighlights.points.add(details.center_point_id);
             details.new_points.forEach(p => lastActionHighlights.points.add(p.id));
             details.new_lines.forEach(l => lastActionHighlights.lines.add(l.id));
+        }
+        if (details.type === 'form_bastion' && details.bastion) {
+            lastActionHighlights.points.add(details.bastion.core_id);
+            details.bastion.prong_ids.forEach(pid => lastActionHighlights.points.add(pid));
+        }
+        if (details.type === 'bastion_pulse' && details.sacrificed_prong) {
+            // Highlight the whole bastion that pulsed
+            const bastion = gameState.bastions[details.bastion_id];
+            if(bastion) {
+                lastActionHighlights.points.add(bastion.core_id);
+                // The sacrificed prong is already gone, so we highlight the remaining ones
+                bastion.prong_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            }
+             // Visual effect for the pulse itself could be added here
         }
 
         // Set a timer to clear the highlights

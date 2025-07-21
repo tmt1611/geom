@@ -29,9 +29,12 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
 *   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range.
 *   **[FIGHT] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
+*   **[FIGHT] Bastion Pulse:** _(Requires an active Bastion)_ Sacrifices one of the bastion's outer "prong" points to unleash a shockwave. The shockwave destroys all enemy lines that cross the bastion's perimeter.
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Fortify Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory, shading the area in its color.
     *   **Bonus:** The three points of a claimed territory become **Fortified**, making them immune to conversion. The three boundary lines become **Reinforced** and cannot be fractured by their owner, preserving the structure.
+*   **[FORTIFY] Form Bastion:** Converts a fortified point (a vertex of a claimed territory) and at least three of its connected lines into a powerful defensive structure.
+    *   **Bonus:** The bastion's core point, prong points, and connecting lines become immune to standard attacks and conversion.
 *   **[FORTIFY] Create Anchor:** Sacrifice one of its own points to turn another into a gravitational anchor. For a few turns, the anchor will slowly pull nearby enemy points towards it.
 *   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns.
