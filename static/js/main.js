@@ -183,6 +183,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const squareSize = radius * 1.8;
                     ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
                     ctx.fill();
+                } else if (p.is_nexus_point) {
+                    // Draw Nexus points as concentric circles
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius * 0.5, 0, 2 * Math.PI);
+                    ctx.fill();
                 } else {
                     // Draw normal points as circles
                     ctx.beginPath();
@@ -340,6 +349,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+    }
+
+    function drawNexuses(gameState) {
+        if (!gameState.nexuses) return;
+    
+        for (const teamId in gameState.nexuses) {
+            const teamNexuses = gameState.nexuses[teamId];
+            const team = gameState.teams[teamId];
+            if (!team || !teamNexuses) continue;
+    
+            teamNexuses.forEach(nexus => {
+                const points = nexus.point_ids.map(pid => gameState.points[pid]).filter(p => p);
+                if (points.length !== 4) return;
+                
+                // Draw the square fill
+                ctx.beginPath();
+                // Sort points to draw polygon correctly. Angular sort around center is robust.
+                const center = nexus.center;
+                points.sort((a, b) => {
+                    return Math.atan2(a.y - center.y, a.x - center.x) - Math.atan2(b.y - center.y, b.x - center.x);
+                });
+                
+                ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
+                for (let i = 1; i < points.length; i++) {
+                     ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
+                }
+                ctx.closePath();
+                ctx.fillStyle = team.color;
+                ctx.globalAlpha = 0.25;
+                ctx.fill();
+    
+                // Draw the central orb
+                const orb_cx = (nexus.center.x + 0.5) * cellSize;
+                const orb_cy = (nexus.center.y + 0.5) * cellSize;
+                const pulse = Math.abs(Math.sin(Date.now() / 800)); // Faster pulse
+                
+                // Outer glow
+                const gradient = ctx.createRadialGradient(orb_cx, orb_cy, 0, orb_cx, orb_cy, 10 + pulse * 5);
+                gradient.addColorStop(0, `rgba(255, 255, 255, ${0.8 - pulse * 0.3})`);
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = gradient;
+                ctx.globalAlpha = 1.0;
+                ctx.beginPath();
+                ctx.arc(orb_cx, orb_cy, 10 + pulse * 5, 0, 2 * Math.PI);
+                ctx.fill();
+    
+                // Inner core
+                ctx.fillStyle = team.color;
+                ctx.beginPath();
+                ctx.arc(orb_cx, orb_cy, 4 + pulse * 2, 0, 2 * Math.PI);
+                ctx.fill();
+    
+                ctx.globalAlpha = 1.0;
+            });
+        }
     }
 
     function drawRunes(gameState) {
@@ -524,6 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawTerritories(currentGameState.points, currentGameState.territories, currentGameState.teams);
                 drawRunes(currentGameState);
                 drawConduits(currentGameState);
+                drawNexuses(currentGameState);
                 drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
                 drawPoints(currentGameState.points, currentGameState.teams);
                 
@@ -858,11 +923,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, active_teams_this_turn, runes } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes } = gameState;
 
         let turnText = `Turn: ${turn} / ${max_turns}`;
-        if (game_phase === 'RUNNING' && active_teams_this_turn && active_teams_this_turn.length > 0) {
-            turnText += ` (Action ${action_in_turn} / ${active_teams_this_turn.length})`;
+        if (game_phase === 'RUNNING' && actions_queue_this_turn && actions_queue_this_turn.length > 0) {
+            // Use action_in_turn + 1 for a 1-based count for the user
+            turnText += ` (Action ${action_in_turn + 1} / ${actions_queue_this_turn.length})`;
         }
         turnCounter.textContent = turnText;
 

@@ -39,6 +39,9 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[DEFEND] Form Conduit:** A passive formation. When three or more of a team's points are collinear, they form a Conduit.
     *   **Bonus 1 (Passive):** `Extend Line` actions originating from one of the Conduit's two endpoints become **Empowered**, creating a new line to the new point automatically.
     *   **Bonus 2 (Active):** Unlocks the **[FIGHT] Chain Lightning** action.
+*   **[DEFEND] Form Nexus:** A passive formation. A Nexus is a powerful economic structure that grants bonus actions.
+    *   **Formation:** Four points that form a perfect square, with all four outer edge lines and at least one of the two inner diagonals connected.
+    *   **Bonus:** For each Nexus a team controls at the start of a turn, that team gains **one bonus action** to perform during that turn.
 *   **[FORTIFY] Fortify Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory, shading the area in its color.
     *   **Bonus:** The three points of a claimed territory become **Fortified**, making them immune to conversion. The three boundary lines become **Reinforced** and cannot be fractured by their owner, preserving the structure.
 *   **[FORTIFY] Form Bastion:** Converts a fortified point (a vertex of a claimed territory) and at least three of its connected, non-fortified points into a powerful defensive structure.

@@ -49,6 +49,37 @@ def segments_intersect(p1, q1, p2, q2):
 
     return False
 
+def is_square(p1, p2, p3, p4):
+    """Checks if four points form a square. Points are dicts with 'x' and 'y'.
+    This is a helper function that doesn't rely on game state.
+    """
+    dists = sorted([
+        distance_sq(p1, p2), distance_sq(p1, p3), distance_sq(p1, p4),
+        distance_sq(p2, p3), distance_sq(p2, p4), distance_sq(p3, p4)
+    ])
+
+    # A square has 4 equal sides and 2 equal diagonals.
+    # The distances must be [s, s, s, s, d, d] where d = 2s (s is squared dist)
+    side_sq = dists[0]
+    
+    # Check for non-zero side length (not collapsed points)
+    if side_sq < 0.01:
+        return False
+        
+    # Check for 4 equal sides (with a small tolerance for float issues)
+    if not all(abs(d - side_sq) < 0.01 for d in dists[0:4]):
+        return False
+        
+    # Check for 2 equal diagonals
+    if not abs(dists[4] - dists[5]) < 0.01:
+        return False
+        
+    # Check if diagonals are sqrt(2) * side (or diagonal_sq == 2 * side_sq)
+    if not abs(dists[4] - 2 * side_sq) < 0.01:
+        return False
+        
+    return True
+
 # --- Game Class ---
 class Game:
     """Encapsulates the entire game state and logic."""
@@ -72,6 +103,7 @@ class Game:
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
             "runes": {}, # {teamId: {'cross': [], 'v_shape': []}}
+            "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
@@ -82,8 +114,8 @@ class Game:
             "interpretation": {},
             "last_action_details": {}, # For frontend visualization
             "initial_state": None, # Store the setup config for restarts
-            "action_in_turn": 0, # Which team's action in the current turn
-            "active_teams_this_turn": [] # List of team IDs for the current turn
+            "action_in_turn": 0, # Which action index in the current turn's queue
+            "actions_queue_this_turn": [] # List of action dicts {teamId, is_bonus} for the current turn
         }
 
     def get_state(self):
@@ -124,6 +156,13 @@ class Game:
             for conduit in team_conduits:
                 for pid in conduit.get('point_ids', []):
                     conduit_point_ids.add(pid)
+        
+        # Get all Nexus point IDs for quick lookup
+        nexus_point_ids = set()
+        for team_nexuses in self.state.get('nexuses', {}).values():
+            for nexus in team_nexuses:
+                for pid in nexus.get('point_ids', []):
+                    nexus_point_ids.add(pid)
 
         augmented_points = {}
         for pid, point in self.state['points'].items():
@@ -135,8 +174,12 @@ class Game:
             augmented_point['is_sentry_eye'] = pid in sentry_eye_ids
             augmented_point['is_sentry_post'] = pid in sentry_post_ids
             augmented_point['is_conduit_point'] = pid in conduit_point_ids
+            augmented_point['is_nexus_point'] = pid in nexus_point_ids
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
+
+        # Add nexuses for frontend rendering
+        state_copy['nexuses'] = self.state.get('nexuses', {})
 
         # Add live stats for real-time display, regardless of phase, for consistency
         live_stats = {}
@@ -184,7 +227,7 @@ class Game:
         self.state['game_phase'] = "RUNNING" if len(points) > 0 else "SETUP"
         self.state['game_log'].append({'message': "Game initialized.", 'short_message': '[INIT]'})
         self.state['action_in_turn'] = 0
-        self.state['active_teams_this_turn'] = []
+        self.state['actions_queue_this_turn'] = []
         
         # Store the initial state for restarting
         self.state['initial_state'] = {
@@ -1246,6 +1289,55 @@ class Game:
             'conduit_point_ids': chosen_conduit['point_ids']
         }
 
+    def _update_nexuses_for_team(self, teamId):
+        """Checks for Nexus formations (a square of points with outer lines and one diagonal)."""
+        if 'nexuses' not in self.state: self.state['nexuses'] = {}
+        self.state['nexuses'][teamId] = [] # Recalculate each time
+
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 4:
+            return
+
+        points = self.state['points']
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
+
+        for p_ids_tuple in combinations(team_point_ids, 4):
+            # Ensure all points still exist before lookup
+            if not all(pid in points for pid in p_ids_tuple): continue
+            
+            p_list = [points[pid] for pid in p_ids_tuple]
+            
+            if is_square(*p_list):
+                # We found a square. Now check for lines.
+                # The 4 shortest distances are sides, 2 longest are diagonals.
+                
+                all_pairs = list(combinations(p_ids_tuple, 2))
+                all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
+                
+                # Sort pairs by distance
+                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
+                
+                side_pairs = sorted_pairs[0:4]
+                diag_pairs = sorted_pairs[4:6]
+
+                # Check if all 4 side lines exist
+                num_side_lines = sum(1 for p1_id, p2_id in side_pairs if tuple(sorted((p1_id, p2_id))) in existing_lines)
+                if num_side_lines < 4:
+                    continue
+
+                # Check if at least one diagonal line exists
+                has_diagonal = any(tuple(sorted((p1_id, p2_id))) in existing_lines for p1_id, p2_id in diag_pairs)
+                
+                if has_diagonal:
+                    # This is a valid Nexus.
+                    center_x = sum(p['x'] for p in p_list) / 4
+                    center_y = sum(p['y'] for p in p_list) / 4
+                    
+                    self.state['nexuses'][teamId].append({
+                        'point_ids': list(p_ids_tuple),
+                        'center': {'x': center_x, 'y': center_y}
+                    })
+
     def rune_action_shoot_bisector(self, teamId):
         """[RUNE ACTION]: Fires a powerful beam from a V-Rune."""
         active_v_runes = self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])
@@ -1430,7 +1522,7 @@ class Game:
         return self.get_state()
 
     def _start_new_turn(self):
-        """Performs start-of-turn maintenance and identifies active teams."""
+        """Performs start-of-turn maintenance and sets up the action queue for the new turn."""
         self.state['turn'] += 1
         self.state['action_in_turn'] = 0
         
@@ -1465,15 +1557,38 @@ class Game:
         for anchor_pid in expired_anchors:
             if anchor_pid in self.state['anchors']: del self.state['anchors'][anchor_pid]
 
-        # --- Set up active teams for the turn ---
-        active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
-        random.shuffle(active_teams) # Randomize action order each turn
-        self.state['active_teams_this_turn'] = active_teams
+        # --- Set up action queue for the turn ---
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
+        active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
+        
+        actions_queue = []
+        # Update structures to determine bonus actions, then build the queue
+        for teamId in active_teams:
+            # This update is specifically to determine bonus actions for this turn
+            self._update_nexuses_for_team(teamId)
+            num_nexuses = len(self.state.get('nexuses', {}).get(teamId, []))
+            
+            # Add base action
+            actions_queue.append({'teamId': teamId, 'is_bonus': False})
 
+            # Add bonus actions from Nexuses
+            if num_nexuses > 0:
+                team_name = self.state['teams'][teamId]['name']
+                plural = "s" if num_nexuses > 1 else ""
+                self.state['game_log'].append({
+                    'message': f"Team {team_name} gains {num_nexuses} bonus action{plural} from its Nexus{plural}.",
+                    'short_message': f'[NEXUS:+{num_nexuses}ACT]'
+                })
+                for _ in range(num_nexuses):
+                    actions_queue.append({'teamId': teamId, 'is_bonus': True})
+
+        random.shuffle(actions_queue) # Randomize action order each turn
+        self.state['actions_queue_this_turn'] = actions_queue
+        
     def _check_end_of_turn_victory_conditions(self):
         """Checks for victory conditions that are evaluated at the end of a full turn."""
-        active_teams = self.state['active_teams_this_turn']
+        # Get unique team IDs that had actions this turn
+        active_teams = list(set(info['teamId'] for info in self.state['actions_queue_this_turn'] if info))
         
         # 1. Dominance Victory
         DOMINANCE_TURNS_REQUIRED = 3
@@ -1507,24 +1622,30 @@ class Game:
             return
 
         # Check if we need to start a new turn
-        turn_is_over = self.state['action_in_turn'] >= len(self.state['active_teams_this_turn'])
-        if turn_is_over:
+        if not self.state.get('actions_queue_this_turn') or self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
             self._start_new_turn()
             
-            # Check for immediate extinction after maintenance and team setup
-            if not self.state['active_teams_this_turn']:
+            # Check for immediate extinction after new turn setup (no teams left to act)
+            if not self.state['actions_queue_this_turn']:
                 self.state['game_phase'] = 'FINISHED'
                 self.state['victory_condition'] = "Extinction"
                 self.state['game_log'].append({'message': "All teams have been eliminated. Game over.", 'short_message': '[EXTINCTION]'})
                 return
 
-        # Get the current team to act
-        teamId = self.state['active_teams_this_turn'][self.state['action_in_turn']]
+        # Get the current team to act from the queue
+        action_info = self.state['actions_queue_this_turn'][self.state['action_in_turn']]
+        teamId = action_info['teamId']
+        is_bonus_action = action_info['is_bonus']
         
-        # Update runes and other special structures for the current team before it acts
+        # Update all special structures for the current team right before it acts.
+        # This ensures the team acts based on its most current state.
         self._update_runes_for_team(teamId)
         self._update_sentries_for_team(teamId)
         self._update_conduits_for_team(teamId)
+        # We also re-update nexuses here mainly so the frontend display is accurate
+        # if a nexus is created or destroyed mid-turn. Bonus actions for this turn
+        # are already locked in from _start_new_turn.
+        self._update_nexuses_for_team(teamId)
 
         team_name = self.state['teams'][teamId]['name']
         
@@ -1557,6 +1678,9 @@ class Game:
         # Log the final result. Invalid/failed actions are no longer logged individually.
         log_message = f"Team {team_name} "
         short_log_message = "[ACTION]" # Default short message
+
+        if is_bonus_action:
+            log_message = f"[BONUS] Team {team_name} "
 
         if result.get('success'):
             action_type = result.get('type')
@@ -1645,7 +1769,7 @@ class Game:
         self.state['action_in_turn'] += 1
         
         # If this was the last action of the turn, check for victory conditions
-        if self.state['action_in_turn'] >= len(self.state['active_teams_this_turn']):
+        if self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
             self._check_end_of_turn_victory_conditions()
     
     # --- Interpretation ---
