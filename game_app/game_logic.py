@@ -474,6 +474,102 @@ class Game:
         
         return {'success': True, 'type': 'claim_territory', 'territory': new_territory}
 
+    def _reflect_point(self, point, p1_axis, p2_axis):
+        """Reflects a point across the line defined by p1_axis and p2_axis."""
+        px, py = point['x'], point['y']
+        x1, y1 = p1_axis['x'], p1_axis['y']
+        x2, y2 = p2_axis['x'], p2_axis['y']
+
+        # Line equation ax + by + c = 0
+        a = y2 - y1
+        b = x1 - x2
+        
+        if a == 0 and b == 0: # The axis points are the same, no line.
+            return None
+
+        c = -a * x1 - b * y1
+        
+        den = a**2 + b**2
+        if den == 0: return None
+        
+        val = -2 * (a * px + b * py + c) / den
+        
+        rx = px + val * a
+        ry = py + val * b
+        
+        return {'x': rx, 'y': ry}
+
+    def fortify_action_mirror_structure(self, teamId):
+        """[FORTIFY ACTION]: Creates a symmetrical pattern by reflecting points."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 3:
+            return {'success': False, 'reason': 'not enough points to mirror'}
+
+        # Try a few times to find a good axis and points to mirror
+        for _ in range(5):
+            # 1. Select two distinct points for the axis of symmetry
+            axis_p_ids = random.sample(team_point_ids, 2)
+            p_axis1 = self.state['points'][axis_p_ids[0]]
+            p_axis2 = self.state['points'][axis_p_ids[1]]
+
+            # Ensure axis points are not too close for stable calculation
+            if distance_sq(p_axis1, p_axis2) < (self.state['grid_size'] * 0.1)**2:
+                continue
+
+            # 2. Select points to mirror (that are not on the axis)
+            other_point_ids = [pid for pid in team_point_ids if pid not in axis_p_ids]
+            if not other_point_ids:
+                continue
+
+            # Mirror up to 2 points for visual clarity
+            num_to_mirror = min(len(other_point_ids), 2)
+            points_to_mirror_ids = random.sample(other_point_ids, num_to_mirror)
+            
+            new_points_to_create = []
+            grid_size = self.state['grid_size']
+
+            # 3. Reflect points and check validity
+            for pid in points_to_mirror_ids:
+                point_to_mirror = self.state['points'][pid]
+                reflected_p = self._reflect_point(point_to_mirror, p_axis1, p_axis2)
+                
+                if not reflected_p: continue
+
+                # Check if the new point is within the grid boundaries
+                if not (0 <= reflected_p['x'] < grid_size and 0 <= reflected_p['y'] < grid_size):
+                    continue
+
+                # Check if it's too close to any existing point
+                is_too_close = False
+                for existing_p in self.state['points'].values():
+                    if distance_sq(reflected_p, existing_p) < 1.0: # min dist of 1 unit
+                        is_too_close = True
+                        break
+                if is_too_close:
+                    continue
+
+                # If valid, add it to the list to be created
+                new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                new_points_to_create.append({**reflected_p, "teamId": teamId, "id": new_point_id})
+
+            # 4. If we successfully found points to create, do it and return
+            if new_points_to_create:
+                for p in new_points_to_create:
+                    # Round to avoid float issues later, but keep precision from calculation
+                    p['x'] = round(p['x'], 4)
+                    p['y'] = round(p['y'], 4)
+                    self.state['points'][p['id']] = p
+                
+                return {
+                    'success': True,
+                    'type': 'mirror_structure',
+                    'new_points': new_points_to_create,
+                    'axis_p1_id': axis_p_ids[0],
+                    'axis_p2_id': axis_p_ids[1],
+                }
+
+        return {'success': False, 'reason': 'could not find a valid reflection'}
+
     def fortify_action_create_anchor(self, teamId):
         """[FORTIFY ACTION]: Sacrifice a point to turn another into a gravity well."""
         team_point_ids = self.get_team_point_ids(teamId)
@@ -606,8 +702,12 @@ class Game:
         # 8. Fortify (create anchor)
         if len(team_point_ids) >= 2:
             possible_actions.append('fortify_anchor')
+        
+        # 9. Fortify (mirror)
+        if len(team_point_ids) >= 3:
+            possible_actions.append('fortify_mirror')
 
-        # 9. Sacrifice (nova burst)
+        # 10. Sacrifice (nova burst)
         if team_point_ids:
             possible_actions.append('sacrifice_nova')
 
@@ -625,6 +725,7 @@ class Game:
             'fight_convert': self.fight_action_convert_point,
             'fortify_claim': self.fortify_action_claim_territory,
             'fortify_anchor': self.fortify_action_create_anchor,
+            'fortify_mirror': self.fortify_action_mirror_structure,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'defend_shield': self.shield_action_protect_line,
         }
@@ -632,12 +733,12 @@ class Game:
         # Base weights for actions
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'fight_attack': 10, 'fight_convert': 8,
-            'fortify_claim': 8, 'fortify_anchor': 5, 'sacrifice_nova': 3, 'defend_shield': 8,
+            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'sacrifice_nova': 3, 'defend_shield': 8,
         }
         
         trait_multipliers = {
             'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5},
-            'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'fortify_claim': 0.5},
+            'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'fortify_claim': 0.5, 'fortify_mirror': 2.0},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5},
             'Balanced':   {}
         }
@@ -757,6 +858,8 @@ class Game:
                     log_message += f"sacrificed a line to convert a point from Team {result['original_team_name']}."
                 elif action_type == 'claim_territory':
                     log_message += "fortified its position, claiming new territory."
+                elif action_type == 'mirror_structure':
+                    log_message += f"mirrored its structure across an axis, creating {len(result['new_points'])} new points."
                 elif action_type == 'create_anchor':
                     log_message += "sacrificed a point to create a gravitational anchor."
                 elif action_type == 'nova_burst':
@@ -787,6 +890,8 @@ class Game:
                     log_message += "could not find any triangles to fortify."
                 elif reason == 'all triangles already claimed':
                     log_message += "found no new territory to claim."
+                elif reason == 'could not find a valid reflection':
+                    log_message += "attempted to mirror its structure but failed to find a valid reflection."
                 elif reason == 'not enough points to create anchor':
                     log_message += "could not create an anchor (not enough points)."
                 elif reason == 'no points to sacrifice':

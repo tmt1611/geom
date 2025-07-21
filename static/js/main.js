@@ -281,6 +281,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.strokeStyle = `rgba(255, 0, 0, ${1 - progress})`; // Red, fading out
                 ctx.lineWidth = 3;
                 ctx.stroke();
+            } else if (effect.type === 'mirror_axis') {
+                const p1 = currentGameState.points[effect.p1_id];
+                const p2 = currentGameState.points[effect.p2_id];
+                if(p1 && p2) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
+                    ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
+                    ctx.strokeStyle = `rgba(200, 200, 255, ${0.7 * (1 - progress)})`; // Light blue, fading
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.stroke();
+                    ctx.restore();
+                }
             }
             
             return true; // Keep active effects
@@ -372,6 +386,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (details.type === 'create_anchor' && details.anchor_point) {
             lastActionHighlights.points.add(details.anchor_point.id);
+        }
+        if (details.type === 'mirror_structure' && details.new_points) {
+            details.new_points.forEach(p => lastActionHighlights.points.add(p.id));
+            lastActionHighlights.points.add(details.axis_p1_id);
+            lastActionHighlights.points.add(details.axis_p2_id);
+            visualEffects.push({
+                type: 'mirror_axis',
+                p1_id: details.axis_p1_id,
+                p2_id: details.axis_p2_id,
+                startTime: Date.now(),
+                duration: 1500 // ms
+            });
         }
 
         // Set a timer to clear the highlights
@@ -884,18 +910,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.reload();
     });
 
-    // --- Canvas Sizing & Responsiveness ---
-
-    function resizeCanvas() {
-        // Match the drawing surface size to the element's size in the layout
-        canvas.width = canvas.clientWidth;
-        canvas.height = canvas.clientHeight;
-        
-        // Recalculate cell size, use width as it's a square
-        gridSize = currentGameState.grid_size || 10;
-        cellSize = canvas.width / gridSize;
-    }
-    
     // --- Canvas Sizing & Responsiveness ---
 
     function resizeCanvas() {

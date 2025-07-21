@@ -18,3 +18,4 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Fortify Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory, shading the area in its color.
 *   **[FORTIFY] Create Anchor:** Sacrifice one of its own points to turn another into a gravitational anchor. For a few turns, the anchor will slowly pull nearby enemy points towards it.
+*   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns.
