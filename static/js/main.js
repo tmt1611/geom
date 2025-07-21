@@ -9,9 +9,18 @@ document.addEventListener('DOMContentLoaded', () => {
     let initialPoints = []; // Still a list for setup phase
     let selectedTeamId = null;
     let autoPlayInterval = null;
-    let isDebugMode = false;
+    let debugOptions = {
+        showPointIds: false,
+        showLineIds: false,
+        highlightLastAction: false
+    };
     let currentGameState = {}; // Cache the latest game state
     let visualEffects = []; // For temporary animations
+    let lastActionHighlights = {
+        points: new Set(),
+        lines: new Set(),
+        clearTimeout: null
+    };
 
     // UI Elements
     const teamsList = document.getElementById('teams-list');
@@ -29,7 +38,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const statsDiv = document.getElementById('stats');
     const logDiv = document.getElementById('log');
     const turnCounter = document.getElementById('turn-counter');
-    const debugToggle = document.getElementById('debug-mode-toggle');
+    const statusBar = document.getElementById('status-bar');
+
+    // Debug Toggles
+    const debugPointIdsToggle = document.getElementById('debug-point-ids');
+    const debugLineIdsToggle = document.getElementById('debug-line-ids');
+    const debugLastActionToggle = document.getElementById('debug-last-action');
 
     // --- Core Functions ---
 
@@ -53,18 +67,30 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(pointsDict).forEach(p => {
             const team = teams[p.teamId];
             if (team) {
+                const cx = (p.x + 0.5) * cellSize;
+                const cy = (p.y + 0.5) * cellSize;
+                const radius = 5;
+
+                // Highlight effect
+                if (debugOptions.highlightLastAction && lastActionHighlights.points.has(p.id)) {
+                    ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius + 4, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+
                 ctx.fillStyle = team.color;
                 ctx.beginPath();
-                ctx.arc((p.x + 0.5) * cellSize, (p.y + 0.5) * cellSize, 5, 0, 2 * Math.PI);
+                ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
                 ctx.fill();
 
-                if (isDebugMode) {
+                if (debugOptions.showPointIds) {
                     ctx.fillStyle = '#000';
                     ctx.font = '10px Arial';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'bottom';
                     // Display the point's unique ID
-                    ctx.fillText(p.id, (p.x + 0.5) * cellSize, (p.y + 0.5) * cellSize - 7);
+                    ctx.fillText(p.id, cx, cy - (radius + 2));
                 }
             }
         });
@@ -78,13 +104,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 const p1 = pointsDict[line.p1_id];
                 const p2 = pointsDict[line.p2_id];
                 if (p1 && p2) {
+                    const x1 = (p1.x + 0.5) * cellSize;
+                    const y1 = (p1.y + 0.5) * cellSize;
+                    const x2 = (p2.x + 0.5) * cellSize;
+                    const y2 = (p2.y + 0.5) * cellSize;
+
+                    // Highlight effect
+                    if (debugOptions.highlightLastAction && lastActionHighlights.lines.has(line.id)) {
+                        ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // Yellow halo
+                        ctx.lineWidth = 8;
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.stroke();
+                    }
+
                     // Draw shield effect first (underneath the main line)
                     if (line.is_shielded) {
                         ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)'; // Light blue halo
                         ctx.lineWidth = 6;
                         ctx.beginPath();
-                        ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
-                        ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
                         ctx.stroke();
                     }
 
@@ -92,9 +133,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.strokeStyle = team.color;
                     ctx.lineWidth = 2;
                     ctx.beginPath();
-                    ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
-                    ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
                     ctx.stroke();
+
+                    // Draw Line ID
+                    if (debugOptions.showLineIds && line.id) {
+                        ctx.save();
+                        ctx.translate((x1 + x2) / 2, (y1 + y2) / 2);
+                        ctx.fillStyle = '#000';
+                        ctx.font = '9px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                        ctx.fillRect(-15, -7, 30, 14);
+                        ctx.fillStyle = '#000';
+                        ctx.fillText(line.id, 0, 0);
+                        ctx.restore();
+                    }
                 }
             }
         });
@@ -151,6 +207,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.lineWidth = 5;
                     ctx.stroke();
                 }
+            } else if (effect.type === 'attack_ray') {
+                const x1 = (effect.p1.x + 0.5) * cellSize;
+                const y1 = (effect.p1.y + 0.5) * cellSize;
+                const x2 = (effect.p2.x + 0.5) * cellSize;
+                const y2 = (effect.p2.y + 0.5) * cellSize;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = `rgba(255, 0, 0, ${1 - progress})`; // Red, fading out
+                ctx.lineWidth = 3;
+                ctx.stroke();
             }
             
             return true; // Keep active effects
@@ -183,7 +250,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const details = gameState.last_action_details;
         if (!details || !details.type) return;
 
+        // Clear previous highlights
+        clearTimeout(lastActionHighlights.clearTimeout);
+        lastActionHighlights.points.clear();
+        lastActionHighlights.lines.clear();
+
         if (details.type === 'nova_burst' && details.sacrificed_point) {
+            lastActionHighlights.points.add(details.sacrificed_point.id);
             visualEffects.push({
                 type: 'nova_burst',
                 x: details.sacrificed_point.x,
@@ -194,6 +267,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         if (details.type === 'add_line' && details.line) {
+            lastActionHighlights.lines.add(details.line.id);
+            lastActionHighlights.points.add(details.line.p1_id);
+            lastActionHighlights.points.add(details.line.p2_id);
             visualEffects.push({
                 type: 'new_line',
                 line: details.line,
@@ -201,6 +277,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: 500 // ms
             });
         }
+        if (details.type === 'attack_line' && details.attack_ray) {
+            lastActionHighlights.lines.add(details.attacker_line.id);
+            // Highlight the line that *was* destroyed, even though it's gone from state
+            // We can't do this easily as it's already removed. Highlighting the attacker is enough.
+            visualEffects.push({
+                type: 'attack_ray',
+                p1: details.attack_ray.p1,
+                p2: details.attack_ray.p2,
+                startTime: Date.now(),
+                duration: 600 // ms
+            });
+        }
+        if (details.type === 'extend_line' && details.new_point) {
+            lastActionHighlights.points.add(details.new_point.id);
+        }
+        if (details.type === 'shield_line' && details.shielded_line) {
+            lastActionHighlights.lines.add(details.shielded_line.id);
+        }
+        if (details.type === 'claim_territory' && details.territory) {
+            details.territory.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+        }
+
+        // Set a timer to clear the highlights
+        lastActionHighlights.clearTimeout = setTimeout(() => {
+            lastActionHighlights.points.clear();
+            lastActionHighlights.lines.clear();
+        }, 2000); // Highlight for 2 seconds
     }
 
     function updateStateAndRender(gameState) {
@@ -273,6 +376,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateLog(log, teams) {
         logDiv.innerHTML = ''; // Clear previous logs
         if (!log) return;
+
+        let lastMessage = 'Game log is empty.';
         log.forEach(entry => {
             const logEntryDiv = document.createElement('div');
             logEntryDiv.className = 'log-entry';
@@ -281,8 +386,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 logEntryDiv.style.borderLeftColor = teams[entry.teamId].color;
             }
             logDiv.appendChild(logEntryDiv);
+            lastMessage = entry.message;
         });
         logDiv.scrollTop = logDiv.scrollHeight;
+
+        // Update status bar
+        if (currentGameState.is_running && !currentGameState.is_finished) {
+            statusBar.textContent = lastMessage;
+            statusBar.style.opacity = '1';
+        } else {
+            statusBar.style.opacity = '0';
+        }
     }
 
     function updateInterpretationPanel(gameState) {
@@ -372,9 +486,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Handlers & API Calls ---
 
-    debugToggle.addEventListener('click', () => {
-        isDebugMode = debugToggle.checked;
-        // The animation loop will pick up the change, no need to force render
+    debugPointIdsToggle.addEventListener('click', () => {
+        debugOptions.showPointIds = debugPointIdsToggle.checked;
+    });
+    debugLineIdsToggle.addEventListener('click', () => {
+        debugOptions.showLineIds = debugLineIdsToggle.checked;
+    });
+    debugLastActionToggle.addEventListener('click', () => {
+        debugOptions.highlightLastAction = debugLastActionToggle.checked;
     });
 
     addTeamBtn.addEventListener('click', () => {

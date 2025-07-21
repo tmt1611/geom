@@ -54,16 +54,20 @@
         </div>
         <div class="grid-container">
             <canvas id="grid" width="600" height="600"></canvas>
+            <div id="status-bar">Waiting for game to start...</div>
         </div>
         <div class="interpretation-panel">
             <h2>Analysis</h2>
             <div id="turn-counter">Turn: 0 / 100</div>
             <div id="stats"></div>
-             <div style="padding: 5px 0; border-top: 1px solid #eee; margin-top: 10px;">
-                <label style="cursor: pointer; font-size: 0.9em;">
-                    <input type="checkbox" id="debug-mode-toggle"> Show Point IDs
-                </label>
-            </div>
+            <fieldset>
+                <legend>Debug Tools</legend>
+                <div class="debug-options">
+                    <label><input type="checkbox" id="debug-point-ids"> Show Point IDs</label>
+                    <label><input type="checkbox" id="debug-line-ids"> Show Line IDs</label>
+                    <label><input type="checkbox" id="debug-last-action"> Highlight Last Action</label>
+                </div>
+            </fieldset>
             <div id="final-interpretation" style="display: none;">
                 <h4>Final Analysis</h4>
                 <div id="final-stats-content"></div>

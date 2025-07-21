@@ -256,7 +256,14 @@ class Game:
                         # Also remove any shield it might have had (e.g. if shield expired same turn)
                         self.state['shields'].pop(enemy_line.get('id'), None)
                         enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
-                        return {'success': True, 'type': 'attack_line', 'destroyed_team': enemy_team_name, 'destroyed_line': enemy_line}
+                        return {
+                            'success': True, 
+                            'type': 'attack_line', 
+                            'destroyed_team': enemy_team_name, 
+                            'destroyed_line': enemy_line,
+                            'attacker_line': line,
+                            'attack_ray': {'p1': attack_segment_p1, 'p2': attack_segment_p2}
+                        }
 
         return {'success': False, 'reason': 'no target was hit'}
 

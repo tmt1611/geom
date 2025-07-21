@@ -27,6 +27,7 @@ h3 { font-size: 1.2em; }
 }
 
 .grid-container {
+    position: relative; /* For positioning status bar */
     border: 2px solid #bdc3c7;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     border-radius: 5px;
@@ -36,6 +37,22 @@ h3 { font-size: 1.2em; }
     background-color: white;
     display: block; /* remove extra space below canvas */
     border-radius: 4px;
+}
+
+#status-bar {
+    position: absolute;
+    bottom: 5px;
+    left: 5px;
+    right: 5px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    text-align: center;
+    opacity: 0; /* Initially hidden */
+    transition: opacity 0.5s;
+    pointer-events: none; /* Don't intercept clicks */
 }
 
 .controls, .interpretation-panel {
@@ -148,4 +165,18 @@ legend {
 }
 #final-interpretation tr:nth-child(even) {
     background-color: #f9f9f9;
+}
+
+.debug-options {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 0.9em;
+}
+
+.debug-options label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
