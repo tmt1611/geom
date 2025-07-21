@@ -98,16 +98,33 @@ legend {
 #teams-list li {
     display: flex;
     align-items: center;
+    justify-content: space-between; /* To push delete button to the right */
     margin-bottom: 5px;
     padding: 8px;
     border-radius: 4px;
     border: 1px solid transparent;
-    cursor: pointer;
+    /* cursor is set in JS based on phase */
     transition: background-color 0.2s, border-color 0.2s;
+}
+
+.delete-team-btn {
+    background: none;
+    border: none;
+    color: #95a5a6;
+    font-size: 1.5em;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 5px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+.delete-team-btn:hover {
+    color: #e74c3c;
 }
 
 .team-info {
     display: flex;
+    flex-grow: 1; /* Allow it to take available space */
     flex-direction: column;
 }
 
@@ -171,22 +188,62 @@ legend {
     border-radius: 0 3px 3px 0;
 }
 
-#final-interpretation table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
+#final-interpretation .victory-condition {
+    text-align: center;
+    background-color: #ecf5fa;
+    color: #2980b9;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+.interp-cards-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.interp-card {
+    border: 2px solid #ccc;
+    border-radius: 6px;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow: hidden; /* Ensures child border-radius is clipped */
+}
+
+.interp-card-header {
+    color: white;
+    font-weight: bold;
+    padding: 8px 12px;
+}
+
+.interp-stats-list {
+    list-style: none;
+    padding: 10px 15px;
+    margin: 0;
     font-size: 0.9em;
 }
-#final-interpretation th, #final-interpretation td {
-    border: 1px solid #ddd;
-    padding: 6px;
-    text-align: left;
+
+.interp-stats-list li {
+    padding: 4px 0;
+    border-bottom: 1px solid #f0f0f0;
 }
-#final-interpretation th {
-    background-color: #f2f2f2;
+.interp-stats-list li:last-child {
+    border-bottom: none;
 }
-#final-interpretation tr:nth-child(even) {
-    background-color: #f9f9f9;
+.interp-stats-list strong {
+    color: #34495e;
+}
+
+.interp-divination {
+    font-style: italic;
+    color: #555;
+    background-color: #f8f9fa;
+    padding: 10px 15px;
+    margin: 0;
+    border-top: 1px solid #eee;
+    font-size: 0.95em;
 }
 
 .debug-options {

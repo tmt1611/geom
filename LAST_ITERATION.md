@@ -1,20 +1,21 @@
 # Iteration Analysis and Changelog
 
 ## 1. Analysis Summary
-The previous iteration was successful in enhancing visual feedback and debugging tools, making the simulation much easier to follow. The core gameplay was solid, but user control over the simulation's setup and pacing was limited. The team AI, while functional, was static and would often attempt impossible actions (e.g., attacking with no lines), leading to repetitive and uninteresting log entries.
+The previous iteration was successful in improving the AI's intelligence and giving the user more control over the simulation playback speed. However, the user experience during the setup phase was a bit rigid, lacking a way to correct mistakes like adding a wrong team. Furthermore, the game's conclusion felt abrupt, and the final results display was dense and difficult to parse quickly.
 
-This iteration focuses on giving the user more strategic control during setup, improving the user experience during playback, and making the team AI more intelligent and adaptive to the game's state.
+This iteration focuses on improving the setup-phase flexibility, making the game's conclusion more satisfying, and presenting the final analysis in a much more readable and visually appealing format.
 
 ## 2. Implemented Features and Improvements
 
-### Frontend UI/UX (`index.html`, `main.js`, `style.css`)
--   **New Feature - Team Trait Selection:** Users can now choose a strategic trait ('Aggressive', 'Expansive', 'Defensive', 'Balanced') for each team they create. This replaces the previous system of assigning a random trait, giving users direct control over the simulation's parameters and adding a layer of strategy to the setup phase.
--   **New Feature - Auto-Play Speed Control:** An interactive speed slider has been added to the "Game In Progress" controls. Users can now adjust the delay between turns during auto-play, from a rapid 50ms to a deliberate 1000ms. The slider updates the speed in real-time, allowing users to slow down for interesting moments or speed through quiet periods.
--   **UI Refinement:** The team creation and game control sections of the UI were updated to cleanly incorporate these new features.
+### Gameplay & Backend (`game_logic.py`)
+-   **New Victory Condition - Dominance:** A new way to win has been introduced. If a single team is the sole survivor on the grid for 3 consecutive turns, it is declared the dominant winner, and the simulation ends. This adds a more dynamic goal to the "auto-battle" aspect of the game.
+-   **Refactored Game State Machine:** The internal state management was improved by replacing boolean flags (`is_running`, `is_finished`) with a single, more descriptive `game_phase` state (`SETUP`, `RUNNING`, `FINISHED`). This makes the game logic cleaner and more robust.
+-   **Victory Reason Tracking:** The backend now records how the game ended (e.g., 'Max Turns Reached', 'Dominance', 'Extinction') and passes this information to the frontend.
 
-### Backend & AI (`game_logic.py`)
--   **Smarter, More Dynamic AI:** The core `_choose_action_for_team` function was completely refactored.
-    -   **Pre-condition Checks:** Before choosing an action, the AI now evaluates the current game state to determine which actions are actually possible. For example, it will not attempt to attack if there are no enemy lines, or try to shield a line if all lines are already shielded.
-    -   **Reduced Failed Actions:** This intelligent filtering dramatically reduces the number of "failed action" log messages, making the game log cleaner and the simulation feel more purposeful.
-    -   **Improved Weighting System:** The logic for applying trait-based preferences was updated to a more flexible base-weight and multiplier system, which is applied *only* to the list of possible actions.
--   **Robust Turn Execution:** The main `run_next_turn` loop was updated to gracefully handle cases where a team has no possible actions to perform, preventing errors and logging an appropriate message.
+### Frontend UI/UX (`main.js`, `style.css`)
+-   **New Feature - Remove Team:** Users can now remove teams during the setup phase. A confirmation prompt prevents accidental deletion. This adds crucial flexibility to the game setup process.
+-   **Redesigned Final Analysis Panel:** The final results table has been completely replaced with a modern, card-based layout.
+    -   Each team receives its own styled "card" showing its name, color, final stats, and its generated divination text.
+    -   This new layout is significantly easier to read and more aesthetically pleasing.
+-   **Clearer Game Over Message:** The specific reason for the game's conclusion (e.g., "Game Over: Team 'Red' achieved dominance.") is now prominently displayed above the final analysis cards.
+-   **Improved UI Logic:** The frontend code was updated to use the new `game_phase` state from the backend, simplifying UI update logic. The team list click/delete handling was also refactored for better performance and clarity.

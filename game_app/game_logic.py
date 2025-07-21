@@ -66,8 +66,9 @@ class Game:
             "game_log": [],
             "turn": 0,
             "max_turns": 100,
-            "is_running": False,
-            "is_finished": False,
+            "game_phase": "SETUP", # SETUP, RUNNING, FINISHED
+            "victory_condition": None,
+            "sole_survivor_tracker": {'teamId': None, 'turns': 0},
             "interpretation": {},
             "last_action_details": {} # For frontend visualization
         }
@@ -75,7 +76,7 @@ class Game:
     def get_state(self):
         """Returns the current game state, augmenting with transient data for frontend."""
         # On-demand calculation of interpretation when game is finished
-        if self.state['is_finished'] and not self.state['interpretation']:
+        if self.state['game_phase'] == 'FINISHED' and not self.state['interpretation']:
             self.state['interpretation'] = self.calculate_interpretation()
 
         # Augment lines with shield status for easier rendering
@@ -107,7 +108,7 @@ class Game:
             self.state['points'][point_id] = {**p, 'id': point_id}
         self.state['max_turns'] = max_turns
         self.state['grid_size'] = grid_size
-        self.state['is_running'] = len(points) > 0
+        self.state['game_phase'] = "RUNNING" if len(points) > 0 else "SETUP"
         self.state['game_log'].append({'message': "Game initialized."})
 
     def get_team_point_ids(self, teamId):
@@ -468,7 +469,7 @@ class Game:
 
     def run_next_turn(self):
         """Runs one turn of the game."""
-        if self.state['is_finished']:
+        if self.state['game_phase'] != 'RUNNING':
             return
 
         self.state['turn'] += 1
@@ -487,9 +488,9 @@ class Game:
 
         active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
         if not active_teams:
-            self.state['is_finished'] = True
-            self.state['is_running'] = False
-            self.state['game_log'].append({'message': "No active teams left. Game over."})
+            self.state['game_phase'] = 'FINISHED'
+            self.state['victory_condition'] = "Extinction"
+            self.state['game_log'].append({'message': "All teams have been eliminated. Game over."})
             return
 
         for teamId in active_teams:
@@ -556,9 +557,33 @@ class Game:
             self.state['game_log'].append({'teamId': teamId, 'message': log_message})
 
 
+        # --- End of Turn: Check for Victory Conditions ---
+
+        # 1. Dominance Victory
+        DOMINANCE_TURNS_REQUIRED = 3
+        if len(active_teams) == 1:
+            sole_survivor_id = active_teams[0]
+            tracker = self.state['sole_survivor_tracker']
+            if tracker['teamId'] == sole_survivor_id:
+                tracker['turns'] += 1
+            else:
+                tracker['teamId'] = sole_survivor_id
+                tracker['turns'] = 1
+            
+            if tracker['turns'] >= DOMINANCE_TURNS_REQUIRED:
+                self.state['game_phase'] = 'FINISHED'
+                team_name = self.state['teams'][sole_survivor_id]['name']
+                self.state['victory_condition'] = f"Team '{team_name}' achieved dominance."
+                self.state['game_log'].append({'message': self.state['victory_condition']})
+                return # End turn processing
+        else:
+            # If there isn't a single survivor, reset the tracker
+            self.state['sole_survivor_tracker'] = {'teamId': None, 'turns': 0}
+
+        # 2. Max Turns Reached
         if self.state['turn'] >= self.state['max_turns']:
-            self.state['is_finished'] = True
-            self.state['is_running'] = False
+            self.state['game_phase'] = 'FINISHED'
+            self.state['victory_condition'] = "Max turns reached."
             self.state['game_log'].append({'message': "Max turns reached. Game finished."})
     
     # --- Interpretation ---

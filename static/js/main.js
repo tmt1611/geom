@@ -42,6 +42,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const logDiv = document.getElementById('log');
     const turnCounter = document.getElementById('turn-counter');
     const statusBar = document.getElementById('status-bar');
+    const finalInterpDiv = document.getElementById('final-interpretation');
+    const finalInterpContent = document.getElementById('final-stats-content');
 
     // Debug Toggles
     const debugPointIdsToggle = document.getElementById('debug-point-ids');
@@ -326,19 +328,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTeamsList() {
         teamsList.innerHTML = '';
-        const inSetupPhase = !currentGameState.is_running && !currentGameState.is_finished;
+        const inSetupPhase = currentGameState.game_phase === 'SETUP';
 
-        // Use teams from game state if available, otherwise use local setup teams
-        const teamsToRender = (currentGameState && currentGameState.teams && Object.keys(currentGameState.teams).length > 0)
-                            ? currentGameState.teams
-                            : localTeams;
+        // Use local setup teams during setup, otherwise use teams from game state
+        const teamsToRender = inSetupPhase && Object.keys(localTeams).length > 0 ? localTeams : currentGameState.teams;
 
         for (const teamId in teamsToRender) {
             const team = teamsToRender[teamId];
             const li = document.createElement('li');
             li.dataset.teamId = teamId;
 
-            if (selectedTeamId === teamId) {
+            if (selectedTeamId === teamId && inSetupPhase) {
                 li.classList.add('selected');
             }
 
@@ -354,7 +354,6 @@ document.addEventListener('DOMContentLoaded', () => {
             teamName.textContent = team.name;
             teamInfo.appendChild(teamName);
 
-            // Display trait if it exists
             if (team.trait) {
                 const teamTrait = document.createElement('span');
                 teamTrait.className = 'team-trait';
@@ -363,14 +362,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             li.appendChild(teamInfo);
 
-
-            li.addEventListener('click', () => {
-                // Allow selecting teams only during setup
-                if (inSetupPhase) {
-                    selectedTeamId = teamId;
-                    renderTeamsList();
-                }
-            });
+            if (inSetupPhase) {
+                li.style.cursor = 'pointer';
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = '×';
+                deleteBtn.className = 'delete-team-btn';
+                deleteBtn.dataset.teamId = teamId;
+                li.appendChild(deleteBtn);
+            }
 
             teamsList.appendChild(li);
         }
@@ -394,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logDiv.scrollTop = logDiv.scrollHeight;
 
         // Update status bar
-        if (currentGameState.is_running && !currentGameState.is_finished) {
+        if (currentGameState.game_phase === 'RUNNING') {
             statusBar.textContent = lastMessage;
             statusBar.style.opacity = '1';
         } else {
@@ -403,10 +402,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, points, lines, is_finished, interpretation } = gameState;
-    
+        const { turn, max_turns, teams, points, lines, game_phase, interpretation, victory_condition } = gameState;
+
         turnCounter.textContent = `Turn: ${turn} / ${max_turns}`;
-    
+
         // Live stats
         let statsHTML = '<h4>Live Stats</h4>';
         if (teams && Object.keys(teams).length > 0) {
@@ -422,51 +421,70 @@ document.addEventListener('DOMContentLoaded', () => {
         statsDiv.innerHTML = statsHTML;
     
         // Final interpretation
-        const finalInterpDiv = document.getElementById('final-interpretation');
-        if (is_finished && interpretation && Object.keys(interpretation).length > 0) {
-            let finalStatsHTML = '<table><tr><th>Team</th><th>Stat</th><th>Value</th></tr>';
-            for (const teamId in interpretation) {
+        if (game_phase === 'FINISHED' && interpretation) {
+            finalInterpContent.innerHTML = ''; // Clear previous content
+
+            // Display victory condition
+            if(victory_condition) {
+                const victoryTitle = document.createElement('h4');
+                victoryTitle.className = 'victory-condition';
+                victoryTitle.textContent = `Game Over: ${victory_condition}`;
+                finalInterpContent.appendChild(victoryTitle);
+            }
+
+            const cardsContainer = document.createElement('div');
+            cardsContainer.className = 'interp-cards-container';
+
+            for (const teamId in teams) {
+                const team = teams[teamId];
                 const teamData = interpretation[teamId];
-                if (!teams[teamId]) continue; // Skip if team data is missing
-                const teamName = teams[teamId].name;
-                const teamColor = teams[teamId].color;
-                
-                // Add Divination Text
-                let divinationRow = `<td colspan="2" style="font-style: italic; background-color: #f8f9fa;">"${teamData.divination_text}"</td>`;
+                if (!teamData) continue;
 
-                const allStatRows = [
-                    ['Points', teamData.point_count],
-                    ['Lines', teamData.line_count],
-                    ['Line Length', teamData.line_length],
-                    ['Triangles', teamData.triangles],
-                    ['Territory Area', teamData.controlled_area],
-                    ['Hull Area', teamData.hull_area],
-                    ['Hull Perimeter', teamData.hull_perimeter]
-                ];
+                const card = document.createElement('div');
+                card.className = 'interp-card';
+                card.style.borderColor = team.color;
 
-                // Filter out stats with a value of 0 or undefined
-                const statRows = allStatRows.filter(row => row[1] > 0);
-                
-                const totalRows = statRows.length + (teamData.divination_text ? 1 : 0);
+                const cardHeader = document.createElement('div');
+                cardHeader.className = 'interp-card-header';
+                cardHeader.style.backgroundColor = team.color;
+                cardHeader.textContent = team.name;
+                card.appendChild(cardHeader);
 
-                if (totalRows > 0) {
-                    finalStatsHTML += `<tr><td rowspan="${totalRows}" style="font-weight:bold; color:${teamColor};">${teamName}</td>`;
+                const statsList = document.createElement('ul');
+                statsList.className = 'interp-stats-list';
 
-                    if (statRows.length > 0) {
-                         finalStatsHTML += `<td>${statRows[0][0]}</td><td>${statRows[0][1]}</td></tr>`;
-                        for(let i = 1; i < statRows.length; i++) {
-                            finalStatsHTML += `<tr><td>${statRows[i][0]}</td><td>${statRows[i][1]}</td></tr>`;
-                        }
-                        if (teamData.divination_text) {
-                            finalStatsHTML += `<tr>${divinationRow}</tr>`;
-                        }
-                    } else if (teamData.divination_text) {
-                        finalStatsHTML += `${divinationRow}</tr>`;
+                const allStats = {
+                    'Points': teamData.point_count,
+                    'Lines': teamData.line_count,
+                    'Total Line Length': teamData.line_length,
+                    'Triangles': teamData.triangles,
+                    'Territory Area': teamData.controlled_area,
+                    'Influence Area (Hull)': teamData.hull_area,
+                    'Hull Perimeter': teamData.hull_perimeter
+                };
+
+                let hasStats = false;
+                for (const [statName, statValue] of Object.entries(allStats)) {
+                    if (statValue > 0) {
+                        hasStats = true;
+                        const li = document.createElement('li');
+                        li.innerHTML = `<strong>${statName}:</strong> ${statValue}`;
+                        statsList.appendChild(li);
                     }
                 }
+                
+                if (hasStats) {
+                    card.appendChild(statsList);
+                }
+
+                const divinationText = document.createElement('p');
+                divinationText.className = 'interp-divination';
+                divinationText.textContent = `"${teamData.divination_text}"`;
+                card.appendChild(divinationText);
+
+                cardsContainer.appendChild(card);
             }
-            finalStatsHTML += '</table>';
-            document.getElementById('final-stats-content').innerHTML = finalStatsHTML;
+            finalInterpContent.appendChild(cardsContainer);
             finalInterpDiv.style.display = 'block';
         } else {
             finalInterpDiv.style.display = 'none';
@@ -474,15 +492,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateControls(gameState) {
-        const inSetupPhase = !gameState.is_running && !gameState.is_finished;
-        document.getElementById('setup-phase').style.display = inSetupPhase ? 'block' : 'none';
-        document.getElementById('action-phase').style.display = !inSetupPhase ? 'block' : 'none';
-        
-        nextTurnBtn.disabled = gameState.is_finished;
-        autoPlayBtn.disabled = gameState.is_finished;
+        const gamePhase = gameState.game_phase;
+        document.getElementById('setup-phase').style.display = gamePhase === 'SETUP' ? 'block' : 'none';
+        document.getElementById('action-phase').style.display = gamePhase === 'RUNNING' ? 'block' : 'none';
 
-        if (gameState.is_finished) {
-            stopAutoPlay();
+        const isFinished = gamePhase === 'FINISHED';
+        nextTurnBtn.disabled = isFinished;
+        autoPlayBtn.disabled = isFinished;
+
+        if (isFinished) {
+            if (autoPlayInterval) stopAutoPlay();
             autoPlayBtn.textContent = 'Auto-Play';
         }
     }
@@ -499,11 +518,53 @@ document.addEventListener('DOMContentLoaded', () => {
         debugOptions.highlightLastAction = debugLastActionToggle.checked;
     });
 
+    // A single listener for team list interactions (selection and deletion)
+    teamsList.addEventListener('click', (e) => {
+        if (currentGameState.game_phase !== 'SETUP') return;
+
+        const li = e.target.closest('li');
+        if (!li) return;
+
+        const teamId = li.dataset.teamId;
+
+        // Handle team deletion
+        if (e.target.classList.contains('delete-team-btn')) {
+            const teamName = localTeams[teamId]?.name || 'this team';
+            if (!confirm(`Are you sure you want to remove ${teamName}?`)) return;
+
+            // If the deleted team was selected, deselect it or pick another
+            if (selectedTeamId === teamId) {
+                selectedTeamId = null;
+                const remainingTeamIds = Object.keys(localTeams).filter(id => id !== teamId);
+                if (remainingTeamIds.length > 0) {
+                    selectedTeamId = remainingTeamIds[0];
+                }
+            }
+
+            // Remove team from local state
+            delete localTeams[teamId];
+            // Remove points associated with that team
+            initialPoints = initialPoints.filter(p => p.teamId !== teamId);
+            
+            // Re-render teams list and the grid
+            renderTeamsList();
+            drawGrid(); // Redraw grid and points
+            const tempPointsDict = {};
+            initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
+            drawPoints(tempPointsDict, localTeams);
+            return;
+        }
+
+        // Handle team selection
+        selectedTeamId = teamId;
+        renderTeamsList();
+    });
+
     addTeamBtn.addEventListener('click', () => {
         const teamName = newTeamNameInput.value.trim();
         const trait = newTeamTraitSelect.value;
         if (teamName && !Object.values(localTeams).some(t => t.name === teamName)) {
-            const teamId = `team-${Object.keys(localTeams).length + 1}`;
+            const teamId = `team-${Date.now()}`; // More unique ID
             
             localTeams[teamId] = {
                 name: teamName,
@@ -511,11 +572,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 trait: trait
             };
             newTeamNameInput.value = '';
+            // Auto-select the new team
+            selectedTeamId = teamId;
             renderTeamsList();
-            if(!selectedTeamId) {
-                selectedTeamId = teamId;
-                renderTeamsList();
-            }
+        } else if (teamName) {
+            alert('A team with this name already exists.');
         }
     });
 
@@ -561,12 +622,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('click', (e) => {
-        if (!selectedTeamId) {
-            alert('Please add and select a team first!');
+        if (currentGameState.game_phase !== 'SETUP') {
             return;
         }
-        // Allow adding points only during setup phase
-        if (autoPlayInterval || document.getElementById('action-phase').style.display === 'block') {
+        if (!selectedTeamId) {
+            alert('Please add and select a team first!');
             return;
         }
 
@@ -627,14 +687,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const delay = parseInt(autoPlaySpeedSlider.value, 10);
         autoPlayInterval = setInterval(async () => {
             // Check if game is still running before fetching
-            if (currentGameState.is_finished) {
+            if (currentGameState.game_phase === 'FINISHED') {
                  stopAutoPlay();
                  return;
             }
             const response = await fetch('/api/game/next_turn', { method: 'POST' });
             const gameState = await response.json();
             updateStateAndRender(gameState);
-            if (gameState.is_finished) {
+            if (gameState.game_phase === 'FINISHED') {
                 stopAutoPlay();
             }
         }, delay);
@@ -687,14 +747,17 @@ document.addEventListener('DOMContentLoaded', () => {
     async function init() {
         const response = await fetch('/api/game/state');
         const gameState = await response.json();
-        // Set local state based on potentially ongoing game
-        if (gameState && gameState.teams && Object.keys(gameState.teams).length > 0) {
-            localTeams = gameState.teams;
-            if (!gameState.is_running && !gameState.is_finished) {
-                // If game hasn't started, reconstruct initialPoints for editing
-                initialPoints = Object.values(gameState.points);
-            }
+        currentGameState = gameState; // Initial cache
+        
+        // If page is refreshed during setup, reconstruct state to allow editing
+        if (gameState.game_phase === 'SETUP') {
+             localTeams = gameState.teams || {};
+             initialPoints = Object.values(gameState.points);
+        } else {
+             localTeams = gameState.teams || {};
+             initialPoints = [];
         }
+        
         gridSizeInput.value = gameState.grid_size;
         maxTurnsInput.value = gameState.max_turns;
         updateStateAndRender(gameState);
