@@ -1,29 +1,25 @@
 # Iteration Analysis and Changelog
 
-## 1. Analysis Summary
-This iteration introduces a major new strategic element, the **Nexus**, and overhauls the core turn-taking mechanic to support bonus actions. The Nexus is a powerful defensive and economic structure formed by creating a square with points and lines. It rewards players for intricate geometric construction by granting them a bonus action for each Nexus they control per turn.
+This iteration focuses on expanding the strategic depth of the game by introducing a new geometric structure: the **Prism**. This structure encourages a different style of play, rewarding teams for building adjacent, connected territories. The Prism unlocks a new, visually impressive attack action, the `Refraction Beam`, which allows for "bank shots" that can bypass conventional defenses and attack enemies from unexpected angles. This not only adds a new tactical layer but also enhances the visual spectacle of the auto-battle.
 
-This change significantly deepens the strategic possibilities, creating a new "builder" playstyle that competes with aggressive and expansive strategies. The underlying game logic was refactored to handle a dynamic action queue, making the system more robust and extensible for future features like wonders or other special structures that might grant actions.
+## 1. Key Changes
 
-## 2. Key Changes
-
-### 2.1. New Structure: The Nexus
+### 1.1. New Structure: The Prism
 - **Files**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
-- **Concept:** A new passive structure formed by 4 points creating a square, with the 4 outer lines and at least one diagonal connected.
-- **Bonus:** For each Nexus a team controls at the start of a turn, it gains one bonus action for that turn.
+- **Concept:** A new passive structure formed when two of a team's claimed territories (triangles) share a common edge.
+- **Bonus:** Unlocks the **[FIGHT] Refraction Beam** action.
 - **Backend (`game_logic.py`):**
-    - Implemented a robust `is_square` helper function to detect square formations.
-    - Added `nexuses` to the game state and created the `_update_nexuses_for_team` method to detect valid Nexus structures.
-    - **Reworked Turn Logic:** The turn execution system was refactored. Instead of a simple list of teams, the game now uses an `actions_queue_this_turn` containing action objects (`{teamId, is_bonus}`). This queue is built at the start of each turn based on which teams have Nexuses.
-    - Added new log messages to announce when teams gain bonus actions from their Nexuses.
+    - Implemented `_update_prisms_for_team` to efficiently detect Prism formations by checking for shared edges between territories.
+    - Added a new `fight_action_refraction_beam` function. This action fires a "source" beam, calculates its intersection with the Prism's shared edge, and then fires a new "refracted" beam along a perpendicular axis to destroy an enemy line.
+    - A new helper function, `get_segment_intersection_point`, was added to calculate the precise intersection point between two line segments.
+    - Integrated the new action into the AI's decision-making process (`_choose_action_for_team`), giving it a high weight to encourage its use.
 - **Frontend (`static/js/main.js`):**
-    - Implemented `drawNexuses` to render a translucent fill inside the Nexus square and a pulsating, glowing orb at its center, providing a clear and visually appealing representation.
-    - Updated `drawPoints` to give points that are part of a Nexus a distinct visual style (concentric circles).
-    - The turn counter in the UI now accurately reflects the total number of actions in the queue (e.g., "Turn: 5 (Action 3 / 7)").
+    - Implemented `drawPrisms` to provide a clear visual indicator for active Prisms by rendering a glow effect on their shared edge.
+    - Added a custom visual effect for the `refraction_beam` action, showing the initial yellow source beam followed by the powerful red refracted beam, making the action's mechanics clear and visually satisfying.
+    - Updated the "Live Stats" panel to show the count of active Prisms for each team, alongside Runes.
 - **Documentation (`rules.md`):**
-    - Updated the rules to explain the Nexus formation, its requirements, and the bonus action reward.
+    - Updated the rules to explain the Prism formation, its requirements, and the new Refraction Beam action it unlocks.
 
-### 2.2. Code Refactoring and Cleanup
-- **File**: `game_logic.py`
-    - The `run_next_action` and `_start_new_turn` methods were completely rewritten to use the new action queue system, making the flow of a turn more explicit and easier to follow.
-    - State management was updated to replace the old `active_teams_this_turn` with the new, more descriptive `actions_queue_this_turn`.
+### 1.2. Helper Function and Code Refinements
+- **File**: `game_app/game_logic.py`
+- **Change:** Added the global helper function `get_segment_intersection_point` to support the new refraction action. This is more versatile than the existing `segments_intersect` boolean check. The turn logic now calls `_update_prisms_for_team` before a team takes its turn, ensuring all structures are up-to-date.

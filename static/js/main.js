@@ -464,6 +464,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function drawPrisms(gameState) {
+        if (!gameState.prisms) return;
+
+        for (const teamId in gameState.prisms) {
+            const teamPrisms = gameState.prisms[teamId];
+            const team = gameState.teams[teamId];
+            if (!team || !teamPrisms) continue;
+
+            teamPrisms.forEach(prism => {
+                const p1 = gameState.points[prism.shared_p1_id];
+                const p2 = gameState.points[prism.shared_p2_id];
+
+                if (p1 && p2) {
+                    const x1 = (p1.x + 0.5) * cellSize;
+                    const y1 = (p1.y + 0.5) * cellSize;
+                    const x2 = (p2.x + 0.5) * cellSize;
+                    const y2 = (p2.y + 0.5) * cellSize;
+                    
+                    // Draw a glowing line for the shared edge
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.strokeStyle = team.color;
+                    ctx.lineWidth = 8;
+                    ctx.globalAlpha = 0.5;
+                    ctx.filter = 'blur(4px)'; // Glow effect
+                    ctx.stroke();
+                    
+                    // Reset filters
+                    ctx.filter = 'none';
+                    ctx.globalAlpha = 1.0;
+                }
+            });
+        }
+    }
+
     function drawVisualEffects() {
         const now = Date.now();
         visualEffects = visualEffects.filter(effect => {
@@ -586,6 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // During RUNNING or FINISHED, draw from the official game state
             if (currentGameState.teams) {
                 drawTerritories(currentGameState.points, currentGameState.territories, currentGameState.teams);
+                drawPrisms(currentGameState);
                 drawRunes(currentGameState);
                 drawConduits(currentGameState);
                 drawNexuses(currentGameState);
@@ -726,6 +763,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: 500
                 });
             }
+        }
+        if (details.type === 'refraction_beam') {
+            // Highlight the prism points
+            details.prism_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+
+            // Visualize source ray
+            visualEffects.push({
+                type: 'attack_ray',
+                p1: details.source_ray.p1,
+                p2: details.source_ray.p2,
+                startTime: Date.now(),
+                duration: 1200,
+                color: `rgba(255, 255, 150, ${1-0})`, // Yellow
+                lineWidth: 2
+            });
+            // Visualize refracted ray, slightly delayed
+            visualEffects.push({
+                type: 'attack_ray',
+                p1: details.refracted_ray.p1,
+                p2: details.refracted_ray.p2,
+                startTime: Date.now() + 200, // Delay start
+                duration: 1000,
+                color: `rgba(255, 100, 100, ${1-0})`, // Red
+                lineWidth: 4
+            });
         }
         if (details.type === 'bastion_pulse' && details.sacrificed_prong) {
             // Highlight the whole bastion that pulsed
@@ -923,7 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms } = gameState;
 
         let turnText = `Turn: ${turn} / ${max_turns}`;
         if (game_phase === 'RUNNING' && actions_queue_this_turn && actions_queue_this_turn.length > 0) {
@@ -946,13 +1008,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${stats.controlled_area} area`;
                     
                     const teamRunes = runes[teamId] || {};
+                    const teamPrisms = prisms[teamId] || [];
                     const crossRunesCount = teamRunes.cross ? teamRunes.cross.length : 0;
                     const vRunesCount = teamRunes.v_shape ? teamRunes.v_shape.length : 0;
-                    if (crossRunesCount > 0 || vRunesCount > 0) {
-                        let runeStrings = [];
-                        if (crossRunesCount > 0) runeStrings.push(`Cross (${crossRunesCount})`);
-                        if (vRunesCount > 0) runeStrings.push(`V-Shape (${vRunesCount})`);
-                        teamHTML += `<br/><span style="font-size: 0.9em; padding-left: 10px;">Runes: ${runeStrings.join(', ')}</span>`;
+                    const prismCount = teamPrisms.length;
+
+                    if (crossRunesCount > 0 || vRunesCount > 0 || prismCount > 0) {
+                        let structureStrings = [];
+                        if (crossRunesCount > 0) structureStrings.push(`Cross (${crossRunesCount})`);
+                        if (vRunesCount > 0) structureStrings.push(`V-Shape (${vRunesCount})`);
+                        if (prismCount > 0) structureStrings.push(`Prism (${prismCount})`);
+                        teamHTML += `<br/><span style="font-size: 0.9em; padding-left: 10px;">Structures: ${structureStrings.join(', ')}</span>`;
                     }
 
                     teamHTML += `</div>`;

@@ -49,6 +49,33 @@ def segments_intersect(p1, q1, p2, q2):
 
     return False
 
+def get_segment_intersection_point(p1, q1, p2, q2):
+    """Finds the intersection point of two line segments 'p1q1' and 'p2q2'.
+    Returns a dict {'x', 'y'} or None if they do not intersect on the segments.
+    """
+    x1, y1 = p1['x'], p1['y']
+    x2, y2 = q1['x'], q1['y']
+    x3, y3 = p2['x'], p2['y']
+    x4, y4 = q2['x'], q2['y']
+
+    den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if den == 0:
+        return None  # Lines are parallel or collinear
+
+    t_num = (x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)
+    u_num = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3))
+
+    t = t_num / den
+    u = u_num / den
+
+    # If 0<=t<=1 and 0<=u<=1, the segments intersect
+    if 0 <= t <= 1 and 0 <= u <= 1:
+        ix = x1 + t * (x2 - x1)
+        iy = y1 + t * (y2 - y1)
+        return {'x': ix, 'y': iy}
+
+    return None  # Intersection point is not on both segments
+
 def is_square(p1, p2, p3, p4):
     """Checks if four points form a square. Points are dicts with 'x' and 'y'.
     This is a helper function that doesn't rely on game state.
@@ -105,6 +132,7 @@ class Game:
             "runes": {}, # {teamId: {'cross': [], 'v_shape': []}}
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
+            "prisms": {}, # {teamId: [prism1, prism2, ...]}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
             "max_turns": 100,
@@ -180,6 +208,7 @@ class Game:
 
         # Add nexuses for frontend rendering
         state_copy['nexuses'] = self.state.get('nexuses', {})
+        state_copy['prisms'] = self.state.get('prisms', {})
 
         # Add live stats for real-time display, regardless of phase, for consistency
         live_stats = {}
@@ -1289,6 +1318,99 @@ class Game:
             'conduit_point_ids': chosen_conduit['point_ids']
         }
 
+    def fight_action_refraction_beam(self, teamId):
+        """[FIGHT ACTION]: Uses a Prism to refract an attack beam."""
+        team_prisms = self.state.get('prisms', {}).get(teamId, [])
+        if not team_prisms:
+            return {'success': False, 'reason': 'no active prisms'}
+        
+        points = self.state['points']
+        
+        # All lines for this team that could be a "source beam"
+        # Exclude lines that are part of any prism for simplicity.
+        prism_point_ids = set()
+        for p in team_prisms:
+            prism_point_ids.update(p['all_point_ids'])
+        
+        source_lines = [l for l in self.get_team_lines(teamId) if l['p1_id'] not in prism_point_ids and l['p2_id'] not in prism_point_ids]
+        if not source_lines:
+            return {'success': False, 'reason': 'no valid source lines for refraction'}
+
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        if not enemy_lines:
+            return {'success': False, 'reason': 'no enemy lines to target'}
+        
+        # Try a few combinations of prisms and source lines
+        for _ in range(10):
+            prism = random.choice(team_prisms)
+            source_line = random.choice(source_lines)
+
+            # 1. Create the initial attack ray from the source line
+            if source_line['p1_id'] not in points or source_line['p2_id'] not in points: continue
+            
+            # Choose a random direction for the source ray
+            ls1, ls2 = random.choice([(points[source_line['p1_id']], points[source_line['p2_id']]), (points[source_line['p2_id']], points[source_line['p1_id']])])
+            
+            source_ray_end = self._get_extended_border_point(ls1, ls2)
+            if not source_ray_end: continue
+            source_ray = {'p1': ls2, 'p2': source_ray_end}
+
+            # 2. Find intersection with the prism's shared edge
+            if prism['shared_p1_id'] not in points or prism['shared_p2_id'] not in points: continue
+            prism_edge_p1 = points[prism['shared_p1_id']]
+            prism_edge_p2 = points[prism['shared_p2_id']]
+
+            intersection_point = get_segment_intersection_point(source_ray['p1'], source_ray['p2'], prism_edge_p1, prism_edge_p2)
+            if not intersection_point:
+                continue # This combo doesn't work, try another
+
+            # 3. Create refracted rays and check for hits
+            # Vector for the shared edge
+            edge_vx = prism_edge_p2['x'] - prism_edge_p1['x']
+            edge_vy = prism_edge_p2['y'] - prism_edge_p1['y']
+            
+            # Perpendicular vectors (the two possible directions for the beam)
+            perp_vectors = [(-edge_vy, edge_vx), (edge_vy, -edge_vx)]
+
+            for pvx, pvy in perp_vectors:
+                mag = math.sqrt(pvx**2 + pvy**2)
+                if mag == 0: continue
+                
+                # Create a point far along the refracted ray to define it
+                refracted_end_dummy = {'x': intersection_point['x'] + pvx/mag, 'y': intersection_point['y'] + pvy/mag}
+                refracted_ray_end = self._get_extended_border_point(intersection_point, refracted_end_dummy)
+                if not refracted_ray_end: continue
+                
+                refracted_ray = {'p1': intersection_point, 'p2': refracted_ray_end}
+
+                # Check this ray against all enemy lines
+                for enemy_line in enemy_lines:
+                    if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
+                    ep1 = points[enemy_line['p1_id']]
+                    ep2 = points[enemy_line['p2_id']]
+
+                    # This special attack ignores shields but not bastions
+                    bastion_line_ids = self._get_bastion_line_ids()
+                    if enemy_line.get('id') in bastion_line_ids:
+                        continue
+
+                    if segments_intersect(refracted_ray['p1'], refracted_ray['p2'], ep1, ep2):
+                        # We have a successful hit!
+                        self.state['lines'].remove(enemy_line)
+                        self.state['shields'].pop(enemy_line.get('id'), None)
+                        
+                        return {
+                            'success': True,
+                            'type': 'refraction_beam',
+                            'destroyed_line': enemy_line,
+                            'source_ray': source_ray,
+                            'refracted_ray': refracted_ray,
+                            'prism_point_ids': prism['all_point_ids']
+                        }
+        
+        # If loop finishes without a successful hit
+        return {'success': False, 'reason': 'no refraction path found to a target'}
+
     def _update_nexuses_for_team(self, teamId):
         """Checks for Nexus formations (a square of points with outer lines and one diagonal)."""
         if 'nexuses' not in self.state: self.state['nexuses'] = {}
@@ -1434,6 +1556,7 @@ class Game:
             'fight_convert': self.fight_action_convert_point,
             'fight_bastion_pulse': self.fight_action_bastion_pulse,
             'fight_chain_lightning': self.fight_action_chain_lightning,
+            'fight_refraction_beam': self.fight_action_refraction_beam,
             'fortify_claim': self.fortify_action_claim_territory,
             'fortify_anchor': self.fortify_action_create_anchor,
             'fortify_mirror': self.fortify_action_mirror_structure,
@@ -1449,6 +1572,7 @@ class Game:
         action_preconditions = {
             'fight_sentry_zap': bool(self.state.get('sentries', {}).get(teamId, [])),
             'fight_chain_lightning': any(c.get('internal_point_ids') for c in self.state.get('conduits', {}).get(teamId, [])),
+            'fight_refraction_beam': bool(self.state.get('prisms', {}).get(teamId, [])),
             'expand_add': len(team_point_ids) >= 2,
             'expand_extend': bool(team_lines),
             'expand_grow': bool(team_lines),
@@ -1478,13 +1602,13 @@ class Game:
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
-            'fight_attack': 10, 'fight_convert': 8, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18,
+            'fight_attack': 10, 'fight_convert': 8, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7,
             'sacrifice_nova': 3, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
-            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2},
+            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0},
             'Balanced':   {}
@@ -1642,6 +1766,7 @@ class Game:
         self._update_runes_for_team(teamId)
         self._update_sentries_for_team(teamId)
         self._update_conduits_for_team(teamId)
+        self._update_prisms_for_team(teamId)
         # We also re-update nexuses here mainly so the frontend display is accurate
         # if a nexus is created or destroyed mid-turn. Bonus actions for this turn
         # are already locked in from _start_new_turn.
@@ -1748,6 +1873,9 @@ class Game:
                 destroyed_point_team_name = self.state['teams'][result['destroyed_point']['teamId']]['name']
                 log_message += f"fired a precision shot from a Sentry, obliterating a point from Team {destroyed_point_team_name}."
                 short_log_message = "[ZAP!]"
+            elif action_type == 'refraction_beam':
+                log_message += "fired a refracted beam from a Prism, destroying an enemy line."
+                short_log_message = "[REFRACT!]"
             elif action_type == 'chain_lightning':
                 if result.get('destroyed_point'):
                     destroyed_point_team_name = self.state['teams'][result['destroyed_point']['teamId']]['name']
@@ -2097,6 +2225,46 @@ class Game:
             })
 
         self.state['conduits'][teamId] = final_conduits
+
+    def _update_prisms_for_team(self, teamId):
+        """Checks for Prism formations (two territories sharing an edge)."""
+        if 'prisms' not in self.state: self.state['prisms'] = {}
+        self.state['prisms'][teamId] = []
+
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        if len(team_territories) < 2:
+            return
+
+        # Map edges to the territories they belong to
+        edge_to_territories = {}
+        for i, territory in enumerate(team_territories):
+            p_ids = territory['point_ids']
+            # Create the 3 edges for the triangle
+            edges = [
+                tuple(sorted((p_ids[0], p_ids[1]))),
+                tuple(sorted((p_ids[1], p_ids[2]))),
+                tuple(sorted((p_ids[2], p_ids[0])))
+            ]
+            for edge in edges:
+                if edge not in edge_to_territories:
+                    edge_to_territories[edge] = []
+                edge_to_territories[edge].append(i) # Store territory index
+
+        # Find edges that are shared by exactly two territories
+        for edge, ter_indices in edge_to_territories.items():
+            if len(ter_indices) == 2:
+                ter1 = team_territories[ter_indices[0]]
+                ter2 = team_territories[ter_indices[1]]
+                
+                all_points = set(ter1['point_ids']).union(set(ter2['point_ids']))
+                
+                # A prism is formed by 4 points
+                if len(all_points) == 4:
+                    self.state['prisms'][teamId].append({
+                        'shared_p1_id': edge[0],
+                        'shared_p2_id': edge[1],
+                        'all_point_ids': list(all_points)
+                    })
 
 
 # --- Global Game Instance ---
