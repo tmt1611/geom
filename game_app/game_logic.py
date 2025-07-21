@@ -59,8 +59,9 @@ class Game:
         self.state = {
             "grid_size": 10,
             "teams": {},
-            "points": {}, # Changed from list to dict
-            "lines": [],
+            "points": {},
+            "lines": [],  # Each line will now get a unique ID
+            "shields": {}, # {line_id: turns_left}
             "territories": [], # Added for claimed triangles
             "game_log": [],
             "turn": 0,
@@ -72,19 +73,37 @@ class Game:
         }
 
     def get_state(self):
-        """Returns the current game state."""
+        """Returns the current game state, augmenting with transient data for frontend."""
         # On-demand calculation of interpretation when game is finished
         if self.state['is_finished'] and not self.state['interpretation']:
             self.state['interpretation'] = self.calculate_interpretation()
-        return self.state
+
+        # Augment lines with shield status for easier rendering
+        augmented_lines = []
+        for line in self.state['lines']:
+            augmented_line = line.copy()
+            augmented_line['is_shielded'] = line.get('id') in self.state['shields']
+            augmented_lines.append(augmented_line)
+
+        # Create a copy to avoid modifying original state
+        state_copy = self.state.copy()
+        state_copy['lines'] = augmented_lines
+
+        return state_copy
 
     def start_game(self, teams, points, max_turns, grid_size):
         """Starts a new game with the given parameters."""
         self.reset()
+        
+        # Add a default 'Balanced' trait if none is provided from the frontend
+        for team_id, team_data in teams.items():
+            if 'trait' not in team_data:
+                team_data['trait'] = 'Balanced'
+
         self.state['teams'] = teams
         # Convert points list to a dictionary with unique IDs
-        for i, p in enumerate(points):
-            point_id = f"p_{i}" # Simple, predictable ID
+        for p in points:
+            point_id = f"p_{uuid.uuid4().hex[:6]}"
             self.state['points'][point_id] = {**p, 'id': point_id}
         self.state['max_turns'] = max_turns
         self.state['grid_size'] = grid_size
@@ -126,7 +145,8 @@ class Game:
             return {'success': False, 'reason': 'no new lines possible'}
 
         p1_id, p2_id = random.choice(possible_pairs)
-        new_line = {"p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
+        line_id = f"l_{uuid.uuid4().hex[:6]}"
+        new_line = {"id": line_id, "p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
         self.state['lines'].append(new_line)
         return {'success': True, 'type': 'add_line', 'line': new_line}
 
@@ -181,7 +201,7 @@ class Game:
             return {'success': False, 'reason': 'line cannot be extended'}
 
         # Create new point with a unique ID
-        new_point_id = f"p_{len(self.state['points'])}_{uuid.uuid4().hex[:4]}"
+        new_point_id = f"p_{uuid.uuid4().hex[:6]}"
         new_point = {**border_point, "teamId": teamId, "id": new_point_id}
         self.state['points'][new_point_id] = new_point
         return {'success': True, 'type': 'extend_line', 'new_point': new_point}
@@ -223,12 +243,18 @@ class Game:
                     if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points:
                         continue
                     
+                    # Check if enemy line is shielded
+                    if enemy_line.get('id') in self.state['shields']:
+                        continue # Can't attack a shielded line
+
                     ep1 = points[enemy_line['p1_id']]
                     ep2 = points[enemy_line['p2_id']]
 
                     if segments_intersect(attack_segment_p1, attack_segment_p2, ep1, ep2):
                         # Target found! Remove the enemy line.
                         self.state['lines'].remove(enemy_line)
+                        # Also remove any shield it might have had (e.g. if shield expired same turn)
+                        self.state['shields'].pop(enemy_line.get('id'), None)
                         enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
                         return {'success': True, 'type': 'attack_line', 'destroyed_team': enemy_team_name, 'destroyed_line': enemy_line}
 
@@ -274,6 +300,8 @@ class Game:
              pass
 
         # Perform removals
+        for l in lines_to_remove:
+            self.state['shields'].pop(l.get('id'), None) # Remove shield if line is destroyed
         self.state['lines'] = [l for l in self.state['lines'] if l not in lines_to_remove]
         del self.state['points'][sac_point_id]
         
@@ -281,6 +309,24 @@ class Game:
         self.state['territories'] = [t for t in self.state['territories'] if sac_point_id not in t['point_ids']]
 
         return {'success': True, 'type': 'nova_burst', 'sacrificed_point': sac_point, 'lines_destroyed': len(lines_to_remove)}
+
+    def shield_action_protect_line(self, teamId):
+        """[DEFEND ACTION]: Applies a temporary shield to a line, protecting it from attacks."""
+        team_lines = self.get_team_lines(teamId)
+        if not team_lines:
+            return {'success': False, 'reason': 'no lines to shield'}
+
+        # Find lines that are not already shielded
+        unshielded_lines = [l for l in team_lines if l.get('id') not in self.state['shields']]
+
+        if not unshielded_lines:
+            return {'success': False, 'reason': 'all lines are already shielded'}
+        
+        line_to_shield = random.choice(unshielded_lines)
+        shield_duration = 3 # in turns
+        self.state['shields'][line_to_shield['id']] = shield_duration
+        
+        return {'success': True, 'type': 'shield_line', 'shielded_line': line_to_shield}
 
     def fortify_action_claim_territory(self, teamId):
         """[FORTIFY ACTION]: Find a triangle and claim it as territory."""
@@ -331,33 +377,81 @@ class Game:
 
     # --- Turn Logic ---
 
+    def _choose_action_for_team(self, teamId):
+        """Chooses an action for a team based on its trait."""
+        team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
+        
+        actions = {
+            'expand_add': self.expand_action_add_line,
+            'expand_extend': self.expand_action_extend_line,
+            'fight_attack': self.fight_action_attack_line,
+            'fortify_claim': self.fortify_action_claim_territory,
+            'sacrifice_nova': self.sacrifice_action_nova_burst,
+            'defend_shield': self.shield_action_protect_line,
+        }
+        
+        # Default weights (for 'Balanced' trait)
+        weights = {
+            'expand_add': 10,
+            'expand_extend': 10,
+            'fight_attack': 10,
+            'fortify_claim': 8,
+            'sacrifice_nova': 3,
+            'defend_shield': 8,
+        }
+
+        if team_trait == 'Aggressive':
+            weights['fight_attack'] = 30
+            weights['sacrifice_nova'] = 5
+            weights['defend_shield'] = 3
+        elif team_trait == 'Expansive':
+            weights['expand_add'] = 20
+            weights['expand_extend'] = 20
+            weights['fortify_claim'] = 5
+        elif team_trait == 'Defensive':
+            weights['defend_shield'] = 25
+            weights['fortify_claim'] = 15
+            weights['fight_attack'] = 5
+        
+        action_names = list(weights.keys())
+        action_weights = list(weights.values())
+        
+        # Use random.choices to pick an action based on the weights
+        # It returns a list, so we take the first element
+        chosen_action_name = random.choices(action_names, weights=action_weights, k=1)[0]
+        return actions[chosen_action_name]
+
+
     def run_next_turn(self):
         """Runs one turn of the game."""
         if self.state['is_finished']:
             return
 
         self.state['turn'] += 1
+        
+        # Manage shields at the start of the turn
+        expired_shields = []
+        for line_id, turns_left in self.state['shields'].items():
+            self.state['shields'][line_id] = turns_left - 1
+            if self.state['shields'][line_id] <= 0:
+                expired_shields.append(line_id)
+        for line_id in expired_shields:
+            del self.state['shields'][line_id]
+
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---"})
         self.state['last_action_details'] = {} # Reset visualizer
 
         active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
         if not active_teams:
             self.state['is_finished'] = True
+            self.state['is_running'] = False
             self.state['game_log'].append({'message': "No active teams left. Game over."})
             return
 
         for teamId in active_teams:
             team_name = self.state['teams'][teamId]['name']
             
-            # Choose a random action to perform
-            possible_actions = [
-                self.expand_action_add_line,
-                self.expand_action_extend_line,
-                self.fight_action_attack_line,
-                self.fortify_action_claim_territory,
-                self.sacrifice_action_nova_burst # New action!
-            ]
-            action_to_perform = random.choice(possible_actions)
+            action_to_perform = self._choose_action_for_team(teamId)
             result = action_to_perform(teamId)
 
             if result.get('success'):
@@ -378,6 +472,8 @@ class Game:
                     log_message += "fortified its position, claiming new territory."
                 elif action_type == 'nova_burst':
                     log_message += f"sacrificed a point in a nova burst, destroying {result['lines_destroyed']} lines."
+                elif action_type == 'shield_line':
+                    log_message += "raised a defensive shield on one of its lines."
                 else:
                     log_message += "performed a successful action."
             else:
@@ -400,6 +496,10 @@ class Game:
                     log_message += "found no new territory to claim."
                 elif reason == 'no points to sacrifice':
                     log_message += "had no points to sacrifice."
+                elif reason == 'no lines to shield':
+                    log_message += "could not find any lines to shield."
+                elif reason == 'all lines are already shielded':
+                    log_message += "could not shield a line (all are protected)."
                 else:
                     log_message += f"failed an action: {reason}."
 

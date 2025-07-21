@@ -78,6 +78,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const p1 = pointsDict[line.p1_id];
                 const p2 = pointsDict[line.p2_id];
                 if (p1 && p2) {
+                    // Draw shield effect first (underneath the main line)
+                    if (line.is_shielded) {
+                        ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)'; // Light blue halo
+                        ctx.lineWidth = 6;
+                        ctx.beginPath();
+                        ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
+                        ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
+                        ctx.stroke();
+                    }
+
+                    // Draw the main line
                     ctx.strokeStyle = team.color;
                     ctx.lineWidth = 2;
                     ctx.beginPath();
@@ -209,10 +220,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTeamsList() {
         teamsList.innerHTML = '';
-        const inSetupPhase = !document.getElementById('action-phase') || document.getElementById('action-phase').style.display === 'none';
+        const inSetupPhase = !currentGameState.is_running && !currentGameState.is_finished;
 
-        for (const teamId in localTeams) {
-            const team = localTeams[teamId];
+        // Use teams from game state if available, otherwise use local setup teams
+        const teamsToRender = (currentGameState && currentGameState.teams && Object.keys(currentGameState.teams).length > 0)
+                            ? currentGameState.teams
+                            : localTeams;
+
+        for (const teamId in teamsToRender) {
+            const team = teamsToRender[teamId];
             const li = document.createElement('li');
             li.dataset.teamId = teamId;
 
@@ -225,9 +241,22 @@ document.addEventListener('DOMContentLoaded', () => {
             colorBox.style.backgroundColor = team.color;
             li.appendChild(colorBox);
 
+            const teamInfo = document.createElement('div');
+            teamInfo.className = 'team-info';
             const teamName = document.createElement('span');
+            teamName.className = 'team-name';
             teamName.textContent = team.name;
-            li.appendChild(teamName);
+            teamInfo.appendChild(teamName);
+
+            // Display trait if it exists
+            if (team.trait) {
+                const teamTrait = document.createElement('span');
+                teamTrait.className = 'team-trait';
+                teamTrait.textContent = `(${team.trait})`;
+                teamInfo.appendChild(teamTrait);
+            }
+            li.appendChild(teamInfo);
+
 
             li.addEventListener('click', () => {
                 // Allow selecting teams only during setup
@@ -352,9 +381,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const teamName = newTeamNameInput.value.trim();
         if (teamName && !Object.values(localTeams).some(t => t.name === teamName)) {
             const teamId = `team-${Object.keys(localTeams).length + 1}`;
+            
+            // Assign a random trait on creation for display in the UI
+            const traits = ['Aggressive', 'Expansive', 'Defensive', 'Balanced'];
+            const trait = traits[Math.floor(Math.random() * traits.length)];
+
             localTeams[teamId] = {
                 name: teamName,
-                color: newTeamColorInput.value
+                color: newTeamColorInput.value,
+                trait: trait // This will be sent to the backend on game start
             };
             newTeamNameInput.value = '';
             renderTeamsList();
