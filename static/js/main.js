@@ -26,10 +26,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const teamsList = document.getElementById('teams-list');
     const newTeamNameInput = document.getElementById('new-team-name');
     const newTeamColorInput = document.getElementById('new-team-color');
+    const newTeamTraitSelect = document.getElementById('new-team-trait');
     const addTeamBtn = document.getElementById('add-team-btn');
     const startGameBtn = document.getElementById('start-game-btn');
     const nextTurnBtn = document.getElementById('next-turn-btn');
     const autoPlayBtn = document.getElementById('auto-play-btn');
+    const autoPlaySpeedSlider = document.getElementById('auto-play-speed');
+    const speedValueSpan = document.getElementById('speed-value');
     const resetBtn = document.getElementById('reset-btn');
     const undoPointBtn = document.getElementById('undo-point-btn');
     const randomizePointsBtn = document.getElementById('randomize-points-btn');
@@ -498,17 +501,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     addTeamBtn.addEventListener('click', () => {
         const teamName = newTeamNameInput.value.trim();
+        const trait = newTeamTraitSelect.value;
         if (teamName && !Object.values(localTeams).some(t => t.name === teamName)) {
             const teamId = `team-${Object.keys(localTeams).length + 1}`;
             
-            // Assign a random trait on creation for display in the UI
-            const traits = ['Aggressive', 'Expansive', 'Defensive', 'Balanced'];
-            const trait = traits[Math.floor(Math.random() * traits.length)];
-
             localTeams[teamId] = {
                 name: teamName,
                 color: newTeamColorInput.value,
-                trait: trait // This will be sent to the backend on game start
+                trait: trait
             };
             newTeamNameInput.value = '';
             renderTeamsList();
@@ -621,19 +621,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function startAutoPlay() {
+        stopAutoPlay(); // Ensure no multiple intervals are running
+        autoPlayBtn.textContent = 'Stop';
+        const delay = parseInt(autoPlaySpeedSlider.value, 10);
+        autoPlayInterval = setInterval(async () => {
+            // Check if game is still running before fetching
+            if (currentGameState.is_finished) {
+                 stopAutoPlay();
+                 return;
+            }
+            const response = await fetch('/api/game/next_turn', { method: 'POST' });
+            const gameState = await response.json();
+            updateStateAndRender(gameState);
+            if (gameState.is_finished) {
+                stopAutoPlay();
+            }
+        }, delay);
+    }
+
     autoPlayBtn.addEventListener('click', () => {
         if (autoPlayInterval) {
             stopAutoPlay();
         } else {
-            autoPlayBtn.textContent = 'Stop';
-            autoPlayInterval = setInterval(async () => {
-                const response = await fetch('/api/game/next_turn', { method: 'POST' });
-                const gameState = await response.json();
-                updateStateAndRender(gameState);
-                if (gameState.is_finished) {
-                    stopAutoPlay();
-                }
-            }, 500); // 500ms delay between turns
+            startAutoPlay();
+        }
+    });
+
+    autoPlaySpeedSlider.addEventListener('input', () => {
+        const delay = autoPlaySpeedSlider.value;
+        speedValueSpan.textContent = `${delay}ms`;
+        // If auto-play is already running, restart it with the new speed
+        if (autoPlayInterval) {
+            startAutoPlay();
         }
     });
 

@@ -1,25 +1,20 @@
 # Iteration Analysis and Changelog
 
 ## 1. Analysis Summary
-The previous iteration successfully introduced team traits, adding strategic diversity to the game. The core gameplay loop was solid, but the visual feedback for actions was minimal, and the UI, while functional, could be enhanced. The `design.md` emphasizes a "highly visually interesting" and "visually impressive" experience, presenting a clear opportunity for improvement. The debug tools were also limited, only showing point IDs.
+The previous iteration was successful in enhancing visual feedback and debugging tools, making the simulation much easier to follow. The core gameplay was solid, but user control over the simulation's setup and pacing was limited. The team AI, while functional, was static and would often attempt impossible actions (e.g., attacking with no lines), leading to repetitive and uninteresting log entries.
 
-This iteration focuses heavily on improving the visual feedback of game events and enhancing the user's ability to understand and debug the simulation's flow.
+This iteration focuses on giving the user more strategic control during setup, improving the user experience during playback, and making the team AI more intelligent and adaptive to the game's state.
 
 ## 2. Implemented Features and Improvements
 
-### Frontend Visuals & UI/UX (`main.js`, `index.html`, `style.css`)
--   **New Feature - Advanced Action Visuals:** The application now provides immediate, animated feedback for key game actions:
-    -   **Attack Action:** When an attack occurs, a bright red "ray" is now animated, shooting from the attacker to the target, making combat much more dynamic and clear.
-    -   **Nova Burst & New Line:** Existing animations for these events were preserved and integrated into the new effects system.
--   **New Feature - Last Action Highlighting:** A new debug tool allows the user to enable highlighting for the most recent action. When enabled, any points or lines involved in the last turn's action are surrounded by a bright yellow halo for a few seconds, making it easy to follow the turn-by-turn progression.
--   **New Feature - Status Bar:** A status bar has been added to the bottom of the grid. It displays the latest log message (e.g., "Team Red attacked Team Blue"), providing immediate, easy-to-read context for the current action without needing to scan the full log.
--   **UI Reorganization:**
-    -   The debug toggles have been moved into their own organized `<fieldset>` in the analysis panel.
-    -   The grid container is now `position: relative` to properly anchor the new status bar.
+### Frontend UI/UX (`index.html`, `main.js`, `style.css`)
+-   **New Feature - Team Trait Selection:** Users can now choose a strategic trait ('Aggressive', 'Expansive', 'Defensive', 'Balanced') for each team they create. This replaces the previous system of assigning a random trait, giving users direct control over the simulation's parameters and adding a layer of strategy to the setup phase.
+-   **New Feature - Auto-Play Speed Control:** An interactive speed slider has been added to the "Game In Progress" controls. Users can now adjust the delay between turns during auto-play, from a rapid 50ms to a deliberate 1000ms. The slider updates the speed in real-time, allowing users to slow down for interesting moments or speed through quiet periods.
+-   **UI Refinement:** The team creation and game control sections of the UI were updated to cleanly incorporate these new features.
 
-### Debugging Support
--   **Show Line IDs:** A new debug option was added to display the unique ID of every line on the grid, complementing the existing "Show Point IDs" feature. This is invaluable for debugging complex geometric interactions.
--   **Combined Debug Panel:** All debug options ("Show Point IDs", "Show Line IDs", "Highlight Last Action") are now grouped together for convenience.
-
-### Backend (`game_logic.py`)
--   **Enhanced Action Data:** The `fight_action_attack_line` action now returns more detailed information to the frontend, including the coordinates of the "attack ray" itself. This was crucial for enabling the new attack animation on the frontend without changing core game rules.
+### Backend & AI (`game_logic.py`)
+-   **Smarter, More Dynamic AI:** The core `_choose_action_for_team` function was completely refactored.
+    -   **Pre-condition Checks:** Before choosing an action, the AI now evaluates the current game state to determine which actions are actually possible. For example, it will not attempt to attack if there are no enemy lines, or try to shield a line if all lines are already shielded.
+    -   **Reduced Failed Actions:** This intelligent filtering dramatically reduces the number of "failed action" log messages, making the game log cleaner and the simulation feel more purposeful.
+    -   **Improved Weighting System:** The logic for applying trait-based preferences was updated to a more flexible base-weight and multiplier system, which is applied *only* to the list of possible actions.
+-   **Robust Turn Execution:** The main `run_next_turn` loop was updated to gracefully handle cases where a team has no possible actions to perform, preventing errors and logging an appropriate message.

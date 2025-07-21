@@ -16,9 +16,15 @@
                     <legend>Create Teams</legend>
                     <div class="teams-section">
                         <ul id="teams-list"></ul>
-                        <input type="text" id="new-team-name" placeholder="New Team Name">
+                        <input type="text" id="new-team-name" placeholder="New Team Name" style="width: calc(100% - 10px);">
                         <input type="color" id="new-team-color" value="#ff0000">
-                        <button id="add-team-btn">Add Team</button>
+                        <select id="new-team-trait" style="padding: 2px;">
+                            <option value="Balanced">Balanced</option>
+                            <option value="Aggressive">Aggressive</option>
+                            <option value="Expansive">Expansive</option>
+                            <option value="Defensive">Defensive</option>
+                        </select>
+                        <button id="add-team-btn" style="width: 100%;">Add Team</button>
                     </div>
                 </fieldset>
                 <fieldset>
@@ -47,6 +53,11 @@
                     <legend>Controls</legend>
                     <button id="next-turn-btn">Play Next Turn</button>
                     <button id="auto-play-btn">Auto-Play</button>
+                    <div class="speed-control">
+                        <label for="auto-play-speed">Speed:</label>
+                        <input type="range" id="auto-play-speed" min="50" max="1000" value="500" step="50">
+                        <span id="speed-value">500ms</span>
+                    </div>
                 </fieldset>
             </div>
             <hr style="width: 100%; border-color: #dfe4ea; border-style: solid; margin: 15px 0;">

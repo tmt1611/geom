@@ -85,6 +85,11 @@ legend {
     margin-bottom: 15px;
 }
 
+.teams-section > * {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
 #teams-list {
     list-style: none;
     padding: 0;
@@ -120,6 +125,23 @@ legend {
     font-weight: bold;
     border-color: #3498db;
     background-color: #ecf5fa;
+}
+
+.speed-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.speed-control input[type="range"] {
+    flex-grow: 1;
+}
+
+#speed-value {
+    font-size: 0.9em;
+    min-width: 50px;
+    text-align: right;
 }
 
 .team-color-box {

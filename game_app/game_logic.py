@@ -385,10 +385,50 @@ class Game:
     # --- Turn Logic ---
 
     def _choose_action_for_team(self, teamId):
-        """Chooses an action for a team based on its trait."""
+        """Intelligently chooses an action for a team based on its trait and game state."""
         team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
+        team_point_ids = self.get_team_point_ids(teamId)
+        team_lines = self.get_team_lines(teamId)
+
+        possible_actions = []
+
+        # --- Evaluate possible actions based on current game state ---
+
+        # 1. Expand (add line)
+        if len(team_point_ids) >= 2:
+            # A more robust check could see if any non-connected pairs exist, but this is a good first pass
+            possible_actions.append('expand_add')
+
+        # 2. Expand (extend line)
+        if team_lines:
+            possible_actions.append('expand_extend')
+
+        # 3. Fight (attack line)
+        has_enemy_lines = any(l['teamId'] != teamId for l in self.state['lines'])
+        if team_lines and has_enemy_lines:
+            possible_actions.append('fight_attack')
         
-        actions = {
+        # 4. Defend (shield line)
+        if any(l.get('id') not in self.state['shields'] for l in team_lines):
+             possible_actions.append('defend_shield')
+
+        # 5. Fortify (claim territory)
+        if len(team_point_ids) >= 3:
+            # This is a proxy; the actual check is more expensive. 
+            # We accept that it might fail later, but we avoid trying when it's impossible.
+            possible_actions.append('fortify_claim')
+
+        # 6. Sacrifice (nova burst)
+        if team_point_ids:
+            possible_actions.append('sacrifice_nova')
+
+        # If no actions are possible, return None
+        if not possible_actions:
+            return None
+
+        # --- Apply trait-based weights to the *possible* actions ---
+        
+        action_map = {
             'expand_add': self.expand_action_add_line,
             'expand_extend': self.expand_action_extend_line,
             'fight_attack': self.fight_action_attack_line,
@@ -396,37 +436,34 @@ class Game:
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'defend_shield': self.shield_action_protect_line,
         }
+
+        # Base weights for actions
+        base_weights = {
+            'expand_add': 10, 'expand_extend': 10, 'fight_attack': 10,
+            'fortify_claim': 8, 'sacrifice_nova': 3, 'defend_shield': 8,
+        }
         
-        # Default weights (for 'Balanced' trait)
-        weights = {
-            'expand_add': 10,
-            'expand_extend': 10,
-            'fight_attack': 10,
-            'fortify_claim': 8,
-            'sacrifice_nova': 3,
-            'defend_shield': 8,
+        trait_multipliers = {
+            'Aggressive': {'fight_attack': 3.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5},
+            'Expansive':  {'expand_add': 2.0, 'expand_extend': 2.0, 'fortify_claim': 0.5},
+            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fight_attack': 0.5},
+            'Balanced':   {}
         }
 
-        if team_trait == 'Aggressive':
-            weights['fight_attack'] = 30
-            weights['sacrifice_nova'] = 5
-            weights['defend_shield'] = 3
-        elif team_trait == 'Expansive':
-            weights['expand_add'] = 20
-            weights['expand_extend'] = 20
-            weights['fortify_claim'] = 5
-        elif team_trait == 'Defensive':
-            weights['defend_shield'] = 25
-            weights['fortify_claim'] = 15
-            weights['fight_attack'] = 5
+        multipliers = trait_multipliers.get(team_trait, {})
         
-        action_names = list(weights.keys())
-        action_weights = list(weights.values())
-        
-        # Use random.choices to pick an action based on the weights
-        # It returns a list, so we take the first element
-        chosen_action_name = random.choices(action_names, weights=action_weights, k=1)[0]
-        return actions[chosen_action_name]
+        # Filter weights for only possible actions and apply multipliers
+        action_weights = []
+        valid_actions = []
+        for action_name in possible_actions:
+            weight = base_weights.get(action_name, 1)
+            multiplier = multipliers.get(action_name, 1.0)
+            action_weights.append(weight * multiplier)
+            valid_actions.append(action_name)
+            
+        # Use random.choices to pick an action based on the calculated weights
+        chosen_action_name = random.choices(valid_actions, weights=action_weights, k=1)[0]
+        return action_map[chosen_action_name]
 
 
     def run_next_turn(self):
@@ -459,6 +496,12 @@ class Game:
             team_name = self.state['teams'][teamId]['name']
             
             action_to_perform = self._choose_action_for_team(teamId)
+            
+            if not action_to_perform:
+                log_message = f"Team {team_name} had no possible actions."
+                self.state['game_log'].append({'teamId': teamId, 'message': log_message})
+                continue # Skip to next team
+
             result = action_to_perform(teamId)
 
             if result.get('success'):
