@@ -55,16 +55,21 @@ class Game:
         self.reset()
 
     def reset(self):
-        """Initializes or resets the game state."""
+        """Initializes or resets the game state with default teams."""
+        # Using fixed IDs for default teams ensures they can be referenced consistently.
+        default_teams = {
+            'team_alpha_default': {'id': 'team_alpha_default', 'name': 'Team Alpha', 'color': '#ff4b4b', 'trait': 'Aggressive'},
+            'team_beta_default': {'id': 'team_beta_default', 'name': 'Team Beta', 'color': '#4b4bff', 'trait': 'Defensive'}
+        }
         self.state = {
             "grid_size": 10,
-            "teams": {},
+            "teams": default_teams,
             "points": {},
             "lines": [],  # Each line will now get a unique ID
             "shields": {}, # {line_id: turns_left}
             "anchors": {}, # {point_id: {teamId: teamId, turns_left: N}}
             "territories": [], # Added for claimed triangles
-            "game_log": [],
+            "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin."}],
             "turn": 0,
             "max_turns": 100,
             "game_phase": "SETUP", # SETUP, RUNNING, FINISHED

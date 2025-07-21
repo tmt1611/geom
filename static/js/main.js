@@ -750,6 +750,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const teamId = `team-${Date.now()}`; // More unique ID
             
             localTeams[teamId] = {
+                id: teamId, // Add id property to the object itself
                 name: teamName,
                 color: newTeamColorInput.value,
                 trait: trait,
@@ -995,6 +996,11 @@ document.addEventListener('DOMContentLoaded', () => {
              localTeams = gameState.teams || {};
              Object.values(localTeams).forEach(t => t.isEditing = false); // Ensure no edit mode on load
              initialPoints = Object.values(gameState.points);
+             // Auto-select the first team if teams exist, for better UX
+             const teamIds = Object.keys(localTeams);
+             if (teamIds.length > 0) {
+                 selectedTeamId = teamIds[0];
+             }
         } else {
              localTeams = gameState.teams || {};
              initialPoints = [];
