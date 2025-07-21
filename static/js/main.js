@@ -928,11 +928,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    resetBtn.addEventListener('click', () => {
+    resetBtn.addEventListener('click', async () => {
         stopAutoPlay();
-        // Easiest way to reset everything is to just reload the page.
-        // The server will re-initialize the game state on the '/' route.
-        window.location.reload();
+        if (confirm("This will erase all progress and return to the setup screen. Are you sure?")) {
+            try {
+                const response = await fetch('/api/game/reset', { method: 'POST' });
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Failed to reset the game on the server.');
+                }
+            } catch (error) {
+                alert('Error communicating with the server to reset the game.');
+                console.error('Reset error:', error);
+            }
+        }
     });
 
     // --- Canvas Sizing & Responsiveness ---

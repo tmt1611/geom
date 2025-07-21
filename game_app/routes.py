@@ -52,6 +52,12 @@ def restart_game():
         return jsonify(result), 400
     return jsonify(result)
 
+@main_routes.route('/api/game/reset', methods=['POST'])
+def reset_game():
+    """Resets the game to its initial empty state (SETUP phase)."""
+    game_logic.game.reset()
+    return jsonify(game_logic.game.get_state())
+
 @main_routes.route('/api/game/next_action', methods=['POST'])
 def next_action():
     """Processes the next single action in a turn."""

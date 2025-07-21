@@ -372,8 +372,9 @@ class Game:
     def sacrifice_action_nova_burst(self, teamId):
         """[SACRIFICE ACTION]: A point is destroyed, removing nearby enemy lines."""
         team_point_ids = self.get_team_point_ids(teamId)
-        if not team_point_ids:
-            return {'success': False, 'reason': 'no points to sacrifice'}
+        # A team cannot sacrifice its last point, as this is self-destructive.
+        if len(team_point_ids) <= 1:
+            return {'success': False, 'reason': 'not enough points to sacrifice safely'}
 
         sac_point_id = random.choice(team_point_ids)
         sac_point = self.state['points'][sac_point_id]
@@ -622,9 +623,9 @@ class Game:
             # 4. If we successfully found points to create, do it and return
             if new_points_to_create:
                 for p in new_points_to_create:
-                    # Round to avoid float issues later, but keep precision from calculation
-                    p['x'] = round(p['x'], 4)
-                    p['y'] = round(p['y'], 4)
+                    # Round to integers to conform to the new design requirement.
+                    p['x'] = round(p['x'])
+                    p['y'] = round(p['y'])
                     self.state['points'][p['id']] = p
                 
                 return {
@@ -640,7 +641,7 @@ class Game:
     def fortify_action_create_anchor(self, teamId):
         """[FORTIFY ACTION]: Sacrifice a point to turn another into a gravity well."""
         team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 2:
+        if len(team_point_ids) < 3: # Requires at least 3 points to not cripple the team.
             return {'success': False, 'reason': 'not enough points to create anchor'}
 
         # Find a point to sacrifice and a point to turn into an anchor
@@ -721,72 +722,14 @@ class Game:
         
         return {'success': False, 'reason': 'no enemy points in range'}
 
-    # --- Turn Logic ---
+    def _choose_action_for_team(self, teamId, exclude_actions=None):
+        """Intelligently chooses an action for a team, excluding any that have already failed this turn."""
+        if exclude_actions is None:
+            exclude_actions = []
 
-    def _choose_action_for_team(self, teamId):
-        """Intelligently chooses an action for a team based on its trait and game state."""
         team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
         team_point_ids = self.get_team_point_ids(teamId)
         team_lines = self.get_team_lines(teamId)
-
-        possible_actions = []
-
-        # --- Evaluate possible actions based on current game state ---
-
-        # 1. Expand (add line)
-        if len(team_point_ids) >= 2:
-            # A more robust check could see if any non-connected pairs exist, but this is a good first pass
-            possible_actions.append('expand_add')
-
-        # 2. Expand (extend line)
-        if team_lines:
-            possible_actions.append('expand_extend')
-
-        # 3. Expand (grow line)
-        if team_lines:
-            possible_actions.append('expand_grow')
-        
-        # 4. Expand (fracture line)
-        if team_lines:
-            possible_actions.append('expand_fracture')
-
-        # 5. Fight (attack line)
-        has_enemy_lines = any(l['teamId'] != teamId for l in self.state['lines'])
-        if team_lines and has_enemy_lines:
-            possible_actions.append('fight_attack')
-        
-        # 5. Fight (convert point)
-        has_enemy_points = any(p['teamId'] != teamId for p in self.state['points'].values())
-        if team_lines and has_enemy_points:
-            possible_actions.append('fight_convert')
-
-        # 6. Defend (shield line)
-        if any(l.get('id') not in self.state['shields'] for l in team_lines):
-             possible_actions.append('defend_shield')
-
-        # 7. Fortify (claim territory)
-        if len(team_point_ids) >= 3:
-            # This is a proxy; the actual check is more expensive. 
-            # We accept that it might fail later, but we avoid trying when it's impossible.
-            possible_actions.append('fortify_claim')
-
-        # 8. Fortify (create anchor)
-        if len(team_point_ids) >= 2:
-            possible_actions.append('fortify_anchor')
-        
-        # 9. Fortify (mirror)
-        if len(team_point_ids) >= 3:
-            possible_actions.append('fortify_mirror')
-
-        # 10. Sacrifice (nova burst)
-        if team_point_ids:
-            possible_actions.append('sacrifice_nova')
-
-        # If no actions are possible, return None
-        if not possible_actions:
-            return None
-
-        # --- Apply trait-based weights to the *possible* actions ---
         
         action_map = {
             'expand_add': self.expand_action_add_line,
@@ -802,33 +745,51 @@ class Game:
             'defend_shield': self.shield_action_protect_line,
         }
 
-        # Base weights for actions
+        # --- Evaluate possible actions based on game state and exclusion list ---
+        possible_actions = []
+        action_preconditions = {
+            'expand_add': len(team_point_ids) >= 2,
+            'expand_extend': bool(team_lines),
+            'expand_grow': bool(team_lines),
+            'expand_fracture': bool(team_lines),
+            'fight_attack': bool(team_lines) and any(l['teamId'] != teamId for l in self.state['lines']),
+            'fight_convert': bool(team_lines) and any(p['teamId'] != teamId for p in self.state['points'].values()),
+            'defend_shield': any(l.get('id') not in self.state['shields'] for l in team_lines),
+            'fortify_claim': len(team_point_ids) >= 3,
+            'fortify_anchor': len(team_point_ids) >= 3,
+            'fortify_mirror': len(team_point_ids) >= 3,
+            'sacrifice_nova': len(team_point_ids) > 1,
+        }
+
+        for name, is_possible in action_preconditions.items():
+            if name not in exclude_actions and is_possible:
+                possible_actions.append(name)
+        
+        if not possible_actions:
+            return None, None
+
+        # --- Apply trait-based weights to the *possible* actions ---
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'fight_attack': 10, 'fight_convert': 8,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'sacrifice_nova': 3, 'defend_shield': 8,
         }
-        
         trait_multipliers = {
             'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5},
             'Balanced':   {}
         }
-
         multipliers = trait_multipliers.get(team_trait, {})
         
-        # Filter weights for only possible actions and apply multipliers
         action_weights = []
-        valid_actions = []
         for action_name in possible_actions:
             weight = base_weights.get(action_name, 1)
             multiplier = multipliers.get(action_name, 1.0)
             action_weights.append(weight * multiplier)
-            valid_actions.append(action_name)
             
         # Use random.choices to pick an action based on the calculated weights
-        chosen_action_name = random.choices(valid_actions, weights=action_weights, k=1)[0]
-        return action_map[chosen_action_name]
+        chosen_action_name = random.choices(possible_actions, weights=action_weights, k=1)[0]
+        return chosen_action_name, action_map[chosen_action_name]
 
 
     def restart_game(self):
@@ -874,8 +835,11 @@ class Game:
             for point in self.state['points'].values():
                 if point['teamId'] != anchor_data['teamId'] and distance_sq(anchor_point, point) < anchor_radius_sq:
                     dx, dy = anchor_point['x'] - point['x'], anchor_point['y'] - point['y']
-                    point['x'] = max(0, min(grid_size - 1, point['x'] + dx * pull_strength))
-                    point['y'] = max(0, min(grid_size - 1, point['y'] + dy * pull_strength))
+                    # Apply pull and round to keep coordinates as integers
+                    new_x = point['x'] + dx * pull_strength
+                    new_y = point['y'] + dy * pull_strength
+                    point['x'] = round(max(0, min(grid_size - 1, new_x)))
+                    point['y'] = round(max(0, min(grid_size - 1, new_y)))
 
             anchor_data['turns_left'] -= 1
             if anchor_data['turns_left'] <= 0:
@@ -920,7 +884,7 @@ class Game:
             self.state['game_log'].append({'message': "Max turns reached. Game finished."})
 
     def run_next_action(self):
-        """Runs a single action for the next team in the current turn."""
+        """Runs a single successful action for the next team in the current turn."""
         if self.state['game_phase'] != 'RUNNING':
             return
 
@@ -940,17 +904,33 @@ class Game:
         teamId = self.state['active_teams_this_turn'][self.state['action_in_turn']]
         team_name = self.state['teams'][teamId]['name']
         
-        # --- Perform action for this team ---
-        action_to_perform = self._choose_action_for_team(teamId)
-        if not action_to_perform:
-            log_message = f"Team {team_name} had no possible actions."
-            result = {'success': False, 'reason': 'no possible actions'}
+        # --- Perform a successful action for this team, trying until one succeeds ---
+        result = None
+        failed_actions = []
+        MAX_ACTION_ATTEMPTS = 15 # Avoid infinite loops if no action can ever succeed
+        
+        for _ in range(MAX_ACTION_ATTEMPTS):
+            action_name, action_func = self._choose_action_for_team(teamId, exclude_actions=failed_actions)
+            
+            if not action_func:
+                result = {'success': False, 'reason': 'no possible actions'}
+                break # No more actions available to try
+            
+            attempt_result = action_func(teamId)
+            
+            if attempt_result.get('success'):
+                result = attempt_result
+                break # Success, action is done
+            else:
+                # Action failed, add its name to the exclusion list for the next attempt
+                failed_actions.append(action_name)
         else:
-            result = action_to_perform(teamId)
-
+            # This 'else' belongs to the 'for' loop, running if it finishes without a 'break'
+            result = {'success': False, 'reason': 'all attempted actions failed'}
+            
         self.state['last_action_details'] = result if result.get('success') else {}
         
-        # Log the result
+        # Log the final result. Invalid/failed actions are no longer logged individually.
         log_message = f"Team {team_name} "
         if result.get('success'):
             action_type = result.get('type')
@@ -967,24 +947,8 @@ class Game:
             elif action_type == 'shield_line': log_message += "raised a defensive shield on one of its lines."
             else: log_message += "performed a successful action."
         else:
-            reason = result.get('reason', 'an unknown reason')
-            if reason == 'not enough points': log_message += "could not act (not enough points)."
-            elif reason == 'no new lines possible': log_message += "failed to add a new line (all points connected)."
-            elif reason == 'line is too short to fracture': log_message += "failed to fracture a line (it was too short)."
-            elif reason == 'no lines to extend': log_message += "had no lines to extend."
-            elif reason == 'no lines to attack with': log_message += "had no lines to attack with."
-            elif reason == 'no enemy lines to attack': log_message += "found no enemy lines to attack."
-            elif reason == 'no target was hit': log_message += "attempted an attack but missed."
-            elif reason == 'no enemy points to convert': log_message += "found no enemy points to convert."
-            elif reason == 'no enemy points in range': log_message += "attempted to convert a point but none were in range."
-            elif reason == 'no triangles formed': log_message += "could not find any triangles to fortify."
-            elif reason == 'all triangles already claimed': log_message += "found no new territory to claim."
-            elif reason == 'could not find a valid reflection': log_message += "attempted to mirror its structure but failed."
-            elif reason == 'not enough points to create anchor': log_message += "could not create an anchor (not enough points)."
-            elif reason == 'no points to sacrifice': log_message += "had no points to sacrifice."
-            elif reason == 'no lines to shield': log_message += "could not find any lines to shield."
-            elif reason == 'all lines are already shielded': log_message += "could not shield a line (all are protected)."
-            else: log_message += f"failed an action: {reason}."
+            log_message += "could not find a valid move and passed its turn."
+            
         self.state['game_log'].append({'teamId': teamId, 'message': log_message})
         
         # Increment for next action
