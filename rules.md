@@ -12,6 +12,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[EXPAND] Add Line:** Connect two of its own points with a new line.
 *   **[EXPAND] Extend Line:** Extend an existing line to the border of the grid, creating a new point.
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
+*   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range.
 *   **[FIGHT] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Fortify Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory, shading the area in its color.

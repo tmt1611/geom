@@ -1,18 +1,22 @@
 # Iteration Analysis and Changelog
 
 ## 1. Analysis Summary
-The previous iteration focused on improving the game's setup phase and final analysis readability. The UI/UX was solid, but the "divination" aspect, a core goal of the project, could be more visually engaging. The final screen presented stats, but didn't visually connect them back to the grid. Additionally, the live in-game statistics were minimal, only showing point and line counts, which missed an opportunity to show the evolving state of territorial control.
+The previous iteration successfully introduced visual aids like convex hulls and live stats, significantly improving the analysis phase. However, the user workflow during the initial setup phase was somewhat rigid. Deleting a misplaced point required using the "Undo" button, which only removed the very last point placed, regardless of team. This could be frustrating if an error was noticed late. Additionally, the set of game actions, while diverse, could be expanded to create more dynamic and surprising game outcomes.
 
-This iteration aims to directly address these points by making the final analysis more graphical and the live stats more meaningful.
+This iteration focuses on improving the user experience during setup and enriching the core gameplay with a new strategic action.
 
 ## 2. Implemented Features and Improvements
 
 ### Gameplay & Backend (`game_logic.py`)
--   **Enhanced Live Stats:** The backend now calculates key metrics (point count, line count, and total controlled territory area) for each team on every state request. This data is passed to the frontend as a `live_stats` object, allowing for a more dynamic and informative view of the game as it progresses.
--   **Enriched Final Interpretation Data:** The final analysis calculation now includes the specific list of points that form each team's convex hull. This data is crucial for the new frontend visualization feature.
--   **Improved Data Consistency:** The team object sent from the backend now includes its own `id` as a property, simplifying frontend logic that needs to iterate over teams.
+-   **New Action - Convert Point:** A new `FIGHT` action, `fight_action_convert_point`, has been added. An attacking team can sacrifice one of its own lines to "convert" a nearby enemy point, causing it to switch teams.
+-   **Enhanced AI:** The new action is integrated into the team AI (`_choose_action_for_team`). It is favored by 'Aggressive' teams, adding another layer to their personality and providing a new offensive strategy.
+-   **Improved Logging:** The game log now correctly reports the outcome of the new "Convert Point" action.
 
-### Frontend UI/UX (`main.js`, `style.css`, `index.html`)
--   **New Feature - Convex Hull Visualization:** A new "Show Convex Hulls" checkbox appears on the final analysis panel when a game is complete. When toggled, it draws a dashed outline of each team's area of influence (their convex hull) directly on the canvas, using the team's color. This provides an immediate, powerful visual aid for the "divination" and analysis phase.
--   **Improved Live Stats Panel:** The "Live Stats" section in the UI has been upgraded. It now displays not only points and lines, but also the "Territory Area" for each team, updating every turn. This gives a much better sense of which teams are successfully fortifying their positions during the game.
--   **Code Cleanup:** Fixed a minor bug in `main.js` involving a duplicate variable declaration. Refactored UI update logic to be cleaner and use the new data structures provided by the backend.
+### Frontend UI/UX (`main.js`)
+-   **New Feature - Targeted Point Deletion:** During the `SETUP` phase, users can now click directly on any point on the grid to delete it. This replaces the old, rigid "place-only" click behavior and makes correcting mistakes much easier.
+-   **Improved UX:** The mouse cursor now changes to a 'pointer' when hovering over a deletable point and a 'crosshair' over empty space during setup, providing clear visual feedback.
+-   **Code Refactoring:** The JavaScript code for handling point placement in the setup phase has been significantly refactored for clarity and maintainability, introducing helper functions like `redrawSetupPoints` to reduce duplication.
+-   **Visual Feedback:** When a "Convert Point" action occurs, the converted point is now highlighted with a yellow glow for a few seconds to draw the user's attention to the event.
+
+### Documentation (`rules.md`)
+-   The official game rules have been updated to include a description of the new "Convert Point" action.

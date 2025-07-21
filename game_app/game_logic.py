@@ -408,6 +408,58 @@ class Game:
         
         return {'success': True, 'type': 'claim_territory', 'territory': new_territory}
 
+    def fight_action_convert_point(self, teamId):
+        """[FIGHT ACTION]: Sacrifice a line to convert a nearby enemy point."""
+        team_lines = self.get_team_lines(teamId)
+        if not team_lines:
+            return {'success': False, 'reason': 'no lines to sacrifice'}
+
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        if not enemy_points:
+            return {'success': False, 'reason': 'no enemy points to convert'}
+
+        random.shuffle(team_lines)
+        points_map = self.state['points']
+
+        for line_to_sac in team_lines:
+            # Ensure line points exist
+            if line_to_sac['p1_id'] not in points_map or line_to_sac['p2_id'] not in points_map:
+                continue
+            
+            p1 = points_map[line_to_sac['p1_id']]
+            p2 = points_map[line_to_sac['p2_id']]
+            midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
+            
+            # Find the closest enemy point to the line's midpoint
+            closest_enemy_point = min(enemy_points, key=lambda p: distance_sq(midpoint, p))
+            
+            dist_sq = distance_sq(midpoint, closest_enemy_point)
+            
+            # Define conversion range (squared for efficiency)
+            conversion_range_sq = (self.state['grid_size'] * 0.3)**2
+            
+            if dist_sq < conversion_range_sq:
+                # Success! Sacrifice the line and convert the point.
+                
+                # 1. Remove the sacrificed line
+                self.state['lines'].remove(line_to_sac)
+                self.state['shields'].pop(line_to_sac.get('id'), None) # Remove shield if it had one
+                
+                # 2. Convert the enemy point
+                original_team_id = closest_enemy_point['teamId']
+                original_team_name = self.state['teams'][original_team_id]['name']
+                closest_enemy_point['teamId'] = teamId
+                
+                return {
+                    'success': True,
+                    'type': 'convert_point',
+                    'converted_point': closest_enemy_point,
+                    'sacrificed_line': line_to_sac,
+                    'original_team_name': original_team_name
+                }
+        
+        return {'success': False, 'reason': 'no enemy points in range'}
+
     # --- Turn Logic ---
 
     def _choose_action_for_team(self, teamId):
@@ -434,17 +486,22 @@ class Game:
         if team_lines and has_enemy_lines:
             possible_actions.append('fight_attack')
         
-        # 4. Defend (shield line)
+        # 4. Fight (convert point)
+        has_enemy_points = any(p['teamId'] != teamId for p in self.state['points'].values())
+        if team_lines and has_enemy_points:
+            possible_actions.append('fight_convert')
+
+        # 5. Defend (shield line)
         if any(l.get('id') not in self.state['shields'] for l in team_lines):
              possible_actions.append('defend_shield')
 
-        # 5. Fortify (claim territory)
+        # 6. Fortify (claim territory)
         if len(team_point_ids) >= 3:
             # This is a proxy; the actual check is more expensive. 
             # We accept that it might fail later, but we avoid trying when it's impossible.
             possible_actions.append('fortify_claim')
 
-        # 6. Sacrifice (nova burst)
+        # 7. Sacrifice (nova burst)
         if team_point_ids:
             possible_actions.append('sacrifice_nova')
 
@@ -458,6 +515,7 @@ class Game:
             'expand_add': self.expand_action_add_line,
             'expand_extend': self.expand_action_extend_line,
             'fight_attack': self.fight_action_attack_line,
+            'fight_convert': self.fight_action_convert_point,
             'fortify_claim': self.fortify_action_claim_territory,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'defend_shield': self.shield_action_protect_line,
@@ -465,12 +523,12 @@ class Game:
 
         # Base weights for actions
         base_weights = {
-            'expand_add': 10, 'expand_extend': 10, 'fight_attack': 10,
+            'expand_add': 10, 'expand_extend': 10, 'fight_attack': 10, 'fight_convert': 8,
             'fortify_claim': 8, 'sacrifice_nova': 3, 'defend_shield': 8,
         }
         
         trait_multipliers = {
-            'Aggressive': {'fight_attack': 3.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5},
+            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 2.0, 'fortify_claim': 0.5},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fight_attack': 0.5},
             'Balanced':   {}
@@ -544,6 +602,8 @@ class Game:
                     log_message += "extended a line to the border, creating a new point."
                 elif action_type == 'attack_line':
                     log_message += f"attacked and destroyed a line from Team {result['destroyed_team']}."
+                elif action_type == 'convert_point':
+                    log_message += f"sacrificed a line to convert a point from Team {result['original_team_name']}."
                 elif action_type == 'claim_territory':
                     log_message += "fortified its position, claiming new territory."
                 elif action_type == 'nova_burst':
@@ -566,6 +626,10 @@ class Game:
                     log_message += "found no enemy lines to attack."
                 elif reason == 'no target was hit':
                     log_message += "attempted an attack but missed."
+                elif reason == 'no enemy points to convert':
+                    log_message += "found no enemy points to convert."
+                elif reason == 'no enemy points in range':
+                    log_message += "attempted to convert a point but none were in range."
                 elif reason == 'no triangles formed':
                     log_message += "could not find any triangles to fortify."
                 elif reason == 'all triangles already claimed':

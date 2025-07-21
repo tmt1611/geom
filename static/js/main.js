@@ -321,6 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: 500 // ms
             });
         }
+        if (details.type === 'convert_point' && details.converted_point) {
+            lastActionHighlights.points.add(details.converted_point.id);
+        }
         if (details.type === 'attack_line' && details.attack_ray) {
             lastActionHighlights.lines.add(details.attacker_line.id);
             // Highlight the line that *was* destroyed, even though it's gone from state
@@ -598,10 +601,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Re-render teams list and the grid
             renderTeamsList();
-            drawGrid(); // Redraw grid and points
-            const tempPointsDict = {};
-            initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
-            drawPoints(tempPointsDict, localTeams);
+            redrawSetupPoints();
             return;
         }
 
@@ -633,12 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
     undoPointBtn.addEventListener('click', () => {
         if (initialPoints.length > 0) {
             initialPoints.pop();
-            // Draw immediately for responsiveness
-            drawGrid();
-            // We need to convert the initialPoints list to a dictionary for drawing
-            const tempPointsDict = {};
-            initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
-            drawPoints(tempPointsDict, localTeams);
+            redrawSetupPoints();
         }
     });
 
@@ -664,19 +659,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 initialPoints.push({ x, y, teamId });
             }
         }
-        // Draw immediately
+        
+        // Render the changes
+        redrawSetupPoints();
+    });
+
+    function findPointAtCoord(x, y) {
+        // Find the index of the point in the initialPoints array
+        return initialPoints.findIndex(p => p.x === x && p.y === y);
+    }
+
+    function redrawSetupPoints() {
         drawGrid();
         const tempPointsDict = {};
+        // Convert the list of setup points to the dictionary format expected by drawing functions
         initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
         drawPoints(tempPointsDict, localTeams);
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (currentGameState.game_phase !== 'SETUP') {
+            if (canvas.style.cursor !== 'default') canvas.style.cursor = 'default';
+            return;
+        }
+        const rect = canvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / cellSize);
+        const y = Math.floor((e.clientY - rect.top) / cellSize);
+
+        if (findPointAtCoord(x, y) !== -1) {
+            if (canvas.style.cursor !== 'pointer') canvas.style.cursor = 'pointer';
+        } else {
+            if (canvas.style.cursor !== 'crosshair') canvas.style.cursor = 'crosshair';
+        }
     });
 
     canvas.addEventListener('click', (e) => {
         if (currentGameState.game_phase !== 'SETUP') {
-            return;
-        }
-        if (!selectedTeamId) {
-            alert('Please add and select a team first!');
             return;
         }
 
@@ -684,16 +702,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const x = Math.floor((e.clientX - rect.left) / cellSize);
         const y = Math.floor((e.clientY - rect.top) / cellSize);
 
-        // Avoid duplicate points
-        if (!initialPoints.some(p => p.x === x && p.y === y)) {
+        const pointIndex = findPointAtCoord(x, y);
+
+        if (pointIndex !== -1) {
+            // Point exists, so remove it
+            initialPoints.splice(pointIndex, 1);
+        } else {
+            // Point does not exist, add a new one
+            if (!selectedTeamId) {
+                alert('Please add and select a team first!');
+                return;
+            }
             initialPoints.push({ x, y, teamId: selectedTeamId });
-            // Draw immediately for responsiveness
-            drawGrid();
-            // We need to convert the initialPoints list to a dictionary for drawing
-            const tempPointsDict = {};
-            initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
-            drawPoints(tempPointsDict, localTeams);
         }
+        
+        // Redraw to show the change immediately
+        redrawSetupPoints();
     });
 
     startGameBtn.addEventListener('click', async () => {
