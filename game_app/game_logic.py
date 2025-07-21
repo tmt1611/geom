@@ -76,6 +76,23 @@ def get_segment_intersection_point(p1, q1, p2, q2):
 
     return None  # Intersection point is not on both segments
 
+def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_sq=1.0):
+    """Checks if a new point can be spawned at the given coordinates."""
+    # Check proximity to existing points
+    for existing_p in self.state['points'].values():
+        if distance_sq(new_point_coords, existing_p) < min_dist_sq:
+            return False, 'too close to an existing point'
+    
+    # Check against enemy Heartwood defensive aura
+    if self.state.get('heartwoods'):
+        for teamId, heartwood in self.state['heartwoods'].items():
+            if teamId != new_point_teamId:
+                aura_radius_sq = (self.state['grid_size'] * 0.2)**2
+                if distance_sq(new_point_coords, heartwood['center_coords']) < aura_radius_sq:
+                    return False, 'blocked by an enemy Heartwood aura'
+    
+    return True, 'valid'
+
 def is_square(p1, p2, p3, p4):
     """Checks if four points form a square. Points are dicts with 'x' and 'y'.
     This is a helper function that doesn't rely on game state.
@@ -133,6 +150,7 @@ class Game:
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
             "prisms": {}, # {teamId: [prism1, prism2, ...]}
+            "heartwoods": {}, # {teamId: {id, center_coords, growth_counter}}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
             "max_turns": 100,
@@ -142,6 +160,7 @@ class Game:
             "interpretation": {},
             "last_action_details": {}, # For frontend visualization
             "initial_state": None, # Store the setup config for restarts
+            "new_turn_events": [], # For visualizing things that happen at turn start
             "action_in_turn": 0, # Which action index in the current turn's queue
             "actions_queue_this_turn": [] # List of action dicts {teamId, is_bonus} for the current turn
         }
@@ -206,9 +225,10 @@ class Game:
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
 
-        # Add nexuses for frontend rendering
+        # Add structures for frontend rendering
         state_copy['nexuses'] = self.state.get('nexuses', {})
         state_copy['prisms'] = self.state.get('prisms', {})
+        state_copy['heartwoods'] = self.state.get('heartwoods', {})
 
         # Add live stats for real-time display, regardless of phase, for consistency
         live_stats = {}
@@ -435,7 +455,18 @@ class Game:
         if not possible_extensions:
             return {'success': False, 'reason': 'no lines can be extended to the border'}
 
-        chosen_extension = random.choice(possible_extensions)
+        # Let's try a few extensions to find a valid one
+        random.shuffle(possible_extensions)
+        chosen_extension = None
+        for extension in possible_extensions:
+            is_valid, reason = self._is_spawn_location_valid(extension['border_point'], teamId)
+            if is_valid:
+                chosen_extension = extension
+                break
+        
+        if not chosen_extension:
+            return {'success': False, 'reason': 'no valid border position found for extension'}
+
         border_point = chosen_extension['border_point']
         origin_point_id = chosen_extension['origin_point_id']
         
@@ -667,14 +698,9 @@ class Game:
             final_x = round(max(0, min(grid_size - 1, new_x)))
             final_y = round(max(0, min(grid_size - 1, new_y)))
 
-            # Check if it's too close to any existing point
-            is_too_close = False
             new_p_coords = {'x': final_x, 'y': final_y}
-            for existing_p in self.state['points'].values():
-                if distance_sq(new_p_coords, existing_p) < 1.0: # min dist of 1 unit
-                    is_too_close = True
-                    break
-            if is_too_close:
+            is_valid, reason = self._is_spawn_location_valid(new_p_coords, teamId)
+            if not is_valid:
                 continue
 
             # We found a valid spawn, create the new point
@@ -714,14 +740,20 @@ class Game:
                 final_x = round(max(0, min(grid_size - 1, new_x)))
                 final_y = round(max(0, min(grid_size - 1, new_y)))
 
-                # Check if it's too close to any existing point
-                is_too_close = False
                 new_p_coords = {'x': final_x, 'y': final_y}
-                for existing_p in self.state['points'].values():
-                    if distance_sq(new_p_coords, existing_p) < 2.0: # min dist of sqrt(2)
-                        is_too_close = True
-                        break
-                if is_too_close:
+                # Use a larger clearance for orbitals to look good
+                is_valid, reason = self._is_spawn_location_valid(new_p_coords, teamId, min_dist_sq=2.0)
+                if not is_valid:
+                    valid_orbital = False
+                    break
+                
+                # Check proximity to other points in this same orbital creation
+                is_too_close_to_sibling = False
+                for p_sibling in new_points_to_create:
+                    if distance_sq(new_p_coords, p_sibling) < 2.0:
+                         is_too_close_to_sibling = True
+                         break
+                if is_too_close_to_sibling:
                     valid_orbital = False
                     break
                 
@@ -811,14 +843,19 @@ class Game:
             new_x = p_origin['x'] + (new_vx / mag) * growth_length
             new_y = p_origin['y'] + (new_vy / mag) * growth_length
 
-            # Check if the new point is within the grid boundaries
+            # Check if the new point is within the grid boundaries and valid
             grid_size = self.state['grid_size']
             if not (0 <= new_x < grid_size and 0 <= new_y < grid_size):
-                continue # Try another line if this one grows out of bounds
+                continue
+
+            new_point_coords = {"x": round(new_x), "y": round(new_y)}
+            is_valid, reason = self._is_spawn_location_valid(new_point_coords, teamId)
+            if not is_valid:
+                continue
 
             # We found a valid growth, create the new point and line
             new_point_id = f"p_{uuid.uuid4().hex[:6]}"
-            new_point = {"x": round(new_x), "y": round(new_y), "teamId": teamId, "id": new_point_id}
+            new_point = {**new_point_coords, "teamId": teamId, "id": new_point_id}
             self.state['points'][new_point_id] = new_point
 
             line_id = f"l_{uuid.uuid4().hex[:6]}"
@@ -927,6 +964,73 @@ class Game:
 
         return {'success': True, 'type': 'form_bastion', 'bastion': new_bastion}
 
+    def fortify_action_cultivate_heartwood(self, teamId):
+        """[FORTIFY ACTION]: Cultivates a Heartwood from a point with many connections."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        # A heartwood for a team is unique.
+        if teamId in self.state.get('heartwoods', {}):
+            return {'success': False, 'reason': 'team already has a heartwood'}
+        
+        HEARTWOOD_MIN_BRANCHES = 5
+        
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+        
+        possible_formations = []
+        for center_pid, connections in adj.items():
+            if len(connections) >= HEARTWOOD_MIN_BRANCHES:
+                # All connected points must also belong to the team (already ensured by get_team_lines)
+                possible_formations.append({
+                    'center_id': center_pid,
+                    'branch_ids': list(connections)
+                })
+
+        if not possible_formations:
+            return {'success': False, 'reason': f'no point with at least {HEARTWOOD_MIN_BRANCHES} connections found'}
+        
+        chosen_formation = random.choice(possible_formations)
+        center_id = chosen_formation['center_id']
+        branch_ids = chosen_formation['branch_ids']
+        
+        # Get coordinates of center point before deleting it
+        center_coords = self.state['points'][center_id].copy()
+        
+        # --- Sacrifice all points in the formation ---
+        all_points_to_sac_ids = [center_id] + branch_ids
+        sacrificed_points_data = []
+        for pid in all_points_to_sac_ids:
+            # Note: _delete_point_and_connections also removes connected lines,
+            # so we don't need to worry about them separately.
+            sac_data = self._delete_point_and_connections(pid)
+            if sac_data:
+                sacrificed_points_data.append(sac_data)
+
+        if not sacrificed_points_data:
+            return {'success': False, 'reason': 'failed to sacrifice points for heartwood'}
+
+        # --- Create the Heartwood ---
+        heartwood_id = f"hw_{uuid.uuid4().hex[:6]}"
+        new_heartwood = {
+            'id': heartwood_id,
+            'teamId': teamId,
+            'center_coords': {'x': center_coords['x'], 'y': center_coords['y']},
+            'growth_counter': 0,
+            'growth_interval': 3, # spawns a point every 3 turns
+        }
+        
+        if 'heartwoods' not in self.state: self.state['heartwoods'] = {}
+        self.state['heartwoods'][teamId] = new_heartwood
+        
+        return {
+            'success': True,
+            'type': 'cultivate_heartwood',
+            'heartwood': new_heartwood,
+            'sacrificed_points': sacrificed_points_data
+        }
+
     def _reflect_point(self, point, p1_axis, p2_axis):
         """Reflects a point across the line defined by p1_axis and p2_axis."""
         px, py = point['x'], point['y']
@@ -992,25 +1096,21 @@ class Game:
                 if not (0 <= reflected_p['x'] < grid_size and 0 <= reflected_p['y'] < grid_size):
                     continue
 
-                # Check if it's too close to any existing point
-                is_too_close = False
-                for existing_p in self.state['points'].values():
-                    if distance_sq(reflected_p, existing_p) < 1.0: # min dist of 1 unit
-                        is_too_close = True
-                        break
-                if is_too_close:
+                # Round to integer coords before checking validity.
+                reflected_p_int = {'x': round(reflected_p['x']), 'y': round(reflected_p['y'])}
+
+                is_valid, reason = self._is_spawn_location_valid(reflected_p_int, teamId)
+                if not is_valid:
                     continue
 
                 # If valid, add it to the list to be created
                 new_point_id = f"p_{uuid.uuid4().hex[:6]}"
-                new_points_to_create.append({**reflected_p, "teamId": teamId, "id": new_point_id})
+                new_points_to_create.append({**reflected_p_int, "teamId": teamId, "id": new_point_id})
 
             # 4. If we successfully found points to create, do it and return
             if new_points_to_create:
                 for p in new_points_to_create:
-                    # Round to integers to conform to the new design requirement.
-                    p['x'] = round(p['x'])
-                    p['y'] = round(p['y'])
+                    # Coordinates are already rounded integers
                     self.state['points'][p['id']] = p
                 
                 return {
@@ -1561,6 +1661,7 @@ class Game:
             'fortify_anchor': self.fortify_action_create_anchor,
             'fortify_mirror': self.fortify_action_mirror_structure,
             'fortify_form_bastion': self.fortify_action_form_bastion,
+            'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'defend_shield': self.shield_action_protect_line,
             'rune_shoot_bisector': self.rune_action_shoot_bisector,
@@ -1587,6 +1688,7 @@ class Game:
             'fortify_anchor': len(team_point_ids) >= 3,
             'fortify_mirror': len(team_point_ids) >= 3,
             'fortify_form_bastion': bool(self._get_fortified_point_ids().intersection(team_point_ids)), # Team has at least one of its own fortified points
+            'fortify_cultivate_heartwood': len(team_point_ids) >= 6 and teamId not in self.state.get('heartwoods', {}),
             'sacrifice_nova': len(team_point_ids) > 2,
             'rune_shoot_bisector': bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])),
         }
@@ -1603,14 +1705,14 @@ class Game:
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
             'fight_attack': 10, 'fight_convert': 8, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22,
-            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7,
+            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_cultivate_heartwood': 20, # High value objective
             'sacrifice_nova': 3, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
             'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5},
-            'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5},
-            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0},
+            'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5},
+            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_cultivate_heartwood': 2.5},
             'Balanced':   {}
         }
         multipliers = trait_multipliers.get(team_trait, {})
@@ -1649,6 +1751,8 @@ class Game:
         """Performs start-of-turn maintenance and sets up the action queue for the new turn."""
         self.state['turn'] += 1
         self.state['action_in_turn'] = 0
+        self.state['last_action_details'] = {} # Clear last action from previous turn
+        self.state['new_turn_events'] = [] # Clear events from previous turn
         
         # --- Start of Turn Maintenance ---
         # 1. Manage shields
@@ -1680,6 +1784,48 @@ class Game:
                 expired_anchors.append(anchor_pid)
         for anchor_pid in expired_anchors:
             if anchor_pid in self.state['anchors']: del self.state['anchors'][anchor_pid]
+            
+        # 3. Process Heartwoods
+        if self.state.get('heartwoods'):
+            for teamId, heartwood in self.state['heartwoods'].items():
+                heartwood['growth_counter'] += 1
+                if heartwood['growth_counter'] >= heartwood['growth_interval']:
+                    heartwood['growth_counter'] = 0
+                    
+                    # Spawn a new point.
+                    for _ in range(10): # Try a few times to find a spot
+                        angle = random.uniform(0, 2 * math.pi)
+                        radius = self.state['grid_size'] * random.uniform(0.05, 0.15)
+                        
+                        new_x = heartwood['center_coords']['x'] + math.cos(angle) * radius
+                        new_y = heartwood['center_coords']['y'] + math.sin(angle) * radius
+                        
+                        grid_size = self.state['grid_size']
+                        final_x = round(max(0, min(grid_size - 1, new_x)))
+                        final_y = round(max(0, min(grid_size - 1, new_y)))
+                        
+                        new_p_coords = {'x': final_x, 'y': final_y}
+                        is_valid, reason = self._is_spawn_location_valid(new_p_coords, teamId)
+                        if not is_valid: continue
+
+                        # Found a valid spot
+                        new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                        new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
+                        self.state['points'][new_point_id] = new_point
+                        
+                        team_name = self.state['teams'][teamId]['name']
+                        log_msg = {
+                            'teamId': teamId,
+                            'message': f"The Heartwood of Team {team_name} birthed a new point.",
+                            'short_message': '[HW:GROWTH]'
+                        }
+                        self.state['game_log'].append(log_msg)
+                        self.state['new_turn_events'].append({
+                            'type': 'heartwood_growth',
+                            'new_point': new_point,
+                            'heartwood_id': heartwood['id']
+                        })
+                        break # Stop trying to find a spot
 
         # --- Set up action queue for the turn ---
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
@@ -1851,6 +1997,9 @@ class Game:
             elif action_type == 'form_bastion':
                 log_message += "consolidated its power, forming a new bastion."
                 short_log_message = "[BASTION]"
+            elif action_type == 'cultivate_heartwood':
+                log_message += f"sacrificed {len(result['sacrificed_points'])} points to cultivate a mighty Heartwood."
+                short_log_message = "[HEARTWOOD!]"
             elif action_type == 'bastion_pulse':
                 log_message += f"unleashed a defensive pulse from its bastion, destroying {len(result['lines_destroyed'])} lines."
                 short_log_message = "[PULSE!]"

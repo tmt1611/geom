@@ -51,3 +51,7 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Bonus:** The bastion's core point, prong points, and connecting lines become immune to standard attacks and conversion.
 *   **[FORTIFY] Create Anchor:** Sacrifice one of its own points to turn another into a gravitational anchor. For a few turns, the anchor will slowly pull nearby enemy points towards it.
 *   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns.
+*   **[FORTIFY] Cultivate Heartwood:** A unique, powerful structure. Requires a central point connected to at least 5 other "branch" points.
+    *   **Cost:** The central point and all branch points are sacrificed. This action can only be performed once per team.
+    *   **Bonus 1 (Passive Growth):** Every few turns, the Heartwood automatically creates a new point for its team nearby.
+    *   **Bonus 2 (Defensive Aura):** Prevents enemy points from being created in a large radius around it.

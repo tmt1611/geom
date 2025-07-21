@@ -49,7 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusBar = document.getElementById('status-bar');
     const finalInterpDiv = document.getElementById('final-interpretation');
     const finalInterpContent = document.getElementById('final-stats-content');
-    const compactLogToggle = document.getElementById('compact-log-toggle'); // New element
+    const compactLogToggle = document.getElementById('compact-log-toggle');
+    const copyLogBtn = document.getElementById('copy-log-btn');
 
     // Debug Toggles
     const debugPointIdsToggle = document.getElementById('debug-point-ids');
@@ -464,6 +465,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function drawHeartwoods(gameState) {
+        if (!gameState.heartwoods) return;
+
+        for (const teamId in gameState.heartwoods) {
+            const heartwood = gameState.heartwoods[teamId];
+            const team = gameState.teams[teamId];
+            if (!team || !heartwood) continue;
+
+            const cx = (heartwood.center_coords.x + 0.5) * cellSize;
+            const cy = (heartwood.center_coords.y + 0.5) * cellSize;
+            const pulse = Math.abs(Math.sin(Date.now() / 1200)); // Slow, deep pulse
+            const baseRadius = 10;
+            const radius = baseRadius + pulse * 5;
+
+            // Draw the aura
+            ctx.beginPath();
+            ctx.arc(cx, cy, (gameState.grid_size * 0.2) * cellSize, 0, 2 * Math.PI);
+            ctx.fillStyle = team.color;
+            ctx.globalAlpha = 0.05 + pulse * 0.05;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+
+            // Draw the core
+            // Outer ring
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+            ctx.strokeStyle = team.color;
+            ctx.lineWidth = 2 + pulse * 2;
+            ctx.globalAlpha = 0.5 + pulse * 0.5;
+            ctx.stroke();
+            
+            // Inner core
+            ctx.beginPath();
+            ctx.arc(cx, cy, baseRadius * 0.5, 0, 2 * Math.PI);
+            ctx.fillStyle = team.color;
+            ctx.globalAlpha = 1.0;
+            ctx.fill();
+
+            // Maybe draw some 'roots'
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.4;
+            for(let i=0; i < 5; i++) {
+                ctx.rotate( (2 * Math.PI / 5) + (pulse * 0.1) );
+                ctx.beginPath();
+                ctx.moveTo(0, radius * 0.5);
+                ctx.quadraticCurveTo(radius, radius, radius * 1.5, radius * 0.5);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+    }
+
     function drawPrisms(gameState) {
         if (!gameState.prisms) return;
 
@@ -588,6 +643,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     drawJaggedLine(p1_coords, p2_coords, 7, 10);
                 }
 
+            } else if (effect.type === 'heartwood_creation') {
+                const progress = age / effect.duration;
+                effect.sacrificed_points.forEach(p => {
+                    const start_x = (p.x + 0.5) * cellSize;
+                    const start_y = (p.y + 0.5) * cellSize;
+                    const end_x = (effect.center_coords.x + 0.5) * cellSize;
+                    const end_y = (effect.center_coords.y + 0.5) * cellSize;
+                    
+                    const current_x = start_x + (end_x - start_x) * progress;
+                    const current_y = start_y + (end_y - start_y) * progress;
+
+                    ctx.beginPath();
+                    ctx.arc(current_x, current_y, 8 * (1 - progress), 0, 2*Math.PI);
+                    ctx.fillStyle = `rgba(150, 255, 150, ${1 - progress})`;
+                    ctx.fill();
+                });
+            } else if (effect.type === 'heartwood_growth_ray') {
+                if (effect.heartwood && effect.new_point) {
+                    const start_x = (effect.heartwood.center_coords.x + 0.5) * cellSize;
+                    const start_y = (effect.heartwood.center_coords.y + 0.5) * cellSize;
+                    const end_x = (effect.new_point.x + 0.5) * cellSize;
+                    const end_y = (effect.new_point.y + 0.5) * cellSize;
+
+                    ctx.beginPath();
+                    ctx.moveTo(start_x, start_y);
+                    ctx.lineTo(end_x, end_y);
+                    ctx.strokeStyle = `rgba(150, 255, 150, ${0.7 * (1 - progress)})`;
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
             } else if (effect.type === 'point_explosion') {
                 ctx.beginPath();
                 const startRadius = 5;
@@ -626,6 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawRunes(currentGameState);
                 drawConduits(currentGameState);
                 drawNexuses(currentGameState);
+                drawHeartwoods(currentGameState);
                 drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
                 drawPoints(currentGameState.points, currentGameState.teams);
                 
@@ -799,6 +885,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
              // Visual effect for the pulse itself could be added here
         }
+        if (details.type === 'cultivate_heartwood' && details.heartwood) {
+            // Highlight sacrificed points
+            details.sacrificed_points.forEach(p => lastActionHighlights.points.add(p.id));
+            visualEffects.push({
+                type: 'heartwood_creation',
+                sacrificed_points: details.sacrificed_points,
+                center_coords: details.heartwood.center_coords,
+                startTime: Date.now(),
+                duration: 1500
+            });
+        }
 
         // Set a timer to clear the highlights
         lastActionHighlights.clearTimeout = setTimeout(() => {
@@ -812,6 +909,21 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const isFirstUpdate = !currentGameState.game_phase;
         currentGameState = gameState; // Cache state
+
+        // Process turn start events for visuals
+        if (gameState.new_turn_events && gameState.new_turn_events.length > 0) {
+            gameState.new_turn_events.forEach(event => {
+                if (event.type === 'heartwood_growth') {
+                    visualEffects.push({
+                        type: 'heartwood_growth_ray',
+                        heartwood: gameState.heartwoods[event.new_point.teamId],
+                        new_point: event.new_point,
+                        startTime: Date.now(),
+                        duration: 1500,
+                    });
+                }
+            });
+        }
         
         if (isFirstUpdate) {
             // After the first state load, ensure the teams list and controls are correctly rendered
@@ -1141,6 +1253,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     debugLastActionToggle.addEventListener('click', () => {
         debugOptions.highlightLastAction = debugLastActionToggle.checked;
+    });
+
+    copyLogBtn.addEventListener('click', () => {
+        if (navigator.clipboard) {
+            const logEntries = logDiv.querySelectorAll('.log-entry');
+            const logText = Array.from(logEntries)
+                .map(entry => entry.textContent)
+                .reverse() // Entries are prepended, so reverse to get chronological order
+                .join('\n');
+            navigator.clipboard.writeText(logText).then(() => {
+                alert('Game log copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy log: ', err);
+                alert('Could not copy log.');
+            });
+        } else {
+            alert('Clipboard API not available in this browser.');
+        }
     });
     showHullsToggle.addEventListener('click', () => {
         debugOptions.showHulls = showHullsToggle.checked;
