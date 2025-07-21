@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const debugLastActionToggle = document.getElementById('debug-last-action');
     const showHullsToggle = document.getElementById('show-hulls-toggle');
     const finalAnalysisOptions = document.getElementById('final-analysis-options');
+    const copyStateBtn = document.getElementById('copy-state-btn');
 
     // --- Core Functions ---
 
@@ -839,6 +840,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     showHullsToggle.addEventListener('click', () => {
         debugOptions.showHulls = showHullsToggle.checked;
+    });
+
+    copyStateBtn.addEventListener('click', async () => {
+        if (navigator.clipboard) {
+            try {
+                // Fetch the latest state to ensure it's current
+                const response = await fetch('/api/game/state');
+                const gameState = await response.json();
+                const stateString = JSON.stringify(gameState, null, 2);
+                await navigator.clipboard.writeText(stateString);
+                alert('Game state copied to clipboard!');
+            } catch (err) {
+                console.error('Failed to copy game state: ', err);
+                alert('Could not copy game state to clipboard. See console for details.');
+            }
+        } else {
+            alert('Clipboard API not available in this browser.');
+        }
     });
 
     // Listener for team list - now only for deletion (selection and editing are handled on elements)

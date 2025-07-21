@@ -521,7 +521,7 @@ class Game:
             for i in range(num_satellites):
                 angle = angle_offset + (2 * math.pi * i / num_satellites)
                 new_x = p_center['x'] + math.cos(angle) * radius
-                new_y = p_center['y'] + math.sin(angle)
+                new_y = p_center['y'] + math.sin(angle) * radius
                 
                 # Clamp to grid and round to integer
                 grid_size = self.state['grid_size']
@@ -1167,37 +1167,66 @@ class Game:
         
         # Log the final result. Invalid/failed actions are no longer logged individually.
         log_message = f"Team {team_name} "
+        short_log_message = "[ACTION]" # Default short message
+
         if result.get('success'):
             action_type = result.get('type')
-            if action_type == 'add_line': log_message += "connected two points."
-            elif action_type == 'extend_line': log_message += "extended a line to the border, creating a new point."
-            elif action_type == 'grow_line': log_message += "grew a new branch, creating a new point."
-            elif action_type == 'fracture_line': log_message += "fractured a line, creating a new point."
-            elif action_type == 'spawn_point': log_message += "spawned a new point from an existing one."
-            elif action_type == 'create_orbital': log_message += f"created an orbital structure with {len(result['new_points'])} new points."
+            if action_type == 'add_line':
+                log_message += "connected two points."
+                short_log_message = "[+LINE]"
+            elif action_type == 'extend_line':
+                log_message += "extended a line to the border, creating a new point."
+                short_log_message = "[EXTEND]"
+            elif action_type == 'grow_line':
+                log_message += "grew a new branch, creating a new point."
+                short_log_message = "[GROW]"
+            elif action_type == 'fracture_line':
+                log_message += "fractured a line, creating a new point."
+                short_log_message = "[FRACTURE]"
+            elif action_type == 'spawn_point':
+                log_message += "spawned a new point from an existing one."
+                short_log_message = "[SPAWN]"
+            elif action_type == 'create_orbital':
+                log_message += f"created an orbital structure with {len(result['new_points'])} new points."
+                short_log_message = "[ORBITAL]"
             elif action_type == 'attack_line':
                 msg = f"attacked and destroyed a line from Team {result['destroyed_team']}"
+                short_log_message = "[ATTACK]"
                 if result.get('bypassed_shield'):
                     msg += ", bypassing its shield with a Cross Rune!"
+                    short_log_message = "[PIERCE!]"
                 else:
                     msg += "."
                 log_message += msg
-            elif action_type == 'convert_point': log_message += f"sacrificed a line to convert a point from Team {result['original_team_name']}."
-            elif action_type == 'claim_territory': log_message += "fortified its position, claiming new territory."
-            elif action_type == 'mirror_structure': log_message += f"mirrored its structure, creating {len(result['new_points'])} new points."
-            elif action_type == 'create_anchor': log_message += "sacrificed a point to create a gravitational anchor."
-            elif action_type == 'nova_burst': log_message += f"sacrificed a point in a nova burst, destroying {result['lines_destroyed']} lines."
-            elif action_type == 'shield_line': log_message += "raised a defensive shield on one of its lines."
+            elif action_type == 'convert_point':
+                log_message += f"sacrificed a line to convert a point from Team {result['original_team_name']}."
+                short_log_message = "[CONVERT]"
+            elif action_type == 'claim_territory':
+                log_message += "fortified its position, claiming new territory."
+                short_log_message = "[CLAIM]"
+            elif action_type == 'mirror_structure':
+                log_message += f"mirrored its structure, creating {len(result['new_points'])} new points."
+                short_log_message = "[MIRROR]"
+            elif action_type == 'create_anchor':
+                log_message += "sacrificed a point to create a gravitational anchor."
+                short_log_message = "[ANCHOR]"
+            elif action_type == 'nova_burst':
+                log_message += f"sacrificed a point in a nova burst, destroying {result['lines_destroyed']} lines."
+                short_log_message = "[NOVA]"
+            elif action_type == 'shield_line':
+                log_message += "raised a defensive shield on one of its lines."
+                short_log_message = "[SHIELD]"
             elif action_type == 'rune_shoot_bisector':
                 log_message += "unleashed a powerful beam from a V-Rune, destroying an enemy line."
-                short_log_message = "[V-RUNE BEAM]"
+                short_log_message = "[V-BEAM!]"
             else:
                 log_message += "performed a successful action."
                 short_log_message = "[ACTION]"
         else:
             log_message += "could not find a valid move and passed its turn."
+            short_log_message = "[PASS]"
             
-        self.state['game_log'].append({'teamId': teamId, 'message': log_message})
+        self.state['game_log'].append({'teamId': teamId, 'message': log_message, 'short_message': short_log_message})
         
         # Increment for next action
         self.state['action_in_turn'] += 1
