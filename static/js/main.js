@@ -80,20 +80,42 @@ document.addEventListener('DOMContentLoaded', () => {
             if (team) {
                 const cx = (p.x + 0.5) * cellSize;
                 const cy = (p.y + 0.5) * cellSize;
-                const radius = 5;
+                let radius = 5;
 
-                // Highlight effect
+                // Highlight effect for last action
                 if (debugOptions.highlightLastAction && lastActionHighlights.points.has(p.id)) {
                     ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
                     ctx.beginPath();
-                    ctx.arc(cx, cy, radius + 4, 0, 2 * Math.PI);
+                    ctx.arc(cx, cy, radius + 5, 0, 2 * Math.PI);
                     ctx.fill();
                 }
 
+                // Anchor point visualization (drawn on top of highlight, below main point)
+                if (p.is_anchor) {
+                    radius = 7;
+                    // Pulsing effect for anchor
+                    const pulse_rate = 1500; // ms for one pulse cycle
+                    const pulse = Math.abs(Math.sin(Date.now() / pulse_rate));
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius + 4 + (pulse * 4), 0, 2 * Math.PI);
+                    ctx.strokeStyle = `rgba(200, 200, 255, ${0.7 - (pulse * 0.5)})`;
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+
+                // Main point drawing
                 ctx.fillStyle = team.color;
                 ctx.beginPath();
-                ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                if (p.is_anchor) {
+                    // Draw anchors as squares
+                    const squareSize = radius * 1.8;
+                    ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
+                } else {
+                    // Draw normal points as circles
+                    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                }
                 ctx.fill();
+
 
                 if (debugOptions.showPointIds) {
                     ctx.fillStyle = '#000';
@@ -347,6 +369,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (details.type === 'claim_territory' && details.territory) {
             details.territory.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+        }
+        if (details.type === 'create_anchor' && details.anchor_point) {
+            lastActionHighlights.points.add(details.anchor_point.id);
         }
 
         // Set a timer to clear the highlights

@@ -62,6 +62,7 @@ class Game:
             "points": {},
             "lines": [],  # Each line will now get a unique ID
             "shields": {}, # {line_id: turns_left}
+            "anchors": {}, # {point_id: {teamId: teamId, turns_left: N}}
             "territories": [], # Added for claimed triangles
             "game_log": [],
             "turn": 0,
@@ -90,9 +91,17 @@ class Game:
         state_copy = self.state.copy()
         state_copy['lines'] = augmented_lines
 
+        # Augment points with anchor status
+        augmented_points = {}
+        for pid, point in self.state['points'].items():
+            augmented_point = point.copy()
+            augmented_point['is_anchor'] = pid in self.state['anchors']
+            augmented_points[pid] = augmented_point
+        state_copy['points'] = augmented_points
+
         # Add live stats for real-time display, regardless of phase, for consistency
         live_stats = {}
-        all_points = self.state['points']
+        all_points = self.state['points'] # Use original points for calculations
         for teamId, team_data in self.state['teams'].items():
             team_point_ids = self.get_team_point_ids(teamId)
             team_lines = self.get_team_lines(teamId)
@@ -361,64 +370,7 @@ class Game:
         
         return {'success': True, 'type': 'shield_line', 'shielded_line': line_to_shield}
 
-        def expand_action_grow_line(self, teamId):
-        """[EXPAND ACTION]: Grows a new short line from an existing point, like a vine."""
-        team_lines = self.get_team_lines(teamId)
-        if not team_lines:
-            return {'success': False, 'reason': 'no lines to grow from'}
-
-        random.shuffle(team_lines)
-        points_map = self.state['points']
-        
-        for line in team_lines:
-            if not (line['p1_id'] in points_map and line['p2_id'] in points_map):
-                continue
-            
-            # Choose a random endpoint to grow from
-            p_origin_id, p_other_id = random.choice([(line['p1_id'], line['p2_id']), (line['p2_id'], line['p1_id'])])
-            p_origin = points_map[p_origin_id]
-            p_other = points_map[p_other_id]
-
-            # Vector from other to origin, defining the line's direction at the origin
-            vx = p_origin['x'] - p_other['x']
-            vy = p_origin['y'] - p_other['y']
-
-            # Rotate this vector by a random angle. Avoids growing straight back.
-            angle = random.uniform(-math.pi * 2/3, math.pi * 2/3) # -120 to +120 degrees
-            
-            new_vx = vx * math.cos(angle) - vy * math.sin(angle)
-            new_vy = vx * math.sin(angle) + vy * math.cos(angle)
-
-            # Normalize the new vector
-            mag = math.sqrt(new_vx**2 + new_vy**2)
-            if mag == 0: continue # Should not happen if line has length
-
-            # Define the length of the new "vine"
-            growth_length = self.state['grid_size'] * random.uniform(0.1, 0.2)
-            
-            # Calculate new point position
-            new_x = p_origin['x'] + (new_vx / mag) * growth_length
-            new_y = p_origin['y'] + (new_vy / mag) * growth_length
-
-            # Check if the new point is within the grid boundaries
-            grid_size = self.state['grid_size']
-            if not (0 <= new_x < grid_size and 0 <= new_y < grid_size):
-                continue # Try another line if this one grows out of bounds
-
-            # We found a valid growth, create the new point and line
-            new_point_id = f"p_{uuid.uuid4().hex[:6]}"
-            new_point = {"x": round(new_x), "y": round(new_y), "teamId": teamId, "id": new_point_id}
-            self.state['points'][new_point_id] = new_point
-
-            line_id = f"l_{uuid.uuid4().hex[:6]}"
-            new_line = {"id": line_id, "p1_id": p_origin_id, "p2_id": new_point_id, "teamId": teamId}
-            self.state['lines'].append(new_line)
-
-            return {'success': True, 'type': 'grow_line', 'new_point': new_point, 'new_line': new_line}
-
-        return {'success': False, 'reason': 'could not find a valid position to grow'}
-
-        def expand_action_grow_line(self, teamId):
+    def expand_action_grow_line(self, teamId):
         """[EXPAND ACTION]: Grows a new short line from an existing point, like a vine."""
         team_lines = self.get_team_lines(teamId)
         if not team_lines:
@@ -522,6 +474,38 @@ class Game:
         
         return {'success': True, 'type': 'claim_territory', 'territory': new_territory}
 
+    def fortify_action_create_anchor(self, teamId):
+        """[FORTIFY ACTION]: Sacrifice a point to turn another into a gravity well."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 2:
+            return {'success': False, 'reason': 'not enough points to create anchor'}
+
+        # Find a point to sacrifice and a point to turn into an anchor
+        # Ensure they are not the same point
+        p_to_sac_id, p_to_anchor_id = random.sample(team_point_ids, 2)
+        
+        # 1. Sacrifice the first point
+        sacrificed_point = self.state['points'].pop(p_to_sac_id)
+
+        # Also remove any lines or territories that used the sacrificed point
+        self.state['lines'] = [l for l in self.state['lines'] if p_to_sac_id not in (l['p1_id'], l['p2_id'])]
+        self.state['territories'] = [t for t in self.state['territories'] if p_to_sac_id not in t['point_ids']]
+        self.state['shields'].pop(p_to_sac_id, None) # A point ID can't be a line ID, but good practice
+        self.state['anchors'].pop(p_to_sac_id, None) # Can't sacrifice an anchor to make another
+
+        # 2. Create the anchor
+        anchor_duration = 5 # turns
+        self.state['anchors'][p_to_anchor_id] = {'teamId': teamId, 'turns_left': anchor_duration}
+
+        anchor_point = self.state['points'][p_to_anchor_id]
+
+        return {
+            'success': True, 
+            'type': 'create_anchor', 
+            'anchor_point': anchor_point,
+            'sacrificed_point': sacrificed_point
+        }
+
     def fight_action_convert_point(self, teamId):
         """[FIGHT ACTION]: Sacrifice a line to convert a nearby enemy point."""
         team_lines = self.get_team_lines(teamId)
@@ -619,7 +603,11 @@ class Game:
             # We accept that it might fail later, but we avoid trying when it's impossible.
             possible_actions.append('fortify_claim')
 
-        # 8. Sacrifice (nova burst)
+        # 8. Fortify (create anchor)
+        if len(team_point_ids) >= 2:
+            possible_actions.append('fortify_anchor')
+
+        # 9. Sacrifice (nova burst)
         if team_point_ids:
             possible_actions.append('sacrifice_nova')
 
@@ -636,6 +624,7 @@ class Game:
             'fight_attack': self.fight_action_attack_line,
             'fight_convert': self.fight_action_convert_point,
             'fortify_claim': self.fortify_action_claim_territory,
+            'fortify_anchor': self.fortify_action_create_anchor,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'defend_shield': self.shield_action_protect_line,
         }
@@ -643,13 +632,13 @@ class Game:
         # Base weights for actions
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'fight_attack': 10, 'fight_convert': 8,
-            'fortify_claim': 8, 'sacrifice_nova': 3, 'defend_shield': 8,
+            'fortify_claim': 8, 'fortify_anchor': 5, 'sacrifice_nova': 3, 'defend_shield': 8,
         }
         
         trait_multipliers = {
             'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'fortify_claim': 0.5},
-            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fight_attack': 0.5, 'expand_grow': 0.5},
+            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5},
             'Balanced':   {}
         }
 
@@ -676,14 +665,55 @@ class Game:
 
         self.state['turn'] += 1
         
-        # Manage shields at the start of the turn
+        # --- Start of Turn Maintenance ---
+        
+        # 1. Manage shields
         expired_shields = []
-        for line_id, turns_left in self.state['shields'].items():
+        for line_id, turns_left in list(self.state['shields'].items()):
             self.state['shields'][line_id] = turns_left - 1
             if self.state['shields'][line_id] <= 0:
                 expired_shields.append(line_id)
         for line_id in expired_shields:
-            del self.state['shields'][line_id]
+            if line_id in self.state['shields']:
+                del self.state['shields'][line_id]
+
+        # 2. Process anchors
+        expired_anchors = []
+        pull_strength = 0.2  # How strongly points are pulled each turn
+        grid_size = self.state['grid_size']
+        for anchor_pid, anchor_data in list(self.state['anchors'].items()):
+            if anchor_pid not in self.state['points']:
+                expired_anchors.append(anchor_pid)
+                continue
+
+            anchor_point = self.state['points'][anchor_pid]
+            anchor_radius_sq = (grid_size * 0.4)**2
+
+            # Find all enemy points within the radius
+            for pid, point in self.state['points'].items():
+                if point['teamId'] != anchor_data['teamId']:
+                    if distance_sq(anchor_point, point) < anchor_radius_sq:
+                        # Pull the point towards the anchor
+                        dx = anchor_point['x'] - point['x']
+                        dy = anchor_point['y'] - point['y']
+                        
+                        point['x'] += dx * pull_strength
+                        point['y'] += dy * pull_strength
+
+                        # Clamp to grid boundaries
+                        point['x'] = max(0, min(grid_size - 1, point['x']))
+                        point['y'] = max(0, min(grid_size - 1, point['y']))
+
+            # Decrement anchor life
+            anchor_data['turns_left'] -= 1
+            if anchor_data['turns_left'] <= 0:
+                expired_anchors.append(anchor_pid)
+
+        for anchor_pid in expired_anchors:
+            if anchor_pid in self.state['anchors']:
+                del self.state['anchors'][anchor_pid]
+
+        # --- End of Maintenance ---
 
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---"})
         self.state['last_action_details'] = {} # Reset visualizer
@@ -727,6 +757,8 @@ class Game:
                     log_message += f"sacrificed a line to convert a point from Team {result['original_team_name']}."
                 elif action_type == 'claim_territory':
                     log_message += "fortified its position, claiming new territory."
+                elif action_type == 'create_anchor':
+                    log_message += "sacrificed a point to create a gravitational anchor."
                 elif action_type == 'nova_burst':
                     log_message += f"sacrificed a point in a nova burst, destroying {result['lines_destroyed']} lines."
                 elif action_type == 'shield_line':
@@ -755,6 +787,8 @@ class Game:
                     log_message += "could not find any triangles to fortify."
                 elif reason == 'all triangles already claimed':
                     log_message += "found no new territory to claim."
+                elif reason == 'not enough points to create anchor':
+                    log_message += "could not create an anchor (not enough points)."
                 elif reason == 'no points to sacrifice':
                     log_message += "had no points to sacrifice."
                 elif reason == 'no lines to shield':
