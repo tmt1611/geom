@@ -90,6 +90,30 @@ class Game:
         state_copy = self.state.copy()
         state_copy['lines'] = augmented_lines
 
+        # Add live stats for real-time display, regardless of phase, for consistency
+        live_stats = {}
+        all_points = self.state['points']
+        for teamId, team_data in self.state['teams'].items():
+            team_point_ids = self.get_team_point_ids(teamId)
+            team_lines = self.get_team_lines(teamId)
+            team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+
+            # Calculate controlled area
+            controlled_area = 0
+            for territory in team_territories:
+                triangle_point_ids = territory['point_ids']
+                if all(pid in all_points for pid in triangle_point_ids):
+                    triangle_points = [all_points[pid] for pid in triangle_point_ids]
+                    if len(triangle_points) == 3:
+                        controlled_area += self._polygon_area(triangle_points)
+
+            live_stats[teamId] = {
+                'point_count': len(team_point_ids),
+                'line_count': len(team_lines),
+                'controlled_area': round(controlled_area, 2)
+            }
+        state_copy['live_stats'] = live_stats
+
         return state_copy
 
     def start_game(self, teams, points, max_turns, grid_size):
@@ -100,6 +124,7 @@ class Game:
         for team_id, team_data in teams.items():
             if 'trait' not in team_data:
                 team_data['trait'] = 'Balanced'
+            team_data['id'] = team_id # Ensure team object contains its own ID
 
         self.state['teams'] = teams
         # Convert points list to a dictionary with unique IDs
@@ -625,7 +650,7 @@ class Game:
             team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
 
             if len(team_points_list) < 1:
-                 interpretation[teamId] = { 'point_count': 0, 'line_count': 0, 'line_length': 0, 'triangles': 0, 'controlled_area': 0, 'hull_area': 0, 'hull_perimeter': 0, 'divination_text': 'Faded from existence.'}
+                 interpretation[teamId] = { 'point_count': 0, 'line_count': 0, 'line_length': 0, 'triangles': 0, 'controlled_area': 0, 'hull_area': 0, 'hull_perimeter': 0, 'hull_points': [], 'divination_text': 'Faded from existence.'}
                  continue
 
             # 1. Total Line Length
@@ -677,7 +702,8 @@ class Game:
                 'triangles': triangles,
                 'controlled_area': round(controlled_area, 2),
                 'hull_area': round(hull_area, 2),
-                'hull_perimeter': round(hull_perimeter, 2)
+                'hull_perimeter': round(hull_perimeter, 2),
+                'hull_points': hull_points
             }
             stats['divination_text'] = self._generate_divination_text(stats)
             interpretation[teamId] = stats

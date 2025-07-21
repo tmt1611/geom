@@ -12,7 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let debugOptions = {
         showPointIds: false,
         showLineIds: false,
-        highlightLastAction: false
+        highlightLastAction: false,
+        showHulls: false
     };
     let currentGameState = {}; // Cache the latest game state
     let visualEffects = []; // For temporary animations
@@ -44,13 +45,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusBar = document.getElementById('status-bar');
     const finalInterpDiv = document.getElementById('final-interpretation');
     const finalInterpContent = document.getElementById('final-stats-content');
-    const finalInterpDiv = document.getElementById('final-interpretation');
-    const finalInterpContent = document.getElementById('final-stats-content');
 
     // Debug Toggles
     const debugPointIdsToggle = document.getElementById('debug-point-ids');
     const debugLineIdsToggle = document.getElementById('debug-line-ids');
     const debugLastActionToggle = document.getElementById('debug-last-action');
+    const showHullsToggle = document.getElementById('show-hulls-toggle');
+    const finalAnalysisOptions = document.getElementById('final-analysis-options');
 
     // --- Core Functions ---
 
@@ -163,6 +164,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function drawHulls(interpretation, teams) {
+        if (!interpretation || !debugOptions.showHulls) return;
+
+        Object.values(teams).forEach(team => {
+            const teamInterp = interpretation[team.id];
+            if (teamInterp && teamInterp.hull_points && teamInterp.hull_points.length >= 2) {
+                const hullPoints = teamInterp.hull_points;
+                ctx.beginPath();
+                const startPoint = hullPoints[0];
+                ctx.moveTo((startPoint.x + 0.5) * cellSize, (startPoint.y + 0.5) * cellSize);
+
+                for (let i = 1; i < hullPoints.length; i++) {
+                    const p = hullPoints[i];
+                    ctx.lineTo((p.x + 0.5) * cellSize, (p.y + 0.5) * cellSize);
+                }
+                
+                // Close the hull
+                if (hullPoints.length > 2) {
+                    ctx.closePath();
+                }
+
+                ctx.strokeStyle = team.color;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([5, 5]); // Dashed line for hull
+                ctx.stroke();
+                ctx.setLineDash([]); // Reset line dash
+            }
+        });
+    }
+
     function drawTerritories(pointsDict, territories, teams) {
         if (!pointsDict) return;
         territories.forEach(territory => {
@@ -242,6 +273,12 @@ document.addEventListener('DOMContentLoaded', () => {
         drawTerritories(currentGameState.points, currentGameState.territories || [], currentGameState.teams);
         drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
         drawPoints(currentGameState.points, currentGameState.teams);
+        
+        // Draw hulls if game is finished and toggled on
+        if (currentGameState.game_phase === 'FINISHED') {
+            drawHulls(currentGameState.interpretation, currentGameState.teams);
+        }
+
         drawVisualEffects();
 
         // UI update functions are less frequent, no need to be in animation loop
@@ -404,18 +441,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, points, lines, game_phase, interpretation, victory_condition } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats } = gameState;
 
         turnCounter.textContent = `Turn: ${turn} / ${max_turns}`;
 
         // Live stats
         let statsHTML = '<h4>Live Stats</h4>';
-        if (teams && Object.keys(teams).length > 0) {
+        if (teams && Object.keys(teams).length > 0 && live_stats) {
              for (const teamId in teams) {
                 const team = teams[teamId];
-                const pointCount = points ? Object.values(points).filter(p => p.teamId === teamId).length : 0;
-                const lineCount = lines.filter(l => l.teamId === teamId).length;
-                statsHTML += `<div><strong style="color:${team.color};">${team.name}</strong>: ${pointCount} points, ${lineCount} lines</div>`;
+                const stats = live_stats[teamId];
+                if (stats) {
+                    statsHTML += `<div style="margin-bottom: 5px;">
+                        <strong style="color:${team.color};">${team.name}</strong>: 
+                        ${stats.point_count} pts, 
+                        ${stats.line_count} lines,
+                        ${stats.controlled_area} area
+                    </div>`;
+                }
             }
         } else {
             statsHTML += '<p>No teams yet.</p>';
@@ -425,6 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Final interpretation
         if (game_phase === 'FINISHED' && interpretation) {
             finalInterpContent.innerHTML = ''; // Clear previous content
+            finalAnalysisOptions.style.display = 'block';
 
             // Display victory condition
             if(victory_condition) {
@@ -490,6 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
             finalInterpDiv.style.display = 'block';
         } else {
             finalInterpDiv.style.display = 'none';
+            finalAnalysisOptions.style.display = 'none';
         }
     }
 
@@ -518,6 +563,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     debugLastActionToggle.addEventListener('click', () => {
         debugOptions.highlightLastAction = debugLastActionToggle.checked;
+    });
+    showHullsToggle.addEventListener('click', () => {
+        debugOptions.showHulls = showHullsToggle.checked;
     });
 
     // A single listener for team list interactions (selection and deletion)

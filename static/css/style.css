@@ -246,6 +246,17 @@ legend {
     font-size: 0.95em;
 }
 
+.final-analysis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.final-analysis-header h4 {
+    margin: 0;
+}
+
 .debug-options {
     display: flex;
     flex-direction: column;

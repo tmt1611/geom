@@ -1,21 +1,18 @@
 # Iteration Analysis and Changelog
 
 ## 1. Analysis Summary
-The previous iteration was successful in improving the AI's intelligence and giving the user more control over the simulation playback speed. However, the user experience during the setup phase was a bit rigid, lacking a way to correct mistakes like adding a wrong team. Furthermore, the game's conclusion felt abrupt, and the final results display was dense and difficult to parse quickly.
+The previous iteration focused on improving the game's setup phase and final analysis readability. The UI/UX was solid, but the "divination" aspect, a core goal of the project, could be more visually engaging. The final screen presented stats, but didn't visually connect them back to the grid. Additionally, the live in-game statistics were minimal, only showing point and line counts, which missed an opportunity to show the evolving state of territorial control.
 
-This iteration focuses on improving the setup-phase flexibility, making the game's conclusion more satisfying, and presenting the final analysis in a much more readable and visually appealing format.
+This iteration aims to directly address these points by making the final analysis more graphical and the live stats more meaningful.
 
 ## 2. Implemented Features and Improvements
 
 ### Gameplay & Backend (`game_logic.py`)
--   **New Victory Condition - Dominance:** A new way to win has been introduced. If a single team is the sole survivor on the grid for 3 consecutive turns, it is declared the dominant winner, and the simulation ends. This adds a more dynamic goal to the "auto-battle" aspect of the game.
--   **Refactored Game State Machine:** The internal state management was improved by replacing boolean flags (`is_running`, `is_finished`) with a single, more descriptive `game_phase` state (`SETUP`, `RUNNING`, `FINISHED`). This makes the game logic cleaner and more robust.
--   **Victory Reason Tracking:** The backend now records how the game ended (e.g., 'Max Turns Reached', 'Dominance', 'Extinction') and passes this information to the frontend.
+-   **Enhanced Live Stats:** The backend now calculates key metrics (point count, line count, and total controlled territory area) for each team on every state request. This data is passed to the frontend as a `live_stats` object, allowing for a more dynamic and informative view of the game as it progresses.
+-   **Enriched Final Interpretation Data:** The final analysis calculation now includes the specific list of points that form each team's convex hull. This data is crucial for the new frontend visualization feature.
+-   **Improved Data Consistency:** The team object sent from the backend now includes its own `id` as a property, simplifying frontend logic that needs to iterate over teams.
 
-### Frontend UI/UX (`main.js`, `style.css`)
--   **New Feature - Remove Team:** Users can now remove teams during the setup phase. A confirmation prompt prevents accidental deletion. This adds crucial flexibility to the game setup process.
--   **Redesigned Final Analysis Panel:** The final results table has been completely replaced with a modern, card-based layout.
-    -   Each team receives its own styled "card" showing its name, color, final stats, and its generated divination text.
-    -   This new layout is significantly easier to read and more aesthetically pleasing.
--   **Clearer Game Over Message:** The specific reason for the game's conclusion (e.g., "Game Over: Team 'Red' achieved dominance.") is now prominently displayed above the final analysis cards.
--   **Improved UI Logic:** The frontend code was updated to use the new `game_phase` state from the backend, simplifying UI update logic. The team list click/delete handling was also refactored for better performance and clarity.
+### Frontend UI/UX (`main.js`, `style.css`, `index.html`)
+-   **New Feature - Convex Hull Visualization:** A new "Show Convex Hulls" checkbox appears on the final analysis panel when a game is complete. When toggled, it draws a dashed outline of each team's area of influence (their convex hull) directly on the canvas, using the team's color. This provides an immediate, powerful visual aid for the "divination" and analysis phase.
+-   **Improved Live Stats Panel:** The "Live Stats" section in the UI has been upgraded. It now displays not only points and lines, but also the "Territory Area" for each team, updating every turn. This gives a much better sense of which teams are successfully fortifying their positions during the game.
+-   **Code Cleanup:** Fixed a minor bug in `main.js` involving a duplicate variable declaration. Refactored UI update logic to be cleaner and use the new data structures provided by the backend.
