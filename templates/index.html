@@ -9,25 +9,22 @@
 <body>
     <h1>Geometric Divination Game</h1>
     <div class="container">
-        <div class="grid-container">
-            <canvas id="grid" width="500" height="500"></canvas>
-        </div>
         <div class="controls">
-            <h2>Controls</h2>
             <div id="setup-phase">
                 <div class="teams-section">
-                    <h3>1. Add Teams</h3>
+                    <h2>1. Setup</h2>
+                    <h3>Add Teams</h3>
                     <ul id="teams-list"></ul>
                     <input type="text" id="new-team-name" placeholder="New Team Name">
                     <input type="color" id="new-team-color" value="#ff0000">
                     <button id="add-team-btn">Add Team</button>
                 </div>
                 <div class="placement-section">
-                    <h3>2. Place Points</h3>
+                    <h3>Place Points</h3>
                     <p>Select a team, then click on the grid to place its starting points.</p>
                 </div>
                 <div class="start-section">
-                    <h3>3. Start Game</h3>
+                    <h3>Start Game</h3>
                     <label for="max-turns">Max Turns:</label>
                     <input type="number" id="max-turns" value="100" style="width: 60px;">
                     <br><br>
@@ -35,19 +32,27 @@
                 </div>
             </div>
             <div id="action-phase" style="display: none;">
-                <h3>Game Actions</h3>
+                <h2>Game In Progress</h2>
+                <h3>Actions</h3>
                 <button id="next-turn-btn">Play Next Turn</button>
                 <button id="auto-play-btn">Auto-Play</button>
                 <hr>
                 <button id="reset-btn">Reset Game</button>
             </div>
         </div>
+        <div class="grid-container">
+            <canvas id="grid" width="600" height="600"></canvas>
+        </div>
         <div class="interpretation-panel">
-            <h2>Interpretation</h2>
+            <h2>Analysis</h2>
             <div id="turn-counter">Turn: 0 / 100</div>
             <div id="stats"></div>
+            <div id="final-interpretation" style="display: none;">
+                <h4>Final Analysis</h4>
+                <div id="final-stats-content"></div>
+            </div>
             <h3>Game Log</h3>
-            <div id="log"></div>
+            <div id="log" class="log-box">Awaiting game start...</div>
         </div>
     </div>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>

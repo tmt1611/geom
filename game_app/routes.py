@@ -9,8 +9,10 @@ main_routes = Blueprint('main', __name__)
 
 @main_routes.route('/')
 def index():
-    # Reset game state when user hits the main page.
-    game_logic.init_game_state()
+    # The game is reset when a new game is started via the API,
+    # so we don't need to reset it here anymore.
+    # This allows refreshing the page without losing state, which can be useful.
+    # A hard reset button is provided on the frontend.
     return render_template('index.html')
 
 @main_routes.route('/api/check_updates', methods=['GET'])
@@ -24,23 +26,26 @@ def check_updates():
 @main_routes.route('/api/game/state', methods=['GET'])
 def get_game_state():
     """Returns the complete current game state."""
-    return jsonify(game_logic.game_state)
+    return jsonify(game_logic.game.get_state())
 
 @main_routes.route('/api/game/start', methods=['POST'])
 def start_game():
-    """Resets the game state and initializes it with new settings from the client."""
-    game_logic.init_game_state()
+    """Resets and initializes the game with settings from the client."""
     data = request.json
-    gs = game_logic.game_state # Use a shorter alias for readability
-    gs['teams'] = data.get('teams', {})
-    gs['points'] = data.get('points', [])
-    gs['max_turns'] = int(data.get('maxTurns', 100))
-    gs['is_running'] = len(gs['points']) > 0
-    gs['game_log'].append("Game initialized.")
-    return jsonify(gs)
+    teams = data.get('teams', {})
+    points = data.get('points', [])
+    # Add some basic validation
+    try:
+        max_turns = int(data.get('maxTurns', 100))
+        grid_size = int(data.get('gridSize', 10))
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid maxTurns or gridSize"}), 400
+
+    game_logic.game.start_game(teams, points, max_turns, grid_size)
+    return jsonify(game_logic.game.get_state())
 
 @main_routes.route('/api/game/next_turn', methods=['POST'])
 def next_turn():
     """Processes the next turn."""
-    game_logic.run_next_turn()
-    return jsonify(game_logic.game_state)
+    game_logic.game.run_next_turn()
+    return jsonify(game_logic.game.get_state())

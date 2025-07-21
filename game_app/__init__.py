@@ -9,14 +9,12 @@ def create_app():
     # package), we need to provide the correct relative paths to them.
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
 
-    # Initialize game state and file watcher
-    from . import game_logic
+    # Import and initialize utilities
     from . import utils
-    
-    # This needs to be done before the first request,
-    # so doing it at app creation is fine.
-    game_logic.init_game_state()
     utils.calculate_startup_hash()
+
+    # Import game logic. The game instance is created when the module is imported.
+    from . import game_logic
 
     # Register Blueprints
     from . import routes

@@ -43,18 +43,25 @@ As per the design, this is a minimal viable product (MVP) of a game where users 
 
 ## How to Play
 
-1.  **Setup Phase:**
-    - Add one or more teams using the "Controls" panel.
-    - Select a team.
-    - Click on the grid to place points for the selected team.
-2.  **Action Phase:**
-    - Click "Start Game" to begin the simulation.
-    - Click "Play Next Turn" to advance the game by one step.
-    - Click "Auto-Play" to have the game run automatically until the maximum number of turns is reached.
-    - The "Game Log" will show the actions taken in each turn.
-3.  **Interpretation Phase:**
-    - Once the game stops, observe the final geometric patterns on the grid.
-    - The "Interpretation" panel provides statistics like the number of points and lines for each team.
+1.  **Setup Phase (Left Panel):**
+    - **Add Teams:** Enter a team name, pick a color, and click "Add Team".
+    - **Select a Team:** Click on a team in the list. The selected team will be highlighted.
+    - **Place Points:** Click on the grid to place starting points for the selected team.
+2.  **Action Phase (Left Panel):**
+    - **Start Game:** Set the maximum number of turns and click "Start Game" to begin the simulation.
+    - **Control Flow:** Use "Play Next Turn" for step-by-step advancement or "Auto-Play" to run the simulation automatically.
+    - **Game Log:** Follow the events of the game in the log on the right. Actions are color-coded by team.
+3.  **Interpretation Phase (Right Panel):**
+    - Once the game stops (either by reaching max turns or another condition), observe the final geometric patterns.
+    - The "Final Analysis" table will appear, providing detailed statistics for each team (e.g., area controlled, triangles formed) to aid in your "divination" or analysis.
+    - **Reset Game:** Click "Reset Game" to start over from the beginning.
+
+## Game Actions
+
+The simulation runs on a simple set of rules. On its turn, a team will randomly perform one of the following actions:
+- **Add Line:** Connect two of its own points with a new line.
+- **Extend Line:** Extend an existing line to the border of the grid, creating a new point.
+- **Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
 
 ## Development
 

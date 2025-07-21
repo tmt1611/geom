@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('grid');
     const ctx = canvas.getContext('2d');
-    const gridSize = 10; // This should match the backend grid size
+    const gridSize = 10; // This will be updated from backend state
     let cellSize = canvas.width / gridSize;
 
     // Game state - The single source of truth will be the backend
@@ -72,15 +72,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function render(gameState) {
-        drawGrid();
         if (!gameState || !gameState.teams) return;
-
-        // Update UI elements based on game state
+        
+        // Update grid scaling
         cellSize = canvas.width / gameState.grid_size;
+
+        // Drawing functions
+        drawGrid();
         drawLines(gameState.points, gameState.lines, gameState.teams);
         drawPoints(gameState.points, gameState.teams);
-        updateLog(gameState.game_log);
-        updateStats(gameState);
+
+        // UI update functions
+        updateLog(gameState.game_log, gameState.teams);
+        updateInterpretationPanel(gameState);
         updateControls(gameState);
     }
 
@@ -88,11 +92,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTeamsList() {
         teamsList.innerHTML = '';
+        const inSetupPhase = !document.getElementById('action-phase') || document.getElementById('action-phase').style.display === 'none';
+
         for (const teamId in localTeams) {
             const team = localTeams[teamId];
             const li = document.createElement('li');
-            li.style.cursor = 'pointer';
             li.dataset.teamId = teamId;
+
+            if (selectedTeamId === teamId) {
+                li.classList.add('selected');
+            }
 
             const colorBox = document.createElement('div');
             colorBox.className = 'team-color-box';
@@ -103,35 +112,82 @@ document.addEventListener('DOMContentLoaded', () => {
             teamName.textContent = team.name;
             li.appendChild(teamName);
 
-            if (selectedTeamId === teamId) {
-                li.style.fontWeight = 'bold';
-                li.style.border = '1px solid #000';
-            }
-
             li.addEventListener('click', () => {
-                selectedTeamId = teamId;
-                renderTeamsList();
+                // Allow selecting teams only during setup
+                if (inSetupPhase) {
+                    selectedTeamId = teamId;
+                    renderTeamsList();
+                }
             });
 
             teamsList.appendChild(li);
         }
     }
 
-    function updateLog(log) {
-        logDiv.innerHTML = log.join('<br>');
+    function updateLog(log, teams) {
+        logDiv.innerHTML = ''; // Clear previous logs
+        if (!log) return;
+        log.forEach(entry => {
+            const logEntryDiv = document.createElement('div');
+            logEntryDiv.className = 'log-entry';
+            logEntryDiv.textContent = entry.message;
+            if (entry.teamId && teams[entry.teamId]) {
+                logEntryDiv.style.borderLeftColor = teams[entry.teamId].color;
+            }
+            logDiv.appendChild(logEntryDiv);
+        });
         logDiv.scrollTop = logDiv.scrollHeight;
     }
 
-    function updateStats(gameState) {
-        turnCounter.textContent = `Turn: ${gameState.turn} / ${gameState.max_turns}`;
-        let statsHTML = '<h4>Team Stats</h4>';
-        for (const teamId in gameState.teams) {
-            const team = gameState.teams[teamId];
-            const pointCount = gameState.points.filter(p => p.teamId === teamId).length;
-            const lineCount = gameState.lines.filter(l => l.teamId === teamId).length;
-            statsHTML += `<div><strong style="color:${team.color};">${team.name}</strong>: ${pointCount} points, ${lineCount} lines</div>`;
+    function updateInterpretationPanel(gameState) {
+        const { turn, max_turns, teams, points, lines, is_finished, interpretation } = gameState;
+    
+        turnCounter.textContent = `Turn: ${turn} / ${max_turns}`;
+    
+        // Live stats
+        let statsHTML = '<h4>Live Stats</h4>';
+        if (Object.keys(teams).length > 0) {
+            for (const teamId in teams) {
+                const team = teams[teamId];
+                const pointCount = points.filter(p => p.teamId === teamId).length;
+                const lineCount = lines.filter(l => l.teamId === teamId).length;
+                statsHTML += `<div><strong style="color:${team.color};">${team.name}</strong>: ${pointCount} points, ${lineCount} lines</div>`;
+            }
+        } else {
+            statsHTML += '<p>No teams yet.</p>';
         }
         statsDiv.innerHTML = statsHTML;
+    
+        // Final interpretation
+        const finalInterpDiv = document.getElementById('final-interpretation');
+        if (is_finished && interpretation && Object.keys(interpretation).length > 0) {
+            let finalStatsHTML = '<table><tr><th>Team</th><th>Stat</th><th>Value</th></tr>';
+            for (const teamId in interpretation) {
+                const teamData = interpretation[teamId];
+                if (!teams[teamId]) continue; // Skip if team data is missing
+                const teamName = teams[teamId].name;
+                const teamColor = teams[teamId].color;
+                
+                const statRows = [
+                    ['Points', teamData.point_count],
+                    ['Lines', teamData.line_count],
+                    ['Line Length', teamData.line_length],
+                    ['Triangles', teamData.triangles],
+                    ['Hull Area', teamData.hull_area],
+                    ['Hull Perimeter', teamData.hull_perimeter]
+                ];
+
+                finalStatsHTML += `<tr><td rowspan="6" style="font-weight:bold; color:${teamColor};">${teamName}</td><td>${statRows[0][0]}</td><td>${statRows[0][1]}</td></tr>`;
+                for(let i = 1; i < statRows.length; i++) {
+                    finalStatsHTML += `<tr><td>${statRows[i][0]}</td><td>${statRows[i][1]}</td></tr>`;
+                }
+            }
+            finalStatsHTML += '</table>';
+            document.getElementById('final-stats-content').innerHTML = finalStatsHTML;
+            finalInterpDiv.style.display = 'block';
+        } else {
+            finalInterpDiv.style.display = 'none';
+        }
     }
 
     function updateControls(gameState) {
