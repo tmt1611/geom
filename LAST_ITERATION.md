@@ -1,13 +1,24 @@
-This iteration focuses on improving the user experience during the game setup phase. I've enhanced the team editing feature to provide more control and streamlined the game reset process to be faster and less disruptive.
+This iteration focuses on expanding the strategic depth of the game by introducing a new defensive structure, the Monolith, and improving underlying code quality.
 
-### 1. New Feature: Comprehensive Team Editing
+### 1. New Structure: The Monolith
 
--   **Files**: `static/js/main.js`, `static/css/style.css`
--   **Change**: The team editing feature, accessible during the setup phase, has been upgraded. Previously, users could only edit a team's name and color. Now, they can also change the team's **Trait** (e.g., 'Aggressive', 'Defensive') from the same edit interface.
--   **Benefit**: This provides users with more flexibility and control over their game configuration. They no longer need to delete and re-create a team just to change its behavior, which makes the setup process faster and more intuitive.
+-   **Files**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
+-   **Change**: A new defensive structure, the **Monolith**, has been added.
+    -   **Formation**: Teams can now perform the `[FORTIFY] Form Monolith` action, which converts four of their points into a Monolith if they form a tall, thin rectangle with connected perimeter lines.
+    -   **Effect**: Every few turns, the Monolith emits a "Resonance Wave". This wave **empowers** all friendly lines within its radius, allowing them to absorb one or more attacks before being destroyed. This introduces a new layer of defense and encourages strategic positioning.
+    -   **Visuals**: Monoliths, their points, empowered lines, and the resonance wave all have unique visual representations on the canvas, enhancing the visual feedback and spectacle of the game.
 
-### 2. UI Improvement: Seamless Game Reset
+### 2. Code Quality: Refactoring Geometry Helpers
 
--   **File**: `static/js/main.js`
--   **Change**: The "Reset Game (New Setup)" button's functionality has been significantly improved. Instead of forcing a full page reload, the button now triggers a soft reset. It communicates with the server to reset the game state and then dynamically updates all UI components on the client-side without a refresh.
--   **Benefit**: This creates a much smoother and more professional user experience. The transition from a finished or running game back to the setup screen is now seamless and instant, eliminating the jarring effect of a page reload and reinforcing the application's single-page feel.
+-   **File**: `game_app/game_logic.py`
+-   **Change**: The `is_square()` helper function has been replaced with a more versatile `is_rectangle()` function. This new function not only checks if four points form a rectangle but also returns their aspect ratio.
+-   **Benefit**: This refactoring simplifies the codebase. The `is_rectangle()` function is now used for multiple checks:
+    -   Detecting squares for **Nexus** formations (aspect ratio ≈ 1).
+    -   Detecting tall rectangles for the new **Monolith** formation (aspect ratio > 3).
+    -   This makes the geometric detection logic more robust, reusable, and easier to extend in the future.
+
+### 3. Gameplay Tuning: Attack Logic
+
+-   **File**: `game_app/game_logic.py`
+-   **Change**: The `fight_action_attack_line` logic was updated to account for the new "Empowered" line status from Monoliths.
+-   **Benefit**: Instead of being destroyed, an empowered line now absorbs the hit, reducing its empowerment level. This creates more interesting tactical interactions where players must decide whether to focus fire on empowered lines or attack weaker targets. The action result and game log now reflect this new outcome ("damaged" vs. "destroyed").

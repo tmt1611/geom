@@ -192,6 +192,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.beginPath();
                     ctx.arc(cx, cy, radius * 0.7, 0, 2 * Math.PI);
                     ctx.fill();
+                } else if (p.is_monolith_point) {
+                    // Draw monolith points as tall thin rects
+                    const w = radius * 0.8;
+                    const h = radius * 2.5;
+                    ctx.rect(cx - w / 2, cy - h / 2, w, h);
+                    ctx.fill();
                 } else if (p.is_anchor) {
                     // Draw anchors as squares
                     const squareSize = radius * 1.8;
@@ -261,7 +267,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Draw the main line
                     ctx.strokeStyle = team.color;
-                    ctx.lineWidth = line.is_bastion_line ? 4 : 2;
+                    let base_width = line.is_bastion_line ? 4 : 2;
+                    if (line.empower_strength > 0) {
+                        base_width += line.empower_strength * 1.5;
+                        // Add a subtle glow/pulse to empowered lines
+                        const pulse = Math.abs(Math.sin(Date.now() / 400));
+                        ctx.strokeStyle = `rgba(255,255,255, ${pulse * 0.5})`;
+                        ctx.lineWidth = base_width + 2;
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.stroke();
+                        ctx.strokeStyle = team.color;
+                    }
+                    ctx.lineWidth = base_width;
                     ctx.beginPath();
                     ctx.moveTo(x1, y1);
                     ctx.lineTo(x2, y2);
@@ -363,6 +382,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+    }
+
+    function drawMonoliths(gameState) {
+        if (!gameState.monoliths) return;
+
+        for (const monolithId in gameState.monoliths) {
+            const monolith = gameState.monoliths[monolithId];
+            const team = gameState.teams[monolith.teamId];
+            if (!team) continue;
+
+            const points = monolith.point_ids.map(pid => gameState.points[pid]).filter(p => p);
+            if (points.length !== 4) continue;
+
+            // Sort points to draw polygon correctly
+            const center = monolith.center_coords;
+            points.sort((a, b) => {
+                return Math.atan2(a.y - center.y, a.x - center.x) - Math.atan2(b.y - center.y, b.x - center.x);
+            });
+
+            ctx.beginPath();
+            ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
+            }
+            ctx.closePath();
+            
+            ctx.fillStyle = team.color;
+            ctx.globalAlpha = 0.15;
+            ctx.fill();
+
+            // Add some "energy" effect inside
+            const pulse = Math.abs(Math.sin(Date.now() / 600));
+            ctx.globalAlpha = 0.1 + pulse * 0.2;
+            ctx.lineWidth = 1 + pulse;
+            ctx.strokeStyle = '#fff';
+            ctx.stroke();
+
+            ctx.globalAlpha = 1.0;
+        }
     }
 
     function drawWhirlpools(gameState) {
@@ -619,7 +677,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const progress = age / effect.duration;
 
-            if (effect.type === 'nova_burst') {
+            if (effect.type === 'monolith_wave') {
+                const progress = age / effect.duration;
+                ctx.beginPath();
+                ctx.arc(
+                    (effect.center_coords.x + 0.5) * cellSize,
+                    (effect.center_coords.y + 0.5) * cellSize,
+                    Math.sqrt(effect.radius_sq) * cellSize * progress,
+                    0, 2 * Math.PI
+                );
+                ctx.strokeStyle = `rgba(220, 220, 255, ${0.8 * (1 - progress)})`; // White-blue wave
+                ctx.lineWidth = 4 * (1 - progress);
+                ctx.stroke();
+            } else if (effect.type === 'nova_burst') {
                 ctx.beginPath();
                 ctx.arc(
                     (effect.x + 0.5) * cellSize,
@@ -776,6 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // During RUNNING or FINISHED, draw from the official game state
             if (currentGameState.teams) {
                 drawTerritories(currentGameState.points, currentGameState.territories, currentGameState.teams);
+                drawMonoliths(currentGameState);
                 drawPrisms(currentGameState);
                 drawRunes(currentGameState);
                 drawConduits(currentGameState);
@@ -1057,6 +1128,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         startTime: Date.now(),
                         duration: 1500,
                     });
+                } else if (event.type === 'monolith_wave') {
+                     visualEffects.push({
+                        type: 'monolith_wave',
+                        center_coords: event.center_coords,
+                        radius_sq: event.radius_sq,
+                        startTime: Date.now(),
+                        duration: 1200,
+                    });
                 }
             });
         }
@@ -1257,7 +1336,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms, sentries, conduits, nexuses, bastions } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms, sentries, conduits, nexuses, bastions, monoliths } = gameState;
 
         let turnText = `Turn: ${turn} / ${max_turns}`;
         if (game_phase === 'RUNNING' && actions_queue_this_turn && actions_queue_this_turn.length > 0) {
@@ -1287,7 +1366,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         'Sentry': (sentries && sentries[teamId]) ? sentries[teamId].length : 0,
                         'Conduit': (conduits && conduits[teamId]) ? conduits[teamId].length : 0,
                         'Nexus': (nexuses && nexuses[teamId]) ? nexuses[teamId].length : 0,
-                        'Bastion': Object.values(bastions || {}).filter(b => b.teamId === teamId).length
+                        'Bastion': Object.values(bastions || {}).filter(b => b.teamId === teamId).length,
+                        'Monolith': Object.values(monoliths || {}).filter(m => m.teamId === teamId).length
                     };
 
                     let structureStrings = [];

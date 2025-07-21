@@ -51,6 +51,8 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Bonus:** The three points of a claimed territory become **Fortified**, making them immune to conversion. The three boundary lines become **Reinforced** and cannot be fractured by their owner, preserving the structure.
 *   **[FORTIFY] Form Bastion:** Converts a fortified point (a vertex of a claimed territory) and at least three of its connected, non-fortified points into a powerful defensive structure.
     *   **Bonus:** The bastion's core point, prong points, and connecting lines become immune to standard attacks and conversion.
+*   **[FORTIFY] Form Monolith:** Forms a special defensive structure from four points that create a tall, thin rectangle with its perimeter lines connected.
+    *   **Bonus (Resonance Wave):** Every few turns, the Monolith emits a wave that **Empowers** all friendly lines in a radius around it. Empowered lines can absorb one or more hits before being destroyed.
 *   **[FORTIFY] Create Anchor:** Sacrifice one of its own points to turn another into a gravitational anchor. For a few turns, the anchor will slowly pull nearby enemy points towards it.
 *   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns.
 *   **[FORTIFY] Cultivate Heartwood:** A unique, powerful structure. Requires a central point connected to at least 5 other "branch" points.

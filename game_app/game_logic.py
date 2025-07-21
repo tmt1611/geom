@@ -93,36 +93,53 @@ def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_
     
     return True, 'valid'
 
-def is_square(p1, p2, p3, p4):
-    """Checks if four points form a square. Points are dicts with 'x' and 'y'.
+def is_rectangle(p1, p2, p3, p4):
+    """Checks if four points form a rectangle. Returns (is_rect, aspect_ratio).
     This is a helper function that doesn't rely on game state.
     """
-    dists = sorted([
+    points = [p1, p2, p3, p4]
+    
+    # Check for non-collapsed points. Using tuple of coords for hashability.
+    if len(set((p['x'], p['y']) for p in points)) < 4:
+        return False, 0
+
+    # There are 6 distances between 4 points.
+    dists_sq = sorted([
         distance_sq(p1, p2), distance_sq(p1, p3), distance_sq(p1, p4),
         distance_sq(p2, p3), distance_sq(p2, p4), distance_sq(p3, p4)
     ])
 
-    # A square has 4 equal sides and 2 equal diagonals.
-    # The distances must be [s, s, s, s, d, d] where d = 2s (s is squared dist)
-    side_sq = dists[0]
+    # For a rectangle, the sorted squared distances should be [s1, s1, s2, s2, d, d]
+    # where s1 and s2 are sides and d is the diagonal.
+    s1_sq, s2_sq = dists_sq[0], dists_sq[2]
+    d_sq = dists_sq[4]
+
+    # Check for non-zero side length
+    if s1_sq < 0.01:
+        return False, 0
     
-    # Check for non-zero side length (not collapsed points)
-    if side_sq < 0.01:
-        return False
-        
-    # Check for 4 equal sides (with a small tolerance for float issues)
-    if not all(abs(d - side_sq) < 0.01 for d in dists[0:4]):
-        return False
-        
+    # Check for 2 pairs of equal sides (with a small tolerance for float issues)
+    if not (abs(dists_sq[0] - dists_sq[1]) < 0.01 and abs(dists_sq[2] - dists_sq[3]) < 0.01):
+        return False, 0
+    
     # Check for 2 equal diagonals
-    if not abs(dists[4] - dists[5]) < 0.01:
-        return False
-        
-    # Check if diagonals are sqrt(2) * side (or diagonal_sq == 2 * side_sq)
-    if not abs(dists[4] - 2 * side_sq) < 0.01:
-        return False
-        
-    return True
+    if not abs(dists_sq[4] - dists_sq[5]) < 0.01:
+        return False, 0
+    
+    # Check Pythagorean theorem for a right angle: s1^2 + s2^2 = d^2
+    if not abs((s1_sq + s2_sq) - d_sq) < 0.01:
+        return False, 0
+
+    # Calculate aspect ratio (long side / short side)
+    side1 = math.sqrt(s1_sq)
+    side2 = math.sqrt(s2_sq)
+    
+    # This check is redundant due to the s1_sq check above, but safe.
+    if side1 < 0.1 or side2 < 0.1: return False, 0
+
+    aspect_ratio = max(side1, side2) / min(side1, side2)
+    
+    return True, aspect_ratio
 
 # --- Game Class ---
 class Game:
@@ -152,6 +169,8 @@ class Game:
             "prisms": {}, # {teamId: [prism1, prism2, ...]}
             "heartwoods": {}, # {teamId: {id, center_coords, growth_counter}}
             "whirlpools": [], # {id, teamId, coords, turns_left, strength, radius_sq}
+            "monoliths": {}, # {monolith_id: {teamId, point_ids, ...}}
+            "empowered_lines": {}, # {line_id: strength}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
             "max_turns": 100,
@@ -182,6 +201,7 @@ class Game:
             augmented_line = line.copy()
             augmented_line['is_shielded'] = line.get('id') in self.state['shields']
             augmented_line['is_bastion_line'] = line.get('id') in bastion_line_ids
+            augmented_line['empower_strength'] = self.state.get('empowered_lines', {}).get(line.get('id'), 0)
             augmented_lines.append(augmented_line)
         state_copy['lines'] = augmented_lines
 
@@ -211,6 +231,12 @@ class Game:
             for nexus in team_nexuses:
                 for pid in nexus.get('point_ids', []):
                     nexus_point_ids.add(pid)
+        
+        # Get all Monolith point IDs for quick lookup
+        monolith_point_ids = set()
+        for monolith in self.state.get('monoliths', {}).values():
+            for pid in monolith.get('point_ids', []):
+                monolith_point_ids.add(pid)
 
         augmented_points = {}
         for pid, point in self.state['points'].items():
@@ -223,6 +249,7 @@ class Game:
             augmented_point['is_sentry_post'] = pid in sentry_post_ids
             augmented_point['is_conduit_point'] = pid in conduit_point_ids
             augmented_point['is_nexus_point'] = pid in nexus_point_ids
+            augmented_point['is_monolith_point'] = pid in monolith_point_ids
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
 
@@ -231,6 +258,7 @@ class Game:
         state_copy['prisms'] = self.state.get('prisms', {})
         state_copy['heartwoods'] = self.state.get('heartwoods', {})
         state_copy['whirlpools'] = self.state.get('whirlpools', [])
+        state_copy['monoliths'] = self.state.get('monoliths', {})
 
         # Add live stats for real-time display, regardless of phase, for consistency
         live_stats = {}
@@ -597,6 +625,8 @@ class Game:
 
                     if is_shielded and not team_has_cross_rune:
                         continue # Shield protects if attacker has no Cross Rune
+                    
+                    empower_strength = self.state.get('empowered_lines', {}).get(enemy_line.get('id'))
 
                     if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
                     
@@ -608,7 +638,8 @@ class Game:
                             'attacker_line': line,
                             'target_line': enemy_line,
                             'attack_ray': {'p1': attack_segment_p1, 'p2': attack_segment_p2},
-                            'bypassed_shield': is_shielded and team_has_cross_rune
+                            'bypassed_shield': is_shielded and team_has_cross_rune,
+                            'was_empowered': bool(empower_strength)
                         })
 
         if not possible_attacks:
@@ -617,10 +648,28 @@ class Game:
         # Choose one of the possible attacks and execute it.
         chosen_attack = random.choice(possible_attacks)
         enemy_line = chosen_attack['target_line']
+        enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
         
+        # Check if the line is empowered by a Monolith
+        empower_strength = self.state.get('empowered_lines', {}).get(enemy_line['id'])
+        if empower_strength:
+            self.state['empowered_lines'][enemy_line['id']] -= 1
+            if self.state['empowered_lines'][enemy_line['id']] <= 0:
+                del self.state['empowered_lines'][enemy_line['id']]
+            
+            # The line was hit but not destroyed
+            return {
+                'success': True,
+                'type': 'attack_line_empowered',
+                'damaged_line': enemy_line,
+                'attacker_line': chosen_attack['attacker_line'],
+                'attack_ray': chosen_attack['attack_ray']
+            }
+
+        # Line is not empowered, destroy it
         self.state['lines'].remove(enemy_line)
         self.state['shields'].pop(enemy_line.get('id'), None)
-        enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
+        self.state['empowered_lines'].pop(enemy_line.get('id'), None) # Clean up just in case
         
         return {
             'success': True, 
@@ -1022,6 +1071,61 @@ class Game:
         self.state['bastions'][bastion_id] = new_bastion
 
         return {'success': True, 'type': 'form_bastion', 'bastion': new_bastion}
+
+    def fortify_action_form_monolith(self, teamId):
+        """[FORTIFY ACTION]: Forms a Monolith from a tall, thin rectangle of points."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 4:
+            return {'success': False, 'reason': 'not enough points'}
+
+        points = self.state['points']
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
+        existing_monolith_points = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
+
+        possible_monoliths = []
+        for p_ids_tuple in combinations(team_point_ids, 4):
+            # Check if any of these points are already part of a monolith
+            if any(pid in existing_monolith_points for pid in p_ids_tuple):
+                continue
+            
+            p_list = [points[pid] for pid in p_ids_tuple]
+            is_rect, aspect_ratio = is_rectangle(*p_list)
+
+            # Monolith requires a thin rectangle, aspect ratio > 3.0
+            if is_rect and aspect_ratio > 3.0:
+                # Check for the 4 outer perimeter lines
+                all_pairs = list(combinations(p_ids_tuple, 2))
+                all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
+                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
+                side_pairs = sorted_pairs[0:4]
+
+                if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
+                    center_x = sum(p['x'] for p in p_list) / 4
+                    center_y = sum(p['y'] for p in p_list) / 4
+                    possible_monoliths.append({
+                        'point_ids': list(p_ids_tuple),
+                        'center_coords': {'x': center_x, 'y': center_y}
+                    })
+        
+        if not possible_monoliths:
+            return {'success': False, 'reason': 'no valid monolith formation found'}
+
+        chosen_monolith_data = random.choice(possible_monoliths)
+        monolith_id = f"m_{uuid.uuid4().hex[:6]}"
+        new_monolith = {
+            'id': monolith_id,
+            'teamId': teamId,
+            'point_ids': chosen_monolith_data['point_ids'],
+            'center_coords': chosen_monolith_data['center_coords'],
+            'charge_counter': 0,
+            'charge_interval': 4, # Emits wave every 4 turns
+            'wave_radius_sq': (self.state['grid_size'] * 0.3)**2
+        }
+        
+        if 'monoliths' not in self.state: self.state['monoliths'] = {}
+        self.state['monoliths'][monolith_id] = new_monolith
+        
+        return {'success': True, 'type': 'form_monolith', 'monolith': new_monolith}
 
     def fortify_action_cultivate_heartwood(self, teamId):
         """[FORTIFY ACTION]: Cultivates a Heartwood from a point with many connections."""
@@ -1658,7 +1762,9 @@ class Game:
             
             p_list = [points[pid] for pid in p_ids_tuple]
             
-            if is_square(*p_list):
+            is_rect, aspect_ratio = is_rectangle(*p_list)
+            # A Nexus requires a square, which is a rectangle with aspect ratio ~1.0
+            if is_rect and abs(aspect_ratio - 1.0) < 0.05:
                 # We found a square. Now check for lines.
                 # The 4 shortest distances are sides, 2 longest are diagonals.
                 
@@ -1791,6 +1897,7 @@ class Game:
             'fortify_anchor': self.fortify_action_create_anchor,
             'fortify_mirror': self.fortify_action_mirror_structure,
             'fortify_form_bastion': self.fortify_action_form_bastion,
+            'fortify_form_monolith': self.fortify_action_form_monolith,
             'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
@@ -1820,6 +1927,7 @@ class Game:
             'fortify_anchor': len(team_point_ids) >= 3,
             'fortify_mirror': len(team_point_ids) >= 3,
             'fortify_form_bastion': bool(self._get_fortified_point_ids().intersection(team_point_ids)), # Team has at least one of its own fortified points
+            'fortify_form_monolith': len(team_point_ids) >= 4,
             'fortify_cultivate_heartwood': len(team_point_ids) >= 6 and teamId not in self.state.get('heartwoods', {}),
             'sacrifice_nova': len(team_point_ids) > 2,
             'sacrifice_whirlpool': len(team_point_ids) > 1,
@@ -1838,14 +1946,14 @@ class Game:
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
             'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22,
-            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_cultivate_heartwood': 20, # High value objective
+            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_cultivate_heartwood': 20, # High value objective
             'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
             'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5},
-            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_cultivate_heartwood': 2.5},
+            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5},
             'Balanced':   {}
         }
         multipliers = trait_multipliers.get(team_trait, {})
@@ -2003,6 +2111,44 @@ class Game:
 
             self.state['whirlpools'] = active_whirlpools
 
+        # 5. Process Monoliths
+        if self.state.get('monoliths'):
+            for monolith_id, monolith in list(self.state['monoliths'].items()):
+                monolith['charge_counter'] += 1
+                if monolith['charge_counter'] >= monolith['charge_interval']:
+                    monolith['charge_counter'] = 0
+                    
+                    team_name = self.state['teams'][monolith['teamId']]['name']
+                    log_msg = {
+                        'teamId': monolith['teamId'],
+                        'message': f"A Monolith from Team {team_name} emits a reinforcing wave.",
+                        'short_message': '[MONOLITH:WAVE]'
+                    }
+                    self.state['game_log'].append(log_msg)
+                    self.state['new_turn_events'].append({
+                        'type': 'monolith_wave',
+                        'monolith_id': monolith_id,
+                        'center_coords': monolith['center_coords'],
+                        'radius_sq': monolith['wave_radius_sq']
+                    })
+
+                    # Find and empower nearby friendly lines
+                    center = monolith['center_coords']
+                    radius_sq = monolith['wave_radius_sq']
+                    max_strength = 3
+                    
+                    for line in self.get_team_lines(monolith['teamId']):
+                        # Check if line midpoint is in range
+                        if line['p1_id'] not in self.state['points'] or line['p2_id'] not in self.state['points']: continue
+                        p1 = self.state['points'][line['p1_id']]
+                        p2 = self.state['points'][line['p2_id']]
+                        midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
+                        
+                        if distance_sq(center, midpoint) < radius_sq:
+                            current_strength = self.state['empowered_lines'].get(line.get('id'), 0)
+                            if current_strength < max_strength:
+                                self.state['empowered_lines'][line['id']] = current_strength + 1
+
         # --- Set up action queue for the turn ---
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
         active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
@@ -2081,9 +2227,11 @@ class Game:
                 f"attacked and destroyed a line from Team {r['destroyed_team']}{', bypassing its shield with a Cross Rune!' if r.get('bypassed_shield') else '.'}",
                 "[PIERCE!]" if r.get('bypassed_shield') else "[ATTACK]"
             ),
+            'attack_line_empowered': lambda r: ("attacked an empowered line, weakening its defenses.", "[DAMAGE]"),
             'convert_point': lambda r: (f"sacrificed a line to convert a point from Team {r['original_team_name']}.", "[CONVERT]"),
             'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
             'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION]"),
+            'form_monolith': lambda r: ("erected a resonant Monolith, a bastion of endurance.", "[MONOLITH]"),
             'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
             'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
             'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
