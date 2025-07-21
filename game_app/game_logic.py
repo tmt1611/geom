@@ -72,6 +72,7 @@ class Game:
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
             "runes": {}, # {teamId: {'cross': [], 'v_shape': []}}
+            "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
             "max_turns": 100,
@@ -117,6 +118,13 @@ class Game:
                 sentry_post_ids.add(sentry['post1_id'])
                 sentry_post_ids.add(sentry['post2_id'])
 
+        # Get all Conduit point IDs for quick lookup
+        conduit_point_ids = set()
+        for team_conduits in self.state.get('conduits', {}).values():
+            for conduit in team_conduits:
+                for pid in conduit.get('point_ids', []):
+                    conduit_point_ids.add(pid)
+
         augmented_points = {}
         for pid, point in self.state['points'].items():
             augmented_point = point.copy()
@@ -126,6 +134,7 @@ class Game:
             augmented_point['is_bastion_prong'] = pid in bastion_point_ids['prongs']
             augmented_point['is_sentry_eye'] = pid in sentry_eye_ids
             augmented_point['is_sentry_post'] = pid in sentry_post_ids
+            augmented_point['is_conduit_point'] = pid in conduit_point_ids
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
 
@@ -341,25 +350,46 @@ class Game:
             p1 = points[line['p1_id']]
             p2 = points[line['p2_id']]
             
-            # Check both directions
+            # Direction 1: extend from p1 through p2
             border_point1 = self._get_extended_border_point(p1, p2)
             if border_point1:
-                possible_extensions.append(border_point1)
+                possible_extensions.append({'origin_point_id': p2['id'], 'border_point': border_point1})
             
+            # Direction 2: extend from p2 through p1
             border_point2 = self._get_extended_border_point(p2, p1)
             if border_point2:
-                possible_extensions.append(border_point2)
+                possible_extensions.append({'origin_point_id': p1['id'], 'border_point': border_point2})
 
         if not possible_extensions:
             return {'success': False, 'reason': 'no lines can be extended to the border'}
 
-        border_point = random.choice(possible_extensions)
+        chosen_extension = random.choice(possible_extensions)
+        border_point = chosen_extension['border_point']
+        origin_point_id = chosen_extension['origin_point_id']
+        
+        # Check if this extension is empowered by a Conduit
+        is_empowered = False
+        team_conduits = self.state.get('conduits', {}).get(teamId, [])
+        for conduit in team_conduits:
+            if origin_point_id in (conduit['endpoint1_id'], conduit['endpoint2_id']):
+                is_empowered = True
+                break
 
         # Create new point with a unique ID
         new_point_id = f"p_{uuid.uuid4().hex[:6]}"
         new_point = {**border_point, "teamId": teamId, "id": new_point_id}
         self.state['points'][new_point_id] = new_point
-        return {'success': True, 'type': 'extend_line', 'new_point': new_point}
+        
+        result_payload = {'success': True, 'type': 'extend_line', 'new_point': new_point, 'is_empowered': is_empowered}
+        
+        if is_empowered:
+            # Empowered extension also creates a line to the new point
+            line_id = f"l_{uuid.uuid4().hex[:6]}"
+            new_line = {"id": line_id, "p1_id": origin_point_id, "p2_id": new_point_id, "teamId": teamId}
+            self.state['lines'].append(new_line)
+            result_payload['new_line'] = new_line
+        
+        return result_payload
 
     def expand_action_fracture_line(self, teamId):
         """[EXPAND ACTION]: Splits a line into two, creating a new point."""
@@ -1156,6 +1186,66 @@ class Game:
             'attack_ray': {'p1': zap_ray_p1, 'p2': zap_ray_end}
         }
 
+    def fight_action_chain_lightning(self, teamId):
+        """[FIGHT ACTION]: A Conduit sacrifices an internal point to strike a nearby enemy point."""
+        team_conduits = self.state.get('conduits', {}).get(teamId, [])
+        # Find conduits that have at least one internal point to sacrifice
+        valid_conduits = [c for c in team_conduits if c.get('internal_point_ids')]
+        if not valid_conduits:
+            return {'success': False, 'reason': 'no conduits with sacrificial points'}
+
+        # 1. Choose a conduit and a point to sacrifice
+        chosen_conduit = random.choice(valid_conduits)
+        p_to_sac_id = random.choice(chosen_conduit['internal_point_ids'])
+
+        # 2. Sacrifice the point. Its data is returned.
+        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id)
+        if not sacrificed_point_data:
+             return {'success': False, 'reason': 'failed to sacrifice conduit point'}
+
+        # 3. Find the closest enemy point to one of the conduit's endpoints
+        endpoint1_id = chosen_conduit['endpoint1_id']
+        endpoint2_id = chosen_conduit['endpoint2_id']
+        
+        # Check if endpoints still exist after the sacrifice cascade
+        if endpoint1_id not in self.state['points'] or endpoint2_id not in self.state['points']:
+            # The action succeeded (point was sacrificed) but fizzled.
+            return {
+                'success': True, 'type': 'chain_lightning',
+                'sacrificed_point': sacrificed_point_data, 'destroyed_point': None,
+                'conduit_point_ids': chosen_conduit['point_ids']
+            }
+
+        endpoint1 = self.state['points'][endpoint1_id]
+        endpoint2 = self.state['points'][endpoint2_id]
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+
+        if not enemy_points:
+            return {
+                'success': True, 'type': 'chain_lightning',
+                'sacrificed_point': sacrificed_point_data, 'destroyed_point': None,
+                'conduit_point_ids': chosen_conduit['point_ids']
+            }
+
+        # Find the single closest enemy to either endpoint
+        closest_enemy = min(
+            enemy_points,
+            key=lambda p: min(distance_sq(endpoint1, p), distance_sq(endpoint2, p))
+        )
+        
+        # 4. Destroy the target
+        destroyed_point_data = self._delete_point_and_connections(closest_enemy['id'])
+        if not destroyed_point_data:
+            return {'success': False, 'reason': 'failed to destroy target point'}
+            
+        return {
+            'success': True,
+            'type': 'chain_lightning',
+            'sacrificed_point': sacrificed_point_data,
+            'destroyed_point': destroyed_point_data,
+            'conduit_point_ids': chosen_conduit['point_ids']
+        }
+
     def rune_action_shoot_bisector(self, teamId):
         """[RUNE ACTION]: Fires a powerful beam from a V-Rune."""
         active_v_runes = self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])
@@ -1251,6 +1341,7 @@ class Game:
             'fight_attack': self.fight_action_attack_line,
             'fight_convert': self.fight_action_convert_point,
             'fight_bastion_pulse': self.fight_action_bastion_pulse,
+            'fight_chain_lightning': self.fight_action_chain_lightning,
             'fortify_claim': self.fortify_action_claim_territory,
             'fortify_anchor': self.fortify_action_create_anchor,
             'fortify_mirror': self.fortify_action_mirror_structure,
@@ -1265,6 +1356,7 @@ class Game:
         possible_actions = []
         action_preconditions = {
             'fight_sentry_zap': bool(self.state.get('sentries', {}).get(teamId, [])),
+            'fight_chain_lightning': any(c.get('internal_point_ids') for c in self.state.get('conduits', {}).get(teamId, [])),
             'expand_add': len(team_point_ids) >= 2,
             'expand_extend': bool(team_lines),
             'expand_grow': bool(team_lines),
@@ -1294,13 +1386,13 @@ class Game:
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
-            'fight_attack': 10, 'fight_convert': 8, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20,
+            'fight_attack': 10, 'fight_convert': 8, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7,
             'sacrifice_nova': 3, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
-            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5},
+            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0},
             'Balanced':   {}
@@ -1432,6 +1524,7 @@ class Game:
         # Update runes and other special structures for the current team before it acts
         self._update_runes_for_team(teamId)
         self._update_sentries_for_team(teamId)
+        self._update_conduits_for_team(teamId)
 
         team_name = self.state['teams'][teamId]['name']
         
@@ -1471,8 +1564,14 @@ class Game:
                 log_message += "connected two points."
                 short_log_message = "[+LINE]"
             elif action_type == 'extend_line':
-                log_message += "extended a line to the border, creating a new point."
-                short_log_message = "[EXTEND]"
+                msg = "extended a line to the border, creating a new point"
+                if result.get('is_empowered'):
+                    msg += " with an empowered Conduit extension!"
+                    short_log_message = "[RAY!]"
+                else:
+                    msg += "."
+                    short_log_message = "[EXTEND]"
+                log_message += msg
             elif action_type == 'grow_line':
                 log_message += "grew a new branch, creating a new point."
                 short_log_message = "[GROW]"
@@ -1525,6 +1624,14 @@ class Game:
                 destroyed_point_team_name = self.state['teams'][result['destroyed_point']['teamId']]['name']
                 log_message += f"fired a precision shot from a Sentry, obliterating a point from Team {destroyed_point_team_name}."
                 short_log_message = "[ZAP!]"
+            elif action_type == 'chain_lightning':
+                if result.get('destroyed_point'):
+                    destroyed_point_team_name = self.state['teams'][result['destroyed_point']['teamId']]['name']
+                    log_message += f"unleashed Chain Lightning from a Conduit, destroying a point from Team {destroyed_point_team_name}."
+                    short_log_message = "[LIGHTNING!]"
+                else:
+                    log_message += "attempted to use Chain Lightning, but the attack fizzled."
+                    short_log_message = "[FIZZLE]"
             else:
                 log_message += "performed a successful action."
                 short_log_message = "[ACTION]"
@@ -1811,6 +1918,61 @@ class Game:
                     break  # Found the correct diagonal pairing
         
         return cross_runes
+
+    def _update_conduits_for_team(self, teamId):
+        """Checks for Conduit formations (3+ collinear points)."""
+        if 'conduits' not in self.state: self.state['conduits'] = {}
+        
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 3:
+            self.state['conduits'][teamId] = []
+            return
+
+        points = self.state['points']
+        team_points = [points[pid] for pid in team_point_ids]
+        
+        # O(n^2) approach to find all sets of collinear points
+        found_conduits_sets = set()
+        for i in range(len(team_points)):
+            p1 = team_points[i]
+            slopes = {}
+            for j in range(i + 1, len(team_points)):
+                p2 = team_points[j]
+                dx = p2['x'] - p1['x']
+                dy = p2['y'] - p1['y']
+                
+                slope = math.atan2(dy, dx) # Use angle for consistent slope key
+                
+                if slope not in slopes:
+                    slopes[slope] = []
+                slopes[slope].append(p2['id'])
+
+            for slope in slopes:
+                if len(slopes[slope]) >= 2: # p1 + at least 2 other points form a line of 3+
+                    collinear_ids = tuple(sorted([p1['id']] + slopes[slope]))
+                    found_conduits_sets.add(collinear_ids)
+
+        # Convert sets of point IDs into formatted conduit objects
+        final_conduits = []
+        for id_tuple in found_conduits_sets:
+            conduit_points = [points[pid] for pid in id_tuple]
+            
+            # Sort points along the line to find endpoints
+            if len(set(p['x'] for p in conduit_points)) > 1: # Not a vertical line
+                conduit_points.sort(key=lambda p: p['x'])
+            else: # Vertical line
+                conduit_points.sort(key=lambda p: p['y'])
+            
+            sorted_ids = [p['id'] for p in conduit_points]
+            
+            final_conduits.append({
+                'point_ids': sorted_ids,
+                'endpoint1_id': sorted_ids[0],
+                'endpoint2_id': sorted_ids[-1],
+                'internal_point_ids': sorted_ids[1:-1]
+            })
+
+        self.state['conduits'][teamId] = final_conduits
 
 
 # --- Global Game Instance ---

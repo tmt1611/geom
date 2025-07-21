@@ -62,6 +62,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Core Functions ---
 
+    function drawJaggedLine(p1_coords, p2_coords, segments, jag_amount) {
+        const dx = p2_coords.x - p1_coords.x;
+        const dy = p2_coords.y - p1_coords.y;
+        const len = Math.sqrt(dx*dx + dy*dy);
+        if (len < 1) return; // Avoid issues with zero-length lines
+        const angle = Math.atan2(dy, dx);
+        
+        ctx.beginPath();
+        ctx.moveTo(p1_coords.x, p1_coords.y);
+    
+        // Only draw internal segments to avoid going past endpoints
+        for (let i = 1; i < segments; i++) {
+            const lateral = (Math.random() - 0.5) * jag_amount;
+            const along = (i / segments) * len;
+            const x = p1_coords.x + Math.cos(angle) * along - Math.sin(angle) * lateral;
+            const y = p1_coords.y + Math.sin(angle) * along + Math.cos(angle) * lateral;
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(p2_coords.x, p2_coords.y);
+        ctx.stroke();
+    }
+
     function drawGrid() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.strokeStyle = '#e0e0e0';
@@ -107,6 +129,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.strokeStyle = `rgba(200, 200, 255, ${0.7 - (pulse * 0.5)})`;
                     ctx.lineWidth = 3;
                     ctx.stroke();
+                }
+
+                // Conduit point visualization (glow)
+                if (p.is_conduit_point) {
+                    ctx.fillStyle = `rgba(200, 230, 255, 0.7)`;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius + 3, 0, 2 * Math.PI);
+                    ctx.fill();
                 }
 
                 // Main point drawing
@@ -263,6 +293,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function drawConduits(gameState) {
+        if (!gameState.conduits) return;
+    
+        for (const teamId in gameState.conduits) {
+            const teamConduits = gameState.conduits[teamId];
+            const team = gameState.teams[teamId];
+            if (!team || !teamConduits) continue;
+    
+            teamConduits.forEach(conduit => {
+                const p1 = gameState.points[conduit.endpoint1_id];
+                const p2 = gameState.points[conduit.endpoint2_id];
+    
+                if (p1 && p2) {
+                    ctx.beginPath();
+                    ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
+                    ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
+                    ctx.strokeStyle = team.color;
+                    ctx.lineWidth = 10; // Thick line
+                    ctx.globalAlpha = 0.15; // Very translucent
+                    ctx.lineCap = 'round';
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                    ctx.lineCap = 'butt';
+                }
+            });
+        }
+    }
+
     function drawTerritories(pointsDict, territories, teams) {
         if (!pointsDict || !territories) return;
         territories.forEach(territory => {
@@ -397,6 +455,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.stroke();
                     ctx.restore();
                 }
+            } else if (effect.type === 'chain_lightning') {
+                const points = effect.point_ids.map(pid => currentGameState.points[pid]).filter(p => p);
+                if (points.length < 2) return true;
+                
+                ctx.lineWidth = 1 + Math.random() * 2; // Flickering width
+                ctx.strokeStyle = `rgba(180, 220, 255, ${0.9 * (1 - progress)})`;
+            
+                // Draw lightning along the conduit path
+                for (let i = 0; i < points.length - 1; i++) {
+                    const p1 = points[i];
+                    const p2 = points[i+1];
+                    const p1_coords = { x: (p1.x + 0.5) * cellSize, y: (p1.y + 0.5) * cellSize };
+                    const p2_coords = { x: (p2.x + 0.5) * cellSize, y: (p2.y + 0.5) * cellSize };
+                    drawJaggedLine(p1_coords, p2_coords, 5, 8);
+                }
+            
+                // Draw jump to target if it exists and after a delay
+                const jump_progress = (age - 400) / (effect.duration - 400);
+                if (effect.destroyed_point && jump_progress > 0) {
+                     ctx.lineWidth = 2 + Math.random() * 2;
+                     ctx.strokeStyle = `rgba(200, 230, 255, ${0.9 * (1 - jump_progress)})`;
+                    // Jump from one of the endpoints. Let's find the one closest to the target.
+                    const endpoint1 = points[0];
+                    const endpoint2 = points[points.length-1];
+                    const d_sq_1 = (endpoint1.x - effect.destroyed_point.x)**2 + (endpoint1.y - effect.destroyed_point.y)**2;
+                    const d_sq_2 = (endpoint2.x - effect.destroyed_point.x)**2 + (endpoint2.y - effect.destroyed_point.y)**2;
+                    const jump_origin_point = d_sq_1 < d_sq_2 ? endpoint1 : endpoint2;
+
+                    const p1_coords = {x: (jump_origin_point.x + 0.5)*cellSize, y: (jump_origin_point.y + 0.5)*cellSize};
+                    const p2_coords = {x: (effect.destroyed_point.x + 0.5)*cellSize, y: (effect.destroyed_point.y + 0.5)*cellSize};
+                    drawJaggedLine(p1_coords, p2_coords, 7, 10);
+                }
+
             } else if (effect.type === 'point_explosion') {
                 ctx.beginPath();
                 const startRadius = 5;
@@ -432,6 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentGameState.teams) {
                 drawTerritories(currentGameState.points, currentGameState.territories, currentGameState.teams);
                 drawRunes(currentGameState);
+                drawConduits(currentGameState);
                 drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
                 drawPoints(currentGameState.points, currentGameState.teams);
                 
@@ -517,6 +609,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (details.type === 'extend_line' && details.new_point) {
             lastActionHighlights.points.add(details.new_point.id);
+            if (details.is_empowered && details.new_line) {
+                lastActionHighlights.lines.add(details.new_line.id);
+            }
         }
         if (details.type === 'shield_line' && details.shielded_line) {
             lastActionHighlights.lines.add(details.shielded_line.id);
@@ -547,6 +642,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (details.type === 'form_bastion' && details.bastion) {
             lastActionHighlights.points.add(details.bastion.core_id);
             details.bastion.prong_ids.forEach(pid => lastActionHighlights.points.add(pid));
+        }
+        if (details.type === 'chain_lightning') {
+            details.conduit_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'chain_lightning',
+                point_ids: details.conduit_point_ids,
+                destroyed_point: details.destroyed_point,
+                startTime: Date.now(),
+                duration: 1000 // ms
+            });
+            if (details.destroyed_point) {
+                visualEffects.push({
+                    type: 'point_explosion',
+                    x: details.destroyed_point.x,
+                    y: details.destroyed_point.y,
+                    startTime: Date.now() + 400, // delayed explosion
+                    duration: 500
+                });
+            }
         }
         if (details.type === 'bastion_pulse' && details.sacrificed_prong) {
             // Highlight the whole bastion that pulsed
