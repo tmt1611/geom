@@ -27,6 +27,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[EXPAND] Spawn Point:** Creates a new point near an existing one. This is a last-resort action to ensure a team can recover even from a single point.
 *   **[EXPAND] Create Orbital:** A rare action where a team with enough points creates a constellation of 3-5 new "satellite" points in a circle around one of its existing points.
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
+*   **[FIGHT] Pincer Attack:** If two of a team's points are flanking a single enemy point (creating a wide angle), they can perform a joint attack to destroy it. This does not work on fortified or bastion points.
 *   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range.
 *   **[FIGHT] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
 *   **[FIGHT] Bastion Pulse:** _(Requires an active Bastion)_ Sacrifices one of the bastion's outer "prong" points to unleash a shockwave. The shockwave destroys all enemy lines that cross the bastion's perimeter.

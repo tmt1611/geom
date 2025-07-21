@@ -1418,6 +1418,76 @@ class Game:
             'conduit_point_ids': chosen_conduit['point_ids']
         }
 
+    def fight_action_pincer_attack(self, teamId):
+        """[FIGHT ACTION]: Two points flank and destroy an enemy point."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 2:
+            return {'success': False, 'reason': 'not enough points for pincer'}
+
+        # Get a list of immune point IDs to exclude from targeting
+        fortified_point_ids = self._get_fortified_point_ids()
+        bastion_point_ids = self._get_bastion_point_ids()
+        immune_point_ids = fortified_point_ids.union(bastion_point_ids['cores']).union(bastion_point_ids['prongs'])
+        
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
+        if not enemy_points:
+            return {'success': False, 'reason': 'no vulnerable enemy points'}
+
+        points_map = self.state['points']
+        possible_pincers = []
+        max_range_sq = (self.state['grid_size'] * 0.4)**2 # Max range of attack
+        pincer_angle_threshold = -0.866 # cos(150 deg), angle must be > 150 deg
+
+        for p1_id, p2_id in combinations(team_point_ids, 2):
+            p1 = points_map[p1_id]
+            p2 = points_map[p2_id]
+
+            for ep in enemy_points:
+                # Basic range check to reduce calculations
+                if distance_sq(p1, ep) > max_range_sq or distance_sq(p2, ep) > max_range_sq:
+                    continue
+
+                # Vector from enemy point to p1 and p2
+                v1 = {'x': p1['x'] - ep['x'], 'y': p1['y'] - ep['y']}
+                v2 = {'x': p2['x'] - ep['x'], 'y': p2['y'] - ep['y']}
+
+                mag1_sq = v1['x']**2 + v1['y']**2
+                mag2_sq = v2['x']**2 + v2['y']**2
+
+                if mag1_sq < 0.1 or mag2_sq < 0.1: # Avoid division by zero / same point
+                    continue
+                
+                # Dot product
+                dot_product = v1['x'] * v2['x'] + v1['y'] * v2['y']
+                
+                # Cosine of the angle p1-ep-p2
+                cos_theta = dot_product / (math.sqrt(mag1_sq) * math.sqrt(mag2_sq))
+
+                if cos_theta < pincer_angle_threshold:
+                    possible_pincers.append({
+                        'pincer_p1_id': p1_id,
+                        'pincer_p2_id': p2_id,
+                        'target_point': ep
+                    })
+        
+        if not possible_pincers:
+            return {'success': False, 'reason': 'no pincer formation found'}
+
+        chosen_pincer = random.choice(possible_pincers)
+        target_point = chosen_pincer['target_point']
+
+        destroyed_point_data = self._delete_point_and_connections(target_point['id'])
+        if not destroyed_point_data:
+            return {'success': False, 'reason': 'failed to destroy target point'}
+        
+        return {
+            'success': True,
+            'type': 'pincer_attack',
+            'destroyed_point': destroyed_point_data,
+            'attacker_p1_id': chosen_pincer['pincer_p1_id'],
+            'attacker_p2_id': chosen_pincer['pincer_p2_id'],
+        }
+
     def fight_action_refraction_beam(self, teamId):
         """[FIGHT ACTION]: Uses a Prism to refract an attack beam."""
         team_prisms = self.state.get('prisms', {}).get(teamId, [])
@@ -1654,6 +1724,7 @@ class Game:
             'expand_orbital': self.expand_action_create_orbital,
             'fight_attack': self.fight_action_attack_line,
             'fight_convert': self.fight_action_convert_point,
+            'fight_pincer_attack': self.fight_action_pincer_attack,
             'fight_bastion_pulse': self.fight_action_bastion_pulse,
             'fight_chain_lightning': self.fight_action_chain_lightning,
             'fight_refraction_beam': self.fight_action_refraction_beam,
@@ -1682,6 +1753,7 @@ class Game:
             'expand_orbital': len(team_point_ids) >= 5,
             'fight_attack': bool(team_lines) and any(l['teamId'] != teamId for l in self.state['lines']),
             'fight_convert': bool(team_lines) and any(p['teamId'] != teamId for p in self.state['points'].values()),
+            'fight_pincer_attack': len(team_point_ids) >= 2 and any(p['teamId'] != teamId for p in self.state['points'].values()),
             'fight_bastion_pulse': any(b['teamId'] == teamId for b in self.state.get('bastions', {}).values()),
             'defend_shield': any(l.get('id') not in self.state['shields'] for l in team_lines),
             'fortify_claim': len(team_point_ids) >= 3,
@@ -1704,13 +1776,13 @@ class Game:
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
-            'fight_attack': 10, 'fight_convert': 8, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22,
+            'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_cultivate_heartwood': 20, # High value objective
             'sacrifice_nova': 3, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
-            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5},
+            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_cultivate_heartwood': 2.5},
             'Balanced':   {}
@@ -2033,6 +2105,10 @@ class Game:
                 else:
                     log_message += "attempted to use Chain Lightning, but the attack fizzled."
                     short_log_message = "[FIZZLE]"
+            elif action_type == 'pincer_attack':
+                destroyed_point_team_name = self.state['teams'][result['destroyed_point']['teamId']]['name']
+                log_message += f"executed a pincer attack, destroying a point from Team {destroyed_point_team_name}."
+                short_log_message = "[PINCER!]"
             else:
                 log_message += "performed a successful action."
                 short_log_message = "[ACTION]"

@@ -896,6 +896,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: 1500
             });
         }
+        if (details.type === 'pincer_attack' && details.destroyed_point) {
+            lastActionHighlights.points.add(details.attacker_p1_id);
+            lastActionHighlights.points.add(details.attacker_p2_id);
+            
+            const p1 = gameState.points[details.attacker_p1_id];
+            const target = details.destroyed_point;
+            if (p1 && target) {
+                visualEffects.push({
+                    type: 'attack_ray', p1: p1, p2: target, startTime: Date.now(), duration: 500
+                });
+            }
+        
+            const p2 = gameState.points[details.attacker_p2_id];
+            if (p2 && target) {
+                visualEffects.push({
+                    type: 'attack_ray', p1: p2, p2: target, startTime: Date.now(), duration: 500
+                });
+            }
+        
+            visualEffects.push({
+                type: 'point_explosion', x: target.x, y: target.y, startTime: Date.now(), duration: 600
+            });
+        }
 
         // Set a timer to clear the highlights
         lastActionHighlights.clearTimeout = setTimeout(() => {
@@ -945,105 +968,115 @@ document.addEventListener('DOMContentLoaded', () => {
         teamsList.innerHTML = '';
         const inSetupPhase = currentGameState.game_phase === 'SETUP';
         const teamsToRender = inSetupPhase ? localTeams : currentGameState.teams;
-
+    
         for (const teamId in teamsToRender) {
             const team = teamsToRender[teamId];
             const li = document.createElement('li');
             li.dataset.teamId = teamId;
-
+    
             if (selectedTeamId === teamId && inSetupPhase) {
                 li.classList.add('selected');
             }
-
-            if (inSetupPhase && team.isEditing) {
-                // --- EDITING MODE ---
-                const editControls = document.createElement('div');
-                editControls.className = 'team-edit-controls';
-
-                const colorInput = document.createElement('input');
-                colorInput.type = 'color';
-                colorInput.value = team.color;
-
-                const nameInput = document.createElement('input');
-                nameInput.type = 'text';
-                nameInput.value = team.name;
-
-                const saveBtn = document.createElement('button');
-                saveBtn.textContent = 'Save';
-                saveBtn.onclick = () => {
-                    const newName = nameInput.value.trim();
-                    if (newName) {
-                        localTeams[teamId].name = newName;
-                        localTeams[teamId].color = colorInput.value;
-                        localTeams[teamId].isEditing = false;
-                        renderTeamsList();
-                        // No need to call redraw, animation loop will handle it
-                    }
-                };
-                
-                const cancelBtn = document.createElement('button');
-                cancelBtn.textContent = 'Cancel';
-                cancelBtn.onclick = () => {
+    
+            // --- Create ALL elements for both modes ---
+    
+            // Color Box (always visible)
+            const colorBox = document.createElement('div');
+            colorBox.className = 'team-color-box';
+            colorBox.style.backgroundColor = team.color;
+            li.appendChild(colorBox);
+    
+            // --- Normal Display Mode Elements ---
+            const teamInfo = document.createElement('div');
+            teamInfo.className = 'team-info';
+            teamInfo.onclick = () => {
+                if (inSetupPhase) {
+                    selectedTeamId = teamId;
+                    renderTeamsList();
+                }
+            };
+            const teamNameSpan = document.createElement('span');
+            teamNameSpan.className = 'team-name';
+            teamNameSpan.textContent = team.name;
+            teamInfo.appendChild(teamNameSpan);
+    
+            if (team.trait) {
+                const teamTraitSpan = document.createElement('span');
+                teamTraitSpan.className = 'team-trait';
+                teamTraitSpan.textContent = `(${team.trait})`;
+                teamInfo.appendChild(teamTraitSpan);
+            }
+            li.appendChild(teamInfo);
+    
+            // --- Edit Mode Elements ---
+            const editControls = document.createElement('div');
+            editControls.className = 'team-edit-controls';
+    
+            const editColorInput = document.createElement('input');
+            editColorInput.type = 'color';
+            editColorInput.value = team.color;
+    
+            const editNameInput = document.createElement('input');
+            editNameInput.type = 'text';
+            editNameInput.value = team.name;
+    
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Save';
+            saveBtn.onclick = () => {
+                const newName = editNameInput.value.trim();
+                if (newName) {
+                    localTeams[teamId].name = newName;
+                    localTeams[teamId].color = editColorInput.value;
                     localTeams[teamId].isEditing = false;
                     renderTeamsList();
-                };
-
-                editControls.append(colorInput, nameInput, saveBtn, cancelBtn);
-                li.appendChild(editControls);
-
-            } else {
-                // --- NORMAL DISPLAY MODE ---
-                const colorBox = document.createElement('div');
-                colorBox.className = 'team-color-box';
-                colorBox.style.backgroundColor = team.color;
-                li.appendChild(colorBox);
-
-                const teamInfo = document.createElement('div');
-                teamInfo.className = 'team-info';
-                teamInfo.onclick = () => { // Make the info part clickable for selection
-                    if (inSetupPhase) {
-                        selectedTeamId = teamId;
-                        renderTeamsList();
-                    }
-                };
-                const teamName = document.createElement('span');
-                teamName.className = 'team-name';
-                teamName.textContent = team.name;
-                teamInfo.appendChild(teamName);
-
-                if (team.trait) {
-                    const teamTrait = document.createElement('span');
-                    teamTrait.className = 'team-trait';
-                    teamTrait.textContent = `(${team.trait})`;
-                    teamInfo.appendChild(teamTrait);
                 }
-                li.appendChild(teamInfo);
-
-                if (inSetupPhase) {
-                    li.style.cursor = 'pointer';
-                    const actionsDiv = document.createElement('div');
-                    actionsDiv.className = 'team-actions';
-
-                    const editBtn = document.createElement('button');
-                    editBtn.innerHTML = '&#9998;'; // Pencil icon
-                    editBtn.title = 'Edit team';
-                    editBtn.onclick = () => {
-                        // Set editing flag on the specific team and re-render
-                        Object.values(localTeams).forEach(t => t.isEditing = false); // Ensure only one is edited at a time
-                        localTeams[teamId].isEditing = true;
-                        renderTeamsList();
-                    };
-
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.innerHTML = '&times;'; // Cross icon
-                    deleteBtn.title = 'Delete team';
-                    deleteBtn.className = 'delete-team-btn';
-                    deleteBtn.dataset.teamId = teamId; // Keep this for the main listener
-
-                    actionsDiv.append(editBtn, deleteBtn);
-                    li.appendChild(actionsDiv);
-                }
+            };
+    
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.onclick = () => {
+                localTeams[teamId].isEditing = false;
+                renderTeamsList();
+            };
+    
+            editControls.append(editColorInput, editNameInput, saveBtn, cancelBtn);
+            li.appendChild(editControls);
+    
+            // --- Action Buttons ---
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'team-actions';
+            if (inSetupPhase) {
+                li.style.cursor = 'pointer';
+                const editBtn = document.createElement('button');
+                editBtn.innerHTML = '&#9998;'; // Pencil icon
+                editBtn.title = 'Edit team';
+                editBtn.onclick = () => {
+                    Object.values(localTeams).forEach(t => t.isEditing = false);
+                    localTeams[teamId].isEditing = true;
+                    renderTeamsList();
+                };
+    
+                const deleteBtn = document.createElement('button');
+                deleteBtn.innerHTML = '&times;';
+                deleteBtn.title = 'Delete team';
+                deleteBtn.className = 'delete-team-btn';
+                deleteBtn.dataset.teamId = teamId;
+    
+                actionsDiv.append(editBtn, deleteBtn);
             }
+            li.appendChild(actionsDiv);
+    
+            // --- Set visibility based on state ---
+            if (inSetupPhase && team.isEditing) {
+                teamInfo.style.display = 'none';
+                actionsDiv.style.display = 'none';
+                editControls.style.display = 'flex';
+            } else {
+                teamInfo.style.display = 'flex';
+                actionsDiv.style.display = 'flex';
+                editControls.style.display = 'none';
+            }
+    
             teamsList.appendChild(li);
         }
     }
@@ -1255,6 +1288,16 @@ document.addEventListener('DOMContentLoaded', () => {
         debugOptions.highlightLastAction = debugLastActionToggle.checked;
     });
 
+    function showTemporaryButtonFeedback(button, message, duration = 1500) {
+        const originalText = button.innerHTML;
+        button.innerHTML = message;
+        button.disabled = true;
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }, duration);
+    }
+
     copyLogBtn.addEventListener('click', () => {
         if (navigator.clipboard) {
             const logEntries = logDiv.querySelectorAll('.log-entry');
@@ -1263,7 +1306,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .reverse() // Entries are prepended, so reverse to get chronological order
                 .join('\n');
             navigator.clipboard.writeText(logText).then(() => {
-                alert('Game log copied to clipboard!');
+                showTemporaryButtonFeedback(copyLogBtn, 'Copied!');
             }).catch(err => {
                 console.error('Failed to copy log: ', err);
                 alert('Could not copy log.');
@@ -1284,7 +1327,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const gameState = await response.json();
                 const stateString = JSON.stringify(gameState, null, 2);
                 await navigator.clipboard.writeText(stateString);
-                alert('Game state copied to clipboard!');
+                showTemporaryButtonFeedback(copyStateBtn, 'State Copied!');
             } catch (err) {
                 console.error('Failed to copy game state: ', err);
                 alert('Could not copy game state to clipboard. See console for details.');
