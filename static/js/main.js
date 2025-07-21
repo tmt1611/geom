@@ -44,6 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusBar = document.getElementById('status-bar');
     const finalInterpDiv = document.getElementById('final-interpretation');
     const finalInterpContent = document.getElementById('final-stats-content');
+    const finalInterpDiv = document.getElementById('final-interpretation');
+    const finalInterpContent = document.getElementById('final-stats-content');
 
     // Debug Toggles
     const debugPointIdsToggle = document.getElementById('debug-point-ids');
