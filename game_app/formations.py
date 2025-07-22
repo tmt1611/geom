@@ -129,15 +129,22 @@ class FormationManager:
             if len(connected_lines) < 2: continue
 
             for line1, line2 in combinations(connected_lines, 2):
+                leg1_id = line1['p1_id'] if line1['p2_id'] == vertex_id else line1['p2_id']
+                leg2_id = line2['p1_id'] if line2['p2_id'] == vertex_id else line2['p2_id']
+
+                # Defensive check to ensure all points exist before trying to access them.
+                if not all(pid in all_points for pid in [vertex_id, leg1_id, leg2_id]):
+                    continue
+                
                 p_vertex = all_points[vertex_id]
-                p_leg1 = all_points[line1['p1_id'] if line1['p2_id'] == vertex_id else line1['p2_id']]
-                p_leg2 = all_points[line2['p1_id'] if line2['p2_id'] == vertex_id else line2['p2_id']]
+                p_leg1 = all_points[leg1_id]
+                p_leg2 = all_points[leg2_id]
 
                 len1_sq = distance_sq(p_vertex, p_leg1)
                 len2_sq = distance_sq(p_vertex, p_leg2)
 
                 if len1_sq > 0 and len2_sq > 0 and 0.8 < (len1_sq / len2_sq) < 1.2:
-                    v_runes.append({'vertex_id': vertex_id, 'leg1_id': p_leg1['id'], 'leg2_id': p_leg2['id']})
+                    v_runes.append({'vertex_id': vertex_id, 'leg1_id': leg1_id, 'leg2_id': leg2_id})
         return v_runes
 
     def _is_point_inside_triangle(self, point, tri_p1, tri_p2, tri_p3):
