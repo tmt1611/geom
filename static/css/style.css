@@ -617,3 +617,182 @@ details[open] > summary::before {
 .dev-btn:hover {
     background-color: #c0392b;
 }
+
+/* --- Styles for Game Running Phase Layout --- */
+
+body.game-running {
+    padding: 10px;
+    height: 100vh;
+    overflow: hidden; /* Prevent body from scrolling */
+}
+
+body.game-running .container {
+    display: grid;
+    max-width: none; /* Override default max-width */
+    width: 100%;
+    height: 100%;
+    gap: 15px;
+    grid-template-columns: 1fr 380px; /* Main area and a fixed-width info panel */
+    grid-template-rows: 1fr auto; /* A flexible main row and a fixed-height control bar */
+    grid-template-areas:
+        "main info"
+        "controls controls";
+    align-items: stretch;
+}
+
+body.game-running h1 {
+    display: none;
+}
+
+/* --- Area Placements --- */
+body.game-running .grid-container {
+    grid-area: main;
+    flex: none; /* remove from old flex layout */
+    max-width: none;
+    height: 100%; /* fill grid area */
+    min-height: 0; /* Important for flex/grid items to shrink */
+}
+
+body.game-running .interpretation-panel {
+    grid-area: info;
+    flex: none;
+    max-width: none;
+    padding: 0; /* remove padding, children will have it */
+    background: none;
+    border: none;
+    box-shadow: none;
+    min-width: 0;
+}
+
+body.game-running .controls {
+    grid-area: controls;
+    flex: none;
+    max-width: none;
+    padding: 10px 15px;
+    background-color: #fff;
+    border: 1px solid #dfe4ea;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* --- Info Panel (Right Column) --- */
+body.game-running #running-panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    overflow: hidden; /* Parent prevents scrolling */
+}
+
+body.game-running #running-analysis {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    min-height: 0;
+}
+
+body.game-running #running-analysis h2 {
+    display: none; /* Hide the "Analysis" header */
+}
+
+body.game-running #running-analysis > #stats,
+body.game-running #action-preview-panel,
+body.game-running .log-container {
+    border: 1px solid #dfe4ea;
+    background-color: #fff;
+    border-radius: 5px;
+    padding: 10px;
+}
+body.game-running #running-analysis > #stats {
+    flex-shrink: 0;
+}
+body.game-running #action-preview-panel {
+    flex-shrink: 0;
+    margin-top: 0;
+}
+body.game-running #action-preview-content {
+    max-height: 25vh; /* Give it a max height relative to screen */
+    overflow-y: auto;
+}
+body.game-running .log-container {
+    flex-grow: 1; /* Take remaining space */
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+body.game-running .log-box {
+    height: 100%;
+}
+
+/* --- Control Bar (Bottom) --- */
+body.game-running #running-controls-content {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+body.game-running #simulation-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+body.game-running #live-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+body.game-running #simulation-controls button {
+    padding: 12px 20px;
+    font-size: 1.1em;
+    font-weight: 500;
+    border-radius: 5px;
+    border: 1px solid #bdc3c7;
+    background-color: #ecf0f1;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+body.game-running #simulation-controls button:hover:not(:disabled) {
+    background-color: #dfe4ea;
+}
+body.game-running #simulation-controls button:disabled {
+    background-color: #f4f7f9;
+    color: #95a5a6;
+    cursor: not-allowed;
+}
+
+body.game-running #reset-btn {
+    background-color: #f2dede;
+    border-color: #ebccd1;
+    color: #a94442;
+}
+
+body.game-running #reset-btn:hover:not(:disabled) {
+    background-color: #ebccd1;
+}
+
+body.game-running #turn-counter {
+    font-size: 1.2em;
+    font-weight: 500;
+    color: #2c3e50;
+    text-align: center;
+    min-width: 180px;
+}
+
+body.game-running #restart-simulation-btn {
+    margin-top: 0;
+}
+
+body.game-running .debug-fieldset {
+    margin-top: 0;
+}
+
+/* Old big reset button, now inside a wrapper that gets hidden */
+#running-analysis > button#reset-btn {
+    display: none;
+}

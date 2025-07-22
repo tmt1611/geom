@@ -2124,8 +2124,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let turnText = `Turn: ${turn} / ${max_turns}`;
         if (game_phase === 'RUNNING' && actions_queue_this_turn && actions_queue_this_turn.length > 0) {
-            // Use action_in_turn + 1 for a 1-based count for the user
-            turnText += ` (Action ${action_in_turn + 1} / ${actions_queue_this_turn.length})`;
+            // Use action_in_turn for a 0-based count for logic, show +1 for user
+            const currentActionNum = Math.min(action_in_turn + 1, actions_queue_this_turn.length);
+            turnText += ` (Action ${currentActionNum} / ${actions_queue_this_turn.length})`;
         }
         turnCounter.textContent = turnText;
 
@@ -2375,27 +2376,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateControls(gameState) {
         const gamePhase = gameState.game_phase;
         const inSetup = gamePhase === 'SETUP';
-        const isRunning = gamePhase === 'RUNNING';
         const isFinished = gamePhase === 'FINISHED';
-
-        // Left Panel
-        document.getElementById('setup-phase').style.display = inSetup ? 'block' : 'none';
-        document.getElementById('simulation-controls').style.display = inSetup ? 'none' : 'block';
         
-        // Right Panel
-        document.getElementById('setup-actions').style.display = inSetup ? 'block' : 'none';
-        document.getElementById('running-analysis').style.display = inSetup ? 'none' : 'block';
+        document.body.classList.toggle('game-running', !inSetup);
 
-        // Live controls in left panel
-        const liveControls = document.getElementById('live-controls');
-        liveControls.style.display = isRunning ? 'block' : 'none';
+        document.getElementById('setup-controls-content').style.display = inSetup ? 'block' : 'none';
+        document.getElementById('running-controls-content').style.display = inSetup ? 'none' : 'flex';
 
-        // Restart button in left panel
-        restartSimulationBtn.style.display = isRunning || isFinished ? 'block' : 'none';
+        document.getElementById('setup-panel-content').style.display = inSetup ? 'block' : 'none';
+        document.getElementById('running-panel-content').style.display = inSetup ? 'none' : 'flex';
 
         if (isFinished) {
             if (autoPlayInterval) stopAutoPlay();
             autoPlayBtn.textContent = 'Auto-Play';
+            document.getElementById('next-action-btn').disabled = true;
+            document.getElementById('auto-play-btn').disabled = true;
+        } else if (gamePhase === 'RUNNING') {
+             document.getElementById('next-action-btn').disabled = false;
+             document.getElementById('auto-play-btn').disabled = false;
         }
     }
 

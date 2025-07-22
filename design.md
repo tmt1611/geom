@@ -1,11 +1,27 @@
-I want to design a game (web app), help me design a mvp (minimal viable product) 
-Imagine a 10 by 10 grid. 
-Idea is user select several points on the grid, they may belong to two or more teams. 
-These points and teams may develop and expand and fight another etc acoording to rules (mostly geometrically). the final goal is  
-1. to create a highly random and highly visually interesting auto-battle sandbox 
-2. to make a fun divine game : once all the action in the grid settles, we can use the final visual or geometry on the grid to interpret or divine
-for example, one can input points representing 2 sides, one with coordinate corresponding to their birthday and one to today's date, then let them develop, once it settles down, read it like a star chart, like an astrology star sign, a horoscope. 
-user should be able to easily add points. 
-there are generally 3 phase : init phase : user set points (or use randomly generated points), action phase : actions happen according to rules, mostly geometrically, for example : [expand action]: extend the line segment connecting two points of my team, when this line hit the border of the grid, make new points for team at that coordinate. another one : [expand action]: add a line segment connecting two points of my team. another one : [fight action]: extend one line segment of my team, if it hits an enemy line segment, delete it. etc. naturally, each turn each team can do multiple action, the selected action of each team is randomly choose and are reported for user to see. user can select the actions phase to happen turn by turn or happen quickly until the end. user can set maximum number of turn or other stopping criteria. finally, the final phase : interpret phase : the app should help user interpret the result, maybe some system of points (for use case auto-battle sandbox), or some geometry recognition ( number of triangle, total area occupy, number of lines, etc) to aid use case divination.
+The main field is a 10x10 grid where users select multiple points, which may belong to two or more teams. These points and teams can expand, interact, or fight based on geometry-based rules.
 
-all action must be geometry-based and visually impressive. actions can be based on points or shapes or hull or etc. 
+**Goals:**
+
+* Create a highly random, visually engaging auto-battle sandbox.
+* Build a fun divination-style game: once all actions settle, the final grid pattern can be interpreted — for example, a user can input two sets of points: one tied to a birthdate and one to today’s date. After the simulation, the result can be read like a horoscope or star chart.
+
+Users should be able to add points easily.
+
+**Three phases:**
+
+1. **Init phase:**
+   Users set initial points (manually or randomly generated).
+
+2. **Action phase:**
+   Actions unfold based on geometric rules. Examples:
+
+   * *Expand:* Extend the line between two same-team points. If the line hits the grid border, spawn a new team point at the edge.
+   * *Expand:* Add a new line segment between two same-team points.
+   * *Fight:* Extend a line segment. If it hits an enemy line, delete the enemy line.
+
+   Each team can take multiple actions per turn. Actions are randomly selected and shown to the user. The action phase can run turn-by-turn or continue rapidly until finished. Users can set max turn count or other stopping conditions.
+
+3. **Interpret phase:**
+   The app helps users analyze the result. This may involve scoring (for sandbox play) or visual/structural interpretation (for divination). Examples: count triangles, measure total occupied area, number of lines, etc.
+
+All actions must be geometric and visually striking. They can involve points, lines, shapes, hulls, or similar geometry elements.
