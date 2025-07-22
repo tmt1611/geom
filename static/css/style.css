@@ -402,7 +402,7 @@ details[open] > summary::before {
 .debug-options {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 8px;
     font-size: 0.9em;
 }
 
@@ -411,6 +411,27 @@ details[open] > summary::before {
     display: flex;
     align-items: center;
     gap: 5px;
+}
+
+.debug-options button {
+    padding: 5px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: #f8f8f8;
+    border: 1px solid #ccc;
+    text-align: center;
+}
+.debug-options button:hover {
+    background-color: #eee;
+}
+
+.debug-options .btn-danger {
+    color: #fff;
+    background-color: #e74c3c;
+    border-color: #c0392b;
+}
+.debug-options .btn-danger:hover {
+    background-color: #c0392b;
 }
 
 /* --- Error Modal --- */

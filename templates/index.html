@@ -66,7 +66,7 @@
                 <button id="restart-simulation-btn" style="width:100%; margin-top: 10px; display:none;">Restart Simulation</button>
             </div>
             <hr style="width: 100%; border-color: #dfe4ea; border-style: solid; margin: 15px 0;">
-            <button id="reset-btn">Reset Game (New Setup)</button>
+            <button id="reset-btn">Reset Game (Back to Setup)</button>
         </div>
         <div class="grid-container">
             <canvas id="grid" width="600" height="600"></canvas>
@@ -77,13 +77,13 @@
             <div id="turn-counter">Turn: 0 / 100</div>
             <div id="stats"></div>
             <details class="debug-fieldset">
-                <summary>Debug Tools</summary>
+                <summary>Developer Tools</summary>
                 <div class="debug-options">
                     <label><input type="checkbox" id="debug-point-ids"> Show Point IDs</label>
                     <label><input type="checkbox" id="debug-line-ids"> Show Line IDs</label>
                     <label><input type="checkbox" id="debug-last-action"> Highlight Last Action</label>
-                    <button id="copy-state-btn" style="margin-top: 5px;">Copy Game State</button>
-                    <button id="shutdown-server-btn" style="margin-top: 5px; color: #fff; background-color: #c0392b;">Shutdown Server</button>
+                    <button id="copy-state-btn">Copy Game State to Clipboard</button>
+                    <button id="shutdown-server-btn" class="btn-danger">Shutdown Server</button>
                 </div>
             </details>
             <div id="final-interpretation" style="display: none;">

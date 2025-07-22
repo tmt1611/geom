@@ -738,6 +738,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function drawBarricades(gameState) {
+        if (!gameState.barricades) return;
+
+        gameState.barricades.forEach(barricade => {
+            const team = gameState.teams[barricade.teamId];
+            if (!team) return;
+
+            const p1 = {x: (barricade.p1.x + 0.5) * cellSize, y: (barricade.p1.y + 0.5) * cellSize};
+            const p2 = {x: (barricade.p2.x + 0.5) * cellSize, y: (barricade.p2.y + 0.5) * cellSize};
+            
+            // Draw a thick, "rocky" looking line
+            ctx.strokeStyle = team.color; // Use team color to show who built it
+            ctx.globalAlpha = 0.5 + (barricade.turns_left / 5) * 0.5; // Fade as it expires
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            drawJaggedLine(p1, p2, 10, 4);
+            
+            // Add a solid "core" to it
+            ctx.globalAlpha = 0.8;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+
+            ctx.lineCap = 'butt';
+            ctx.globalAlpha = 1.0;
+        });
+    }
+
     function drawWonders(gameState) {
         if (!gameState.wonders) return;
     
@@ -1057,6 +1087,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawWonders(currentGameState);
                 drawRiftSpires(currentGameState);
                 drawFissures(currentGameState);
+                drawBarricades(currentGameState);
                 drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
                 drawPoints(currentGameState.points, currentGameState.teams);
                 

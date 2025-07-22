@@ -67,6 +67,7 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Bonus 2 (Defensive Aura):** Prevents enemy points from being created in a large radius around it.
 *   **[FORTIFY] Form Rift Spire:** Sacrifices a point that serves as a vertex for at least three different claimed territories.
     *   **Bonus:** Creates a **Rift Spire**. This structure takes several turns to charge. Once charged, it unlocks the **[TERRAFORM] Create Fissure** action.
+*   **[TERRAFORM] Raise Barricade:** Creates a temporary, impassable wall between two of the team's points. The wall blocks line-based actions for several turns, offering a flexible way to control the battlefield without sacrificing any assets.
 *   **[TERRAFORM] Create Fissure:** _(Requires a charged Rift Spire)_ The spire opens a temporary, impassable fissure across the battlefield.
     *   **Effect:** The fissure is a line on the grid that blocks most actions. No points can be created near it, and line-based actions (like `Attack Line` or `Extend Line`) cannot cross it. It decays after a number of turns.
 

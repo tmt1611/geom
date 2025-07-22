@@ -83,11 +83,12 @@ def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_
         if distance_sq(new_point_coords, existing_p) < min_dist_sq:
             return False, 'too close to an existing point'
     
-    # Check proximity to fissures (a simple bounding box check for performance)
-    for fissure in self.state.get('fissures', []):
-        p1 = fissure['p1']
-        p2 = fissure['p2']
-        # Bounding box of the fissure segment
+    # Check proximity to fissures & barricades (a simple bounding box check for performance)
+    obstacles = self.state.get('fissures', []) + self.state.get('barricades', [])
+    for obstacle in obstacles:
+        p1 = obstacle['p1']
+        p2 = obstacle['p2']
+        # Bounding box of the obstacle segment
         box_x_min = min(p1['x'], p2['x']) - 1
         box_x_max = max(p1['x'], p2['x']) + 1
         box_y_min = min(p1['y'], p2['y']) - 1
@@ -96,7 +97,7 @@ def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_
         if (new_point_coords['x'] >= box_x_min and new_point_coords['x'] <= box_x_max and
             new_point_coords['y'] >= box_y_min and new_point_coords['y'] <= box_y_max):
             # A more precise check can be done here if needed, but this is a good first pass
-            return False, 'too close to a fissure'
+            return False, 'too close to a fissure or barricade'
 
     # Check against enemy Heartwood defensive aura
     if self.state.get('heartwoods'):
@@ -220,6 +221,7 @@ class Game:
             "trebuchets": {}, # {teamId: [trebuchet1, ...]}
             "rift_spires": {}, # {spire_id: {teamId, coords, charge}}
             "fissures": [], # {id, p1, p2, turns_left}
+            "barricades": [], # {id, teamId, p1, p2, turns_left}
             "wonders": {}, # {wonder_id: {teamId, type, turns_to_victory, ...}}
             "empowered_lines": {}, # {line_id: strength}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
@@ -322,6 +324,7 @@ class Game:
         state_copy['trebuchets'] = self.state.get('trebuchets', {})
         state_copy['rift_spires'] = self.state.get('rift_spires', {})
         state_copy['fissures'] = self.state.get('fissures', [])
+        state_copy['barricades'] = self.state.get('barricades', [])
         state_copy['wonders'] = self.state.get('wonders', {})
 
         # Add live stats for real-time display, regardless of phase, for consistency
@@ -582,12 +585,13 @@ class Game:
 
         if dx == 0 and dy == 0: return None
 
-        # Check if extension is blocked by a fissure
+        # Check if extension is blocked by a fissure or barricade
         # Create a very long ray for intersection test
         ray_end_point = {'x': p2['x'] + dx * grid_size * 2, 'y': p2['y'] + dy * grid_size * 2}
-        for fissure in self.state.get('fissures', []):
-            if segments_intersect(p2, ray_end_point, fissure['p1'], fissure['p2']):
-                return None # Extension is blocked by a fissure
+        obstacles = self.state.get('fissures', []) + self.state.get('barricades', [])
+        for obstacle in obstacles:
+            if segments_intersect(p2, ray_end_point, obstacle['p1'], obstacle['p2']):
+                return None # Extension is blocked
 
         # We are calculating p_new = p1 + t * (p2 - p1) for t > 1
         t_values = []
@@ -780,13 +784,14 @@ class Game:
                     ep1 = points[enemy_line['p1_id']]
                     ep2 = points[enemy_line['p2_id']]
 
-                    # Check if attack ray is blocked by a fissure
-                    is_blocked_by_fissure = False
-                    for fissure in self.state.get('fissures', []):
-                        if get_segment_intersection_point(attack_segment_p1, attack_segment_p2, fissure['p1'], fissure['p2']):
-                             is_blocked_by_fissure = True
-                             break
-                    if is_blocked_by_fissure:
+                    # Check if attack ray is blocked by a fissure or barricade
+                    is_blocked = False
+                    obstacles = self.state.get('fissures', []) + self.state.get('barricades', [])
+                    for obstacle in obstacles:
+                        if get_segment_intersection_point(attack_segment_p1, attack_segment_p2, obstacle['p1'], obstacle['p2']):
+                            is_blocked = True
+                            break
+                    if is_blocked:
                         continue
 
                     if segments_intersect(attack_segment_p1, attack_segment_p2, ep1, ep2):
@@ -1560,6 +1565,46 @@ class Game:
             'spire': new_spire,
             'sacrificed_point': sacrificed_point_data
         }
+
+    def terraform_action_raise_barricade(self, teamId):
+        """[TERRAFORM ACTION]: Creates a temporary defensive wall between two points."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 2:
+            return {'success': False, 'reason': 'not enough points to build a barricade'}
+
+        # Find two points that are not too close and not already connected by a line
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
+        points_map = self.state['points']
+        possible_pairs = []
+        for p1_id, p2_id in combinations(team_point_ids, 2):
+            if tuple(sorted((p1_id, p2_id))) in existing_lines:
+                continue
+            
+            p1 = points_map[p1_id]
+            p2 = points_map[p2_id]
+            # Barricade must have a minimum length to be useful
+            if distance_sq(p1, p2) > (self.state['grid_size'] * 0.1)**2:
+                possible_pairs.append((p1_id, p2_id))
+        
+        if not possible_pairs:
+            return {'success': False, 'reason': 'no valid location for a barricade'}
+        
+        p1_id, p2_id = random.choice(possible_pairs)
+        p1 = self.state['points'][p1_id]
+        p2 = self.state['points'][p2_id]
+
+        barricade_id = f"bar_{uuid.uuid4().hex[:6]}"
+        new_barricade = {
+            'id': barricade_id,
+            'teamId': teamId,
+            'p1': {'x': p1['x'], 'y': p1['y']}, # Store coords, not IDs, as points might move
+            'p2': {'x': p2['x'], 'y': p2['y']},
+            'turns_left': 5,
+        }
+        if 'barricades' not in self.state: self.state['barricades'] = []
+        self.state['barricades'].append(new_barricade)
+
+        return {'success': True, 'type': 'raise_barricade', 'barricade': new_barricade}
 
     def terraform_action_create_fissure(self, teamId):
         """[TERRAFORM ACTION]: A Rift Spire creates a fissure on the map."""
@@ -2461,6 +2506,7 @@ class Game:
             'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood,
             'fortify_form_rift_spire': self.fortify_action_form_rift_spire,
             'terraform_create_fissure': self.terraform_action_create_fissure,
+            'terraform_raise_barricade': self.terraform_action_raise_barricade,
             'fortify_build_wonder': self.fortify_action_build_chronos_spire,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
@@ -2497,6 +2543,7 @@ class Game:
             'fortify_cultivate_heartwood': len(team_point_ids) >= 6 and teamId not in self.state.get('heartwoods', {}),
             'fortify_form_rift_spire': len([t for t in self.state.get('territories', []) if t['teamId'] == teamId]) >= 3,
             'terraform_create_fissure': any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in self.state.get('rift_spires', {}).values()),
+            'terraform_raise_barricade': len(team_point_ids) >= 2,
             'fortify_build_wonder': len(team_point_ids) >= 6 and not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()),
             'sacrifice_nova': len(team_point_ids) > 2,
             'sacrifice_whirlpool': len(team_point_ids) > 1,
@@ -2755,6 +2802,15 @@ class Game:
                 if f['turns_left'] > 0:
                     active_fissures.append(f)
             self.state['fissures'] = active_fissures
+        
+        # 8. Process Barricades (decay)
+        if self.state.get('barricades'):
+            active_barricades = []
+            for b in self.state['barricades']:
+                b['turns_left'] -= 1
+                if b['turns_left'] > 0:
+                    active_barricades.append(b)
+            self.state['barricades'] = active_barricades
 
         # --- Set up action queue for the turn ---
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
@@ -2870,7 +2926,8 @@ class Game:
             'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TERRITORY!]"),
             'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET!]"),
             'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
-            'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]")
+            'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),
+            'raise_barricade': lambda r: ("raised a temporary defensive barricade.", "[BARRICADE]")
         }
 
         if action_type in log_generators:

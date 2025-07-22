@@ -1,8 +1,16 @@
-This iteration focuses on cleaning up the UI, fixing bugs in the team management interface, and improving the overall user experience during the setup phase.
+This iteration focuses on adding a new strategic action, improving the developer/debug experience, and polishing the UI for clarity.
 
-### UI Cleanup and Bug Fixes for Team Management
+### New Gameplay Feature: Barricades
 
--   **Files**: `static/js/main.js`, `templates/index.html`, `static/css/style.css`
--   **Change 1 (Bug Fix)**: Fixed a visual bug in the team editing UI where the team's name and trait would appear alongside the input fields instead of being replaced by them. The display logic in `main.js` was corrected to properly hide the static display elements and show the edit controls, creating a seamless inline-editing experience.
--   **Change 2 (UI Polish)**: The "Add Team" form in the setup panel has been redesigned. The input fields and button are now horizontally aligned in a flex container, removing awkward line breaks and inline styles. This provides a cleaner and more professional look.
--   **Change 3 (UX Improvement)**: The "Save" and "Cancel" buttons in the team edit mode have been changed from text to icons (a checkmark and a cross) to be consistent with the other action icons (edit, delete). This creates a more uniform and intuitive interface.
+-   **Files**: `game_logic.py`, `static/js/main.js`, `rules.md`
+-   **Change**: Introduced a new `[TERRAFORM] Raise Barricade` action.
+    -   **Logic**: A team can use its turn to create a temporary, impassable wall between two of its existing points. This wall, or "barricade," does not require sacrificing a point.
+    -   **Strategic Impact**: Barricades act as neutral obstacles for a few turns. They block line-based attacks and extensions (`Attack Line`, `Extend Line`) and prevent new points from being created nearby. This adds a new layer of battlefield control and defensive strategy.
+    -   **Implementation**: Added `barricades` to the game state, created the action logic in `game_logic.py`, and implemented checks for obstruction in relevant functions. The frontend now renders these barricades with a distinct, jagged visual style that fades over time. The `rules.md` has been updated with the new action.
+
+### UI/UX and Developer Experience Improvements
+
+-   **Files**: `templates/index.html`, `static/css/style.css`
+-   **Change 1 (UI Polish)**: The "Reset Game" button text was changed to "Reset Game (Back to Setup)" to more clearly communicate its function and distinguish it from "Restart Simulation".
+-   **Change 2 (Dev Tools Cleanup)**: The "Debug Tools" section has been renamed to "Developer Tools" and is now collapsed by default within a `<details>` tag, cleaning up the main interface for regular users.
+-   **Change 3 (Safer UI)**: The "Shutdown Server" button inside the developer tools has been styled as a red "danger" button to visually warn of its destructive action. The "Copy Game State" button text was also made more explicit. All buttons in this section were styled for a consistent look.
