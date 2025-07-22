@@ -2827,6 +2827,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const x = Math.floor((e.clientX - rect.left) / cellSize);
         const y = Math.floor((e.clientY - rect.top) / cellSize);
 
+        // Ensure the click is within the grid boundaries
+        if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
+            return;
+        }
+
         const pointIndex = findPointAtCoord(x, y);
 
         if (pointIndex !== -1) {

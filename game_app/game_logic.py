@@ -625,6 +625,11 @@ class Game:
 
     def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_sq=1.0):
         """Checks if a new point can be spawned at the given coordinates."""
+        # Check if point is within grid boundaries
+        grid_size = self.state['grid_size']
+        if not (0 <= new_point_coords['x'] < grid_size and 0 <= new_point_coords['y'] < grid_size):
+            return False, 'outside of grid boundaries'
+
         # Check proximity to existing points
         for existing_p in self.state['points'].values():
             if distance_sq(new_point_coords, existing_p) < min_dist_sq:
@@ -857,9 +862,13 @@ class Game:
         new_x = p1['x'] + (p2['x'] - p1['x']) * ratio
         new_y = p1['y'] + (p2['y'] - p1['y']) * ratio
 
-        # Create new point, ensuring integer coordinates
+        # Create new point, ensuring integer coordinates and clamping to grid boundaries
+        grid_size = self.state['grid_size']
+        final_x = round(max(0, min(grid_size - 1, new_x)))
+        final_y = round(max(0, min(grid_size - 1, new_y)))
+
         new_point_id = f"p_{uuid.uuid4().hex[:6]}"
-        new_point = {"x": round(new_x), "y": round(new_y), "teamId": teamId, "id": new_point_id}
+        new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
         self.state['points'][new_point_id] = new_point
 
         # Remove old line and its potential shield
