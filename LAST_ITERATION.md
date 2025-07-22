@@ -1,19 +1,17 @@
-This iteration focused on enhancing the game's strategic depth and user experience based on the provided analysis and suggestions.
+This iteration focuses on adding a new strategic element—the Parallelogram Rune—and improving the robustness of existing actions by ensuring they always have a useful outcome, aligning with the "never useless" design principle.
 
-### 1. UI Enhancement: Action Preview
--   The "Action Preview" panel in the game-running view now correctly expands to fill the entire height of its dedicated column. This was achieved by overriding a `max-height` CSS property that was unintentionally constraining it, providing a cleaner and more readable layout for action probabilities.
+### 1. New Rune: The Parallelogram-Rune
+- **New Geometric Formation:** A "Parallelogram-Rune" has been introduced. It is formed by four of a team's points creating a non-rectangular parallelogram, with all four side-lines connected. This adds a new tactical shape for players to construct.
+- **New Geometric Helper:** A new helper function, `is_parallelogram`, was added to robustly detect this shape.
+- **New Action (`Parallel Discharge`):** This rune unlocks a powerful area-denial action. When activated, it destroys all enemy lines that cross through the interior of the parallelogram.
+- **"Never Useless" Fallback:** If the `Parallel Discharge` hits no enemy lines, the action creates a new central structure inside the rune—two new points at the midpoints of the diagonals, connected by a new line. This fallback reinforces the team's board presence instead of wasting a turn.
 
-### 2. New Rune: The Parallel-Rune
--   **New Formation:** A "Parallel-Rune" has been introduced. It is formed by four points creating a non-rectangular parallelogram with all four sides connected. This adds a new geometric shape for players to build and utilize.
--   **New Action (`Parallel Discharge`):** This rune unlocks a powerful area-denial action. When activated, it destroys all enemy lines that cross through the interior of the parallelogram.
--   **"Never Useless" Fallback:** If the `Parallel Discharge` hits no enemy lines, it doesn't fail. Instead, it reinforces the team's structure by creating two new points and a connecting line at the center of the parallelogram.
+### 2. Improved Action Reliability
+- **`Form Bastion` Fallback:** The `Form Bastion` action is now more reliable. If a team attempts this action but has no valid formation, it no longer fails. Instead, it identifies the team's most-connected fortified point and reinforces all of its connected lines, strengthening a key defensive position as a useful fallback.
 
-### 3. Improved Action Reliability
--   **`Form Bastion` Fallback:** The `Form Bastion` action is now more reliable. If a team attempts this action but has no valid formation, instead of failing the turn, it now identifies the team's most-connected fortified point and reinforces all of its connected lines, strengthening a key defensive position.
+### 3. Code Cleanup and Refactoring
+- **Refactored `_check_cross_rune`:** The logic for detecting Cross-Runes was rewritten to be more robust and efficient. It now correctly identifies the diagonals of a valid rectangle and checks for their existence, preventing potential geometric edge cases.
+- **Removed Redundancy:** The unused and redundant `init_game_state()` function was removed from `game_logic.py`, simplifying the codebase.
 
-### 4. Code Cleanup
--   Removed the unused and redundant `init_game_state()` function from `game_logic.py`, simplifying the codebase.
--   Added a new geometric helper function, `is_parallelogram`, to support the new rune detection logic.
-
-### 5. Documentation
--   The `rules.md` file has been updated to include the new Parallel-Rune and its associated action, as well as the new fallback behavior for the `Form Bastion` action, ensuring the documentation remains synchronized with the game's mechanics.
+### 4. Documentation
+- The `rules.md` file has been updated to include the new Parallelogram-Rune and its associated action, as well as the new fallback behavior for the `Form Bastion` action, ensuring the documentation remains synchronized with the game's mechanics.

@@ -126,6 +126,33 @@ def is_rectangle(p1, p2, p3, p4):
     
     return True, aspect_ratio
 
+def is_parallelogram(p1, p2, p3, p4):
+    """Checks if four points form a parallelogram. Returns (is_para, is_rect)."""
+    points = [p1, p2, p3, p4]
+    if len(set((p['x'], p['y']) for p in points)) < 4:
+        return False, False
+
+    dists_sq = sorted([
+        distance_sq(p1, p2), distance_sq(p1, p3), distance_sq(p1, p4),
+        distance_sq(p2, p3), distance_sq(p2, p4), distance_sq(p3, p4)
+    ])
+
+    # Check for 2 pairs of equal sides
+    if not (abs(dists_sq[0] - dists_sq[1]) < 0.01 and abs(dists_sq[2] - dists_sq[3]) < 0.01):
+        return False, False
+    
+    s1_sq, s2_sq = dists_sq[0], dists_sq[2]
+    d1_sq, d2_sq = dists_sq[4], dists_sq[5]
+
+    # Check parallelogram property: 2*(s1^2 + s2^2) = d1^2 + d2^2
+    if not abs(2 * (s1_sq + s2_sq) - (d1_sq + d2_sq)) < 0.1: # Increased tolerance
+        return False, False
+        
+    # Check if it's a rectangle
+    is_rect = abs(d1_sq - d2_sq) < 0.01
+    
+    return True, is_rect
+
 def get_isosceles_triangle_info(p1, p2, p3):
     """
     Checks if 3 points form an isosceles triangle.
@@ -202,12 +229,12 @@ class Game:
         'fortify_claim': 1, 'fortify_anchor': 1, 'fortify_mirror': 1, 'fortify_form_bastion': 1, 'fortify_form_monolith': 1, 'fortify_form_purifier': 1, 'fortify_cultivate_heartwood': 1, 'fortify_form_rift_spire': 1, 'terraform_create_fissure': 1, 'terraform_raise_barricade': 1, 'fortify_build_wonder': 1,
         'sacrifice_nova': 1, 'sacrifice_whirlpool': 1, 'sacrifice_phase_shift': 1, 'sacrifice_rift_trap': 1, 'defend_shield': 1,
         'rune_shoot_bisector': 1, 'rune_area_shield': 1, 'rune_shield_pulse': 1, 'rune_impale': 1, 'rune_hourglass_stasis': 1, 'rune_t_hammer_slam': 1,
-        'rune_starlight_cascade': 1, 'rune_focus_beam': 1, 'rune_cardinal_pulse': 1
+        'rune_starlight_cascade': 1, 'rune_focus_beam': 1, 'rune_cardinal_pulse': 1, 'rune_parallel_discharge': 1
     }
     TRAIT_MULTIPLIERS = {
         'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0, 'rune_hourglass_stasis': 0.5, 'rune_shield_pulse': 0.5, 'rune_t_hammer_slam': 1.8, 'rune_cardinal_pulse': 3.0},
-        'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5, 'sacrifice_phase_shift': 2.0},
-        'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'terraform_raise_barricade': 2.0, 'rune_area_shield': 3.0, 'rune_hourglass_stasis': 2.0, 'rune_shield_pulse': 2.5},
+        'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5, 'sacrifice_phase_shift': 2.0, 'rune_parallel_discharge': 1.5},
+        'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'terraform_raise_barricade': 2.0, 'rune_area_shield': 3.0, 'rune_hourglass_stasis': 2.0, 'rune_shield_pulse': 2.5, 'rune_parallel_discharge': 1.8},
         'Balanced':   {}
     }
     ACTION_DESCRIPTIONS = {
@@ -216,7 +243,7 @@ class Game:
         'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
         'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder",
         'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'sacrifice_rift_trap': "Create Rift Trap", 'defend_shield': "Shield Line / Overcharge",
-        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam", 'rune_cardinal_pulse': "Rune: Cardinal Pulse",
+        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam", 'rune_cardinal_pulse': "Rune: Cardinal Pulse", 'rune_parallel_discharge': "Rune: Parallel Discharge",
         'terraform_raise_barricade': "Raise Barricade"
     }
 
@@ -241,7 +268,7 @@ class Game:
             "stasis_points": {}, # {point_id: turns_left}
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
-            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': [], 'barricade': [], 't_shape': [], 'plus_shape': [], 'i_shape': []}}
+            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': [], 'barricade': [], 't_shape': [], 'plus_shape': [], 'i_shape': [], 'parallel': []}}
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "prisms": {}, # {teamId: [prism1, prism2, ...]}
             "barricades": [], # {id, teamId, p1, p2, turns_left}
@@ -1657,12 +1684,44 @@ class Game:
         return possible_bastions
 
     def fortify_action_form_bastion(self, teamId):
-        """[FORTIFY ACTION]: Converts a fortified point and its connections into a defensive bastion."""
+        """[FORTIFY ACTION]: Converts a fortified point and its connections into a defensive bastion. If not possible, reinforces a key point."""
         possible_bastions = self._find_possible_bastions(teamId)
 
         if not possible_bastions:
-            return {'success': False, 'reason': 'no valid bastion formation found'}
+            # --- Fallback: Reinforce most connected fortified point ---
+            fortified_point_ids = self._get_fortified_point_ids().intersection(self.get_team_point_ids(teamId))
+            if not fortified_point_ids:
+                return {'success': False, 'reason': 'no valid bastion formation and no fortified points to reinforce'}
+            
+            adj = {pid: 0 for pid in self.get_team_point_ids(teamId)}
+            for line in self.get_team_lines(teamId):
+                if line['p1_id'] in adj: adj[line['p1_id']] += 1
+                if line['p2_id'] in adj: adj[line['p2_id']] += 1
+
+            # Find the fortified point with the highest degree
+            point_to_reinforce_id = max(fortified_point_ids, key=lambda pid: adj.get(pid, 0), default=None)
+
+            if not point_to_reinforce_id:
+                return {'success': False, 'reason': 'could not find a fortified point to reinforce'}
+            
+            lines_to_strengthen = [l for l in self.get_team_lines(teamId) if l['p1_id'] == point_to_reinforce_id or l['p2_id'] == point_to_reinforce_id]
+            
+            strengthened_lines = []
+            max_strength = 3
+            for line in lines_to_strengthen:
+                line_id = line.get('id')
+                if line_id:
+                    current_strength = self.state['line_strengths'].get(line_id, 0)
+                    if current_strength < max_strength:
+                        self.state['line_strengths'][line_id] = current_strength + 1
+                        strengthened_lines.append(line)
+            
+            return {
+                'success': True, 'type': 'bastion_fizzle_reinforce',
+                'reinforced_point_id': point_to_reinforce_id, 'strengthened_lines': strengthened_lines
+            }
         
+        # --- Primary Action: Form Bastion ---
         chosen_bastion = random.choice(possible_bastions)
         bastion_id = f"b_{uuid.uuid4().hex[:6]}"
         new_bastion = {
@@ -3436,6 +3495,7 @@ class Game:
             'rune_focus_beam': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('star', [])) and num_enemy_points > 0, "Requires a Star Rune and an enemy point."),
             'rune_t_hammer_slam': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('t_shape', [])), "Requires an active T-Rune."),
             'rune_cardinal_pulse': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('plus_shape', [])), "Requires an active Plus-Rune."),
+            'rune_parallel_discharge': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('parallel', [])), "Requires an active Parallelogram Rune."),
         }
 
         status = {}
@@ -3595,7 +3655,8 @@ class Game:
             'rune_starlight_cascade': self.rune_action_starlight_cascade,
             'rune_focus_beam': self.rune_action_focus_beam,
             'rune_t_hammer_slam': self.rune_action_t_hammer_slam,
-            'rune_cardinal_pulse': self.rune_action_cardinal_pulse
+            'rune_cardinal_pulse': self.rune_action_cardinal_pulse,
+            'rune_parallel_discharge': self.rune_action_parallel_discharge
         }
 
         # --- Evaluate possible actions based on game state and exclusion list ---
@@ -3996,6 +4057,7 @@ class Game:
             'build_chronos_spire': lambda r: (f"sacrificed {r['sacrificed_points_count']} points to construct the Chronos Spire, a path to victory!", "[WONDER!]"),
             'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
             'bastion_pulse_fizzle_shockwave': lambda r: (f"attempted a bastion pulse that fizzled, instead creating a shockwave that pushed {r['pushed_points_count']} points.", "[PULSE->FIZZLE]"),
+            'bastion_fizzle_reinforce': lambda r: (f"failed to form a Bastion and instead reinforced {len(r['strengthened_lines'])} lines around a key defensive point.", "[BASTION->REINFORCE]"),
             'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
             'mirror_fizzle_strengthen': lambda r: (f"attempted to mirror its structure, but instead reinforced {len(r['strengthened_lines'])} connected lines.", "[MIRROR->REINFORCE]"),
             'create_anchor': lambda r: ("sacrificed a point to create a gravitational anchor.", "[ANCHOR]"),
@@ -4042,6 +4104,8 @@ class Game:
             'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
             't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
             'rune_cardinal_pulse': lambda r: (f"consumed a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points with four beams of energy.", "[CARDINAL PULSE!]"),
+            'parallel_discharge': lambda r: (f"unleashed a Parallel Discharge, cleansing its interior of {len(r['lines_destroyed'])} enemy lines.", "[DISCHARGE!]"),
+            'parallel_discharge_fizzle_spawn': lambda r: ("unleashed a Parallel Discharge that found no targets, and instead created a new structure at its center.", "[DISCHARGE->SPAWN]"),
         }
 
         if action_type in log_generators:
@@ -4383,6 +4447,7 @@ class Game:
         self.state['runes'][teamId]['t_shape'] = self._check_t_rune(teamId)
         self.state['runes'][teamId]['plus_shape'] = self._check_plus_rune(teamId)
         self.state['runes'][teamId]['i_shape'] = self._check_i_rune(teamId)
+        self.state['runes'][teamId]['parallel'] = self._check_parallel_rune(teamId)
 
     def _check_barricade_rune(self, teamId):
         """
@@ -4621,36 +4686,33 @@ class Game:
         
         points = self.state['points']
         existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
-
+        
         cross_runes = []
-        for p_ids in combinations(team_point_ids, 4):
-            p = [points[pid] for pid in p_ids]
+        used_points = set()
+
+        for p_ids_tuple in combinations(team_point_ids, 4):
+            if any(pid in used_points for pid in p_ids_tuple):
+                continue
             
-            pairings = [((0, 1), (2, 3)), ((0, 2), (1, 3)), ((0, 3), (1, 2))]
+            if not all(pid in points for pid in p_ids_tuple): continue
+            p_list = [points[pid] for pid in p_ids_tuple]
             
-            for d1_idx, d2_idx in pairings:
-                p_d1_1, p_d1_2 = p[d1_idx[0]], p[d1_idx[1]]
-                p_d2_1, p_d2_2 = p[d2_idx[0]], p[d2_idx[1]]
+            is_rect, _ = is_rectangle(*p_list)
+            if not is_rect:
+                continue
+            
+            # Find the two pairs of points with the largest distance. These are the diagonals.
+            all_pairs = list(combinations(p_ids_tuple, 2))
+            all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
+            sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
+            
+            diag1_pair = sorted_pairs[-1]
+            diag2_pair = sorted_pairs[-2]
 
-                # Midpoints must be the same (for a parallelogram)
-                mid1_x = (p_d1_1['x'] + p_d1_2['x']) / 2
-                mid1_y = (p_d1_1['y'] + p_d1_2['y']) / 2
-                mid2_x = (p_d2_1['x'] + p_d2_2['x']) / 2
-                mid2_y = (p_d2_1['y'] + p_d2_2['y']) / 2
-                if abs(mid1_x - mid2_x) > 0.01 or abs(mid1_y - mid2_y) > 0.01:
-                    continue
-
-                # Diagonal lengths must be same (for a rectangle)
-                if abs(distance_sq(p_d1_1, p_d1_2) - distance_sq(p_d2_1, p_d2_2)) > 0.01:
-                    continue
-
-                # Both diagonals must exist as lines
-                diag1_exists = tuple(sorted((p_d1_1['id'], p_d1_2['id']))) in existing_lines
-                diag2_exists = tuple(sorted((p_d2_1['id'], p_d2_2['id']))) in existing_lines
-
-                if diag1_exists and diag2_exists:
-                    cross_runes.append(list(p_ids))
-                    break  # Found the correct diagonal pairing
+            # Check if both diagonals exist as lines
+            if tuple(sorted(diag1_pair)) in existing_lines and tuple(sorted(diag2_pair)) in existing_lines:
+                cross_runes.append(list(p_ids_tuple))
+                used_points.update(p_ids_tuple)
         
         return cross_runes
 
@@ -4826,6 +4888,46 @@ class Game:
                     break
         return plus_runes
 
+    def _check_parallel_rune(self, teamId):
+        """
+        Finds Parallel Runes: a non-rectangular parallelogram with all four sides present as lines.
+        Returns a list of lists, each containing the 4 point IDs of a parallel rune.
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 4:
+            return []
+
+        points = self.state['points']
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
+        
+        parallel_runes = []
+        used_points = set()
+
+        for p_ids_tuple in combinations(team_point_ids, 4):
+            if any(pid in used_points for pid in p_ids_tuple):
+                continue
+
+            if not all(pid in points for pid in p_ids_tuple):
+                continue
+            p_list = [points[pid] for pid in p_ids_tuple]
+            is_para, is_rect = is_parallelogram(*p_list)
+
+            if is_para and not is_rect:
+                # We found a parallelogram. Check for 4 side lines.
+                all_pairs = list(combinations(p_ids_tuple, 2))
+                all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
+                
+                # For a parallelogram, the 4 shortest distances are the sides.
+                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
+                side_pairs = sorted_pairs[0:4]
+                
+                # Check if all 4 side lines exist
+                if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
+                    parallel_runes.append(list(p_ids_tuple))
+                    used_points.update(p_ids_tuple)
+        
+        return parallel_runes
+
     def _check_hourglass_rune(self, teamId):
         """
         Finds Hourglass Runes: two triangles sharing a single vertex, where all 6 lines exist.
@@ -4882,6 +4984,81 @@ class Game:
                 continue
         
         return hourglass_runes
+
+    def rune_action_parallel_discharge(self, teamId):
+        """[RUNE ACTION]: Uses a Parallel Rune to destroy crossing enemy lines. If none, creates a central structure."""
+        active_parallel_runes = self.state.get('runes', {}).get(teamId, {}).get('parallel', [])
+        if not active_parallel_runes:
+            return {'success': False, 'reason': 'no active Parallel Runes'}
+
+        rune_p_ids_tuple = random.choice(active_parallel_runes)
+        points = self.state['points']
+        
+        if not all(pid in points for pid in rune_p_ids_tuple):
+            return {'success': False, 'reason': 'rune points no longer exist'}
+        
+        # Find diagonals
+        all_pairs = list(combinations(rune_p_ids_tuple, 2))
+        all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
+        sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
+        diag1_p_ids = sorted_pairs[-1]
+        diag2_p_ids = sorted_pairs[-2]
+        d1_p1, d1_p2 = points[diag1_p_ids[0]], points[diag1_p_ids[1]]
+        d2_p1, d2_p2 = points[diag2_p_ids[0]], points[diag2_p_ids[1]]
+
+        # --- Primary Effect: Find and destroy crossing lines ---
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        lines_to_destroy = []
+        for line in enemy_lines:
+            if not (line['p1_id'] in points and line['p2_id'] in points): continue
+            
+            ep1, ep2 = points[line['p1_id']], points[line['p2_id']]
+            
+            # A line crosses if it intersects either diagonal
+            if segments_intersect(ep1, ep2, d1_p1, d1_p2) or segments_intersect(ep1, ep2, d2_p1, d2_p2):
+                lines_to_destroy.append(line)
+        
+        if lines_to_destroy:
+            for l in lines_to_destroy:
+                if l in self.state['lines']:
+                    self.state['lines'].remove(l)
+                    self.state['shields'].pop(l.get('id'), None)
+            
+            return {
+                'success': True, 'type': 'parallel_discharge',
+                'lines_destroyed': lines_to_destroy, 'rune_points': list(rune_p_ids_tuple)
+            }
+        
+        # --- Fallback Effect: Create central structure ---
+        else:
+            mid1 = self._points_centroid([d1_p1, d1_p2])
+            mid2 = self._points_centroid([d2_p1, d2_p2])
+            
+            p1_coords = {'x': round(mid1['x']), 'y': round(mid1['y'])}
+            p2_coords = {'x': round(mid2['x']), 'y': round(mid2['y'])}
+            
+            is_valid1, _ = self._is_spawn_location_valid(p1_coords, teamId)
+            is_valid2, _ = self._is_spawn_location_valid(p2_coords, teamId)
+            
+            if not is_valid1 or not is_valid2:
+                 return {'success': False, 'reason': 'center of parallelogram is blocked'}
+
+            p1_id = f"p_{uuid.uuid4().hex[:6]}"
+            new_p1 = {**p1_coords, 'id': p1_id, 'teamId': teamId}
+            self.state['points'][p1_id] = new_p1
+            
+            p2_id = f"p_{uuid.uuid4().hex[:6]}"
+            new_p2 = {**p2_coords, 'id': p2_id, 'teamId': teamId}
+            self.state['points'][p2_id] = new_p2
+            
+            line_id = f"l_{uuid.uuid4().hex[:6]}"
+            new_line = {'id': line_id, 'p1_id': p1_id, 'p2_id': p2_id, 'teamId': teamId}
+            self.state['lines'].append(new_line)
+            
+            return {
+                'success': True, 'type': 'parallel_discharge_fizzle_spawn',
+                'new_points': [new_p1, new_p2], 'new_line': new_line, 'rune_points': list(rune_p_ids_tuple)
+            }
 
     def rune_action_hourglass_stasis(self, teamId):
         """[RUNE ACTION]: Uses an Hourglass Rune to freeze an enemy point. If no target, creates an anchor."""
@@ -5413,8 +5590,3 @@ class Game:
 # --- Global Game Instance ---
 # This is a singleton pattern. The Flask app will interact with this instance.
 game = Game()
-
-def init_game_state():
-    """Resets the global game instance."""
-    global game
-    game.reset()

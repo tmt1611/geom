@@ -39,6 +39,9 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
 *   **Barricade-Rune:**
     *   **Formation:** Four points that form a rectangle, with all four of its sides existing as connected lines.
     *   **Bonus:** Unlocks the **[TERRAFORM] Raise Barricade** action.
+*   **Parallelogram-Rune:**
+    *   **Formation:** Four points that form a non-rectangular parallelogram, with all four of its sides existing as connected lines.
+    *   **Bonus:** Unlocks the **[RUNE] Parallel Discharge** action.
 
 ## Actions
 On its turn, a team will perform one of the following actions, with the choice being influenced by its trait.
@@ -64,6 +67,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Launch Payload:** _(Requires an active Trebuchet)_ Fires an arcing projectile. It prioritizes destroying a random enemy high-value point (e.g., a fortified point, bastion core, or monolith point). If none exist, it targets any vulnerable enemy point. If there are no targets at all, the payload impacts a random spot on the battlefield, creating a small, temporary fissure.
 *   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. If there are no enemy territories to cleanse, it instead emits a defensive pulse that pushes all nearby enemy points away from it.
 *   **[RUNE] Cardinal Pulse:** _(Requires an active Plus-Rune)_ The rune is consumed. Four energy beams are fired from the central point through the four arm points. Beams destroy the first enemy line they hit (bypassing shields). Any beam that misses creates a new point on the border.
+*   **[RUNE] Parallel Discharge:** _(Requires an active Parallelogram-Rune)_ Destroys all enemy lines crossing the interior of the parallelogram. If no lines are hit, it creates a new central structure of two points and a line inside the rune instead.
 *   **[RUNE] T-Hammer Slam:** _(Requires an active T-Rune)_ The rune sacrifices its 'head' point to create a shockwave emanating from its 'stem' line, pushing all nearby points away perpendicularly. If no points are in range, it instead reinforces the two lines that form the stem.
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits. If it misses, it creates a temporary fissure along its path.
 *   **[RUNE] Impale:** _(Requires an active Trident-Rune)_ Fires a devastating, long-range beam that pierces through all enemy lines in its path, ignoring shields. If the beam hits no targets, it instead creates a temporary defensive barricade along its path.
@@ -80,7 +84,7 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Bonus:** For each Nexus a team controls at the start of a turn, that team gains **one bonus action** to perform during that turn.
 *   **[FORTIFY] Claim Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory. If no new triangles can be formed, it will instead reinforce the boundary lines of an existing friendly territory.
     *   **Bonus:** The three points of a claimed territory become **Fortified**, making them immune to conversion. The three boundary lines become **Reinforced** and cannot be fractured by their owner, preserving the structure.
-*   **[FORTIFY] Form Bastion:** Converts a fortified point (a vertex of a claimed territory) and at least three of its connected, non-fortified points into a powerful defensive structure.
+*   **[FORTIFY] Form Bastion:** Converts a fortified point (a vertex of a claimed territory) and at least three of its connected, non-fortified points into a powerful defensive structure. If no valid formation can be found, it instead reinforces all lines connected to the team's most-connected fortified point.
     *   **Bonus:** The bastion's core point, prong points, and connecting lines become immune to standard attacks and conversion.
 *   **[FORTIFY] Form Monolith:** Forms a special defensive structure from four points that create a tall, thin rectangle with its perimeter lines connected.
     *   **Bonus (Resonance Wave):** Every few turns, the Monolith emits a wave that **Empowers** all friendly lines in a radius around it. Empowered lines can absorb one or more hits before being destroyed.
