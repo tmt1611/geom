@@ -83,6 +83,21 @@ def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_
         if distance_sq(new_point_coords, existing_p) < min_dist_sq:
             return False, 'too close to an existing point'
     
+    # Check proximity to fissures (a simple bounding box check for performance)
+    for fissure in self.state.get('fissures', []):
+        p1 = fissure['p1']
+        p2 = fissure['p2']
+        # Bounding box of the fissure segment
+        box_x_min = min(p1['x'], p2['x']) - 1
+        box_x_max = max(p1['x'], p2['x']) + 1
+        box_y_min = min(p1['y'], p2['y']) - 1
+        box_y_max = max(p1['y'], p2['y']) + 1
+        
+        if (new_point_coords['x'] >= box_x_min and new_point_coords['x'] <= box_x_max and
+            new_point_coords['y'] >= box_y_min and new_point_coords['y'] <= box_y_max):
+            # A more precise check can be done here if needed, but this is a good first pass
+            return False, 'too close to a fissure'
+
     # Check against enemy Heartwood defensive aura
     if self.state.get('heartwoods'):
         for teamId, heartwood in self.state['heartwoods'].items():
@@ -203,6 +218,8 @@ class Game:
             "whirlpools": [], # {id, teamId, coords, turns_left, strength, radius_sq}
             "monoliths": {}, # {monolith_id: {teamId, point_ids, ...}}
             "trebuchets": {}, # {teamId: [trebuchet1, ...]}
+            "rift_spires": {}, # {spire_id: {teamId, coords, charge}}
+            "fissures": [], # {id, p1, p2, turns_left}
             "wonders": {}, # {wonder_id: {teamId, type, turns_to_victory, ...}}
             "empowered_lines": {}, # {line_id: strength}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
@@ -303,6 +320,8 @@ class Game:
         state_copy['whirlpools'] = self.state.get('whirlpools', [])
         state_copy['monoliths'] = self.state.get('monoliths', {})
         state_copy['trebuchets'] = self.state.get('trebuchets', {})
+        state_copy['rift_spires'] = self.state.get('rift_spires', {})
+        state_copy['fissures'] = self.state.get('fissures', [])
         state_copy['wonders'] = self.state.get('wonders', {})
 
         # Add live stats for real-time display, regardless of phase, for consistency
@@ -555,6 +574,13 @@ class Game:
 
         if dx == 0 and dy == 0: return None
 
+        # Check if extension is blocked by a fissure
+        # Create a very long ray for intersection test
+        ray_end_point = {'x': p2['x'] + dx * grid_size * 2, 'y': p2['y'] + dy * grid_size * 2}
+        for fissure in self.state.get('fissures', []):
+            if segments_intersect(p2, ray_end_point, fissure['p1'], fissure['p2']):
+                return None # Extension is blocked by a fissure
+
         # We are calculating p_new = p1 + t * (p2 - p1) for t > 1
         t_values = []
         if dx != 0:
@@ -745,6 +771,15 @@ class Game:
                     
                     ep1 = points[enemy_line['p1_id']]
                     ep2 = points[enemy_line['p2_id']]
+
+                    # Check if attack ray is blocked by a fissure
+                    is_blocked_by_fissure = False
+                    for fissure in self.state.get('fissures', []):
+                        if get_segment_intersection_point(attack_segment_p1, attack_segment_p2, fissure['p1'], fissure['p2']):
+                             is_blocked_by_fissure = True
+                             break
+                    if is_blocked_by_fissure:
+                        continue
 
                     if segments_intersect(attack_segment_p1, attack_segment_p2, ep1, ep2):
                         possible_attacks.append({
@@ -1467,6 +1502,95 @@ class Game:
                     break
         
         return found_stars
+
+    def fortify_action_form_rift_spire(self, teamId):
+        """[FORTIFY ACTION]: Forms a Rift Spire from a point that is a vertex of 3 territories."""
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        if len(team_territories) < 3:
+            return {'success': False, 'reason': 'not enough claimed territories'}
+
+        # Count how many territories each point belongs to
+        point_territory_count = {}
+        for territory in team_territories:
+            for pid in territory['point_ids']:
+                if pid not in self.state['points']: continue
+                point_territory_count[pid] = point_territory_count.get(pid, 0) + 1
+        
+        # Find points that are part of 3 or more territories
+        existing_spire_coords = { (s['coords']['x'], s['coords']['y']) for s in self.state.get('rift_spires', {}).values() }
+
+        possible_spires = []
+        for pid, count in point_territory_count.items():
+            if count >= 3:
+                point_coords = self.state['points'][pid]
+                if (point_coords['x'], point_coords['y']) not in existing_spire_coords:
+                    possible_spires.append(pid)
+        
+        if not possible_spires:
+            return {'success': False, 'reason': 'no point is a vertex of 3+ territories'}
+
+        p_to_sac_id = random.choice(possible_spires)
+        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
+        
+        if not sacrificed_point_data:
+            return {'success': False, 'reason': 'failed to sacrifice point for spire'}
+
+        spire_id = f"rs_{uuid.uuid4().hex[:6]}"
+        new_spire = {
+            'id': spire_id,
+            'teamId': teamId,
+            'coords': { 'x': sacrificed_point_data['x'], 'y': sacrificed_point_data['y'] },
+            'charge': 0,
+            'charge_needed': 3 # Takes 3 turns to charge up
+        }
+        if 'rift_spires' not in self.state: self.state['rift_spires'] = {}
+        self.state['rift_spires'][spire_id] = new_spire
+
+        return {
+            'success': True,
+            'type': 'form_rift_spire',
+            'spire': new_spire,
+            'sacrificed_point': sacrificed_point_data
+        }
+
+    def terraform_action_create_fissure(self, teamId):
+        """[TERRAFORM ACTION]: A Rift Spire creates a fissure on the map."""
+        team_spires = [s for s in self.state.get('rift_spires', {}).values() if s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3)]
+        if not team_spires:
+            return {'success': False, 'reason': 'no charged rift spires available'}
+
+        spire = random.choice(team_spires)
+        grid_size = self.state['grid_size']
+        
+        # Create a long fissure, e.g., from one border to another
+        borders = [
+            {'x': 0, 'y': random.randint(0, grid_size - 1)},
+            {'x': grid_size - 1, 'y': random.randint(0, grid_size - 1)},
+            {'x': random.randint(0, grid_size - 1), 'y': 0},
+            {'x': random.randint(0, grid_size - 1), 'y': grid_size - 1}
+        ]
+        p1 = random.choice(borders)
+        
+        opposite_borders = []
+        if p1['x'] == 0: opposite_borders.append({'x': grid_size - 1, 'y': random.randint(0, grid_size - 1)})
+        if p1['x'] == grid_size - 1: opposite_borders.append({'x': 0, 'y': random.randint(0, grid_size - 1)})
+        if p1['y'] == 0: opposite_borders.append({'x': random.randint(0, grid_size - 1), 'y': grid_size - 1})
+        if p1['y'] == grid_size - 1: opposite_borders.append({'x': random.randint(0, grid_size - 1), 'y': 0})
+        
+        p2 = random.choice(opposite_borders) if opposite_borders else random.choice(borders)
+
+        fissure_id = f"f_{uuid.uuid4().hex[:6]}"
+        new_fissure = { 'id': fissure_id, 'p1': p1, 'p2': p2, 'turns_left': 8 }
+        self.state['fissures'].append(new_fissure)
+        
+        spire['charge'] = 0 # Reset charge
+
+        return {
+            'success': True,
+            'type': 'create_fissure',
+            'fissure': new_fissure,
+            'spire_id': spire['id']
+        }
 
     def fortify_action_build_chronos_spire(self, teamId):
         """[WONDER ACTION]: Build the Chronos Spire."""
@@ -2262,6 +2386,8 @@ class Game:
             'fortify_form_bastion': self.fortify_action_form_bastion,
             'fortify_form_monolith': self.fortify_action_form_monolith,
             'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood,
+            'fortify_form_rift_spire': self.fortify_action_form_rift_spire,
+            'terraform_create_fissure': self.terraform_action_create_fissure,
             'fortify_build_wonder': self.fortify_action_build_chronos_spire,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
@@ -2295,6 +2421,8 @@ class Game:
             'fortify_form_bastion': bool(self._get_fortified_point_ids().intersection(team_point_ids)), # Team has at least one of its own fortified points
             'fortify_form_monolith': len(team_point_ids) >= 4,
             'fortify_cultivate_heartwood': len(team_point_ids) >= 6 and teamId not in self.state.get('heartwoods', {}),
+            'fortify_form_rift_spire': len([t for t in self.state.get('territories', []) if t['teamId'] == teamId]) >= 3,
+            'terraform_create_fissure': any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in self.state.get('rift_spires', {}).values()),
             'fortify_build_wonder': len(team_point_ids) >= 6 and not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()),
             'sacrifice_nova': len(team_point_ids) > 2,
             'sacrifice_whirlpool': len(team_point_ids) > 1,
@@ -2314,7 +2442,7 @@ class Game:
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
             'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25,
-            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_cultivate_heartwood': 20, 'fortify_build_wonder': 100,
+            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'fortify_build_wonder': 100,
             'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
@@ -2539,6 +2667,20 @@ class Game:
                         # We should stop processing the rest of the turn start.
                         self.state['actions_queue_this_turn'] = [] # empty queue
                         return # exit early
+        
+        # 7. Process Rift Spires (charging) and Fissures (decay)
+        if self.state.get('rift_spires'):
+            for spire in self.state['rift_spires'].values():
+                if spire.get('charge', 0) < spire.get('charge_needed', 3):
+                    spire['charge'] = spire.get('charge', 0) + 1
+        
+        if self.state.get('fissures'):
+            active_fissures = []
+            for f in self.state['fissures']:
+                f['turns_left'] -= 1
+                if f['turns_left'] > 0:
+                    active_fissures.append(f)
+            self.state['fissures'] = active_fissures
 
         # --- Set up action queue for the turn ---
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})

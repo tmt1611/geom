@@ -671,6 +671,73 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function drawFissures(gameState) {
+        if (!gameState.fissures) return;
+
+        gameState.fissures.forEach(fissure => {
+            const p1 = {x: (fissure.p1.x + 0.5) * cellSize, y: (fissure.p1.y + 0.5) * cellSize};
+            const p2 = {x: (fissure.p2.x + 0.5) * cellSize, y: (fissure.p2.y + 0.5) * cellSize};
+            
+            ctx.strokeStyle = `rgba(30, 30, 30, ${0.4 + (fissure.turns_left / 8) * 0.4})`;
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            // Jagged line effect
+            drawJaggedLine(p1, p2, 15, 6);
+            ctx.lineCap = 'butt';
+        });
+    }
+
+    function drawRiftSpires(gameState) {
+        if (!gameState.rift_spires) return;
+
+        for (const spireId in gameState.rift_spires) {
+            const spire = gameState.rift_spires[spireId];
+            const team = gameState.teams[spire.teamId];
+            if (!team) continue;
+
+            const cx = (spire.coords.x + 0.5) * cellSize;
+            const cy = (spire.coords.y + 0.5) * cellSize;
+            const now = Date.now();
+            const rotation = (now / 4000) % (2 * Math.PI);
+            const pulse = Math.abs(Math.sin(now / 300));
+            const charge_level = spire.charge / spire.charge_needed;
+
+            // Draw a spiky star shape
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(rotation);
+            
+            ctx.beginPath();
+            const spikes = 7;
+            const outerRadius = 12 + pulse * 2;
+            const innerRadius = 6;
+            for (let i = 0; i < spikes * 2; i++) {
+                const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                const angle = (i * Math.PI) / spikes;
+                ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+            }
+            ctx.closePath();
+
+            ctx.fillStyle = team.color;
+            ctx.fill();
+            
+            // Draw charge level indicator
+            if (charge_level < 1) {
+                ctx.strokeStyle = `rgba(255, 255, 255, 0.5)`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, outerRadius + 2, -Math.PI/2, -Math.PI/2 + (2*Math.PI * charge_level), false);
+                ctx.stroke();
+            } else {
+                // Glow when fully charged
+                ctx.fillStyle = `rgba(255, 255, 255, ${pulse * 0.3})`;
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+    }
+
     function drawWonders(gameState) {
         if (!gameState.wonders) return;
     
@@ -987,7 +1054,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawConduits(currentGameState);
                 drawNexuses(currentGameState);
                 drawHeartwoods(currentGameState);
-                drawWonders(currentGameState); // Draw wonders on top of most things but under lines/points
+                drawWonders(currentGameState);
+                drawRiftSpires(currentGameState);
+                drawFissures(currentGameState);
                 drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
                 drawPoints(currentGameState.points, currentGameState.teams);
                 
@@ -1313,6 +1382,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 color: `rgba(255, 255, 150, ${1-0})` // Golden
             });
         }
+        if (details.type === 'form_rift_spire' && details.sacrificed_point) {
+            visualEffects.push({
+                type: 'point_implosion',
+                x: details.sacrificed_point.x,
+                y: details.sacrificed_point.y,
+                startTime: Date.now(),
+                duration: 1500,
+                color: `rgba(200, 100, 255, ${1-0})` // Purple
+            });
+        }
+        if (details.type === 'create_fissure' && details.fissure) {
+            // Highlight the spire that did it.
+            const spire = gameState.rift_spires[details.spire_id];
+            if(spire) {
+                // We can't highlight it easily as it's not a point.
+                // The new fissure itself is the visual feedback.
+            }
+        }
 
         // Set a timer to clear the highlights
         lastActionHighlights.clearTimeout = setTimeout(() => {
@@ -1579,6 +1666,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         'Bastion': Object.values(bastions || {}).filter(b => b.teamId === teamId).length,
                         'Monolith': Object.values(monoliths || {}).filter(m => m.teamId === teamId).length,
                         'Trebuchet': (gameState.trebuchets && gameState.trebuchets[teamId]) ? gameState.trebuchets[teamId].length : 0,
+                        'Rift Spire': Object.values(gameState.rift_spires || {}).filter(s => s.teamId === teamId).length,
                         'Wonder': Object.values(wonders || {}).filter(w => w.teamId === teamId).length
                     };
 

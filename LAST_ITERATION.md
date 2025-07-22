@@ -1,22 +1,27 @@
-This iteration focuses on improving the user interface during the setup phase and introducing a new, visually dynamic action that enhances strategic possibilities.
+This iteration focused on improving the user interface for team management and introducing a new strategic, map-altering gameplay mechanic.
 
-### 1. New Action: Phase Shift
+### UI/UX Improvement: Smoother Team Editing
 
--   **Files**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
--   **Change**: A new sacrifice-class action, **`[SACRIFICE] Phase Shift`**, has been introduced.
-    -   **Functionality**: A team can sacrifice one of its lines to instantly teleport one of the line's endpoints to a new random location. All other lines connected to the moved point remain, creating long, stretched connections across the grid.
-    -   **Strategy**: This high-risk, high-reward action allows for dramatic strategic repositioning, enabling teams to escape dangerous areas, flank opponents, or connect disparate groups of points.
-    -   **Visuals**: The action is accompanied by new visual effects: a colorful implosion at the point's original location and a corresponding explosion at its new destination, making the event clear and visually exciting.
+-   **Files**: `static/js/main.js`, `static/css/style.css`
+-   **Change**: The team management UI during the setup phase has been completely overhauled. Previously, clicking "edit" would replace the team display with a somewhat disruptive block of input fields.
+-   **New Behavior**: The new implementation provides a much smoother inline editing experience. When a user clicks the edit icon:
+    -   The team name and trait become editable fields directly within the list item.
+    -   The color picker is seamlessly integrated.
+    -   Save and Cancel icons replace the standard action buttons.
+-   **Benefit**: This makes the process of creating and modifying teams more intuitive and visually appealing, reducing layout shifts and improving the overall user workflow during setup.
 
-### 2. UI/UX Improvements
+### New Feature: Rift Spires & Fissures
 
--   **File**: `static/js/main.js`
--   **Change**: The team editing interface in the setup panel has been redesigned to be less disruptive.
-    -   **Before**: Clicking "Edit" would replace the entire team information line with input fields.
-    -   **After**: Clicking "Edit" now displays the editing controls inline below the team's information, which remains visible. This makes for a smoother and more intuitive user experience when managing teams.
+A new "Terraforming" strategic layer has been added to the game, allowing teams to directly manipulate the battlefield.
 
-### 3. Visual Polish
-
--   **File**: `static/js/main.js`
--   **Change**: The visual effects for several sacrifice actions (`Create Anchor`, `Create Whirlpool`, `Bastion Pulse`) have been updated to use the appropriate team's color, making the cause of "implosion" effects clearer.
--   **Benefit**: This small change improves visual consistency and helps the user to better understand events on the battlefield at a glance.
+-   **Files**: `game_logic.py`, `static/js/main.js`, `rules.md`
+-   **New Structure: Rift Spire**
+    -   **Formation:** A team can sacrifice a highly valuable point—one that serves as a vertex for at least three of its claimed territories—to create a **Rift Spire**.
+    -   **Function:** The Spire is a permanent structure that passively charges over several turns.
+-   **New Action: Create Fissure**
+    -   **Mechanic:** Once fully charged, a Rift Spire can execute the `Create Fissure` action. This creates a long, jagged crack across the battlefield that lasts for a set number of turns.
+    -   **Strategic Impact:** Fissures are impassable barriers. They block line-of-sight for attacks, prevent line extensions, and no new points can be created near them. This introduces a powerful map control element, allowing a team to create defensive walls, block off enemy expansion, or isolate parts of the grid.
+-   **Visuals**:
+    -   Rift Spires are rendered with a unique, spiky, pulsing visual that includes a charge indicator.
+    -   Fissures are drawn as thick, jagged, decaying cracks on the grid, providing clear and immediate visual feedback about the altered terrain.
+-   **System Integration**: The core game logic (`_is_spawn_location_valid`, `fight_action_attack_line`, etc.) has been updated to respect the blocking nature of these new fissures.

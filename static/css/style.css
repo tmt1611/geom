@@ -113,7 +113,7 @@ legend {
     border: 1px solid transparent;
     /* cursor is set in JS based on phase */
     transition: background-color 0.2s, border-color 0.2s;
-    flex-wrap: wrap; /* Allow wrapping for edit mode */
+    flex-wrap: nowrap; /* Prevent wrapping by default */
 }
 
 .team-actions button {
@@ -134,32 +134,43 @@ legend {
 }
 
 .team-edit-controls {
-    display: flex;
-    width: 100%;
-    margin-top: 8px;
-    gap: 5px;
+    display: none; /* Hidden by default, shown via JS */
+    flex-grow: 1;
     align-items: center;
-    flex-wrap: wrap;
+    gap: 8px;
 }
 .team-edit-controls input[type="text"] {
     flex-grow: 1;
-    padding: 4px;
-    min-width: 80px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    min-width: 70px;
 }
 .team-edit-controls select {
-    padding: 3px;
+    padding: 4px;
     background-color: #fff;
     border: 1px solid #ccc;
     border-radius: 3px;
 }
 .team-edit-controls button {
     padding: 4px 8px;
+    font-size: 1.1em;
+    background: none;
+    border: none;
+    cursor: pointer;
+    line-height: 1;
 }
+.team-edit-controls .save-team-btn { color: #27ae60; }
+.team-edit-controls .save-team-btn:hover { color: #2ecc71; }
+.team-edit-controls .cancel-team-btn { color: #c0392b; }
+.team-edit-controls .cancel-team-btn:hover { color: #e74c3c; }
 
 .team-info {
     display: flex;
     flex-grow: 1; /* Allow it to take available space */
     flex-direction: column;
+    justify-content: center;
+    gap: 2px;
 }
 
 .team-name {
@@ -169,7 +180,6 @@ legend {
 .team-trait {
     font-size: 0.8em;
     color: #555;
-    margin-left: 2px;
 }
 
 #teams-list li.selected {
@@ -201,6 +211,19 @@ legend {
     margin-right: 10px;
     border: 1px solid #000;
     border-radius: 3px;
+    flex-shrink: 0; /* Prevent it from shrinking */
+}
+
+/* Edit mode color input is different */
+#teams-list li input[type="color"] {
+    padding: 0;
+    border: none;
+    width: 24px;
+    height: 24px;
+    background: none;
+    cursor: pointer;
+    margin-right: 10px;
+    flex-shrink: 0;
 }
 
 .log-box {

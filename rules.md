@@ -64,6 +64,10 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Cost:** The central point and all branch points are sacrificed. This action can only be performed once per team.
     *   **Bonus 1 (Passive Growth):** Every few turns, the Heartwood automatically creates a new point for its team nearby.
     *   **Bonus 2 (Defensive Aura):** Prevents enemy points from being created in a large radius around it.
+*   **[FORTIFY] Form Rift Spire:** Sacrifices a point that serves as a vertex for at least three different claimed territories.
+    *   **Bonus:** Creates a **Rift Spire**. This structure takes several turns to charge. Once charged, it unlocks the **[TERRAFORM] Create Fissure** action.
+*   **[TERRAFORM] Create Fissure:** _(Requires a charged Rift Spire)_ The spire opens a temporary, impassable fissure across the battlefield.
+    *   **Effect:** The fissure is a line on the grid that blocks most actions. No points can be created near it, and line-based actions (like `Attack Line` or `Extend Line`) cannot cross it. It decays after a number of turns.
 
 ## Wonders
 Wonders are unique, game-changing structures that require immense investment and provide a path to an alternative victory. Only one Wonder can be controlled by each team.
