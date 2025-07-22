@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // This global 'api' object is defined in api.js
     const canvas = document.getElementById('grid');
     const ctx = canvas.getContext('2d');
     let gridSize = 10; // This will be updated from backend state
@@ -74,6 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const finalAnalysisOptions = document.getElementById('final-analysis-options');
     const copyStateBtn = document.getElementById('copy-state-btn');
     const restartServerBtn = document.getElementById('restart-server-btn');
+
+    // --- API Abstraction ---
+    // The `api` object is defined in `api.js` and handles the communication
+    // with either the Flask backend (HTTP) or the in-browser Python (Pyodide).
 
     // --- Core Functions ---
 
@@ -2502,10 +2507,7 @@ document.addEventListener('DOMContentLoaded', () => {
             teamIdForPreview = currentActionInfo.teamId;
         }
     
-        const fetchUrl = `/api/game/action_probabilities?teamId=${teamIdForPreview}&include_invalid=${showInvalid}`;
-    
-        fetch(fetchUrl)
-            .then(response => response.json())
+        api.getActionProbabilities(teamIdForPreview, showInvalid)
             .then(data => {
                 if (data.error) {
                     content.innerHTML = `<p>Error loading actions for ${data.team_name || 'team'}.</p>`;
@@ -2642,9 +2644,8 @@ document.addEventListener('DOMContentLoaded', () => {
     copyStateBtn.addEventListener('click', async () => {
         if (navigator.clipboard) {
             try {
-                // Fetch the latest state to ensure it's current
-                const response = await fetch('/api/game/state');
-                const gameState = await response.json();
+                // Get state via the API wrapper
+                const gameState = await api.getState();
                 const stateString = JSON.stringify(gameState, null, 2);
                 await navigator.clipboard.writeText(stateString);
                 showTemporaryButtonFeedback(copyStateBtn, 'State Copied!');
@@ -2657,28 +2658,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    restartServerBtn.addEventListener('click', () => {
+    restartServerBtn.addEventListener('click', async () => {
         if (!confirm("This will restart the server. The page will reload after a few seconds. Are you sure?")) {
             return;
         }
-
-        // Send the request. We don't care about the response because the server will restart and
-        // likely interrupt the connection.
-        fetch('/api/dev/restart', { method: 'POST' }).catch(err => {
-            // This error is expected as the server goes down. We can ignore it.
-            console.log("Restart request sent. Fetch failed as expected due to server restart.");
-        });
-
-        // Display a message to the user and disable controls
-        statusBar.textContent = 'Server is restarting... The page will reload shortly.';
-        statusBar.style.opacity = '1';
-        document.querySelectorAll('button, input, select').forEach(el => el.disabled = true);
-
-
-        // Wait a few seconds for the server to come back up, then reload the page.
-        setTimeout(() => {
-            location.reload();
-        }, 5000); // 5 seconds should be enough for the reloader.
+        
+        try {
+            await api.restartServer(); // API handles mode switching
+            
+            // This part only runs in HTTP mode.
+            statusBar.textContent = 'Server is restarting... The page will reload shortly.';
+            statusBar.style.opacity = '1';
+            document.querySelectorAll('button, input, select').forEach(el => el.disabled = true);
+            
+            // Wait a few seconds for the server to come back up, then reload the page.
+            setTimeout(() => {
+                location.reload();
+            }, 5000); // 5 seconds should be enough for the reloader.
+        } catch (error) {
+            console.error("Error sending restart command:", error);
+            alert("Failed to send restart command.");
+        }
     });
 
     // Listener for team list - now only for deletion (selection and editing are handled on elements)
@@ -2851,16 +2851,7 @@ document.addEventListener('DOMContentLoaded', () => {
             gridSize: parseInt(gridSizeInput.value)
         };
         try {
-            const response = await fetch('/api/game/start', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to start game. Server returned ${response.status}: ${errorText}`);
-            }
-            const gameState = await response.json();
+            const gameState = await api.startGame(payload);
             initialPoints = []; // Clear setup points after game starts
             updateStateAndRender(gameState);
         } catch (error) {
@@ -2875,12 +2866,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         stopAutoPlay();
         try {
-            const response = await fetch('/api/game/restart', { method: 'POST' });
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to restart game. Server returned ${response.status}: ${errorText}`);
+            const gameState = await api.restart();
+            if (gameState.error) {
+                 throw new Error(`Failed to restart game: ${gameState.error}`);
             }
-            const gameState = await response.json();
             updateStateAndRender(gameState);
         } catch (error) {
             // Let the global handler catch and display it
@@ -2890,12 +2879,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     nextActionBtn.addEventListener('click', async () => {
         try {
-            const response = await fetch('/api/game/next_action', { method: 'POST' });
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to run next action. Server returned ${response.status}: ${errorText}`);
-            }
-            const gameState = await response.json();
+            const gameState = await api.nextAction();
             updateStateAndRender(gameState);
         } catch (error) {
             stopAutoPlay();
@@ -2916,36 +2900,24 @@ document.addEventListener('DOMContentLoaded', () => {
         stopAutoPlay(); // Ensure no multiple intervals are running
         autoPlayBtn.textContent = 'Stop';
         const delay = parseInt(autoPlaySpeedSlider.value, 10);
-        autoPlayInterval = setInterval(async () => {
+        autoPlayInterval = setInterval(() => {
             if (currentGameState.game_phase !== 'RUNNING') {
                  stopAutoPlay();
                  return;
             }
-            try {
-                const response = await fetch('/api/game/next_action', { method: 'POST' });
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    // Don't throw here, as it would be unhandled inside setInterval.
-                    // Instead, stop autoplay and show the error.
-                    stopAutoPlay();
-                    const errorOverlay = document.getElementById('error-overlay');
-                    const errorDetails = document.getElementById('error-details');
-                    errorDetails.textContent = `Auto-play stopped. Server Error (${response.status}):\n\n${errorText}`;
-                    errorOverlay.style.display = 'flex';
-                    return;
-                }
-                const gameState = await response.json();
+            (async () => {
+                const gameState = await api.nextAction();
                 updateStateAndRender(gameState);
                 if (gameState.game_phase === 'FINISHED') {
                     stopAutoPlay();
                 }
-            } catch (error) {
+            })().catch(e => {
+                // This ensures that any error inside the async function is
+                // caught and passed to the global error handler.
                 stopAutoPlay();
-                const errorOverlay = document.getElementById('error-overlay');
-                const errorDetails = document.getElementById('error-details');
-                errorDetails.textContent = `Auto-play stopped. Fetch/Parse Error:\n\n${error.stack}`;
-                errorOverlay.style.display = 'flex';
-            }
+                // This will be picked up by the 'unhandledrejection' listener
+                throw e; 
+            });
         }, delay);
     }
 
@@ -2970,37 +2942,32 @@ document.addEventListener('DOMContentLoaded', () => {
         stopAutoPlay();
         if (confirm("This will erase all progress and return to the setup screen. Are you sure?")) {
             try {
-                const response = await fetch('/api/game/reset', { method: 'POST' });
-                if (response.ok) {
-                    const gameState = await response.json();
-                    
-                    // Reset local setup state
-                    // The state from the server contains the default teams.
-                    localTeams = gameState.teams || {}; 
-                    Object.values(localTeams).forEach(t => { t.isEditing = false; }); // Ensure no edit mode
-                    initialPoints = []; // Clear points
-                    const teamIds = Object.keys(localTeams);
-                    if (teamIds.length > 0) {
-                        selectedTeamId = teamIds[0];
-                    } else {
-                        selectedTeamId = null;
-                    }
-                    
-                    // Reset inputs to default
-                    gridSizeInput.value = gameState.grid_size;
-                    maxTurnsInput.value = gameState.max_turns;
-                    setNewTeamDefaults();
-    
-                    // Update the state cache and render all UI components based on the new state
-                    updateStateAndRender(gameState);
-                    // Manually call renderTeamsList because it's only called on first update inside updateStateAndRender
-                    renderTeamsList(); 
+                const gameState = await api.reset();
+
+                // Reset local setup state
+                // The state from the server contains the default teams.
+                localTeams = gameState.teams || {};
+                Object.values(localTeams).forEach(t => { t.isEditing = false; }); // Ensure no edit mode
+                initialPoints = []; // Clear points
+                const teamIds = Object.keys(localTeams);
+                if (teamIds.length > 0) {
+                    selectedTeamId = teamIds[0];
                 } else {
-                    alert('Failed to reset the game on the server.');
+                    selectedTeamId = null;
                 }
+                
+                // Reset inputs to default
+                gridSizeInput.value = gameState.grid_size;
+                maxTurnsInput.value = gameState.max_turns;
+                setNewTeamDefaults();
+
+                // Update the state cache and render all UI components based on the new state
+                updateStateAndRender(gameState);
+                // Manually call renderTeamsList because it's only called on first update inside updateStateAndRender
+                renderTeamsList();
             } catch (error) {
-                alert('Error communicating with the server to reset the game.');
-                console.error('Reset error:', error);
+                // Let the global handler catch and display it
+                throw error;
             }
         }
     });
@@ -3059,26 +3026,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function checkForUpdates() {
+        // Only run update checker in HTTP mode.
+        if (api._mode !== 'http') return;
+
         setInterval(async () => {
             try {
-                const response = await fetch('/api/check_updates');
-                const data = await response.json();
+                const data = await api.checkUpdates();
                 if (data.updated) {
                     alert(data.message);
-                    // Stop any running game loops
                     stopAutoPlay();
                 }
             } catch (error) {
                 console.error('Update check failed:', error);
-                // Could mean server is down for restart
                 stopAutoPlay();
             }
-        }, 5000); // Check every 5 seconds
+        }, 5000);
     }
 
     async function init() {
         setNewTeamDefaults();
         setupErrorHandling();
+
+        const isGhPages = window.location.hostname.endsWith('github.io');
+        const apiMode = isGhPages ? 'pyodide' : 'http';
+
+        // Show a loading message for Pyodide
+        if (apiMode === 'pyodide') {
+            statusBar.textContent = 'Loading Python interpreter (Pyodide)... This may take a moment.';
+            statusBar.style.opacity = '1';
+            restartServerBtn.style.display = 'none'; // Hide dev-only button
+        }
+
+        try {
+            await api.initialize(apiMode);
+        } catch(e) {
+            console.error("Failed to initialize API", e);
+            statusBar.textContent = `Error: Failed to initialize application backend. See console for details.`;
+            statusBar.style.backgroundColor = 'red';
+            throw e; // Stop execution
+        }
+
+        if (apiMode === 'pyodide') {
+            statusBar.textContent = 'Pyodide loaded. Initializing game...';
+        }
 
         // --- Live grid size update ---
         gridSizeInput.addEventListener('input', () => {
@@ -3112,8 +3102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         resizeObserver.observe(gridContainer);
 
-        const response = await fetch('/api/game/state');
-        const gameState = await response.json();
+        const gameState = await api.getState();
         
         // If page is refreshed during setup, reconstruct state to allow editing
         if (gameState.game_phase === 'SETUP') {
