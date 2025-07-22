@@ -1191,6 +1191,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dx = end_x - start_x;
                 const dy = end_y - start_y;
                 const len = Math.sqrt(dx*dx + dy*dy);
+                if (len < 0.1) return true; // Avoid division by zero for tiny rays
                 const tail_x = current_x - (dx/len) * tail_length;
                 const tail_y = current_y - (dy/len) * tail_length;
 
