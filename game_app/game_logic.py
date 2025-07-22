@@ -530,6 +530,14 @@ class Game:
         
         return deleted_point_data
 
+    def _triangle_centroid(self, points):
+        """Calculates the centroid of a triangle. Assumes points is a list of 3 point dicts."""
+        if not points or len(points) != 3:
+            return None
+        x_sum = sum(p['x'] for p in points)
+        y_sum = sum(p['y'] for p in points)
+        return {'x': x_sum / 3.0, 'y': y_sum / 3.0}
+
     # --- Game Actions ---
 
     def expand_action_add_line(self, teamId):
@@ -2097,6 +2105,70 @@ class Game:
             'attacker_p2_id': chosen_pincer['pincer_p2_id'],
         }
 
+    def fight_action_territory_strike(self, teamId):
+        """[FIGHT ACTION]: Launches an attack from a large territory."""
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        if not team_territories:
+            return {'success': False, 'reason': 'no territories'}
+
+        points_map = self.state['points']
+        
+        # Find large territories
+        MIN_AREA = 10.0 # Define a minimum area for a territory to be able to strike
+        large_territories = []
+        for territory in team_territories:
+            p_ids = territory['point_ids']
+            if not all(pid in points_map for pid in p_ids):
+                continue
+            
+            triangle_points = [points_map[pid] for pid in p_ids]
+            if len(triangle_points) == 3:
+                area = self._polygon_area(triangle_points)
+                if area >= MIN_AREA:
+                    large_territories.append(territory)
+        
+        if not large_territories:
+            return {'success': False, 'reason': f'no territories with area >= {MIN_AREA}'}
+
+        # Find enemy points to target
+        immune_point_ids = self._get_fortified_point_ids().union(self._get_bastion_point_ids()['cores']).union(self._get_bastion_point_ids()['prongs'])
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
+        if not enemy_points:
+            return {'success': False, 'reason': 'no vulnerable enemy points'}
+
+        # Find the best strike (closest enemy to a territory centroid)
+        best_strike = None
+        min_dist_sq = float('inf')
+
+        for territory in large_territories:
+            p_ids = territory['point_ids']
+            triangle_points = [points_map[pid] for pid in p_ids]
+            centroid = self._triangle_centroid(triangle_points)
+            
+            for ep in enemy_points:
+                dist_sq = distance_sq(centroid, ep)
+                if dist_sq < min_dist_sq:
+                    min_dist_sq = dist_sq
+                    best_strike = {'territory': territory, 'target': ep, 'centroid': centroid}
+        
+        if not best_strike:
+            return {'success': False, 'reason': 'no target found'}
+
+        target_point = best_strike['target']
+        centroid = best_strike['centroid']
+
+        destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+        if not destroyed_point_data:
+            return {'success': False, 'reason': 'failed to destroy target point'}
+        
+        return {
+            'success': True,
+            'type': 'territory_strike',
+            'destroyed_point': destroyed_point_data,
+            'territory_point_ids': best_strike['territory']['point_ids'],
+            'attack_ray': {'p1': centroid, 'p2': target_point}
+        }
+
     def fight_action_refraction_beam(self, teamId):
         """[FIGHT ACTION]: Uses a Prism to refract an attack beam."""
         team_prisms = self.state.get('prisms', {}).get(teamId, [])
@@ -2376,6 +2448,7 @@ class Game:
             'fight_attack': self.fight_action_attack_line,
             'fight_convert': self.fight_action_convert_point,
             'fight_pincer_attack': self.fight_action_pincer_attack,
+            'fight_territory_strike': self.fight_action_territory_strike,
             'fight_bastion_pulse': self.fight_action_bastion_pulse,
             'fight_chain_lightning': self.fight_action_chain_lightning,
             'fight_refraction_beam': self.fight_action_refraction_beam,
@@ -2413,6 +2486,7 @@ class Game:
             'fight_attack': bool(team_lines) and any(l['teamId'] != teamId for l in self.state['lines']),
             'fight_convert': bool(team_lines) and any(p['teamId'] != teamId for p in self.state['points'].values()),
             'fight_pincer_attack': len(team_point_ids) >= 2 and any(p['teamId'] != teamId for p in self.state['points'].values()),
+            'fight_territory_strike': len([t for t in self.state.get('territories', []) if t['teamId'] == teamId]) > 0,
             'fight_bastion_pulse': any(b['teamId'] == teamId for b in self.state.get('bastions', {}).values()),
             'defend_shield': any(l.get('id') not in self.state['shields'] for l in team_lines),
             'fortify_claim': len(team_point_ids) >= 3,
@@ -2441,13 +2515,13 @@ class Game:
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
-            'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25,
+            'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'fortify_build_wonder': 100,
             'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
-            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0},
+            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5},
             'Balanced':   {}
@@ -2793,6 +2867,7 @@ class Game:
                 "[LIGHTNING!]" if r.get('destroyed_point') else "[FIZZLE]"
             ),
             'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[PINCER!]"),
+            'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TERRITORY!]"),
             'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET!]"),
             'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
             'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]")

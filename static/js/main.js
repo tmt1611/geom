@@ -1348,6 +1348,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'point_explosion', x: target.x, y: target.y, startTime: Date.now(), duration: 600
             });
         }
+        if (details.type === 'territory_strike' && details.destroyed_point) {
+            details.territory_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'attack_ray',
+                p1: details.attack_ray.p1,
+                p2: details.attack_ray.p2,
+                startTime: Date.now(),
+                duration: 900,
+                color: 'rgba(100, 255, 100, 1.0)', // Green for territory
+                lineWidth: 3
+            });
+            visualEffects.push({
+                type: 'point_explosion',
+                x: details.destroyed_point.x,
+                y: details.destroyed_point.y,
+                startTime: Date.now() + 500, // delayed explosion
+                duration: 600
+            });
+        }
         if (details.type === 'launch_payload' && details.destroyed_point) {
             details.trebuchet_points.forEach(pid => lastActionHighlights.points.add(pid));
             

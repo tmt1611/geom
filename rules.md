@@ -28,6 +28,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[EXPAND] Create Orbital:** A rare action where a team with enough points creates a constellation of 3-5 new "satellite" points in a circle around one of its existing points.
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
 *   **[FIGHT] Pincer Attack:** If two of a team's points are flanking a single enemy point (creating a wide angle), they can perform a joint attack to destroy it. This does not work on fortified or bastion points.
+*   **[FIGHT] Territory Strike:** _(Requires a large territory)_ Launches a bolt of energy from the center of a large claimed territory, destroying the nearest vulnerable enemy point. This makes controlling large areas of the map an offensive advantage.
 *   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range.
 *   **[SACRIFICE] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
 *   **[SACRIFICE] Create Whirlpool:** Sacrifices one of its own points to create a chaotic vortex on the battlefield for a few turns. The whirlpool slowly pulls all nearby points (friendly and enemy) towards its center, disrupting formations.
