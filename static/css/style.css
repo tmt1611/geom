@@ -185,7 +185,7 @@ legend {
     padding: 5px;
     border: 1px solid #ccc;
     border-radius: 3px;
-    min-width: 70px;
+    min-width: 0; /* Allow input to shrink in flex container */
 }
 .team-edit-controls select {
     padding: 4px;

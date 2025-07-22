@@ -1295,44 +1295,40 @@ class Game:
 
         return {'success': False, 'reason': 'could not find a valid position to grow'}
 
-    def fortify_action_claim_territory(self, teamId):
-        """[FORTIFY ACTION]: Find a triangle and claim it as territory."""
+    def _find_claimable_triangles(self, teamId):
+        """Finds all triangles for a team that have not yet been claimed."""
         team_point_ids = self.get_team_point_ids(teamId)
         if len(team_point_ids) < 3:
-            return {'success': False, 'reason': 'not enough points for a triangle'}
+            return []
 
-        # Build adjacency list for the team's graph using point IDs
         adj = {pid: set() for pid in team_point_ids}
         for line in self.get_team_lines(teamId):
-            # Check if points for the line still exist
             if line['p1_id'] in adj and line['p2_id'] in adj:
                 adj[line['p1_id']].add(line['p2_id'])
                 adj[line['p2_id']].add(line['p1_id'])
 
-        # Find all triangles
         all_triangles = set()
-        # Sort point ids to have a consistent order for checking i,j,k
-        sorted_point_ids = sorted(list(team_point_ids)) 
+        sorted_point_ids = sorted(list(team_point_ids))
         for i in sorted_point_ids:
             for j in adj.get(i, set()):
                 if j > i:
                     for k in adj.get(j, set()):
                         if k > j and k in adj.get(i, set()):
-                            # Found a triangle (i, j, k)
                             all_triangles.add(tuple(sorted((i, j, k))))
-
-        if not all_triangles:
-            return {'success': False, 'reason': 'no triangles formed'}
-
-        # Find a triangle that hasn't been claimed yet
-        claimed_triangles = set(tuple(sorted(t['point_ids'])) for t in self.state['territories'])
         
-        newly_claimable_triangles = list(all_triangles - claimed_triangles)
+        if not all_triangles:
+            return []
+
+        claimed_triangles = set(tuple(sorted(t['point_ids'])) for t in self.state['territories'])
+        return list(all_triangles - claimed_triangles)
+
+    def fortify_action_claim_territory(self, teamId):
+        """[FORTIFY ACTION]: Find a triangle and claim it as territory."""
+        newly_claimable_triangles = self._find_claimable_triangles(teamId)
 
         if not newly_claimable_triangles:
             return {'success': False, 'reason': 'all triangles already claimed'}
         
-        # Claim a random new triangle
         triangle_to_claim = random.choice(newly_claimable_triangles)
         new_territory = {
             'teamId': teamId,
@@ -1342,12 +1338,11 @@ class Game:
         
         return {'success': True, 'type': 'claim_territory', 'territory': new_territory}
 
-    def fortify_action_form_bastion(self, teamId):
-        """[FORTIFY ACTION]: Converts a fortified point and its connections into a defensive bastion."""
-        # A bastion must be formed around a point that is already a vertex of a claimed territory.
+    def _find_possible_bastions(self, teamId):
+        """Finds all valid formations for creating a new bastion."""
         fortified_point_ids = self._get_fortified_point_ids()
         if not fortified_point_ids:
-            return {'success': False, 'reason': 'no fortified points to build a bastion on'}
+            return []
 
         team_point_ids = self.get_team_point_ids(teamId)
         adj = {pid: set() for pid in team_point_ids}
@@ -1356,28 +1351,29 @@ class Game:
                 adj[line['p1_id']].add(line['p2_id'])
                 adj[line['p2_id']].add(line['p1_id'])
         
-        # Get all points that are already part of a bastion to avoid re-using them
         existing_bastion_points = self._get_bastion_point_ids()
         used_points = existing_bastion_points['cores'].union(existing_bastion_points['prongs'])
 
         possible_bastions = []
         for core_candidate_id in fortified_point_ids:
-            # The core must belong to the current team and not be part of an existing bastion
             if core_candidate_id not in team_point_ids or core_candidate_id in used_points:
                 continue
-
-            # Find connected points ("prongs") that are NOT fortified and NOT part of another bastion
+            
             prong_candidates = [
                 pid for pid in adj.get(core_candidate_id, set())
                 if pid not in fortified_point_ids and pid not in used_points
             ]
 
-            # A bastion needs at least 3 prongs
             if len(prong_candidates) >= 3:
                 possible_bastions.append({
                     'core_id': core_candidate_id,
                     'prong_ids': prong_candidates
                 })
+        return possible_bastions
+
+    def fortify_action_form_bastion(self, teamId):
+        """[FORTIFY ACTION]: Converts a fortified point and its connections into a defensive bastion."""
+        possible_bastions = self._find_possible_bastions(teamId)
 
         if not possible_bastions:
             return {'success': False, 'reason': 'no valid bastion formation found'}
@@ -1984,8 +1980,8 @@ class Game:
         
         return {'success': True, 'type': 'form_purifier', 'purifier': chosen_purifier_data}
 
-    def fight_action_convert_point(self, teamId):
-        """[FIGHT ACTION]: Sacrifice a line to convert a nearby enemy point."""
+    def _find_possible_conversions(self, teamId):
+        """Finds all possible point conversions by sacrificing a line."""
         team_lines = self.get_team_lines(teamId)
         fortified_point_ids = self._get_fortified_point_ids()
         bastion_point_ids = self._get_bastion_point_ids()
@@ -1995,7 +1991,7 @@ class Game:
         points_map = self.state['points']
 
         if not team_lines or not enemy_points:
-            return {'success': False, 'reason': 'no lines to sacrifice or no enemy points'}
+            return []
 
         possible_conversions = []
         conversion_range_sq = (self.state['grid_size'] * 0.3)**2
@@ -2012,6 +2008,12 @@ class Game:
                 dist_sq = distance_sq(midpoint, enemy_point)
                 if dist_sq < conversion_range_sq:
                     possible_conversions.append({'line': line_to_sac, 'point': enemy_point})
+
+        return possible_conversions
+
+    def fight_action_convert_point(self, teamId):
+        """[FIGHT ACTION]: Sacrifice a line to convert a nearby enemy point."""
+        possible_conversions = self._find_possible_conversions(teamId)
 
         if not possible_conversions:
             return {'success': False, 'reason': 'no vulnerable enemy points in range'}
@@ -2264,62 +2266,50 @@ class Game:
             'conduit_point_ids': chosen_conduit['point_ids']
         }
 
-    def fight_action_pincer_attack(self, teamId):
-        """[FIGHT ACTION]: Two points flank and destroy an enemy point."""
+    def _find_possible_pincers(self, teamId):
+        """Finds all possible pincer attack formations."""
         team_point_ids = self.get_team_point_ids(teamId)
         if len(team_point_ids) < 2:
-            return {'success': False, 'reason': 'not enough points for pincer'}
+            return []
 
-        # Get a list of immune point IDs to exclude from targeting
         fortified_point_ids = self._get_fortified_point_ids()
         bastion_point_ids = self._get_bastion_point_ids()
         stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
         immune_point_ids = fortified_point_ids.union(
-            bastion_point_ids['cores'],
-            bastion_point_ids['prongs'],
-            stasis_point_ids
+            bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
         )
-        
         enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
         if not enemy_points:
-            return {'success': False, 'reason': 'no vulnerable enemy points'}
+            return []
 
         points_map = self.state['points']
         possible_pincers = []
-        max_range_sq = (self.state['grid_size'] * 0.4)**2 # Max range of attack
-        pincer_angle_threshold = -0.866 # cos(150 deg), angle must be > 150 deg
+        max_range_sq = (self.state['grid_size'] * 0.4)**2
+        pincer_angle_threshold = -0.866  # cos(150 deg)
 
         for p1_id, p2_id in combinations(team_point_ids, 2):
             p1 = points_map[p1_id]
             p2 = points_map[p2_id]
-
             for ep in enemy_points:
-                # Basic range check to reduce calculations
                 if distance_sq(p1, ep) > max_range_sq or distance_sq(p2, ep) > max_range_sq:
                     continue
-
-                # Vector from enemy point to p1 and p2
                 v1 = {'x': p1['x'] - ep['x'], 'y': p1['y'] - ep['y']}
                 v2 = {'x': p2['x'] - ep['x'], 'y': p2['y'] - ep['y']}
-
                 mag1_sq = v1['x']**2 + v1['y']**2
                 mag2_sq = v2['x']**2 + v2['y']**2
-
-                if mag1_sq < 0.1 or mag2_sq < 0.1: # Avoid division by zero / same point
+                if mag1_sq < 0.1 or mag2_sq < 0.1:
                     continue
-                
-                # Dot product
                 dot_product = v1['x'] * v2['x'] + v1['y'] * v2['y']
-                
-                # Cosine of the angle p1-ep-p2
                 cos_theta = dot_product / (math.sqrt(mag1_sq) * math.sqrt(mag2_sq))
-
                 if cos_theta < pincer_angle_threshold:
                     possible_pincers.append({
-                        'pincer_p1_id': p1_id,
-                        'pincer_p2_id': p2_id,
-                        'target_point': ep
+                        'pincer_p1_id': p1_id, 'pincer_p2_id': p2_id, 'target_point': ep
                     })
+        return possible_pincers
+
+    def fight_action_pincer_attack(self, teamId):
+        """[FIGHT ACTION]: Two points flank and destroy an enemy point."""
+        possible_pincers = self._find_possible_pincers(teamId)
         
         if not possible_pincers:
             return {'success': False, 'reason': 'no pincer formation found'}
@@ -2339,58 +2329,51 @@ class Game:
             'attacker_p2_id': chosen_pincer['pincer_p2_id'],
         }
 
-    def fight_action_territory_strike(self, teamId):
-        """[FIGHT ACTION]: Launches an attack from a large territory."""
+    def _find_possible_territory_strikes(self, teamId):
+        """Finds the best possible territory strike target."""
         team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
         if not team_territories:
-            return {'success': False, 'reason': 'no territories'}
+            return None
 
         points_map = self.state['points']
-        
-        # Find large territories
-        MIN_AREA = 10.0 # Define a minimum area for a territory to be able to strike
+        MIN_AREA = 10.0
         large_territories = []
         for territory in team_territories:
             p_ids = territory['point_ids']
-            if not all(pid in points_map for pid in p_ids):
-                continue
-            
-            triangle_points = [points_map[pid] for pid in p_ids]
-            if len(triangle_points) == 3:
-                area = self._polygon_area(triangle_points)
-                if area >= MIN_AREA:
+            if all(pid in points_map for pid in p_ids):
+                triangle_points = [points_map[pid] for pid in p_ids]
+                if len(triangle_points) == 3 and self._polygon_area(triangle_points) >= MIN_AREA:
                     large_territories.append(territory)
         
         if not large_territories:
-            return {'success': False, 'reason': f'no territories with area >= {MIN_AREA}'}
+            return None
 
-        # Find enemy points to target
         fortified_point_ids = self._get_fortified_point_ids()
         bastion_point_ids = self._get_bastion_point_ids()
         stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
         immune_point_ids = fortified_point_ids.union(
-            bastion_point_ids['cores'],
-            bastion_point_ids['prongs'],
-            stasis_point_ids
+            bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
         )
         enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
         if not enemy_points:
-            return {'success': False, 'reason': 'no vulnerable enemy points'}
+            return None
 
-        # Find the best strike (closest enemy to a territory centroid)
         best_strike = None
         min_dist_sq = float('inf')
-
         for territory in large_territories:
-            p_ids = territory['point_ids']
-            triangle_points = [points_map[pid] for pid in p_ids]
+            triangle_points = [points_map[pid] for pid in territory['point_ids']]
             centroid = self._points_centroid(triangle_points)
-            
             for ep in enemy_points:
                 dist_sq = distance_sq(centroid, ep)
                 if dist_sq < min_dist_sq:
                     min_dist_sq = dist_sq
                     best_strike = {'territory': territory, 'target': ep, 'centroid': centroid}
+        
+        return best_strike
+
+    def fight_action_territory_strike(self, teamId):
+        """[FIGHT ACTION]: Launches an attack from a large territory."""
+        best_strike = self._find_possible_territory_strikes(teamId)
         
         if not best_strike:
             return {'success': False, 'reason': 'no target found'}
