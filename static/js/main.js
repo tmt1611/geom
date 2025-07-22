@@ -1324,10 +1324,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const p2_y = (effect.p2.y + 0.5) * cellSize;
 
                 // Draw two swirling portals
-                const portal_radius = 15 * Math.abs(Math.sin(progress * Math.PI)); // Grow and shrink. Abs to prevent negative radius if progress > 1
+                const portal_radius = 15 * Math.abs(Math.sin(progress * Math.PI)); // Grow and shrink pulse.
                 [ {x: p1_x, y: p1_y}, {x: p2_x, y: p2_y} ].forEach(p => {
                     ctx.beginPath();
-                    ctx.arc(p.x, p.y, portal_radius, 0, 2 * Math.PI);
+                    // Defensively ensure radius is non-negative to prevent IndexSizeError.
+                    ctx.arc(p.x, p.y, Math.max(0, portal_radius), 0, 2 * Math.PI);
                     ctx.strokeStyle = effect.color;
                     ctx.lineWidth = 2;
                     ctx.globalAlpha = 0.8;
@@ -1380,7 +1381,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.arc(
                     (effect.x + 0.5) * cellSize,
                     (effect.y + 0.5) * cellSize,
-                    currentRadius,
+                    Math.max(0, currentRadius), // Prevent negative radius
                     0, 2 * Math.PI
                 );
                 ctx.fillStyle = effect.color || `rgba(200, 180, 255, ${1 - progress})`; // Purple-ish fade out
