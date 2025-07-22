@@ -1,3 +1,4 @@
+import os
 from flask import Blueprint, render_template, jsonify, request, current_app
 from . import game_logic
 from . import utils
@@ -64,15 +65,18 @@ def next_action():
     game_logic.game.run_next_action()
     return jsonify(game_logic.game.get_state())
 
-@main_routes.route('/api/dev/shutdown', methods=['POST'])
-def shutdown_server():
-    """(Dev only) Shuts down the Flask development server."""
+@main_routes.route('/api/dev/restart', methods=['POST'])
+def restart_server():
+    """(Dev only) Restarts the Flask development server by touching a watched file."""
     if not current_app.debug:
         return jsonify({"error": "This function is only available in debug mode."}), 403
 
-    shutdown_func = request.environ.get('werkzeug.server.shutdown')
-    if shutdown_func is None:
-        return jsonify({"error": "Not running with the Werkzeug Server or shutdown function not available."}), 500
-    
-    shutdown_func()
-    return jsonify({"message": "Server is shutting down..."})
+    # The Werkzeug reloader watches for file changes. We can trigger it by "touching" a file.
+    # We'll touch run.py, which is the main entry point.
+    try:
+        # This will trigger the reloader in debug mode
+        os.utime('run.py', None)
+        return jsonify({"message": "Server is restarting..."})
+    except Exception as e:
+        current_app.logger.error(f"Could not trigger restart: {e}")
+        return jsonify({"error": f"Could not trigger restart: {e}"}), 500

@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const showHullsToggle = document.getElementById('show-hulls-toggle');
     const finalAnalysisOptions = document.getElementById('final-analysis-options');
     const copyStateBtn = document.getElementById('copy-state-btn');
-    const shutdownServerBtn = document.getElementById('shutdown-server-btn');
+    const restartServerBtn = document.getElementById('restart-server-btn');
 
     // --- Core Functions ---
 
@@ -1953,28 +1953,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    shutdownServerBtn.addEventListener('click', async () => {
-        if (!confirm("This will shut down the server. You will need to restart it from the command line. Are you sure?")) {
+    restartServerBtn.addEventListener('click', () => {
+        if (!confirm("This will restart the server. The page will reload after a few seconds. Are you sure?")) {
             return;
         }
-        try {
-            const response = await fetch('/api/dev/shutdown', { method: 'POST' });
-            if (response.ok) {
-                const data = await response.json();
-                // This message might not even be seen if the server shuts down fast enough.
-                alert(data.message || 'Shutdown request sent.');
-            } else {
-                const errorData = await response.json();
-                alert(`Error: ${errorData.error}`);
-                return; // Don't blank the page if shutdown failed
-            }
-        } catch (error) {
-            // This catch block is expected to run, as the server will likely terminate the connection
-            // before a full response is sent.
-            console.log('Server shutdown request sent. The connection was likely terminated.', error);
-        }
-        // Update the UI to show the server is down.
-        document.body.innerHTML = '<div style="text-align: center; padding-top: 50px;"><h1>Server Shut Down</h1><p>The server has been stopped. Please restart it from your command line terminal.</p></div>';
+
+        // Send the request. We don't care about the response because the server will restart and
+        // likely interrupt the connection.
+        fetch('/api/dev/restart', { method: 'POST' }).catch(err => {
+            // This error is expected as the server goes down. We can ignore it.
+            console.log("Restart request sent. Fetch failed as expected due to server restart.");
+        });
+
+        // Display a message to the user and disable controls
+        statusBar.textContent = 'Server is restarting... The page will reload shortly.';
+        statusBar.style.opacity = '1';
+        document.querySelectorAll('button, input, select').forEach(el => el.disabled = true);
+
+
+        // Wait a few seconds for the server to come back up, then reload the page.
+        setTimeout(() => {
+            location.reload();
+        }, 5000); // 5 seconds should be enough for the reloader.
     });
 
     // Listener for team list - now only for deletion (selection and editing are handled on elements)

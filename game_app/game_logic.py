@@ -2828,7 +2828,7 @@ class Game:
 
                             # Convert back to cartesian offset from whirlpool center
                             new_dx = math.cos(new_angle) * new_dist
-                            new_dy = math.sin(new_angle) * new_dy
+                            new_dy = math.sin(new_angle) * new_dist
 
                             # Calculate new absolute position and clamp/round
                             new_x = wp_coords['x'] - new_dx
