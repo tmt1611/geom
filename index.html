@@ -12,13 +12,12 @@
         <button id="restart-server-btn" class="dev-btn" title="Restart Server (Dev)">&#8635;</button>
     </div>
     <div class="container">
-        <!-- Setup phase panel -->
-        <div class="controls interpretation-panel">
-            <h1>Geometric Divination Game</h1>
-            <div id="setup-phase">
-            <h2>1. Setup</h2>
+        <!-- Setup phase columns -->
+        <div class="setup-column" id="setup-column-left">
+            <h1>Geometric Divination</h1>
+            <h2>Setup</h2>
             <fieldset>
-                <legend>Create Teams</legend>
+                <legend>1. Create Teams</legend>
                 <div class="teams-section">
                     <ul id="teams-list"></ul>
                     <div class="add-team-form">
@@ -35,19 +34,27 @@
                     </div>
                 </div>
             </fieldset>
-            <fieldset>
-                <legend>Place Points</legend>
+        </div>
+
+        <!-- Grid (always visible) -->
+        <div class="grid-container">
+            <canvas id="grid" width="600" height="600"></canvas>
+            <div id="status-bar">Waiting for game to start...</div>
+        </div>
+
+        <div class="setup-column" id="setup-column-right">
+             <fieldset>
+                <legend>2. Place Points</legend>
                 <div class="placement-section">
-                    <p>Select a team, then click on the grid to place points.</p>
+                    <span>Select a team, then click on the grid to place points.</span>
                     <button id="undo-point-btn">Undo Last Point</button>
                     <button id="clear-points-btn">Clear All Points</button>
                     <button id="randomize-points-btn">Randomize Points</button>
                 </div>
             </fieldset>
              <div id="setup-actions">
-                <button id="start-game-btn" style="width:100%; padding: 10px; font-size: 1.1em; margin-bottom: 15px;">Start Game</button>
                 <fieldset>
-                    <legend>Game Settings</legend>
+                    <legend>3. Game Settings</legend>
                      <div class="start-section">
                         <label for="grid-size">Grid Size:</label>
                         <input type="number" id="grid-size" value="10" min="5" max="50" style="width: 60px;">
@@ -56,14 +63,8 @@
                         <input type="number" id="max-turns" value="100" style="width: 60px;">
                      </div>
                 </fieldset>
+                <button id="start-game-btn">Start Game</button>
             </div>
-            </div>
-        </div>
-
-        <!-- Grid (always visible) -->
-        <div class="grid-container">
-            <canvas id="grid" width="600" height="600"></canvas>
-            <div id="status-bar">Waiting for game to start...</div>
         </div>
 
         <!-- Columns for Game Running Phase -->
@@ -95,15 +96,6 @@
             </details>
             <div id="turn-counter">Turn: 0 / 100</div>
             <div id="stats"></div>
-            <div id="final-interpretation" style="display: none;">
-                <div class="final-analysis-header">
-                    <h4>Final Analysis</h4>
-                    <div class="debug-options" id="final-analysis-options" style="display: none;">
-                        <label><input type="checkbox" id="show-hulls-toggle"> Show Convex Hulls</label>
-                    </div>
-                </div>
-                <div id="final-stats-content"></div>
-            </div>
         </div>
 
         <div class="game-column" id="game-preview-column">
@@ -115,6 +107,15 @@
                     </label>
                 </div>
                 <div id="action-preview-content"></div>
+            </div>
+            <div id="final-interpretation" style="display: none;">
+                <div class="final-analysis-header">
+                    <h4>Final Analysis</h4>
+                    <div class="debug-options" id="final-analysis-options" style="display: none;">
+                        <label><input type="checkbox" id="show-hulls-toggle"> Show Convex Hulls</label>
+                    </div>
+                </div>
+                <div id="final-stats-content"></div>
             </div>
         </div>
 

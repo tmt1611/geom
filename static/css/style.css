@@ -12,28 +12,30 @@ body {
     background-color: #f4f7f9;
     color: #333;
     margin: 0;
-    padding: 20px;
-    min-height: 100vh;
+    padding: 10px;
+    height: 100vh;
     box-sizing: border-box;
+    overflow: hidden; /* Prevent body from scrolling */
 }
 
 h1, h2, h3, h4 {
     color: #2c3e50;
     font-weight: 300;
 }
-h1 { font-size: 2.5em; margin-bottom: 1rem; margin-top: 0;}
+h1 { font-size: 2.2em; margin-bottom: 1rem; margin-top: 0;}
 h2 { font-size: 1.5em; border-bottom: 1px solid #dfe4ea; padding-bottom: 10px; margin-top: 0;}
 h3 { font-size: 1.2em; }
 
 
 .container {
-    display: flex;
-    gap: 20px;
+    display: grid;
+    gap: 15px;
     width: 100%;
-    max-width: 1600px;
-    align-items: flex-start; /* Align items to the top */
-    margin-left: auto;
-    margin-right: auto;
+    height: 100%;
+    /* A consistent 4-column layout for all phases */
+    grid-template-columns: minmax(260px, 1fr) auto minmax(280px, 1.2fr) minmax(260px, 1.1fr);
+    grid-template-rows: 1fr;
+    align-items: stretch;
 }
 
 .grid-container {
@@ -41,10 +43,10 @@ h3 { font-size: 1.2em; }
     border: 2px solid #bdc3c7;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     border-radius: 5px;
-    flex: 2; /* Make it grow */
     aspect-ratio: 1 / 1; /* Keep it square */
-    min-width: 300px; /* Don't let it get too small */
-    max-width: 800px; /* Set a max reasonable size */
+    min-height: 0; /* Important for grid items to shrink */
+    grid-column: 2 / 3; /* Always in the second column */
+    grid-row: 1 / 2;
 }
 
 #grid {
@@ -71,19 +73,46 @@ h3 { font-size: 1.2em; }
     pointer-events: none; /* Don't intercept clicks */
 }
 
-.controls, .interpretation-panel {
-    flex: 1; /* allow flexible width */
-    min-width: 320px;
-    max-width: 400px;
-    padding: 20px;
+.setup-column, .game-column {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 15px;
     border: 1px solid #dfe4ea;
     background-color: #fff;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     border-radius: 8px;
+    overflow-y: auto;
+    min-width: 0;
+}
+
+#setup-column-left { grid-column: 1 / 2; grid-row: 1 / 2; }
+#setup-column-right { grid-column: 3 / 4; grid-row: 1 / 2; }
+
+#setup-column-right #setup-actions {
+    margin-top: auto; /* Push start button to the bottom */
     display: flex;
     flex-direction: column;
     gap: 15px;
 }
+#setup-column-right #start-game-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 1.1em;
+    border-radius: 5px;
+    border: 1px solid #27ae60;
+    background-color: #2ecc71;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+#setup-column-right #start-game-btn:hover {
+    background-color: #27ae60;
+}
+
+#game-controls-column { grid-column: 1 / 2; grid-row: 1 / 2; }
+#game-preview-column { grid-column: 3 / 4; grid-row: 1 / 2; }
+#game-log-column { grid-column: 4 / 5; grid-row: 1 / 2; }
 
 fieldset {
     border: 1px solid #dfe4ea;
@@ -101,6 +130,44 @@ legend {
 
 .teams-section, .placement-section, .start-section {
     margin-bottom: 15px;
+}
+
+.placement-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.placement-section button {
+    padding: 12px 15px;
+    font-size: 1.05em;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    color: white;
+    border: none;
+}
+
+#undo-point-btn {
+    background-color: #7f8c8d;
+}
+#undo-point-btn:hover {
+    background-color: #616a6b;
+}
+
+#clear-points-btn {
+    background-color: #e74c3c;
+}
+#clear-points-btn:hover {
+    background-color: #c0392b;
+}
+
+#randomize-points-btn {
+    background-color: #3498db;
+}
+#randomize-points-btn:hover {
+    background-color: #2980b9;
 }
 
 .teams-section > * {
@@ -234,20 +301,27 @@ legend {
 }
 
 .speed-control {
-    display: flex;
+    display: grid;
+    grid-template-areas:
+        "label slider"
+        ".     value";
+    grid-template-columns: auto 1fr;
     align-items: center;
-    gap: 10px;
+    column-gap: 10px;
+    row-gap: 2px;
     margin-top: 10px;
 }
-
-.speed-control input[type="range"] {
-    flex-grow: 1;
+.speed-control > label { grid-area: label; }
+.speed-control > input { grid-area: slider; width: 100%;}
+.speed-control > span {
+    grid-area: value;
+    justify-self: center;
 }
 
 #speed-value {
     font-size: 0.9em;
     min-width: 50px;
-    text-align: right;
+    text-align: center;
 }
 
 .team-color-box {
@@ -388,14 +462,22 @@ legend {
     padding: 0;
     margin: 0 0 10px 0;
 }
-#action-preview-content {
-    max-height: 350px;
+#action-preview-panel, #final-interpretation {
+    flex-grow: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#action-preview-content, #final-stats-content {
+    flex-grow: 1;
     overflow-y: auto;
+    max-height: none;
 }
 .action-category h6 {
-    margin: 12px 0 4px 0;
-    padding: 4px 6px;
-    font-size: 1em;
+    margin: 4px 0 2px 0;
+    padding: 3px 6px;
+    font-size: 0.9em;
     font-weight: 500;
     color: #34495e;
     background-color: #ecf0f1;
@@ -406,8 +488,8 @@ legend {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.9em;
-    padding: 4px 2px;
+    font-size: 0.8em;
+    padding: 1px 2px;
     border-bottom: 1px solid #eee;
 }
 .action-prob-list li:last-child {
@@ -432,7 +514,7 @@ legend {
     background-color: #e9ecef;
     border-radius: 3px;
     margin: 0 8px;
-    height: 16px;
+    height: 12px;
     display: flex;
     align-items: center;
 }
@@ -629,35 +711,12 @@ body.game-running {
     overflow: hidden; /* Prevent body from scrolling */
 }
 
-body.game-running .container {
-    display: grid;
-    max-width: none; /* Override default max-width */
-    width: 100%;
-    height: 100%;
-    gap: 15px;
-    /* Main grid, then 3 info columns */
-    grid-template-columns: 1fr 320px 320px 320px;
-    grid-template-rows: 100%;
-    align-items: stretch;
+body.game-running .setup-column {
+    display: none;
 }
 
 body.game-running h1 {
     display: none;
-}
-
-/* --- Area Placements --- */
-body.game-running .grid-container {
-    flex: none; /* remove from old flex layout */
-    max-width: none;
-    height: 100%; /* fill grid area */
-    min-height: 0; /* Important for flex/grid items to shrink */
-}
-
-body.game-running .controls {
-    display: none;
-}
-body.game-running .interpretation-panel {
-    display: none; /* Setup panel is hidden when running */
 }
 
 .game-column {
@@ -695,11 +754,6 @@ body.game-running .game-column {
     flex-direction: column;
     border: none;
     padding: 0;
-}
-#game-preview-column #action-preview-content {
-    flex-grow: 1;
-    overflow-y: auto;
-    max-height: none; /* Override the default max-height */
 }
 #game-log-column .log-container {
     flex-grow: 1;
