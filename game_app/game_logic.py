@@ -272,31 +272,38 @@ class Game:
 
     def get_state(self):
         """Returns the current game state, augmenting with transient data for frontend."""
-        # On-demand calculation of interpretation when game is finished
         if self.state['game_phase'] == 'FINISHED' and not self.state['interpretation']:
             self.state['interpretation'] = self.calculate_interpretation()
 
-        # Create a copy to avoid modifying original state
         state_copy = self.state.copy()
         
-        # Augment lines with shield/bastion status for easier rendering
+        state_copy['lines'] = self._augment_lines_for_frontend(self.state['lines'])
+        state_copy['points'] = self._augment_points_for_frontend(self.state['points'])
+        state_copy['live_stats'] = self._calculate_live_stats()
+        
+        return state_copy
+
+    def _augment_lines_for_frontend(self, lines):
+        """Adds transient frontend-specific data to lines."""
         bastion_line_ids = self._get_bastion_line_ids()
         augmented_lines = []
-        for line in self.state['lines']:
+        for line in lines:
             augmented_line = line.copy()
-            augmented_line['is_shielded'] = line.get('id') in self.state['shields']
-            augmented_line['is_bastion_line'] = line.get('id') in bastion_line_ids
-            augmented_line['strength'] = self.state.get('line_strengths', {}).get(line.get('id'), 0)
+            line_id = line.get('id')
+            augmented_line['is_shielded'] = line_id in self.state['shields']
+            augmented_line['is_bastion_line'] = line_id in bastion_line_ids
+            augmented_line['strength'] = self.state.get('line_strengths', {}).get(line_id, 0)
             augmented_lines.append(augmented_line)
-        state_copy['lines'] = augmented_lines
+        return augmented_lines
 
-        # Augment points with anchor and fortified status
+    def _augment_points_for_frontend(self, points):
+        """Adds transient frontend-specific data to points."""
         fortified_point_ids = self._get_fortified_point_ids()
         bastion_point_ids = self._get_bastion_point_ids()
         structure_pids = self._get_structure_point_ids_by_type()
         
         augmented_points = {}
-        for pid, point in self.state['points'].items():
+        for pid, point in points.items():
             augmented_point = point.copy()
             augmented_point['is_anchor'] = pid in self.state['anchors']
             augmented_point['is_fortified'] = pid in fortified_point_ids
@@ -312,31 +319,17 @@ class Game:
             augmented_point['is_purifier_point'] = pid in structure_pids['purifier']
             augmented_point['is_in_stasis'] = pid in self.state.get('stasis_points', {})
             augmented_points[pid] = augmented_point
-        state_copy['points'] = augmented_points
+        return augmented_points
 
-        # Add structures for frontend rendering
-        state_copy['nexuses'] = self.state.get('nexuses', {})
-        state_copy['prisms'] = self.state.get('prisms', {})
-        state_copy['heartwoods'] = self.state.get('heartwoods', {})
-        state_copy['whirlpools'] = self.state.get('whirlpools', [])
-        state_copy['monoliths'] = self.state.get('monoliths', {})
-        state_copy['trebuchets'] = self.state.get('trebuchets', {})
-        state_copy['purifiers'] = self.state.get('purifiers', {})
-        state_copy['rift_spires'] = self.state.get('rift_spires', {})
-        state_copy['rift_traps'] = self.state.get('rift_traps', [])
-        state_copy['fissures'] = self.state.get('fissures', [])
-        state_copy['barricades'] = self.state.get('barricades', [])
-        state_copy['wonders'] = self.state.get('wonders', {})
-
-        # Add live stats for real-time display, regardless of phase, for consistency
+    def _calculate_live_stats(self):
+        """Calculates and returns live stats for all teams."""
         live_stats = {}
-        all_points = self.state['points'] # Use original points for calculations
+        all_points = self.state['points']
         for teamId, team_data in self.state['teams'].items():
             team_point_ids = self.get_team_point_ids(teamId)
             team_lines = self.get_team_lines(teamId)
             team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
 
-            # Calculate controlled area
             controlled_area = 0
             for territory in team_territories:
                 triangle_point_ids = territory['point_ids']
@@ -350,9 +343,7 @@ class Game:
                 'line_count': len(team_lines),
                 'controlled_area': round(controlled_area, 2)
             }
-        state_copy['live_stats'] = live_stats
-
-        return state_copy
+        return live_stats
 
     def start_game(self, teams, points, max_turns, grid_size):
         """Starts a new game with the given parameters."""
@@ -1474,20 +1465,7 @@ class Game:
                 return {'success': True, 'type': 'grow_line', 'new_point': new_point, 'new_line': new_line}
 
         # --- Fallback: Strengthen a line ---
-        line_to_strengthen = random.choice(team_lines)
-        line_id = line_to_strengthen.get('id')
-        if line_id:
-            max_strength = 3
-            current_strength = self.state['line_strengths'].get(line_id, 0)
-            if current_strength < max_strength:
-                self.state['line_strengths'][line_id] = current_strength + 1
-            return {
-                'success': True, 
-                'type': 'grow_fizzle_strengthen', 
-                'strengthened_line': line_to_strengthen
-            }
-        
-        return {'success': False, 'reason': 'could not find a valid position to grow and no line to strengthen'}
+        return self._fallback_strengthen_random_line(teamId, 'grow')
 
     def _find_claimable_triangles(self, teamId):
         """Finds all triangles for a team that have not yet been claimed."""
@@ -3582,62 +3560,57 @@ class Game:
         )
         return self.get_state()
 
-    def _start_new_turn(self):
-        """Performs start-of-turn maintenance and sets up the action queue for the new turn."""
-        self.state['turn'] += 1
-        self.state['action_in_turn'] = 0
-        self.state['last_action_details'] = {} # Clear last action from previous turn
-        self.state['new_turn_events'] = [] # Clear events from previous turn
-        
-        # --- Start of Turn Maintenance ---
-        # 1. Manage shields
-        expired_shields = [lid for lid, turns in self.state['shields'].items() if turns - 1 <= 0]
+    # --- Start of Turn Processing ---
+
+    def _process_shields_and_stasis(self):
+        """Handles decay of shields and stasis effects."""
         self.state['shields'] = {lid: turns - 1 for lid, turns in self.state['shields'].items() if turns - 1 > 0}
+        if self.state.get('stasis_points'):
+            self.state['stasis_points'] = {pid: turns - 1 for pid, turns in self.state['stasis_points'].items() if turns - 1 > 0}
 
-        # 2. Process Rift Traps
-        if self.state.get('rift_traps'):
-            remaining_traps = []
-            for trap in self.state['rift_traps']:
-                # 2a. Check for trigger
-                triggered_point_id = None
-                for pid, point in self.state['points'].items():
-                    if point['teamId'] != trap['teamId'] and distance_sq(trap['coords'], point) < trap['radius_sq']:
-                        triggered_point_id = pid
-                        break
-                
-                if triggered_point_id:
-                    # Trap triggered. It will be removed from the list.
-                    destroyed_point = self._delete_point_and_connections(triggered_point_id, aggressor_team_id=trap['teamId'])
-                    if destroyed_point:
-                        team_name = self.state['teams'][trap['teamId']]['name']
-                        enemy_team_name = self.state['teams'][destroyed_point['teamId']]['name']
-                        log_msg = { 'teamId': trap['teamId'], 'message': f"A Rift Trap from Team {team_name} snared and destroyed a point from Team {enemy_team_name}!", 'short_message': '[TRAP!]'}
-                        self.state['game_log'].append(log_msg)
-                        self.state['new_turn_events'].append({ 'type': 'rift_trap_trigger', 'trap': trap, 'destroyed_point': destroyed_point })
-                    continue # Do not add to remaining_traps
+    def _process_rift_traps(self):
+        """Handles rift trap triggers, expiration, and spawning."""
+        if not self.state.get('rift_traps'):
+            return
 
-                # 2b. If not triggered, handle countdown
-                trap['turns_left'] -= 1
-                if trap['turns_left'] <= 0:
-                    # Trap expires. It will be removed from the list.
-                    is_valid, _ = self._is_spawn_location_valid(trap['coords'], trap['teamId'])
-                    if is_valid:
-                        new_point_id = f"p_{uuid.uuid4().hex[:6]}"
-                        new_point = {"x": round(trap['coords']['x']), "y": round(trap['coords']['y']), "teamId": trap['teamId'], "id": new_point_id}
-                        self.state['points'][new_point_id] = new_point
-                        
-                        team_name = self.state['teams'][trap['teamId']]['name']
-                        log_msg = { 'teamId': trap['teamId'], 'message': f"An unused Rift Trap from Team {team_name} stabilized into a new point.", 'short_message': '[TRAP->SPAWN]' }
-                        self.state['game_log'].append(log_msg)
-                        self.state['new_turn_events'].append({ 'type': 'rift_trap_expire', 'trap': trap, 'new_point': new_point })
-                    continue # Do not add to remaining_traps
-                
-                # 2c. If not triggered and not expired, it survives to the next turn.
-                remaining_traps.append(trap)
+        remaining_traps = []
+        for trap in self.state['rift_traps']:
+            triggered_point_id = None
+            for pid, point in self.state['points'].items():
+                if point['teamId'] != trap['teamId'] and distance_sq(trap['coords'], point) < trap['radius_sq']:
+                    triggered_point_id = pid
+                    break
             
-            self.state['rift_traps'] = remaining_traps
+            if triggered_point_id:
+                destroyed_point = self._delete_point_and_connections(triggered_point_id, aggressor_team_id=trap['teamId'])
+                if destroyed_point:
+                    team_name = self.state['teams'][trap['teamId']]['name']
+                    enemy_team_name = self.state['teams'][destroyed_point['teamId']]['name']
+                    log_msg = { 'teamId': trap['teamId'], 'message': f"A Rift Trap from Team {team_name} snared and destroyed a point from Team {enemy_team_name}!", 'short_message': '[TRAP!]'}
+                    self.state['game_log'].append(log_msg)
+                    self.state['new_turn_events'].append({ 'type': 'rift_trap_trigger', 'trap': trap, 'destroyed_point': destroyed_point })
+                continue
 
-        # 3. Process anchors
+            trap['turns_left'] -= 1
+            if trap['turns_left'] <= 0:
+                is_valid, _ = self._is_spawn_location_valid(trap['coords'], trap['teamId'])
+                if is_valid:
+                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                    new_point = {"x": round(trap['coords']['x']), "y": round(trap['coords']['y']), "teamId": trap['teamId'], "id": new_point_id}
+                    self.state['points'][new_point_id] = new_point
+                    
+                    team_name = self.state['teams'][trap['teamId']]['name']
+                    log_msg = { 'teamId': trap['teamId'], 'message': f"An unused Rift Trap from Team {team_name} stabilized into a new point.", 'short_message': '[TRAP->SPAWN]' }
+                    self.state['game_log'].append(log_msg)
+                    self.state['new_turn_events'].append({ 'type': 'rift_trap_expire', 'trap': trap, 'new_point': new_point })
+                continue
+            
+            remaining_traps.append(trap)
+        
+        self.state['rift_traps'] = remaining_traps
+
+    def _process_anchors(self):
+        """Handles anchor point pulls and expiration."""
         expired_anchors = []
         pull_strength = 0.2
         grid_size = self.state['grid_size']
@@ -3651,7 +3624,6 @@ class Game:
             for point in self.state['points'].values():
                 if point['teamId'] != anchor_data['teamId'] and distance_sq(anchor_point, point) < anchor_radius_sq:
                     dx, dy = anchor_point['x'] - point['x'], anchor_point['y'] - point['y']
-                    # Apply pull and round to keep coordinates as integers
                     new_x = point['x'] + dx * pull_strength
                     new_y = point['y'] + dy * pull_strength
                     point['x'] = round(max(0, min(grid_size - 1, new_x)))
@@ -3662,220 +3634,176 @@ class Game:
                 expired_anchors.append(anchor_pid)
         for anchor_pid in expired_anchors:
             if anchor_pid in self.state['anchors']: del self.state['anchors'][anchor_pid]
-            
-        # 4. Process Heartwoods
-        if self.state.get('heartwoods'):
-            for teamId, heartwood in self.state['heartwoods'].items():
-                heartwood['growth_counter'] += 1
-                if heartwood['growth_counter'] >= heartwood['growth_interval']:
-                    heartwood['growth_counter'] = 0
+    
+    def _process_heartwoods(self):
+        """Handles Heartwood point generation."""
+        if not self.state.get('heartwoods'):
+            return
+
+        for teamId, heartwood in self.state['heartwoods'].items():
+            heartwood['growth_counter'] += 1
+            if heartwood['growth_counter'] >= heartwood['growth_interval']:
+                heartwood['growth_counter'] = 0
+                
+                for _ in range(10):
+                    angle = random.uniform(0, 2 * math.pi)
+                    radius = self.state['grid_size'] * random.uniform(0.05, 0.15)
                     
-                    # Spawn a new point.
-                    for _ in range(10): # Try a few times to find a spot
-                        angle = random.uniform(0, 2 * math.pi)
-                        radius = self.state['grid_size'] * random.uniform(0.05, 0.15)
-                        
-                        new_x = heartwood['center_coords']['x'] + math.cos(angle) * radius
-                        new_y = heartwood['center_coords']['y'] + math.sin(angle) * radius
-                        
-                        grid_size = self.state['grid_size']
-                        final_x = round(max(0, min(grid_size - 1, new_x)))
-                        final_y = round(max(0, min(grid_size - 1, new_y)))
-                        
-                        new_p_coords = {'x': final_x, 'y': final_y}
-                        is_valid, reason = self._is_spawn_location_valid(new_p_coords, teamId)
-                        if not is_valid: continue
-
-                        # Found a valid spot
-                        new_point_id = f"p_{uuid.uuid4().hex[:6]}"
-                        new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
-                        self.state['points'][new_point_id] = new_point
-                        
-                        team_name = self.state['teams'][teamId]['name']
-                        log_msg = {
-                            'teamId': teamId,
-                            'message': f"The Heartwood of Team {team_name} birthed a new point.",
-                            'short_message': '[HW:GROWTH]'
-                        }
-                        self.state['game_log'].append(log_msg)
-                        self.state['new_turn_events'].append({
-                            'type': 'heartwood_growth',
-                            'new_point': new_point,
-                            'heartwood_id': heartwood['id']
-                        })
-                        break # Stop trying to find a spot
-        
-        # 5. Process Whirlpools
-        if self.state.get('whirlpools'):
-            active_whirlpools = []
-            grid_size = self.state['grid_size']
-            for whirlpool in self.state['whirlpools']:
-                whirlpool['turns_left'] -= 1
-                if whirlpool['turns_left'] > 0:
-                    active_whirlpools.append(whirlpool)
-
-                    wp_coords = whirlpool['coords']
-                    wp_radius_sq = whirlpool['radius_sq']
-                    wp_strength = whirlpool['strength']
-                    wp_swirl = whirlpool['swirl']
-
-                    # Affect all points, regardless of team
-                    for point in self.state['points'].values():
-                        if distance_sq(wp_coords, point) < wp_radius_sq:
-                            # Vector from point to whirlpool center
-                            dx = wp_coords['x'] - point['x']
-                            dy = wp_coords['y'] - point['y']
-
-                            # Convert to polar
-                            dist = math.sqrt(dx**2 + dy**2)
-                            angle = math.atan2(dy, dx)
-                            
-                            if dist < 0.1: continue # Don't move points already at the center
-
-                            # Modify polar coordinates
-                            new_dist = dist * (1 - wp_strength) # Pull in
-                            new_angle = angle + wp_swirl # Swirl
-
-                            # Convert back to cartesian offset from whirlpool center
-                            new_dx = math.cos(new_angle) * new_dist
-                            new_dy = math.sin(new_angle) * new_dist
-
-                            # Calculate new absolute position and clamp/round
-                            new_x = wp_coords['x'] - new_dx
-                            new_y = wp_coords['y'] - new_dy
-                            point['x'] = round(max(0, min(grid_size - 1, new_x)))
-                            point['y'] = round(max(0, min(grid_size - 1, new_y)))
-
-            self.state['whirlpools'] = active_whirlpools
-
-        # 6. Process Monoliths
-        if self.state.get('monoliths'):
-            for monolith_id, monolith in list(self.state['monoliths'].items()):
-                monolith['charge_counter'] += 1
-                if monolith['charge_counter'] >= monolith['charge_interval']:
-                    monolith['charge_counter'] = 0
+                    new_x = heartwood['center_coords']['x'] + math.cos(angle) * radius
+                    new_y = heartwood['center_coords']['y'] + math.sin(angle) * radius
                     
-                    team_name = self.state['teams'][monolith['teamId']]['name']
-                    log_msg = {
-                        'teamId': monolith['teamId'],
-                        'message': f"A Monolith from Team {team_name} emits a reinforcing wave.",
-                        'short_message': '[MONOLITH:WAVE]'
-                    }
+                    grid_size = self.state['grid_size']
+                    final_x = round(max(0, min(grid_size - 1, new_x)))
+                    final_y = round(max(0, min(grid_size - 1, new_y)))
+                    
+                    new_p_coords = {'x': final_x, 'y': final_y}
+                    if not self._is_spawn_location_valid(new_p_coords, teamId)[0]: continue
+
+                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                    new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
+                    self.state['points'][new_point_id] = new_point
+                    
+                    team_name = self.state['teams'][teamId]['name']
+                    log_msg = {'teamId': teamId, 'message': f"The Heartwood of Team {team_name} birthed a new point.", 'short_message': '[HW:GROWTH]'}
                     self.state['game_log'].append(log_msg)
-                    self.state['new_turn_events'].append({
-                        'type': 'monolith_wave',
-                        'monolith_id': monolith_id,
-                        'center_coords': monolith['center_coords'],
-                        'radius_sq': monolith['wave_radius_sq']
-                    })
+                    self.state['new_turn_events'].append({'type': 'heartwood_growth', 'new_point': new_point, 'heartwood_id': heartwood['id']})
+                    break
 
-                    # Find and empower nearby friendly lines
-                    center = monolith['center_coords']
-                    radius_sq = monolith['wave_radius_sq']
-                    max_strength = 3
-                    
-                    for line in self.get_team_lines(monolith['teamId']):
-                        # Check if line midpoint is in range
-                        if line['p1_id'] not in self.state['points'] or line['p2_id'] not in self.state['points']: continue
-                        p1 = self.state['points'][line['p1_id']]
-                        p2 = self.state['points'][line['p2_id']]
-                        midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
+    def _process_whirlpools(self):
+        """Handles whirlpool pulls and expiration."""
+        if not self.state.get('whirlpools'):
+            return
+
+        active_whirlpools = []
+        grid_size = self.state['grid_size']
+        for whirlpool in self.state['whirlpools']:
+            whirlpool['turns_left'] -= 1
+            if whirlpool['turns_left'] > 0:
+                active_whirlpools.append(whirlpool)
+                wp_coords, wp_radius_sq, wp_strength, wp_swirl = whirlpool['coords'], whirlpool['radius_sq'], whirlpool['strength'], whirlpool['swirl']
+
+                for point in self.state['points'].values():
+                    if distance_sq(wp_coords, point) < wp_radius_sq:
+                        dx, dy = wp_coords['x'] - point['x'], wp_coords['y'] - point['y']
+                        dist = math.sqrt(dx**2 + dy**2)
+                        if dist < 0.1: continue
                         
-                        if distance_sq(center, midpoint) < radius_sq:
-                            current_strength = self.state['empowered_lines'].get(line.get('id'), 0)
-                            if current_strength < max_strength:
-                                self.state['empowered_lines'][line['id']] = current_strength + 1
-        
-        # 7. Process Wonders
-        if self.state.get('wonders'):
-            for wonder_id, wonder in list(self.state['wonders'].items()):
-                if wonder['type'] == 'ChronosSpire':
-                    wonder['turns_to_victory'] -= 1
-                    team_name = self.state['teams'][wonder['teamId']]['name']
-                    
-                    log_msg = {
-                        'teamId': wonder['teamId'],
-                        'message': f"The Chronos Spire of Team {team_name} pulses. Victory in {wonder['turns_to_victory']} turns.",
-                        'short_message': f'[SPIRE: T-{wonder["turns_to_victory"]}]'
-                    }
-                    self.state['game_log'].append(log_msg)
-                    
-                    # Check for wonder victory here at start of turn
-                    if wonder['turns_to_victory'] <= 0:
-                        self.state['game_phase'] = 'FINISHED'
-                        self.state['victory_condition'] = f"Team '{team_name}' achieved victory with the Chronos Spire."
-                        self.state['game_log'].append({'message': self.state['victory_condition'], 'short_message': '[WONDER VICTORY]'})
-                        # We should stop processing the rest of the turn start.
-                        self.state['actions_queue_this_turn'] = [] # empty queue
-                        return # exit early
-        
-        # 8. Process Rift Spires (charging) and Fissures/Barricades (decay)
+                        angle = math.atan2(dy, dx)
+                        new_dist, new_angle = dist * (1 - wp_strength), angle + wp_swirl
+                        new_dx, new_dy = math.cos(new_angle) * new_dist, math.sin(new_angle) * new_dist
+                        new_x, new_y = wp_coords['x'] - new_dx, wp_coords['y'] - new_dy
+                        point['x'] = round(max(0, min(grid_size - 1, new_x)))
+                        point['y'] = round(max(0, min(grid_size - 1, new_y)))
+
+        self.state['whirlpools'] = active_whirlpools
+
+    def _process_monoliths(self):
+        """Handles Monolith resonance waves."""
+        if not self.state.get('monoliths'):
+            return
+
+        for monolith_id, monolith in list(self.state['monoliths'].items()):
+            monolith['charge_counter'] += 1
+            if monolith['charge_counter'] >= monolith['charge_interval']:
+                monolith['charge_counter'] = 0
+                
+                team_name = self.state['teams'][monolith['teamId']]['name']
+                log_msg = {'teamId': monolith['teamId'], 'message': f"A Monolith from Team {team_name} emits a reinforcing wave.", 'short_message': '[MONOLITH:WAVE]'}
+                self.state['game_log'].append(log_msg)
+                self.state['new_turn_events'].append({'type': 'monolith_wave', 'monolith_id': monolith_id, 'center_coords': monolith['center_coords'], 'radius_sq': monolith['wave_radius_sq']})
+
+                center, radius_sq = monolith['center_coords'], monolith['wave_radius_sq']
+                for line in self.get_team_lines(monolith['teamId']):
+                    if line['p1_id'] not in self.state['points'] or line['p2_id'] not in self.state['points']: continue
+                    p1, p2 = self.state['points'][line['p1_id']], self.state['points'][line['p2_id']]
+                    midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
+                    if distance_sq(center, midpoint) < radius_sq:
+                        self._strengthen_line(line)
+
+    def _process_wonders(self):
+        """Handles Wonder countdowns and checks for Wonder victory. Returns True if game ends."""
+        if not self.state.get('wonders'):
+            return False
+
+        for wonder in list(self.state['wonders'].values()):
+            if wonder['type'] == 'ChronosSpire':
+                wonder['turns_to_victory'] -= 1
+                team_name = self.state['teams'][wonder['teamId']]['name']
+                log_msg = {'teamId': wonder['teamId'], 'message': f"The Chronos Spire of Team {team_name} pulses. Victory in {wonder['turns_to_victory']} turns.", 'short_message': f'[SPIRE: T-{wonder["turns_to_victory"]}]'}
+                self.state['game_log'].append(log_msg)
+                
+                if wonder['turns_to_victory'] <= 0:
+                    self.state['game_phase'] = 'FINISHED'
+                    self.state['victory_condition'] = f"Team '{team_name}' achieved victory with the Chronos Spire."
+                    self.state['game_log'].append({'message': self.state['victory_condition'], 'short_message': '[WONDER VICTORY]'})
+                    self.state['actions_queue_this_turn'] = []
+                    return True
+        return False
+
+    def _process_spires_fissures_barricades(self):
+        """Handles charging of spires and decay of fissures and barricades."""
         if self.state.get('rift_spires'):
             for spire in self.state['rift_spires'].values():
                 if spire.get('charge', 0) < spire.get('charge_needed', 3):
-                    spire['charge'] = spire.get('charge', 0) + 1
+                    spire['charge'] += 1
         
-        if self.state.get('fissures'):
-            active_fissures = []
-            for f in self.state['fissures']:
-                f['turns_left'] -= 1
-                if f['turns_left'] > 0:
-                    active_fissures.append(f)
-            self.state['fissures'] = active_fissures
-        
-        if self.state.get('barricades'):
-            active_barricades = []
-            for b in self.state['barricades']:
-                b['turns_left'] -= 1
-                if b['turns_left'] > 0:
-                    active_barricades.append(b)
-            self.state['barricades'] = active_barricades
-        
-        # 9. Process Stasis
-        if self.state.get('stasis_points'):
-            expired_stasis = [pid for pid, turns in self.state['stasis_points'].items() if turns - 1 <= 0]
-            self.state['stasis_points'] = {pid: turns - 1 for pid, turns in self.state['stasis_points'].items() if turns - 1 > 0}
-            # We don't need to do anything with expired_stasis list unless we want to log it
+        for key in ['fissures', 'barricades']:
+            if self.state.get(key):
+                active_items = []
+                for item in self.state[key]:
+                    item['turns_left'] -= 1
+                    if item['turns_left'] > 0:
+                        active_items.append(item)
+                self.state[key] = active_items
 
-        # --- Set up action queue for the turn ---
+    def _build_action_queue(self):
+        """Builds and shuffles the action queue for the current turn."""
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
         active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
         
         actions_queue = []
-        # Update structures to determine bonus actions, then build the queue
         for teamId in active_teams:
-            # This update is specifically to determine bonus actions for this turn
-            self._update_nexuses_for_team(teamId)
-            num_nexuses = len(self.state.get('nexuses', {}).get(teamId, []))
-            
-            # Add base action
             actions_queue.append({'teamId': teamId, 'is_bonus': False})
 
-            # Add bonus actions from Nexuses
+            self._update_nexuses_for_team(teamId)
+            num_nexuses = len(self.state.get('nexuses', {}).get(teamId, []))
             if num_nexuses > 0:
                 team_name = self.state['teams'][teamId]['name']
                 plural = "s" if num_nexuses > 1 else ""
-                self.state['game_log'].append({
-                    'message': f"Team {team_name} gains {num_nexuses} bonus action{plural} from its Nexus{plural}.",
-                    'short_message': f'[NEXUS:+{num_nexuses}ACT]'
-                })
+                self.state['game_log'].append({'message': f"Team {team_name} gains {num_nexuses} bonus action{plural} from its Nexus{plural}.", 'short_message': f'[NEXUS:+{num_nexuses}ACT]'})
                 for _ in range(num_nexuses):
                     actions_queue.append({'teamId': teamId, 'is_bonus': True})
 
-            # Add bonus action from Wonders
             num_wonders = sum(1 for w in self.state.get('wonders', {}).values() if w['teamId'] == teamId)
             if num_wonders > 0:
                 team_name = self.state['teams'][teamId]['name']
                 plural = "s" if num_wonders > 1 else ""
-                self.state['game_log'].append({
-                    'message': f"Team {team_name} gains {num_wonders} bonus action{plural} from its Wonder{plural}.",
-                    'short_message': f'[WONDER:+{num_wonders}ACT]'
-                })
+                self.state['game_log'].append({'message': f"Team {team_name} gains {num_wonders} bonus action{plural} from its Wonder{plural}.", 'short_message': f'[WONDER:+{num_wonders}ACT]'})
                 for _ in range(num_wonders):
                     actions_queue.append({'teamId': teamId, 'is_bonus': True})
 
-        random.shuffle(actions_queue) # Randomize action order each turn
+        random.shuffle(actions_queue)
         self.state['actions_queue_this_turn'] = actions_queue
+
+    def _start_new_turn(self):
+        """Performs start-of-turn maintenance and sets up the action queue for the new turn."""
+        self.state['turn'] += 1
+        self.state['action_in_turn'] = 0
+        self.state['last_action_details'] = {}
+        self.state['new_turn_events'] = []
+        
+        self._process_shields_and_stasis()
+        self._process_rift_traps()
+        self._process_anchors()
+        self._process_heartwoods()
+        self._process_whirlpools()
+        self._process_monoliths()
+        
+        if self._process_wonders():
+            return # Game ended via Wonder victory
+
+        self._process_spires_fissures_barricades()
+        self._build_action_queue()
         
     def _check_end_of_turn_victory_conditions(self):
         """Checks for victory conditions that are evaluated at the end of a full turn."""
