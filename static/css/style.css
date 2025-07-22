@@ -696,6 +696,7 @@ body.game-running .game-column {
 #game-preview-column #action-preview-content {
     flex-grow: 1;
     overflow-y: auto;
+    max-height: none; /* Override the default max-height */
 }
 #game-log-column .log-container {
     flex-grow: 1;
