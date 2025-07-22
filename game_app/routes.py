@@ -1,5 +1,5 @@
 import os
-from flask import Blueprint, render_template, jsonify, request, current_app
+from flask import Blueprint, render_template, jsonify, request, current_app, send_from_directory
 from . import game_logic
 from . import utils
 
@@ -99,3 +99,13 @@ def restart_server():
     except Exception as e:
         current_app.logger.error(f"Could not trigger restart: {e}")
         return jsonify({"error": f"Could not trigger restart: {e}"}), 500
+
+@main_routes.route('/game_app/<path:filename>')
+def serve_game_app_files(filename):
+    """
+    Serve files from the game_app directory.
+    This is needed for Pyodide to fetch the Python source in development mode.
+    """
+    # current_app.root_path is the absolute path to the 'game_app' directory.
+    py_dir = os.path.abspath(current_app.root_path)
+    return send_from_directory(py_dir, filename)
