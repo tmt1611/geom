@@ -141,6 +141,37 @@ def is_rectangle(p1, p2, p3, p4):
     
     return True, aspect_ratio
 
+def get_isosceles_triangle_info(p1, p2, p3):
+    """
+    Checks if 3 points form an isosceles triangle.
+    Returns a dict with {'apex': point, 'base': [p_b1, p_b2], 'height_sq': h^2} or None.
+    The apex is the vertex where the two equal sides meet.
+    """
+    dists = {
+        '12': distance_sq(p1, p2),
+        '13': distance_sq(p1, p3),
+        '23': distance_sq(p2, p3),
+    }
+    
+    TOLERANCE = 0.01 # Using a small tolerance for float equality
+
+    # Check for non-degenerate triangles
+    if dists['12'] < TOLERANCE or dists['13'] < TOLERANCE or dists['23'] < TOLERANCE:
+        return None
+
+    # Check for two equal sides
+    if abs(dists['12'] - dists['13']) < TOLERANCE:
+        height_sq = dists['12'] - (dists['23'] / 4.0)
+        return {'apex': p1, 'base': [p2, p3], 'height_sq': height_sq, 'leg_sq': dists['12']}
+    elif abs(dists['12'] - dists['23']) < TOLERANCE:
+        height_sq = dists['12'] - (dists['13'] / 4.0)
+        return {'apex': p2, 'base': [p1, p3], 'height_sq': height_sq, 'leg_sq': dists['12']}
+    elif abs(dists['13'] - dists['23']) < TOLERANCE:
+        height_sq = dists['13'] - (dists['12'] / 4.0)
+        return {'apex': p3, 'base': [p1, p2], 'height_sq': height_sq, 'leg_sq': dists['13']}
+    
+    return None
+
 # --- Game Class ---
 class Game:
     """Encapsulates the entire game state and logic."""
@@ -171,6 +202,7 @@ class Game:
             "heartwoods": {}, # {teamId: {id, center_coords, growth_counter}}
             "whirlpools": [], # {id, teamId, coords, turns_left, strength, radius_sq}
             "monoliths": {}, # {monolith_id: {teamId, point_ids, ...}}
+            "trebuchets": {}, # {teamId: [trebuchet1, ...]}
             "empowered_lines": {}, # {line_id: strength}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
@@ -240,6 +272,13 @@ class Game:
             for pid in monolith.get('point_ids', []):
                 monolith_point_ids.add(pid)
 
+        # Get all Trebuchet point IDs for quick lookup
+        trebuchet_point_ids = set()
+        for team_trebuchets in self.state.get('trebuchets', {}).values():
+            for trebuchet in team_trebuchets:
+                for pid in trebuchet.get('point_ids', []):
+                    trebuchet_point_ids.add(pid)
+
         augmented_points = {}
         for pid, point in self.state['points'].items():
             augmented_point = point.copy()
@@ -252,6 +291,7 @@ class Game:
             augmented_point['is_conduit_point'] = pid in conduit_point_ids
             augmented_point['is_nexus_point'] = pid in nexus_point_ids
             augmented_point['is_monolith_point'] = pid in monolith_point_ids
+            augmented_point['is_trebuchet_point'] = pid in trebuchet_point_ids
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
 
@@ -261,6 +301,7 @@ class Game:
         state_copy['heartwoods'] = self.state.get('heartwoods', {})
         state_copy['whirlpools'] = self.state.get('whirlpools', [])
         state_copy['monoliths'] = self.state.get('monoliths', {})
+        state_copy['trebuchets'] = self.state.get('trebuchets', {})
 
         # Add live stats for real-time display, regardless of phase, for consistency
         live_stats = {}
@@ -458,6 +499,13 @@ class Game:
         for bastion_id in bastions_to_dissolve:
             if bastion_id in self.state['bastions']:
                 del self.state['bastions'][bastion_id]
+
+        # 6. Handle Trebuchets
+        if self.state.get('trebuchets'):
+            for teamId, trebuchets in list(self.state.get('trebuchets', {}).items()):
+                self.state['trebuchets'][teamId] = [
+                    t for t in trebuchets if point_id not in t['point_ids']
+                ]
         
         return deleted_point_data
 
@@ -1807,6 +1855,46 @@ class Game:
         # If loop finishes without a successful hit
         return {'success': False, 'reason': 'no refraction path found to a target'}
 
+    def fight_action_launch_payload(self, teamId):
+        """[FIGHT ACTION]: A Trebuchet launches a payload to destroy a high-value enemy point."""
+        team_trebuchets = self.state.get('trebuchets', {}).get(teamId, [])
+        if not team_trebuchets:
+            return {'success': False, 'reason': 'no active trebuchets'}
+
+        # Find all possible high-value enemy targets
+        all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        
+        # Get IDs of special points for easier lookup
+        fortified_ids = self._get_fortified_point_ids()
+        bastion_cores = self._get_bastion_point_ids()['cores']
+        monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
+        
+        possible_targets = [
+            p for p in all_enemy_points if
+            p['id'] in fortified_ids or
+            p['id'] in bastion_cores or
+            p['id'] in monolith_point_ids
+        ]
+        
+        if not possible_targets:
+            return {'success': False, 'reason': 'no high-value enemy targets available'}
+        
+        trebuchet = random.choice(team_trebuchets)
+        target_point = random.choice(possible_targets)
+        
+        # Destroy the target point and all its connections
+        destroyed_point_data = self._delete_point_and_connections(target_point['id'])
+        if not destroyed_point_data:
+            return {'success': False, 'reason': 'failed to destroy target point'}
+            
+        return {
+            'success': True,
+            'type': 'launch_payload',
+            'trebuchet_points': trebuchet['point_ids'],
+            'launch_point_id': trebuchet['apex_id'],
+            'destroyed_point': destroyed_point_data
+        }
+
     def _update_nexuses_for_team(self, teamId):
         """Checks for Nexus formations (a square of points with outer lines and one diagonal)."""
         if 'nexuses' not in self.state: self.state['nexuses'] = {}
@@ -1956,6 +2044,7 @@ class Game:
             'fight_bastion_pulse': self.fight_action_bastion_pulse,
             'fight_chain_lightning': self.fight_action_chain_lightning,
             'fight_refraction_beam': self.fight_action_refraction_beam,
+            'fight_launch_payload': self.fight_action_launch_payload,
             'fortify_claim': self.fortify_action_claim_territory,
             'fortify_anchor': self.fortify_action_create_anchor,
             'fortify_mirror': self.fortify_action_mirror_structure,
@@ -1975,6 +2064,7 @@ class Game:
             'fight_sentry_zap': bool(self.state.get('sentries', {}).get(teamId, [])),
             'fight_chain_lightning': any(c.get('internal_point_ids') for c in self.state.get('conduits', {}).get(teamId, [])),
             'fight_refraction_beam': bool(self.state.get('prisms', {}).get(teamId, [])),
+            'fight_launch_payload': bool(self.state.get('trebuchets', {}).get(teamId, [])),
             'expand_add': len(team_point_ids) >= 2,
             'expand_extend': bool(team_lines),
             'expand_grow': bool(team_lines),
@@ -2008,13 +2098,13 @@ class Game:
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
-            'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22,
+            'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25,
             'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_cultivate_heartwood': 20, # High value objective
             'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
-            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5},
+            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5},
             'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5},
             'Balanced':   {}
@@ -2310,6 +2400,7 @@ class Game:
                 "[LIGHTNING!]" if r.get('destroyed_point') else "[FIZZLE]"
             ),
             'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[PINCER!]"),
+            'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET!]"),
             'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]")
         }
 
@@ -2349,6 +2440,7 @@ class Game:
         self._update_sentries_for_team(teamId)
         self._update_conduits_for_team(teamId)
         self._update_prisms_for_team(teamId)
+        self._update_trebuchets_for_team(teamId)
         # We also re-update nexuses here mainly so the frontend display is accurate
         # if a nexus is created or destroyed mid-turn. Bonus actions for this turn
         # are already locked in from _start_new_turn.
@@ -2775,6 +2867,87 @@ class Game:
                         'shared_p2_id': edge[1],
                         'all_point_ids': list(all_points)
                     })
+
+    def _update_trebuchets_for_team(self, teamId):
+        """Checks for Trebuchet formations (a specific kite shape)."""
+        if 'trebuchets' not in self.state: self.state['trebuchets'] = {}
+        self.state['trebuchets'][teamId] = []
+
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 4:
+            return
+
+        points = self.state['points']
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+        
+        used_points = set()
+        possible_trebuchets = []
+
+        # Iterate through every point as a potential 'apex' of the structure
+        for apex_id in team_point_ids:
+            if apex_id in used_points: continue
+            
+            neighbors = list(adj.get(apex_id, set()))
+            if len(neighbors) < 2: continue
+
+            # Iterate through pairs of neighbors to form a triangle with the apex
+            for i in range(len(neighbors)):
+                for j in range(i + 1, len(neighbors)):
+                    base1_id, base2_id = neighbors[i], neighbors[j]
+                    
+                    if base1_id in used_points or base2_id in used_points: continue
+
+                    p_apex, p_base1, p_base2 = points[apex_id], points[base1_id], points[base2_id]
+                    
+                    leg1_sq, leg2_sq = distance_sq(p_apex, p_base1), distance_sq(p_apex, p_base2)
+
+                    # Check for isosceles triangle with apex at apex_id
+                    if abs(leg1_sq - leg2_sq) > 0.01 or leg1_sq < 1.0:
+                        continue
+
+                    # Check for "tight" triangle (base shorter than legs)
+                    base_len_sq = distance_sq(p_base1, p_base2)
+                    if base_len_sq > leg1_sq:
+                        continue
+                    
+                    # The base of the triangle must be a connected line
+                    if base2_id not in adj.get(base1_id, set()):
+                        continue
+
+                    # Find a counterweight: a common neighbor of the two base points, which is not the apex
+                    common_neighbors = adj.get(base1_id, set()).intersection(adj.get(base2_id, set()))
+                    
+                    for cw_id in common_neighbors:
+                        if cw_id == apex_id or cw_id in used_points: continue
+                        
+                        p_cw = points[cw_id]
+                        base_midpoint = {'x': (p_base1['x'] + p_base2['x']) / 2, 'y': (p_base1['y'] + p_base2['y']) / 2}
+                        
+                        v_apex = {'x': p_apex['x'] - base_midpoint['x'], 'y': p_apex['y'] - base_midpoint['y']}
+                        v_cw = {'x': p_cw['x'] - base_midpoint['x'], 'y': p_cw['y'] - base_midpoint['y']}
+                        
+                        cross_product = v_apex['x'] * v_cw['y'] - v_apex['y'] * v_cw['x']
+                        if abs(cross_product) > 1.0:
+                            continue
+
+                        if (v_apex['x'] * v_cw['x'] + v_apex['y'] * v_cw['y']) >= 0:
+                            continue
+                        
+                        all_p_ids = {apex_id, base1_id, base2_id, cw_id}
+                        if not used_points.intersection(all_p_ids):
+                            possible_trebuchets.append({
+                                'point_ids': list(all_p_ids),
+                                'apex_id': apex_id,
+                                'base_ids': [base1_id, base2_id],
+                                'counterweight_id': cw_id,
+                            })
+                            used_points.update(all_p_ids)
+
+        self.state['trebuchets'][teamId] = possible_trebuchets
 
 
 # --- Global Game Instance ---

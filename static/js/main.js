@@ -198,6 +198,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     const h = radius * 2.5;
                     ctx.rect(cx - w / 2, cy - h / 2, w, h);
                     ctx.fill();
+                } else if (p.is_trebuchet_point) {
+                    // Draw trebuchet points distinctively (as a pentagon)
+                    ctx.beginPath();
+                    const pointCount = 5;
+                    ctx.moveTo(cx + radius, cy);
+                    for (let i = 1; i <= pointCount; i++) {
+                        const angle = i * 2 * Math.PI / pointCount;
+                        ctx.lineTo(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
+                    }
+                    ctx.closePath();
+                    ctx.fill();
                 } else if (p.is_anchor) {
                     // Draw anchors as squares
                     const squareSize = radius * 1.8;
@@ -420,6 +431,33 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
 
             ctx.globalAlpha = 1.0;
+        }
+    }
+
+    function drawTrebuchets(gameState) {
+        if (!gameState.trebuchets) return;
+
+        for (const teamId in gameState.trebuchets) {
+            const teamTrebuchets = gameState.trebuchets[teamId];
+            const team = gameState.teams[teamId];
+            if (!team || !teamTrebuchets) continue;
+
+            teamTrebuchets.forEach(trebuchet => {
+                const apex = gameState.points[trebuchet.apex_id];
+                const cw = gameState.points[trebuchet.counterweight_id];
+
+                if (apex && cw) {
+                    // Draw the arm of the trebuchet
+                    ctx.beginPath();
+                    ctx.moveTo((apex.x + 0.5) * cellSize, (apex.y + 0.5) * cellSize);
+                    ctx.lineTo((cw.x + 0.5) * cellSize, (cw.y + 0.5) * cellSize);
+                    ctx.strokeStyle = team.color;
+                    ctx.lineWidth = 4;
+                    ctx.globalAlpha = 0.4;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                }
+            });
         }
     }
 
@@ -838,6 +876,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
                 ctx.fillStyle = effect.color || `rgba(200, 180, 255, ${1 - progress})`; // Purple-ish fade out
                 ctx.fill();
+            } else if (effect.type === 'arc_projectile') {
+                const startX = (effect.start.x + 0.5) * cellSize;
+                const startY = (effect.start.y + 0.5) * cellSize;
+                const endX = (effect.end.x + 0.5) * cellSize;
+                const endY = (effect.end.y + 0.5) * cellSize;
+
+                // Simple parabolic arc using a quadratic bezier curve
+                const controlX = (startX + endX) / 2;
+                const controlY = Math.min(startY, endY) - 50; // Arc height
+
+                // Calculate current position along the curve
+                const t = progress;
+                const currentX = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * controlX + t * t * endX;
+                const currentY = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * controlY + t * t * endY;
+                
+                ctx.beginPath();
+                ctx.arc(currentX, currentY, 5, 0, 2*Math.PI);
+                ctx.fillStyle = `rgba(255, 100, 50, ${1 - progress * 0.5})`;
+                ctx.fill();
             }
             
             return true; // Keep active effects
@@ -860,6 +917,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (currentGameState.teams) {
                 drawTerritories(currentGameState.points, currentGameState.territories, currentGameState.teams);
                 drawMonoliths(currentGameState);
+                drawTrebuchets(currentGameState);
                 drawPrisms(currentGameState);
                 drawRunes(currentGameState);
                 drawConduits(currentGameState);
@@ -1132,6 +1190,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'point_explosion', x: target.x, y: target.y, startTime: Date.now(), duration: 600
             });
         }
+        if (details.type === 'launch_payload' && details.destroyed_point) {
+            details.trebuchet_points.forEach(pid => lastActionHighlights.points.add(pid));
+            
+            const launch_point = gameState.points[details.launch_point_id];
+            if (launch_point) {
+                visualEffects.push({
+                    type: 'arc_projectile',
+                    start: launch_point,
+                    end: details.destroyed_point,
+                    startTime: Date.now(),
+                    duration: 1200
+                });
+            }
+
+            visualEffects.push({
+                type: 'point_explosion',
+                x: details.destroyed_point.x,
+                y: details.destroyed_point.y,
+                startTime: Date.now() + 1200, // Explode on impact
+                duration: 800
+            });
+        }
 
         // Set a timer to clear the highlights
         lastActionHighlights.clearTimeout = setTimeout(() => {
@@ -1396,7 +1476,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         'Conduit': (conduits && conduits[teamId]) ? conduits[teamId].length : 0,
                         'Nexus': (nexuses && nexuses[teamId]) ? nexuses[teamId].length : 0,
                         'Bastion': Object.values(bastions || {}).filter(b => b.teamId === teamId).length,
-                        'Monolith': Object.values(monoliths || {}).filter(m => m.teamId === teamId).length
+                        'Monolith': Object.values(monoliths || {}).filter(m => m.teamId === teamId).length,
+                        'Trebuchet': (gameState.trebuchets && gameState.trebuchets[teamId]) ? gameState.trebuchets[teamId].length : 0
                     };
 
                     let structureStrings = [];

@@ -35,6 +35,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Sentry Zap:** _(Requires an active Sentry)_ Fires a short, high-energy beam from the Sentry's "eye" along its perpendicular axis. Destroys the first enemy **point** it hits within range. This is a powerful, precision attack capable of removing fortified points.
 *   **[FIGHT] Chain Lightning:** _(Requires a Conduit with internal points)_ Sacrifice one of the Conduit's internal points. A bolt of energy travels along the Conduit and then jumps to the nearest enemy point, destroying it.
 *   **[FIGHT] Refraction Beam:** _(Requires an active Prism)_ Fires a beam from one of its lines that refracts off the Prism's shared edge, changing direction to hit an enemy line around obstacles.
+*   **[FIGHT] Launch Payload:** _(Requires an active Trebuchet)_ Fires an arcing projectile at a random enemy high-value point (e.g., a fortified point, bastion core, or monolith point), destroying it. This is a powerful siege attack for breaking down entrenched defenses.
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Form Sentry:** A passive formation. When three of a team's points are collinear and connected by lines (forming Post-Eye-Post), they become a Sentry.
@@ -53,6 +54,9 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Bonus:** The bastion's core point, prong points, and connecting lines become immune to standard attacks and conversion.
 *   **[FORTIFY] Form Monolith:** Forms a special defensive structure from four points that create a tall, thin rectangle with its perimeter lines connected.
     *   **Bonus (Resonance Wave):** Every few turns, the Monolith emits a wave that **Empowers** all friendly lines in a radius around it. Empowered lines can absorb one or more hits before being destroyed.
+*   **[FORTIFY] Form Trebuchet:** Forms a powerful siege engine from a kite-shaped formation of four points.
+    *   **Formation:** Requires a tight, isosceles triangle (the "base") connected to a "counterweight" point along its axis of symmetry. All 5 lines that form the outer kite shape must exist.
+    *   **Bonus:** Unlocks the **[FIGHT] Launch Payload** action.
 *   **[FORTIFY] Create Anchor:** Sacrifice one of its own points to turn another into a gravitational anchor. For a few turns, the anchor will slowly pull nearby enemy points towards it.
 *   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns.
 *   **[FORTIFY] Cultivate Heartwood:** A unique, powerful structure. Requires a central point connected to at least 5 other "branch" points.

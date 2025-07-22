@@ -1,22 +1,21 @@
-This iteration introduces a significant new strategic and visual element: **Nexus Detonations**. This feature enhances the "auto-battle sandbox" aspect of the game by creating opportunities for spectacular chain reactions, making the battlefield more dynamic and visually engaging.
+This iteration introduces a new strategic layer to the game with the **Trebuchet**, a powerful siege engine designed to break fortified enemy positions.
 
-### 1. New Mechanic: Nexus Detonation
+### 1. New Structure: The Trebuchet
 
--   **Files**: `game_app/game_logic.py`, `static/js/main.js`
--   **Change**: Nexuses, the economic powerhouses of a team, are now volatile. When a point that is part of a Nexus is destroyed, the Nexus detonates in a violent energy discharge.
--   **Effect**: The detonation creates a shockwave centered on the former Nexus. This shockwave destroys any nearby enemy points and lines, potentially triggering further cascades if another structure is hit. This turns Nexuses into high-risk, high-reward structures and key strategic targets.
--   **Visuals**: A new visual effect has been added for the detonation—an expanding shockwave of the Nexus owner's color—clearly signaling the cause of the secondary destruction on the battlefield.
+-   **Files**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
+-   **Change**: A new fortify-class structure, the **Trebuchet**, has been added to the game.
+    -   **Formation**: Teams can form a Trebuchet if they create a specific kite-shaped structure with four points and the necessary connecting lines. The detection logic has been optimized to efficiently find these complex geometric shapes.
+    -   **Action**: A successfully formed Trebuchet unlocks the `[FIGHT] Launch Payload` action. This powerful, long-range attack fires an arcing projectile that can destroy high-value enemy points, such as fortified points, bastion cores, and monolith anchor points, bypassing normal defenses.
+    -   **Visuals**: Trebuchets have a distinct appearance on the grid, with a visible "arm" connecting the apex to the counterweight. The `Launch Payload` action is visualized with a projectile arcing across the battlefield and a large explosion on impact, adding to the visual spectacle.
 
-### 2. Code Refactoring & Quality Improvement
-
--   **File**: `game_app/game_logic.py`
--   **Change**: The core point destruction function, `_delete_point_and_connections`, was refactored to handle the new cascade logic cleanly. It now accepts an `aggressor_team_id` to correctly attribute the destruction and its side effects.
--   **Benefit**: This change centralizes the logic for secondary effects. Instead of adding checks to every single attack action, the cascade logic is handled in one place, making the code more robust and easier to maintain. All actions that destroy points were updated to use this improved function.
-
-### 3. State Management and Event Handling
+### 2. Code and Engine Improvements
 
 -   **File**: `game_app/game_logic.py`
--   **Change**: A new `action_events` list was added to the game state. This list is used to communicate secondary visual effects (like the Nexus Detonation) from the backend to the frontend for a single action.
--   **Benefit**: This provides a structured way to handle complex visual sequences that result from a single game action, ensuring the UI can accurately represent everything that happened in the correct order. The state is cleared after each action, keeping it clean and preventing bleed-over between turns.
+-   **Change**: A geometric helper for detecting isosceles triangles has been added. The system for discovering complex, multi-point structures like the Trebuchet has been implemented efficiently to avoid performance degradation.
+-   **Benefit**: This makes the game engine more robust and performant, allowing for the addition of more complex structures in the future.
 
-These changes directly address the user's request to make the final picture "more interesting or visually stunning" by introducing dramatic, geometry-based chain reactions that can drastically alter the state of the game in a single, explosive moment.
+### 3. Frontend Enhancements
+
+-   **File**: `static/js/main.js`
+-   **Change**: The live stats panel now correctly identifies and counts the number of active Trebuchets for each team. New drawing functions were added to render the Trebuchet structures and the arcing projectile animation.
+-   **Benefit**: This provides players with clear, immediate feedback on the state of the game and enhances the visual storytelling of the battle.
