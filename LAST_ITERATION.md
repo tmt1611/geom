@@ -1,22 +1,22 @@
-This iteration focuses on a significant code cleanup and continues the expansion of the Action Guide with new illustrations and corresponding animations.
+This iteration focuses on a significant code cleanup by refactoring the monolithic `game_logic.py` file, and continues the expansion of the Action Guide with new illustrations and animations.
 
 ### 1. Code Refactoring and Organization
 
-To improve maintainability and readability, the monolithic `game_logic.py` file has been broken down into more specialized modules.
+To improve maintainability and readability, the game's logic has been broken down into more specialized modules.
 
-- **`game_app/geometry.py` (New File):**
-  - All generic, stateless geometric helper functions (like `distance_sq`, `is_rectangle`, `segments_intersect`, etc.) have been moved from `game_logic.py` into this new, dedicated file.
-  - This separation of concerns makes the core geometric utilities reusable and easier to test independently.
+- **`game_app/geometry.py` Integration:**
+  - The generic, stateless geometric helper functions (like `distance_sq`, `is_rectangle`) were previously duplicated in both `game_logic.py` and `geometry.py`. This duplication has been removed.
+  - `game_logic.py` now imports these functions directly from `geometry.py`, making the geometry module the single source of truth for these utilities.
 
 - **`game_app/formations.py` (New File):**
   - A new `FormationManager` class has been created in this file.
   - Its responsibility is to detect all complex geometric structures on the board, such as Runes (V-Rune, Shield-Rune, etc.), Prisms, Nexuses, and Trebuchets.
-  - Over 20 methods related to structure detection were moved from the main `Game` class into this manager, significantly reducing the size and complexity of `game_logic.py`.
-  - The `Game` class now holds an instance of `FormationManager` and delegates all formation-checking tasks to it.
+  - Over 15 methods related to structure detection were moved from the main `Game` class into this manager, significantly reducing the size and complexity of `game_logic.py`.
+  - The `Game` class now holds an instance of `FormationManager` and delegates all formation-checking tasks to it, resulting in cleaner, more organized code.
 
 - **`game_logic.py` (Refactored):**
   - The file is now much shorter and more focused on the core game loop and action execution.
-  - It now imports from the new `geometry` and `formations` modules, leading to cleaner code.
+  - It now imports from the new `geometry` and `formations` modules.
 
 - **Supporting Files (`utils.py`, `api.js`):**
   - Both files were updated to recognize the new Python modules (`geometry.py`, `formations.py`). This ensures that the live-update checker and the Pyodide (in-browser) version of the game continue to function correctly.

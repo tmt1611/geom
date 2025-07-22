@@ -7,6 +7,8 @@ WATCHED_FILES = [
     'game_app/__init__.py',
     'game_app/routes.py',
     'game_app/game_logic.py',
+    'game_app/geometry.py',
+    'game_app/formations.py',
     'static/js/main.js',
     'index.html',
     'rules.md'

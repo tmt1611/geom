@@ -2,219 +2,12 @@ import random
 import math
 import uuid  # For unique point IDs
 from itertools import combinations
-
-# --- Geometric Helper Functions ---
-
-def distance_sq(p1, p2):
-    """Calculates the squared distance between two points."""
-    return (p1['x'] - p2['x'])**2 + (p1['y'] - p2['y'])**2
-
-def on_segment(p, q, r):
-    """Given three collinear points p, q, r, checks if point q lies on line segment 'pr'."""
-    return (q['x'] <= max(p['x'], r['x']) and q['x'] >= min(p['x'], r['x']) and
-            q['y'] <= max(p['y'], r['y']) and q['y'] >= min(p['y'], r['y']))
-
-def orientation(p, q, r):
-    """Finds orientation of ordered triplet (p, q, r).
-    Returns:
-    0 --> p, q and r are collinear
-    1 --> Clockwise
-    2 --> Counterclockwise
-    """
-    val = (q['y'] - p['y']) * (r['x'] - q['x']) - \
-          (q['x'] - p['x']) * (r['y'] - q['y'])
-    if val == 0: return 0  # Collinear
-    return 1 if val > 0 else 2  # Clockwise or Counter-clockwise
-
-def segments_intersect(p1, q1, p2, q2):
-    """Checks if line segment 'p1q1' and 'p2q2' intersect."""
-    o1 = orientation(p1, q1, p2)
-    o2 = orientation(p1, q1, q2)
-    o3 = orientation(p2, q2, p1)
-    o4 = orientation(p2, q2, q1)
-
-    # General case: segments cross each other
-    if o1 != o2 and o3 != o4:
-        return True
-
-    # Special Cases for collinear points
-    # p1, q1 and p2 are collinear and p2 lies on segment p1q1
-    if o1 == 0 and on_segment(p1, p2, q1): return True
-    # p1, q1 and q2 are collinear and q2 lies on segment p1q1
-    if o2 == 0 and on_segment(p1, q2, q1): return True
-    # p2, q2 and p1 are collinear and p1 lies on segment p2q2
-    if o3 == 0 and on_segment(p2, p1, q2): return True
-    # p2, q2 and q1 are collinear and q1 lies on segment p2q2
-    if o4 == 0 and on_segment(p2, q1, q2): return True
-
-    return False
-
-def get_segment_intersection_point(p1, q1, p2, q2):
-    """Finds the intersection point of two line segments 'p1q1' and 'p2q2'.
-    Returns a dict {'x', 'y'} or None if they do not intersect on the segments.
-    """
-    x1, y1 = p1['x'], p1['y']
-    x2, y2 = q1['x'], q1['y']
-    x3, y3 = p2['x'], p2['y']
-    x4, y4 = q2['x'], q2['y']
-
-    den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
-    if den == 0:
-        return None  # Lines are parallel or collinear
-
-    t_num = (x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)
-    u_num = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3))
-
-    t = t_num / den
-    u = u_num / den
-
-    # If 0<=t<=1 and 0<=u<=1, the segments intersect
-    if 0 <= t <= 1 and 0 <= u <= 1:
-        ix = x1 + t * (x2 - x1)
-        iy = y1 + t * (y2 - y1)
-        return {'x': ix, 'y': iy}
-
-    return None  # Intersection point is not on both segments
-
-
-
-def is_rectangle(p1, p2, p3, p4):
-    """Checks if four points form a rectangle. Returns (is_rect, aspect_ratio).
-    This is a helper function that doesn't rely on game state.
-    """
-    points = [p1, p2, p3, p4]
-    
-    # Check for non-collapsed points. Using tuple of coords for hashability.
-    if len(set((p['x'], p['y']) for p in points)) < 4:
-        return False, 0
-
-    # There are 6 distances between 4 points.
-    dists_sq = sorted([
-        distance_sq(p1, p2), distance_sq(p1, p3), distance_sq(p1, p4),
-        distance_sq(p2, p3), distance_sq(p2, p4), distance_sq(p3, p4)
-    ])
-
-    # For a rectangle, the sorted squared distances should be [s1, s1, s2, s2, d, d]
-    # where s1 and s2 are sides and d is the diagonal.
-    s1_sq, s2_sq = dists_sq[0], dists_sq[2]
-    d_sq = dists_sq[4]
-
-    # Check for non-zero side length
-    if s1_sq < 0.01:
-        return False, 0
-    
-    # Check for 2 pairs of equal sides (with a small tolerance for float issues)
-    if not (abs(dists_sq[0] - dists_sq[1]) < 0.01 and abs(dists_sq[2] - dists_sq[3]) < 0.01):
-        return False, 0
-    
-    # Check for 2 equal diagonals
-    if not abs(dists_sq[4] - dists_sq[5]) < 0.01:
-        return False, 0
-    
-    # Check Pythagorean theorem for a right angle: s1^2 + s2^2 = d^2
-    if not abs((s1_sq + s2_sq) - d_sq) < 0.01:
-        return False, 0
-
-    # Calculate aspect ratio (long side / short side)
-    side1 = math.sqrt(s1_sq)
-    side2 = math.sqrt(s2_sq)
-    
-    # This check is redundant due to the s1_sq check above, but safe.
-    if side1 < 0.1 or side2 < 0.1: return False, 0
-
-    aspect_ratio = max(side1, side2) / min(side1, side2)
-    
-    return True, aspect_ratio
-
-def is_parallelogram(p1, p2, p3, p4):
-    """Checks if four points form a parallelogram. Returns (is_para, is_rect)."""
-    points = [p1, p2, p3, p4]
-    if len(set((p['x'], p['y']) for p in points)) < 4:
-        return False, False
-
-    dists_sq = sorted([
-        distance_sq(p1, p2), distance_sq(p1, p3), distance_sq(p1, p4),
-        distance_sq(p2, p3), distance_sq(p2, p4), distance_sq(p3, p4)
-    ])
-
-    # Check for 2 pairs of equal sides
-    if not (abs(dists_sq[0] - dists_sq[1]) < 0.01 and abs(dists_sq[2] - dists_sq[3]) < 0.01):
-        return False, False
-    
-    s1_sq, s2_sq = dists_sq[0], dists_sq[2]
-    d1_sq, d2_sq = dists_sq[4], dists_sq[5]
-
-    # Check parallelogram property: 2*(s1^2 + s2^2) = d1^2 + d2^2
-    if not abs(2 * (s1_sq + s2_sq) - (d1_sq + d2_sq)) < 0.1: # Increased tolerance
-        return False, False
-        
-    # Check if it's a rectangle
-    is_rect = abs(d1_sq - d2_sq) < 0.01
-    
-    return True, is_rect
-
-def get_isosceles_triangle_info(p1, p2, p3):
-    """
-    Checks if 3 points form an isosceles triangle.
-    Returns a dict with {'apex': point, 'base': [p_b1, p_b2], 'height_sq': h^2} or None.
-    The apex is the vertex where the two equal sides meet.
-    """
-    dists = {
-        '12': distance_sq(p1, p2),
-        '13': distance_sq(p1, p3),
-        '23': distance_sq(p2, p3),
-    }
-    
-    TOLERANCE = 0.01 # Using a small tolerance for float equality
-
-    # Check for non-degenerate triangles
-    if dists['12'] < TOLERANCE or dists['13'] < TOLERANCE or dists['23'] < TOLERANCE:
-        return None
-
-    # Check for two equal sides
-    if abs(dists['12'] - dists['13']) < TOLERANCE:
-        height_sq = dists['12'] - (dists['23'] / 4.0)
-        return {'apex': p1, 'base': [p2, p3], 'height_sq': height_sq, 'leg_sq': dists['12']}
-    elif abs(dists['12'] - dists['23']) < TOLERANCE:
-        height_sq = dists['12'] - (dists['13'] / 4.0)
-        return {'apex': p2, 'base': [p1, p3], 'height_sq': height_sq, 'leg_sq': dists['12']}
-    elif abs(dists['13'] - dists['23']) < TOLERANCE:
-        height_sq = dists['13'] - (dists['12'] / 4.0)
-        return {'apex': p3, 'base': [p1, p2], 'height_sq': height_sq, 'leg_sq': dists['13']}
-    
-    return None
-
-def is_regular_pentagon(p1, p2, p3, p4, p5):
-    """Checks if five points form a regular pentagon."""
-    points = [p1, p2, p3, p4, p5]
-    if len(set((p['x'], p['y']) for p in points)) < 5:
-        return False
-
-    # Calculate all 10 squared distances between the 5 points.
-    dists_sq = sorted([distance_sq(pi, pj) for pi, pj in combinations(points, 2)])
-    
-    # A regular pentagon has 5 equal sides (shortest distance) and 5 equal diagonals (next shortest).
-    side_sq = dists_sq[0]
-    diag_sq = dists_sq[5]
-
-    # Check for 5 equal sides
-    if not all(abs(d - side_sq) < 0.01 for d in dists_sq[0:5]):
-        return False
-
-    # Check for 5 equal diagonals
-    if not all(abs(d - diag_sq) < 0.01 for d in dists_sq[5:10]):
-        return False
-        
-    # Check the golden ratio property: diag^2 / side^2 = phi^2
-    # phi^2 = ((1+sqrt(5))/2)^2 = (3+sqrt(5))/2 ~= 2.618034
-    if side_sq < 0.01: return False # Not a real pentagon
-    ratio_sq = diag_sq / side_sq
-    
-    phi_sq = ((1 + math.sqrt(5)) / 2)**2
-    if abs(ratio_sq - phi_sq) > 0.05: # Allow some tolerance for float inaccuracies
-        return False
-        
-    return True
+from .geometry import (
+    distance_sq, on_segment, orientation, segments_intersect,
+    get_segment_intersection_point, is_rectangle, is_parallelogram,
+    get_isosceles_triangle_info, is_regular_pentagon
+)
+from .formations import FormationManager
 
 # --- Game Class ---
 class Game:
@@ -3130,55 +2923,15 @@ class Game:
         }
 
     def _update_nexuses_for_team(self, teamId):
-        """Checks for Nexus formations (a square of points with outer lines and one diagonal)."""
+        """Checks for Nexus formations by delegating to the FormationManager."""
         if 'nexuses' not in self.state: self.state['nexuses'] = {}
-        self.state['nexuses'][teamId] = [] # Recalculate each time
-
+        
         team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 4:
-            return
-
-        points = self.state['points']
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
-
-        for p_ids_tuple in combinations(team_point_ids, 4):
-            # Ensure all points still exist before lookup
-            if not all(pid in points for pid in p_ids_tuple): continue
-            
-            p_list = [points[pid] for pid in p_ids_tuple]
-            
-            is_rect, aspect_ratio = is_rectangle(*p_list)
-            # A Nexus requires a square, which is a rectangle with aspect ratio ~1.0
-            if is_rect and abs(aspect_ratio - 1.0) < 0.05:
-                # We found a square. Now check for lines.
-                # The 4 shortest distances are sides, 2 longest are diagonals.
-                
-                all_pairs = list(combinations(p_ids_tuple, 2))
-                all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
-                
-                # Sort pairs by distance
-                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-                
-                side_pairs = sorted_pairs[0:4]
-                diag_pairs = sorted_pairs[4:6]
-
-                # Check if all 4 side lines exist
-                num_side_lines = sum(1 for p1_id, p2_id in side_pairs if tuple(sorted((p1_id, p2_id))) in existing_lines)
-                if num_side_lines < 4:
-                    continue
-
-                # Check if at least one diagonal line exists
-                has_diagonal = any(tuple(sorted((p1_id, p2_id))) in existing_lines for p1_id, p2_id in diag_pairs)
-                
-                if has_diagonal:
-                    # This is a valid Nexus.
-                    center_x = sum(p['x'] for p in p_list) / 4
-                    center_y = sum(p['y'] for p in p_list) / 4
-                    
-                    self.state['nexuses'][teamId].append({
-                        'point_ids': list(p_ids_tuple),
-                        'center': {'x': center_x, 'y': center_y}
-                    })
+        team_lines = self.get_team_lines(teamId)
+        
+        self.state['nexuses'][teamId] = self.formation_manager.check_nexuses(
+            team_point_ids, team_lines, self.state['points']
+        )
 
     def rune_action_shoot_bisector(self, teamId):
         """[RUNE ACTION]: Fires a powerful beam from a V-Rune. If it misses, it creates a fissure."""
@@ -4460,21 +4213,28 @@ class Game:
     # --- Rune System ---
     
     def _update_runes_for_team(self, teamId):
-        """Checks and updates all rune states for a given team."""
+        """Checks and updates all rune states for a given team by delegating to the FormationManager."""
         if teamId not in self.state['runes']:
             self.state['runes'][teamId] = {}
-        
-        self.state['runes'][teamId]['cross'] = self._check_cross_rune(teamId)
-        self.state['runes'][teamId]['v_shape'] = self._check_v_rune(teamId)
-        self.state['runes'][teamId]['shield'] = self._check_shield_rune(teamId)
-        self.state['runes'][teamId]['trident'] = self._check_trident_rune(teamId)
-        self.state['runes'][teamId]['hourglass'] = self._check_hourglass_rune(teamId)
-        self.state['runes'][teamId]['star'] = self._check_star_rune(teamId)
-        self.state['runes'][teamId]['barricade'] = self._check_barricade_rune(teamId)
-        self.state['runes'][teamId]['t_shape'] = self._check_t_rune(teamId)
-        self.state['runes'][teamId]['plus_shape'] = self._check_plus_rune(teamId)
-        self.state['runes'][teamId]['i_shape'] = self._check_i_rune(teamId)
-        self.state['runes'][teamId]['parallel'] = self._check_parallel_rune(teamId)
+
+        team_point_ids = self.get_team_point_ids(teamId)
+        team_lines = self.get_team_lines(teamId)
+        all_points = self.state['points']
+        fm = self.formation_manager
+
+        self.state['runes'][teamId] = {
+            'cross': fm.check_cross_rune(team_point_ids, team_lines, all_points),
+            'v_shape': fm.check_v_rune(team_point_ids, team_lines, all_points),
+            'shield': fm.check_shield_rune(team_point_ids, team_lines, all_points),
+            'trident': fm.check_trident_rune(team_point_ids, team_lines, all_points),
+            'hourglass': fm.check_hourglass_rune(team_point_ids, team_lines, all_points),
+            'star': fm.check_star_rune(team_point_ids, team_lines, all_points),
+            'barricade': fm.check_barricade_rune(team_point_ids, team_lines, all_points),
+            't_shape': fm.check_t_rune(team_point_ids, team_lines, all_points),
+            'plus_shape': fm.check_plus_rune(team_point_ids, team_lines, all_points),
+            'i_shape': fm.check_i_rune(team_point_ids, team_lines, all_points),
+            'parallel': fm.check_parallel_rune(team_point_ids, team_lines, all_points),
+        }
 
     def _check_barricade_rune(self, teamId):
         """
@@ -5338,44 +5098,10 @@ class Game:
             }
 
     def _update_prisms_for_team(self, teamId):
-        """Checks for Prism formations (two territories sharing an edge)."""
+        """Checks for Prism formations by delegating to the FormationManager."""
         if 'prisms' not in self.state: self.state['prisms'] = {}
-        self.state['prisms'][teamId] = []
-
         team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
-        if len(team_territories) < 2:
-            return
-
-        # Map edges to the territories they belong to
-        edge_to_territories = {}
-        for i, territory in enumerate(team_territories):
-            p_ids = territory['point_ids']
-            # Create the 3 edges for the triangle
-            edges = [
-                tuple(sorted((p_ids[0], p_ids[1]))),
-                tuple(sorted((p_ids[1], p_ids[2]))),
-                tuple(sorted((p_ids[2], p_ids[0])))
-            ]
-            for edge in edges:
-                if edge not in edge_to_territories:
-                    edge_to_territories[edge] = []
-                edge_to_territories[edge].append(i) # Store territory index
-
-        # Find edges that are shared by exactly two territories
-        for edge, ter_indices in edge_to_territories.items():
-            if len(ter_indices) == 2:
-                ter1 = team_territories[ter_indices[0]]
-                ter2 = team_territories[ter_indices[1]]
-                
-                all_points = set(ter1['point_ids']).union(set(ter2['point_ids']))
-                
-                # A prism is formed by 4 points
-                if len(all_points) == 4:
-                    self.state['prisms'][teamId].append({
-                        'shared_p1_id': edge[0],
-                        'shared_p2_id': edge[1],
-                        'all_point_ids': list(all_points)
-                    })
+        self.state['prisms'][teamId] = self.formation_manager.check_prisms(team_territories)
 
     def rune_action_cardinal_pulse(self, teamId):
         """[RUNE ACTION]: A Plus-Rune is consumed to fire four beams from its center. Beams destroy the first enemy line hit, or create a point on the border if they miss."""
@@ -5540,85 +5266,15 @@ class Game:
             }
 
     def _update_trebuchets_for_team(self, teamId):
-        """Checks for Trebuchet formations (a specific kite shape)."""
+        """Checks for Trebuchet formations by delegating to the FormationManager."""
         if 'trebuchets' not in self.state: self.state['trebuchets'] = {}
-        self.state['trebuchets'][teamId] = []
 
         team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 4:
-            return
-
-        points = self.state['points']
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        team_lines = self.get_team_lines(teamId)
         
-        used_points = set()
-        possible_trebuchets = []
-
-        # Iterate through every point as a potential 'apex' of the structure
-        for apex_id in team_point_ids:
-            if apex_id in used_points: continue
-            
-            neighbors = list(adj.get(apex_id, set()))
-            if len(neighbors) < 2: continue
-
-            # Iterate through pairs of neighbors to form a triangle with the apex
-            for i in range(len(neighbors)):
-                for j in range(i + 1, len(neighbors)):
-                    base1_id, base2_id = neighbors[i], neighbors[j]
-                    
-                    if base1_id in used_points or base2_id in used_points: continue
-
-                    p_apex, p_base1, p_base2 = points[apex_id], points[base1_id], points[base2_id]
-                    
-                    leg1_sq, leg2_sq = distance_sq(p_apex, p_base1), distance_sq(p_apex, p_base2)
-
-                    # Check for isosceles triangle with apex at apex_id
-                    if abs(leg1_sq - leg2_sq) > 0.01 or leg1_sq < 1.0:
-                        continue
-
-                    # Check for "tight" triangle (base shorter than legs)
-                    base_len_sq = distance_sq(p_base1, p_base2)
-                    if base_len_sq > leg1_sq:
-                        continue
-                    
-                    # The base of the triangle must be a connected line
-                    if base2_id not in adj.get(base1_id, set()):
-                        continue
-
-                    # Find a counterweight: a common neighbor of the two base points, which is not the apex
-                    common_neighbors = adj.get(base1_id, set()).intersection(adj.get(base2_id, set()))
-                    
-                    for cw_id in common_neighbors:
-                        if cw_id == apex_id or cw_id in used_points: continue
-                        
-                        p_cw = points[cw_id]
-                        base_midpoint = {'x': (p_base1['x'] + p_base2['x']) / 2, 'y': (p_base1['y'] + p_base2['y']) / 2}
-                        
-                        v_apex = {'x': p_apex['x'] - base_midpoint['x'], 'y': p_apex['y'] - base_midpoint['y']}
-                        v_cw = {'x': p_cw['x'] - base_midpoint['x'], 'y': p_cw['y'] - base_midpoint['y']}
-                        
-                        cross_product = v_apex['x'] * v_cw['y'] - v_apex['y'] * v_cw['x']
-                        if abs(cross_product) > 1.0:
-                            continue
-
-                        if (v_apex['x'] * v_cw['x'] + v_apex['y'] * v_cw['y']) >= 0:
-                            continue
-                        
-                        all_p_ids = {apex_id, base1_id, base2_id, cw_id}
-                        if not used_points.intersection(all_p_ids):
-                            possible_trebuchets.append({
-                                'point_ids': list(all_p_ids),
-                                'apex_id': apex_id,
-                                'base_ids': [base1_id, base2_id],
-                                'counterweight_id': cw_id,
-                            })
-                            used_points.update(all_p_ids)
-
-        self.state['trebuchets'][teamId] = possible_trebuchets
+        self.state['trebuchets'][teamId] = self.formation_manager.check_trebuchets(
+            team_point_ids, team_lines, self.state['points']
+        )
 
 
 # --- Global Game Instance ---

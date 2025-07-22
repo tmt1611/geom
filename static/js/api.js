@@ -22,7 +22,7 @@ const api = {
             // we will reconstruct the package structure in the virtual filesystem by fetching all python files.
             console.log('Fetching Python source files for Pyodide...');
             // We fetch all .py files except __init__.py, which has server-specific dependencies (Flask).
-            const pyFiles = ['game_logic.py', 'routes.py', 'utils.py'];
+            const pyFiles = ['game_logic.py', 'geometry.py', 'formations.py', 'routes.py', 'utils.py'];
             this._pyodide.FS.mkdir('/game_app');
 
             for (const file of pyFiles) {

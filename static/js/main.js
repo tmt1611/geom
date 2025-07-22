@@ -2029,6 +2029,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'heartwood_creation', sacrificed_points: details.sacrificed_points, center_coords: details.heartwood.center_coords, startTime: Date.now(), duration: 1500
             });
         },
+        'form_purifier': (details, gameState) => {
+            details.purifier.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            const points = details.purifier.point_ids.map(pid => gameState.points[pid]).filter(Boolean);
+            if(points.length === 5) {
+                visualEffects.push({
+                    type: 'polygon_flash',
+                    points: points,
+                    color: 'rgba(255, 255, 220, 1.0)', // Light yellow
+                    startTime: Date.now(),
+                    duration: 1200
+                });
+            }
+        },
+        'launch_payload': (details, gameState) => {
+            details.trebuchet_points.forEach(pid => lastActionHighlights.points.add(pid));
+            const launch_point = gameState.points[details.launch_point_id];
+            if (launch_point) {
+                visualEffects.push({
+                    type: 'arc_projectile', start: launch_point, end: details.destroyed_point, startTime: Date.now(), duration: 1200
+                });
+            }
+            visualEffects.push({
+                type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now() + 1200, duration: 800
+            });
+        },
+        'rune_hourglass_stasis': (details, gameState) => {
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            lastActionHighlights.points.add(details.target_point.id);
+            // The point renderer will show the stasis effect, no special animation needed for now
+        },
         'create_rift_trap': (details, gameState) => {
             lastActionHighlights.points.add(details.sacrificed_point.id);
             visualEffects.push({
@@ -2099,31 +2129,6 @@ document.addEventListener('DOMContentLoaded', () => {
             visualEffects.push({
                 type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now() + 500, duration: 600
             });
-        },
-        'launch_payload': (details, gameState) => {
-            details.trebuchet_points.forEach(pid => lastActionHighlights.points.add(pid));
-            const launch_point = gameState.points[details.launch_point_id];
-            if (launch_point) {
-                visualEffects.push({
-                    type: 'arc_projectile', start: launch_point, end: details.destroyed_point, startTime: Date.now(), duration: 1200
-                });
-            }
-            visualEffects.push({
-                type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now() + 1200, duration: 800
-            });
-        },
-        'form_purifier': (details, gameState) => {
-            details.purifier.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-            const points = details.purifier.point_ids.map(pid => gameState.points[pid]).filter(Boolean);
-            if(points.length === 5) {
-                visualEffects.push({
-                    type: 'polygon_flash',
-                    points: points,
-                    color: 'rgba(255, 255, 220, 1.0)', // Light yellow
-                    startTime: Date.now(),
-                    duration: 1200
-                });
-            }
         },
         'purify_territory': (details, gameState) => {
             details.purifier_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
@@ -3787,6 +3792,132 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.stroke();
             });
             ctx.setLineDash([]);
+        },
+        'fortify_cultivate_heartwood': (ctx, w, h) => {
+            const team1_color = 'hsl(120, 70%, 50%)'; // Green for nature
+            const center = {x: w*0.5, y: h*0.5};
+            const branches = [];
+            const num_branches = 5;
+            const radius = w * 0.3;
+
+            for (let i = 0; i < num_branches; i++) {
+                const angle = (i / num_branches) * 2 * Math.PI;
+                branches.push({
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y + Math.sin(angle) * radius,
+                });
+            }
+            
+            // Draw original points
+            illustrationHelpers.drawPoints(ctx, [center, ...branches], team1_color);
+            branches.forEach(b => illustrationHelpers.drawLines(ctx, [{p1: center, p2: b}], team1_color));
+            
+            // Draw sacrifice 'X' over them
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            [center, ...branches].forEach(p => {
+                ctx.beginPath();
+                ctx.moveTo(p.x - 4, p.y - 4); ctx.lineTo(p.x + 4, p.y + 4);
+                ctx.moveTo(p.x - 4, p.y + 4); ctx.lineTo(p.x + 4, p.y - 4);
+                ctx.stroke();
+            });
+
+            // Draw Heartwood symbol
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, 10, 0, 2 * Math.PI);
+            ctx.fillStyle = team1_color;
+            ctx.fill();
+            ctx.font = 'bold 20px Arial';
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('❤', center.x, center.y + 1);
+        },
+        'fortify_form_purifier': (ctx, w, h) => {
+            const team1_color = 'hsl(50, 80%, 60%)'; // Light yellow for purify
+            const center = {x: w*0.5, y: h*0.5};
+            const radius = w * 0.35;
+            const num_points = 5;
+            const points = [];
+
+            for (let i = 0; i < num_points; i++) {
+                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2); // Start from top
+                points.push({
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y + Math.sin(angle) * radius,
+                });
+            }
+            illustrationHelpers.drawPoints(ctx, points, team1_color);
+            for (let i = 0; i < num_points; i++) {
+                illustrationHelpers.drawLines(ctx, [{p1: points[i], p2: points[(i+1)%num_points]}], team1_color);
+            }
+        },
+        'fight_launch_payload': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const apex = {x: w*0.2, y: h*0.3};
+            const b1 = {x: w*0.3, y: h*0.5};
+            const b2 = {x: w*0.3, y: h*0.1};
+            const cw = {x: w*0.4, y: h*0.3};
+            const target = {x: w*0.8, y: h*0.7};
+
+            illustrationHelpers.drawPoints(ctx, [apex, b1, b2, cw], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:apex,p2:b1},{p1:b1,p2:cw},{p1:cw,p2:b2},{p1:b2,p2:apex},{p1:b1,p2:b2}], team1_color);
+            illustrationHelpers.drawPoints(ctx, [target], team2_color);
+
+            // Arc
+            ctx.beginPath();
+            ctx.moveTo(apex.x, apex.y);
+            ctx.quadraticCurveTo(w*0.5, h*0.1, target.x, target.y);
+            ctx.setLineDash([4,4]);
+            ctx.strokeStyle = 'red';
+            ctx.stroke();
+            ctx.setLineDash([]);
+        },
+        'rune_hourglass_stasis': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const v = {x: w*0.4, y: h*0.5};
+            const t1 = [{x: w*0.2, y: h*0.2}, {x: w*0.2, y: h*0.8}];
+            const t2 = [{x: w*0.6, y: h*0.3}, {x: w*0.6, y: h*0.7}];
+            const ep = {x: w*0.8, y: h*0.5};
+
+            illustrationHelpers.drawPoints(ctx, [v, ...t1, ...t2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:t1[0],p2:v},{p1:v,p2:t1[1]},{p1:t1[0],p2:t1[1]}], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:t2[0],p2:v},{p1:v,p2:t2[1]},{p1:t2[0],p2:t2[1]}], team1_color);
+            
+            illustrationHelpers.drawPoints(ctx, [ep], team2_color);
+            
+            // Cage
+            const cage_r = 10;
+            ctx.strokeStyle = 'rgba(150, 220, 255, 0.9)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(ep.x - cage_r, ep.y); ctx.lineTo(ep.x + cage_r, ep.y);
+            ctx.moveTo(ep.x, ep.y - cage_r); ctx.lineTo(ep.x, ep.y + cage_r); ctx.stroke();
+            ctx.beginPath(); ctx.arc(ep.x, ep.y, cage_r, 0, 2 * Math.PI); ctx.stroke();
+        },
+        'sacrifice_rift_trap': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const center = {x: w*0.5, y: h*0.5};
+            
+            // Sacrificed point
+            illustrationHelpers.drawPoints(ctx, [center], team1_color);
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.fillText('💥', center.x-20, center.y-20);
+
+            // Trap symbol
+            const radius = 12;
+            ctx.strokeStyle = team1_color;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, radius, 0.2, Math.PI - 0.2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, radius, Math.PI + 0.2, 2 * Math.PI - 0.2);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
         },
     };
 
