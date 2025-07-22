@@ -1,15 +1,26 @@
-### Action System Redesign (Part 3): Whirlpool Fallback and Cleanup
+### Action System Redesign (Part 4): "Never Useless" Fight Actions
 
-This iteration completes the "never useless" action system redesign by implementing a fallback effect for the `sacrifice_whirlpool` action, as suggested. This ensures that even when a whirlpool is created in an empty area, the action still has a tangible, strategic effect on the game board.
+This iteration continues the work on the action system, focusing on making several key `FIGHT` actions more robust by giving them useful fallback effects. This reduces the number of "wasted" turns and adds another layer of strategic depth, as a failed attack can now pivot into a defensive or expansive outcome.
 
 -   **Files Modified**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
 
--   **Core Change**:
-    -   **`sacrifice_create_whirlpool`**: This action has been redesigned to be more dynamic and avoid wasted turns.
-        -   **Primary Effect**: Sacrifices a friendly point to create a vortex that pulls all nearby points towards its center for several turns. This happens only if there are other points within its radius upon creation.
-        -   **Fallback Effect**: If no points are nearby to be affected, the sacrifice is not wasted. Instead of a whirlpool, the action creates a small, temporary **Fissure** on the map. This terrain feature can block movement and other actions, providing a different kind of strategic value.
+-   **Core Changes**:
+    -   **`fight_action_pincer_attack`**:
+        -   **Primary Effect**: Two friendly points flank and destroy an enemy point.
+        -   **Fallback Effect**: If no valid pincer target can be found, the two chosen points now create a small, temporary **Barricade** between them, pivoting a failed attack into a defensive maneuver.
+
+    -   **`fight_action_territory_strike`**:
+        -   **Primary Effect**: A large territory fires a projectile to destroy the nearest enemy point.
+        -   **Fallback Effect**: If there are no vulnerable enemy points on the board, the territory now reinforces its own three boundary lines, increasing their strength and durability.
+
+    -   **`fight_action_sentry_zap`**:
+        -   **Primary Effect**: A Sentry structure fires a precision shot to destroy an enemy point.
+        -   **Fallback Effect**: If the zap has no valid target in its line of fire, the beam now travels to the edge of the grid and creates a new friendly point, similar to the `fight_attack` miss effect.
 
 -   **Frontend & Documentation**:
-    -   Added a new visual effect in `static/js/main.js` for the "fizzle" case of the whirlpool, reusing the existing fissure-drawing logic (`growing_wall`). This provides clear visual feedback for the fallback effect.
-    -   Updated the action description in `rules.md` to accurately reflect the new dual-outcome nature of the whirlpool action.
-    -   Added a new log message in `game_logic.py` to ensure the game log clearly communicates when the fallback effect occurs.
+    -   Added new visual effects in `static/js/main.js` to clearly communicate when these fallback effects occur.
+    -   Updated the action descriptions in `rules.md` to reflect the new dual-outcome nature of these three actions.
+    -   Added corresponding log messages in `game_logic.py` for each new fallback.
+
+-   **Refactoring**:
+    -   The internal logic for finding pincer attacks was moved directly into the action function, removing the need for a separate, expensive helper function (`_find_possible_pincers`) and simplifying the precondition checks.

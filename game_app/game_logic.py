@@ -2336,87 +2336,47 @@ class Game:
             'bastion_id': bastion_to_pulse['id']
         }
 
-    def fight_action_sentry_zap(self, teamId):
-        """[FIGHT ACTION]: A sentry fires a short beam to destroy an enemy point."""
-        team_sentries = self.state.get('sentries', {}).get(teamId, [])
-        if not team_sentries:
-            return {'success': False, 'reason': 'no active sentries'}
+    def fight_action_launch_payload(self, teamId):
+        """[FIGHT ACTION]: A Trebuchet launches a payload to destroy a high-value enemy point."""
+        team_trebuchets = self.state.get('trebuchets', {}).get(teamId, [])
+        if not team_trebuchets:
+            return {'success': False, 'reason': 'no active trebuchets'}
 
-        sentry = random.choice(team_sentries)
-        points = self.state['points']
+        # Find all possible high-value enemy targets
+        all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
         
-        p_eye = points[sentry['eye_id']]
-        p_post1 = points[sentry['post1_id']]
-        
-        # Vector of the sentry's alignment
-        vx = p_post1['x'] - p_eye['x']
-        vy = p_post1['y'] - p_eye['y']
-        
-        # Perpendicular vector (for the zap)
-        zap_vx, zap_vy = -vy, vx
-        
-        zap_range_sq = (self.state['grid_size'] * 0.35)**2
-        
-        # Get list of vulnerable enemy points
+        # Get IDs of special points for easier lookup
+        fortified_ids = self._get_fortified_point_ids()
+        bastion_cores = self._get_bastion_point_ids()['cores']
+        monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
         stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
-        # Sentry can destroy fortified points, but not stasis points
-        vulnerable_enemy_points = [p for p in points.values() if p['teamId'] != teamId and p['id'] not in stasis_point_ids]
         
-        # Check both directions of the perpendicular
-        possible_targets = []
-        for direction in [1, -1]:
-            zap_dir_x = zap_vx * direction
-            zap_dir_y = zap_vy * direction
-            
-            for enemy_p in vulnerable_enemy_points:
-                # Vector from eye to enemy
-                enemy_vx = enemy_p['x'] - p_eye['x']
-                enemy_vy = enemy_p['y'] - p_eye['y']
-                
-                # Check if enemy is within range
-                if (enemy_vx**2 + enemy_vy**2) > zap_range_sq:
-                    continue
-
-                # Check for near-collinearity with the zap vector using cross product
-                cross_product = zap_dir_x * enemy_vy - zap_dir_y * enemy_vx
-                
-                # Also check dot product to ensure it's in the correct direction
-                dot_product = zap_dir_x * enemy_vx + zap_dir_y * enemy_vy
-
-                # Allow for a small tolerance: point can be within 0.5 units of the ray
-                # Distance from point to line is |cross_product| / |zap_dir|
-                mag_zap_dir_sq = zap_dir_x**2 + zap_dir_y**2
-                if mag_zap_dir_sq == 0: continue
-                
-                distance_from_ray_sq = cross_product**2 / mag_zap_dir_sq
-                
-                if distance_from_ray_sq < 0.5**2 and dot_product > 0:
-                    possible_targets.append(enemy_p)
-
+        possible_targets = [
+            p for p in all_enemy_points if
+            p['id'] not in stasis_point_ids and (
+                p['id'] in fortified_ids or
+                p['id'] in bastion_cores or
+                p['id'] in monolith_point_ids
+            )
+        ]
+        
         if not possible_targets:
-            return {'success': False, 'reason': 'no enemy point in zap path'}
-            
-        # Find the closest target among the possibilities
-        target_point = min(possible_targets, key=lambda p: distance_sq(p_eye, p))
-
-        # Destroy the point and all its connections
-        destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+            return {'success': False, 'reason': 'no high-value enemy targets available'}
+        
+        trebuchet = random.choice(team_trebuchets)
+        target_point = random.choice(possible_targets)
+        
+        # Destroy the target point and all its connections
+        destroyed_point_data = self._delete_point_and_connections(target_point['id'])
         if not destroyed_point_data:
             return {'success': False, 'reason': 'failed to destroy target point'}
-
-        # Create data for the visual effect
-        zap_ray_p1 = p_eye
-        # For visualization, find where the ray to the target would hit a border
-        zap_ray_end = self._get_extended_border_point(p_eye, target_point)
-        if not zap_ray_end: # Should not happen if target is found
-            zap_ray_end = target_point
-        
+            
         return {
             'success': True,
-            'type': 'sentry_zap',
-            'destroyed_point': destroyed_point_data,
-            'sentry_points': [sentry['eye_id'], sentry['post1_id'], sentry['post2_id']],
-            'attack_ray': {'p1': zap_ray_p1, 'p2': zap_ray_end}
+            'type': 'launch_payload',
+            'trebuchet_points': trebuchet['point_ids'],
+            'launch_point_id': trebuchet['apex_id'],
+            'destroyed_point': destroyed_point_data
         }
 
     def fight_action_chain_lightning(self, teamId):
@@ -2489,24 +2449,207 @@ class Game:
             'conduit_point_ids': chosen_conduit['point_ids']
         }
 
-    def _find_possible_pincers(self, teamId):
-        """Finds all possible pincer attack formations."""
+    def fight_action_sentry_zap(self, teamId):
+        """[FIGHT ACTION]: A sentry fires a beam to destroy an enemy point. If it misses, it creates a new point on the border."""
+        team_sentries = self.state.get('sentries', {}).get(teamId, [])
+        if not team_sentries:
+            return {'success': False, 'reason': 'no active sentries'}
+
+        sentry = random.choice(team_sentries)
+        points = self.state['points']
+        
+        p_eye = points[sentry['eye_id']]
+        p_post1 = points[sentry['post1_id']]
+        
+        # Vector of the sentry's alignment
+        vx = p_post1['x'] - p_eye['x']
+        vy = p_post1['y'] - p_eye['y']
+        
+        # Perpendicular vector (for the zap), randomized direction
+        zap_vx, zap_vy = random.choice([(-vy, vx), (vy, -vx)])
+        
+        zap_range_sq = (self.state['grid_size'] * 0.35)**2
+        
+        # Get list of vulnerable enemy points
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        vulnerable_enemy_points = [p for p in points.values() if p['teamId'] != teamId and p['id'] not in stasis_point_ids]
+        
+        possible_targets = []
+        if vulnerable_enemy_points:
+            for enemy_p in vulnerable_enemy_points:
+                enemy_vx = enemy_p['x'] - p_eye['x']
+                enemy_vy = enemy_p['y'] - p_eye['y']
+                
+                if (enemy_vx**2 + enemy_vy**2) > zap_range_sq:
+                    continue
+
+                cross_product = zap_vx * enemy_vy - zap_vy * enemy_vx
+                dot_product = zap_vx * enemy_vx + zap_vy * enemy_vy
+                mag_zap_dir_sq = zap_vx**2 + zap_vy**2
+                if mag_zap_dir_sq == 0: continue
+                
+                distance_from_ray_sq = cross_product**2 / mag_zap_dir_sq
+                
+                if distance_from_ray_sq < 0.5**2 and dot_product > 0:
+                    possible_targets.append(enemy_p)
+
+        if possible_targets:
+            # --- Primary Effect: Destroy Point ---
+            target_point = min(possible_targets, key=lambda p: distance_sq(p_eye, p))
+            destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+            if not destroyed_point_data:
+                return {'success': False, 'reason': 'failed to destroy target point'}
+            
+            zap_ray_end = self._get_extended_border_point(p_eye, target_point) or target_point
+            
+            return {
+                'success': True, 'type': 'sentry_zap',
+                'destroyed_point': destroyed_point_data,
+                'sentry_points': [sentry['eye_id'], sentry['post1_id'], sentry['post2_id']],
+                'attack_ray': {'p1': p_eye, 'p2': zap_ray_end}
+            }
+        else:
+            # --- Fallback Effect: Spawn Point on Border ---
+            # Create a dummy point along the zap vector to find the border intersection
+            dummy_end_point = {'x': p_eye['x'] + zap_vx, 'y': p_eye['y'] + zap_vy}
+            border_point = self._get_extended_border_point(p_eye, dummy_end_point)
+            
+            if not border_point or self._is_ray_blocked(p_eye, border_point):
+                 return {'success': False, 'reason': 'zap path to border was blocked'}
+            
+            is_valid, _ = self._is_spawn_location_valid(border_point, teamId)
+            if not is_valid:
+                 return {'success': False, 'reason': 'no valid spawn location on border for zap miss'}
+
+            new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+            new_point = {**border_point, "teamId": teamId, "id": new_point_id}
+            self.state['points'][new_point_id] = new_point
+            
+            return {
+                'success': True, 'type': 'sentry_zap_miss_spawn',
+                'new_point': new_point,
+                'sentry_points': [sentry['eye_id'], sentry['post1_id'], sentry['post2_id']],
+                'attack_ray': {'p1': p_eye, 'p2': border_point}
+            }
+
+    def fight_action_chain_lightning(self, teamId):
+        """[FIGHT ACTION]: A Conduit sacrifices an internal point to strike a nearby enemy point."""
+        team_conduits = self.state.get('conduits', {}).get(teamId, [])
+        # Find conduits that have at least one internal point to sacrifice
+        valid_conduits = [c for c in team_conduits if c.get('internal_point_ids')]
+        if not valid_conduits:
+            return {'success': False, 'reason': 'no conduits with sacrificial points'}
+
+        # 1. Choose a conduit and a point to sacrifice
+        chosen_conduit = random.choice(valid_conduits)
+        p_to_sac_id = random.choice(chosen_conduit['internal_point_ids'])
+
+        # 2. Sacrifice the point. Its data is returned.
+        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
+        if not sacrificed_point_data:
+             return {'success': False, 'reason': 'failed to sacrifice conduit point'}
+
+        # 3. Find the closest enemy point to one of the conduit's endpoints
+        endpoint1_id = chosen_conduit['endpoint1_id']
+        endpoint2_id = chosen_conduit['endpoint2_id']
+        
+        # Check if endpoints still exist after the sacrifice cascade
+        if endpoint1_id not in self.state['points'] or endpoint2_id not in self.state['points']:
+            # The action succeeded (point was sacrificed) but fizzled.
+            return {
+                'success': True, 'type': 'chain_lightning',
+                'sacrificed_point': sacrificed_point_data, 'destroyed_point': None,
+                'conduit_point_ids': chosen_conduit['point_ids']
+            }
+
+        endpoint1 = self.state['points'][endpoint1_id]
+        endpoint2 = self.state['points'][endpoint2_id]
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+
+        if not enemy_points:
+            return {
+                'success': True, 'type': 'chain_lightning',
+                'sacrificed_point': sacrificed_point_data, 'destroyed_point': None,
+                'conduit_point_ids': chosen_conduit['point_ids']
+            }
+
+        # Find vulnerable enemy points
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        vulnerable_enemy_points = [p for p in enemy_points if p['id'] not in stasis_point_ids]
+        if not vulnerable_enemy_points:
+             return {
+                'success': True, 'type': 'chain_lightning',
+                'sacrificed_point': sacrificed_point_data, 'destroyed_point': None,
+                'conduit_point_ids': chosen_conduit['point_ids']
+            }
+
+        # Find the single closest enemy to either endpoint
+        closest_enemy = min(
+            vulnerable_enemy_points,
+            key=lambda p: min(distance_sq(endpoint1, p), distance_sq(endpoint2, p))
+        )
+        
+        # 4. Destroy the target
+        destroyed_point_data = self._delete_point_and_connections(closest_enemy['id'], aggressor_team_id=teamId)
+        if not destroyed_point_data:
+            return {'success': False, 'reason': 'failed to destroy target point'}
+            
+        return {
+            'success': True,
+            'type': 'chain_lightning',
+            'sacrificed_point': sacrificed_point_data,
+            'destroyed_point': destroyed_point_data,
+            'conduit_point_ids': chosen_conduit['point_ids']
+        }
+
+    def _pincer_attack_fallback_barricade(self, teamId, p1_id, p2_id):
+        """Fallback for pincer attack: create a temporary barricade."""
+        points = self.state['points']
+        p1 = points.get(p1_id)
+        p2 = points.get(p2_id)
+
+        if not p1 or not p2:
+            return {'success': False, 'reason': 'points for fallback barricade do not exist'}
+        
+        barricade_id = f"bar_{uuid.uuid4().hex[:6]}"
+        new_barricade = {
+            'id': barricade_id, 'teamId': teamId,
+            'p1': {'x': p1['x'], 'y': p1['y']},
+            'p2': {'x': p2['x'], 'y': p2['y']},
+            'turns_left': 2 # A short-lived barricade
+        }
+        self.state['barricades'].append(new_barricade)
+        
+        return {
+            'success': True, 'type': 'pincer_fizzle_barricade',
+            'barricade': new_barricade,
+            'pincer_points': [p1_id, p2_id]
+        }
+
+    def fight_action_pincer_attack(self, teamId):
+        """[FIGHT ACTION]: Two points flank and destroy an enemy point. If not possible, they form a defensive barricade."""
         team_point_ids = self.get_team_point_ids(teamId)
         if len(team_point_ids) < 2:
-            return []
+            return {'success': False, 'reason': 'not enough points for pincer attack'}
 
         enemy_points = self._get_vulnerable_enemy_points(teamId)
         if not enemy_points:
-            return []
+             # No vulnerable enemies, go straight to fallback
+             p1_id, p2_id = random.sample(team_point_ids, 2)
+             return self._pincer_attack_fallback_barricade(teamId, p1_id, p2_id)
 
         points_map = self.state['points']
-        possible_pincers = []
         max_range_sq = (self.state['grid_size'] * 0.4)**2
         pincer_angle_threshold = -0.866  # cos(150 deg)
-
-        for p1_id, p2_id in combinations(team_point_ids, 2):
+        
+        # Try a few random pairs of points to find a pincer
+        pincer_candidates = list(combinations(team_point_ids, 2))
+        random.shuffle(pincer_candidates)
+        for p1_id, p2_id in pincer_candidates[:10]: # Try up to 10 random pairs
             p1 = points_map[p1_id]
             p2 = points_map[p2_id]
+            
+            possible_targets = []
             for ep in enemy_points:
                 if distance_sq(p1, ep) > max_range_sq or distance_sq(p2, ep) > max_range_sq:
                     continue
@@ -2514,39 +2657,107 @@ class Game:
                 v2 = {'x': p2['x'] - ep['x'], 'y': p2['y'] - ep['y']}
                 mag1_sq = v1['x']**2 + v1['y']**2
                 mag2_sq = v2['x']**2 + v2['y']**2
-                if mag1_sq < 0.1 or mag2_sq < 0.1:
-                    continue
+                if mag1_sq < 0.1 or mag2_sq < 0.1: continue
                 dot_product = v1['x'] * v2['x'] + v1['y'] * v2['y']
                 cos_theta = dot_product / (math.sqrt(mag1_sq) * math.sqrt(mag2_sq))
+
                 if cos_theta < pincer_angle_threshold:
-                    possible_pincers.append({
-                        'pincer_p1_id': p1_id, 'pincer_p2_id': p2_id, 'target_point': ep
-                    })
-        return possible_pincers
+                    possible_targets.append(ep)
 
-    def fight_action_pincer_attack(self, teamId):
-        """[FIGHT ACTION]: Two points flank and destroy an enemy point."""
-        possible_pincers = self._find_possible_pincers(teamId)
+            if possible_targets:
+                # --- Primary Effect: Pincer Attack ---
+                # Choose the best target (e.g., closest to the midpoint of the attackers)
+                midpoint = self._points_centroid([p1, p2])
+                target_point = min(possible_targets, key=lambda p: distance_sq(midpoint, p))
+
+                destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+                if not destroyed_point_data: continue # Try another pincer if deletion failed for some reason
+                
+                return {
+                    'success': True, 'type': 'pincer_attack',
+                    'destroyed_point': destroyed_point_data,
+                    'attacker_p1_id': p1_id,
+                    'attacker_p2_id': p2_id,
+                }
         
-        if not possible_pincers:
-            return {'success': False, 'reason': 'no pincer formation found'}
+        # If loop finishes with no successful pincer, execute fallback with a random pair
+        p1_id, p2_id = random.sample(team_point_ids, 2)
+        return self._pincer_attack_fallback_barricade(teamId, p1_id, p2_id)
 
-        chosen_pincer = random.choice(possible_pincers)
-        target_point = chosen_pincer['target_point']
+    def _get_large_territories(self, teamId):
+        """Helper to find all large territories for a team."""
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        if not team_territories:
+            return []
 
-        destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
-        if not destroyed_point_data:
-            return {'success': False, 'reason': 'failed to destroy target point'}
+        points_map = self.state['points']
+        MIN_AREA = 10.0
+        large_territories = []
+        for territory in team_territories:
+            p_ids = territory['point_ids']
+            if all(pid in points_map for pid in p_ids):
+                triangle_points = [points_map[pid] for pid in p_ids]
+                if len(triangle_points) == 3 and self._polygon_area(triangle_points) >= MIN_AREA:
+                    large_territories.append(territory)
+        return large_territories
+
+    def fight_action_territory_strike(self, teamId):
+        """[FIGHT ACTION]: Launches an attack from a large territory. If no targets, reinforces the territory."""
+        large_territories = self._get_large_territories(teamId)
+        if not large_territories:
+            return {'success': False, 'reason': 'no large territories to strike from'}
+
+        territory = random.choice(large_territories)
+        points_map = self.state['points']
+        triangle_points = [points_map[pid] for pid in territory['point_ids']]
+        centroid = self._points_centroid(triangle_points)
+
+        # --- Find Primary Target ---
+        enemy_points = self._get_vulnerable_enemy_points(teamId)
+        if enemy_points:
+            target_point = min(enemy_points, key=lambda p: distance_sq(centroid, p))
+
+            destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+            if not destroyed_point_data:
+                 return {'success': False, 'reason': 'failed to destroy target point'}
+            
+            return {
+                'success': True, 'type': 'territory_strike',
+                'destroyed_point': destroyed_point_data,
+                'territory_point_ids': territory['point_ids'],
+                'attack_ray': {'p1': centroid, 'p2': target_point}
+            }
         
-        return {
-            'success': True,
-            'type': 'pincer_attack',
-            'destroyed_point': destroyed_point_data,
-            'attacker_p1_id': chosen_pincer['pincer_p1_id'],
-            'attacker_p2_id': chosen_pincer['pincer_p2_id'],
-        }
+        # --- Fallback: Reinforce Territory ---
+        else:
+            p_ids = territory['point_ids']
+            boundary_lines_keys = [tuple(sorted((p_ids[0], p_ids[1]))), tuple(sorted((p_ids[1], p_ids[2]))), tuple(sorted((p_ids[2], p_ids[0])))]
+            
+            strengthened_lines = []
+            max_strength = 3
+            all_team_lines = self.get_team_lines(teamId)
+            
+            for line in all_team_lines:
+                line_key = tuple(sorted((line['p1_id'], line['p2_id'])))
+                if line_key in boundary_lines_keys:
+                    line_id = line.get('id')
+                    if line_id:
+                        current_strength = self.state['line_strengths'].get(line_id, 0)
+                        if current_strength < max_strength:
+                            self.state['line_strengths'][line_id] = current_strength + 1
+                            strengthened_lines.append(line)
+            
+            if not strengthened_lines:
+                # This could happen if lines are already max strength. The action is still a success.
+                return {'success': True, 'type': 'territory_fizzle_reinforce', 'territory_point_ids': territory['point_ids'], 'strengthened_lines': []}
 
-    def _find_possible_territory_strikes(self, teamId):
+            return {
+                'success': True, 'type': 'territory_fizzle_reinforce',
+                'territory_point_ids': territory['point_ids'],
+                'strengthened_lines': strengthened_lines
+            }
+
+    def fight_action_refraction_beam(self, teamId):
         """Finds the best possible territory strike target."""
         team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
         if not team_territories:
@@ -3113,8 +3324,8 @@ class Game:
             'expand_orbital': (lambda: num_team_points >= 5, "Requires at least 5 points."),
             'fight_attack': (lambda: num_team_lines > 0, "Requires at least 1 line to attack from."),
             'fight_convert': (lambda: num_team_lines > 0, "Requires at least 1 line to sacrifice."),
-            'fight_pincer_attack': (lambda: len(self._find_possible_pincers(teamId)) > 0, "No valid pincer attack formations found."),
-            'fight_territory_strike': (lambda: self._find_possible_territory_strikes(teamId) is not None, "No large territories or no valid targets."),
+            'fight_pincer_attack': (lambda: len(self.get_team_point_ids(teamId)) >= 2, "Requires at least 2 points."),
+            'fight_territory_strike': (lambda: len(self._get_large_territories(teamId)) > 0, "No large territories available."),
             'fight_bastion_pulse': (lambda: len(self._find_possible_bastion_pulses(teamId)) > 0, "No bastion has crossing enemy lines to pulse."),
             'fight_sentry_zap': (lambda: bool(self.state.get('sentries', {}).get(teamId, [])), "Requires an active Sentry."),
             'fight_chain_lightning': (lambda: any(c.get('internal_point_ids') for c in self.state.get('conduits', {}).get(teamId, [])), "Requires a Conduit with internal points."),
@@ -3673,6 +3884,7 @@ class Game:
             'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),
             'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[FOCUS BEAM!]"),
             'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[ZAP!]"),
+            'sentry_zap_miss_spawn': lambda r: ("a Sentry fired a beam that missed all targets, creating a new point on the border.", "[ZAP->SPAWN]"),
             'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
             'chain_lightning': lambda r: (
                 f"unleashed Chain Lightning from a Conduit, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}." if r.get('destroyed_point') 
@@ -3680,7 +3892,9 @@ class Game:
                 "[LIGHTNING!]" if r.get('destroyed_point') else "[FIZZLE]"
             ),
             'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[PINCER!]"),
+            'pincer_fizzle_barricade': lambda r: ("failed to find a pincer target and instead formed a temporary defensive barricade.", "[PINCER->WALL]"),
             'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TERRITORY!]"),
+            'territory_fizzle_reinforce': lambda r: ("could not find a target for a territory strike, and instead reinforced its own boundaries.", "[TERRITORY->REINFORCE]"),
             'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET!]"),
             'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
             'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),

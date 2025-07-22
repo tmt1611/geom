@@ -1933,6 +1933,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 startTime: Date.now(),
                 duration: 1000
             });
+        },
+        'pincer_fizzle_barricade': (details, gameState) => {
+            details.pincer_points.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'growing_wall',
+                barricade: details.barricade,
+                color: gameState.teams[details.barricade.teamId].color,
+                startTime: Date.now(),
+                duration: 800,
+            });
+        },
+        'territory_fizzle_reinforce': (details, gameState) => {
+            details.strengthened_lines.forEach(line => {
+                lastActionHighlights.lines.add(line.id);
+                visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
+            });
+            details.territory_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+        },
+        'sentry_zap_miss_spawn': (details, gameState) => {
+            details.sentry_points.forEach(pid => lastActionHighlights.points.add(pid));
+            lastActionHighlights.points.add(details.new_point.id);
+            visualEffects.push({
+                type: 'attack_ray',
+                p1: details.attack_ray.p1,
+                p2: details.attack_ray.p2,
+                startTime: Date.now(),
+                duration: 700,
+                color: `rgba(255, 100, 100, ${1-0})`,
+                lineWidth: 2
+            });
         }
         // 'create_fissure' has no special effect beyond the fissure appearing.
     };
