@@ -1030,92 +1030,6 @@ class Game:
     def fortify_action_cultivate_heartwood(self, teamId):
         return self.fortify_handler.cultivate_heartwood(teamId)
 
-    def _find_star_formations(self, teamId, min_cycle=5, max_cycle=6):
-        """
-        Finds "star" formations for a team.
-        A star is a central point connected to all points in a cycle of N points.
-        Returns a list of dicts, each describing a star formation.
-        e.g., [{'center_id': p_id, 'cycle_ids': [p1_id, p2_id, ...]}]
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < min_cycle + 1:
-            return []
-
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-
-        found_stars = []
-        
-        # Avoid reusing points for multiple stars in one turn
-        used_points = set()
-
-        for center_candidate_id in team_point_ids:
-            if center_candidate_id in used_points:
-                continue
-                
-            neighbors = list(adj.get(center_candidate_id, set()))
-            if len(neighbors) < min_cycle:
-                continue
-
-            # Check all combinations of neighbors to form a cycle
-            for cycle_len in range(min_cycle, max_cycle + 1):
-                if len(neighbors) < cycle_len:
-                    continue
-                
-                for cycle_candidate_ids in combinations(neighbors, cycle_len):
-                    # Check if these points form a cycle among themselves.
-                    # Build a sub-adjacency list for only the candidates.
-                    sub_adj = {pid: [] for pid in cycle_candidate_ids}
-                    for i, p_id in enumerate(cycle_candidate_ids):
-                        # Check connections within the cycle candidate points
-                        for j in range(i + 1, len(cycle_candidate_ids)):
-                            other_p_id = cycle_candidate_ids[j]
-                            if other_p_id in adj.get(p_id, set()):
-                                sub_adj[p_id].append(other_p_id)
-                                sub_adj[other_p_id].append(p_id)
-                    
-                    # Each node in a simple cycle must have exactly 2 neighbors in the cycle.
-                    if not all(len(sub_adj[pid]) == 2 for pid in cycle_candidate_ids):
-                        continue
-
-                    # We found a valid degree-2 subgraph. Now, confirm it is a single connected cycle
-                    # by walking it, not two disjoint cycles (e.g., 2 triangles for N=6).
-                    start_node = cycle_candidate_ids[0]
-                    ordered_cycle = [start_node]
-                    prev_node = start_node
-                    curr_node = sub_adj[start_node][0] 
-                    is_valid_cycle = True
-                    
-                    while curr_node != start_node and len(ordered_cycle) < cycle_len:
-                        ordered_cycle.append(curr_node)
-                        next_node_options = [n for n in sub_adj[curr_node] if n != prev_node]
-                        if not next_node_options:
-                            is_valid_cycle = False; break
-                        prev_node = curr_node
-                        curr_node = next_node_options[0]
-
-                    if not is_valid_cycle or len(ordered_cycle) != cycle_len:
-                        continue
-
-                    # Check if any points are already used in another star found this turn
-                    all_star_points = set(ordered_cycle) | {center_candidate_id}
-                    if not used_points.intersection(all_star_points):
-                        found_stars.append({
-                            'center_id': center_candidate_id,
-                            'cycle_ids': ordered_cycle,
-                            'all_points': list(all_star_points)
-                        })
-                        used_points.update(all_star_points)
-                        # Break from inner loops to not find smaller stars with the same center
-                        break
-                if center_candidate_id in used_points:
-                    break
-        
-        return found_stars
-
     def fortify_action_form_rift_spire(self, teamId):
         return self.fortify_handler.form_rift_spire(teamId)
 
@@ -1126,52 +1040,7 @@ class Game:
         return self.fortify_handler.raise_barricade(teamId)
 
     def fortify_action_build_chronos_spire(self, teamId):
-        """[WONDER ACTION]: Build the Chronos Spire."""
-        # Check if this team already has a wonder. Limit one per team for now.
-        if any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()):
-            return {'success': False, 'reason': 'team already has a wonder'}
-
-        star_formations = self._find_star_formations(teamId)
-        if not star_formations:
-            return {'success': False, 'reason': 'no star formation found'}
-
-        # Choose a formation to build on
-        formation = random.choice(star_formations)
-        
-        center_point = self.state['points'][formation['center_id']]
-        spire_coords = {'x': center_point['x'], 'y': center_point['y']}
-        
-        # Sacrifice all points in the formation
-        points_to_sacrifice = formation['all_points']
-        sacrificed_points_data = []
-        for pid in points_to_sacrifice:
-            sac_data = self._delete_point_and_connections(pid, aggressor_team_id=teamId)
-            if sac_data:
-                sacrificed_points_data.append(sac_data)
-        
-        if len(sacrificed_points_data) != len(points_to_sacrifice):
-            return {'success': False, 'reason': 'failed to sacrifice all formation points'}
-            
-        # Create the Wonder
-        wonder_id = f"w_{uuid.uuid4().hex[:6]}"
-        new_wonder = {
-            'id': wonder_id,
-            'teamId': teamId,
-            'type': 'ChronosSpire',
-            'coords': spire_coords,
-            'turns_to_victory': 10,
-            'creation_turn': self.state['turn']
-        }
-        
-        if 'wonders' not in self.state: self.state['wonders'] = {}
-        self.state['wonders'][wonder_id] = new_wonder
-        
-        return {
-            'success': True,
-            'type': 'build_chronos_spire',
-            'wonder': new_wonder,
-            'sacrificed_points_count': len(sacrificed_points_data)
-        }
+        return self.fortify_handler.build_chronos_spire(teamId)
 
     def _reflect_point(self, point, p1_axis, p2_axis):
         """Reflects a point across the line defined by p1_axis and p2_axis."""
@@ -2300,17 +2169,17 @@ class Game:
             'fight_launch_payload': (lambda: bool(self.state.get('trebuchets', {}).get(teamId, [])), "Requires a Trebuchet."),
             'fight_purify_territory': (lambda: bool(self.state.get('purifiers', {}).get(teamId, [])) and any(t['teamId'] != teamId for t in self.state.get('territories', [])), "Requires a Purifier and an enemy territory."),
             'defend_shield': (lambda: num_team_lines > 0, "Requires at least one line to shield or overcharge."),
-            'fortify_claim': (lambda: len(self._find_claimable_triangles(teamId)) > 0, "No new triangles available to claim."),
+            'fortify_claim': (lambda: len(self.fortify_handler._find_claimable_triangles(teamId)) > 0, "No new triangles available to claim."),
             'fortify_anchor': (lambda: num_team_points >= 3, "Requires at least 3 points to sacrifice one."),
             'fortify_mirror': (lambda: num_team_points >= 3, "Requires at least 3 points to mirror."),
-            'fortify_form_bastion': (lambda: len(self._find_possible_bastions(teamId)) > 0, "No valid bastion formation found."),
+            'fortify_form_bastion': (lambda: len(self.fortify_handler._find_possible_bastions(teamId)) > 0, "No valid bastion formation found."),
             'fortify_form_monolith': (lambda: num_team_points >= 4, "Requires at least 4 points."),
             'fortify_form_purifier': (lambda: num_team_points >= 5, "Requires at least 5 points."),
             'fortify_cultivate_heartwood': (lambda: num_team_points >= 6 and teamId not in self.state.get('heartwoods', {}), "Requires >= 6 points and no existing Heartwood."),
             'fortify_form_rift_spire': (lambda: len(team_territories) >= 3, "Requires at least 3 territories."),
             'terraform_create_fissure': (lambda: any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in self.state.get('rift_spires', {}).values()), "Requires a charged Rift Spire."),
             'terraform_raise_barricade': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('barricade', [])), "Requires an active Barricade Rune."),
-            'fortify_build_wonder': (lambda: num_team_points >= 6 and not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()), "Requires >= 6 points and no existing Wonder."),
+            'fortify_build_wonder': (lambda: not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()) and len(self.formation_manager.check_star_rune(self.get_team_point_ids(teamId), self.get_team_lines(teamId), self.state['points'])) > 0, "Requires a Star Rune and no existing Wonder."),
             'sacrifice_nova': (lambda: num_team_points > 2, "Requires more than 2 points to sacrifice one."),
             'sacrifice_whirlpool': (lambda: num_team_points > 1, "Requires more than 1 point to sacrifice one."),
             'sacrifice_phase_shift': (lambda: num_team_lines > 0, "Requires a line to sacrifice."),
