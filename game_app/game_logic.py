@@ -837,94 +837,110 @@ class Game:
                  return True
         return False
 
-    def _find_possible_line_attacks(self, teamId):
-        """Finds all possible line attack targets."""
-        possible_attacks = []
+    def fight_action_attack_line(self, teamId):
+        """[FIGHT ACTION]: Extend a line to hit an enemy line. If it misses, it creates a new point on the border."""
         team_lines = self.get_team_lines(teamId)
-        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        if not team_lines:
+            return {'success': False, 'reason': 'no lines to attack from'}
+        
         points = self.state['points']
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
         team_has_cross_rune = len(self.state.get('runes', {}).get(teamId, {}).get('cross', [])) > 0
-
+        
+        # Try a few random lines to find a successful action
+        random.shuffle(team_lines)
         for line in team_lines:
             if line['p1_id'] not in points or line['p2_id'] not in points: continue
+            
             p1 = points[line['p1_id']]
             p2 = points[line['p2_id']]
-
-            for p_start, p_end in [(p1, p2), (p2, p1)]:
-                border_point = self._get_extended_border_point(p_start, p_end)
-                if not border_point: continue
-
-                attack_segment_p1 = p_end
-                attack_segment_p2 = border_point
-
-                if self._is_ray_blocked(attack_segment_p1, attack_segment_p2):
-                    continue
-
-                for enemy_line in enemy_lines:
-                    is_shielded = enemy_line.get('id') in self.state['shields']
-                    if is_shielded and not team_has_cross_rune:
-                        continue
-                    
-                    bastion_line_ids = self._get_bastion_line_ids()
-                    if enemy_line.get('id') in bastion_line_ids:
-                        continue
-                    
-                    if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
-                    ep1 = points[enemy_line['p1_id']]
-                    ep2 = points[enemy_line['p2_id']]
-
-                    intersection_point = get_segment_intersection_point(attack_segment_p1, attack_segment_p2, ep1, ep2)
-                    if intersection_point:
-                        possible_attacks.append({
-                            'attacker_line': line,
-                            'target_line': enemy_line,
-                            'attack_ray': {'p1': attack_segment_p1, 'p2': attack_segment_p2},
-                            'bypassed_shield': is_shielded and team_has_cross_rune,
-                            'intersection_point': intersection_point
-                        })
-        return possible_attacks
-
-    def fight_action_attack_line(self, teamId):
-        """[FIGHT ACTION]: Extend a line to hit an enemy line, destroying it."""
-        possible_attacks = self._find_possible_line_attacks(teamId)
-        if not possible_attacks:
-            return {'success': False, 'reason': 'no target in range'}
-
-        chosen_attack = random.choice(possible_attacks)
-        enemy_line = chosen_attack['target_line']
-        enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
-        
-        # Check if the line is strengthened by a Monolith
-        line_strength = self.state.get('line_strengths', {}).get(enemy_line['id'])
-        if line_strength and line_strength > 0:
-            self.state['line_strengths'][enemy_line['id']] -= 1
-            if self.state['line_strengths'][enemy_line['id']] <= 0:
-                del self.state['line_strengths'][enemy_line['id']]
             
-            # The line was hit but not destroyed
-            return {
-                'success': True,
-                'type': 'attack_line_strengthened',
-                'damaged_line': enemy_line,
-                'attacker_line': chosen_attack['attacker_line'],
-                'attack_ray': chosen_attack['attack_ray'],
-                'intersection_point': chosen_attack.get('intersection_point')
-            }
+            # Pick a random direction
+            p_start, p_end = random.choice([(p1, p2), (p2, p1)])
 
-        # Line is not strengthened, destroy it
-        self.state['lines'].remove(enemy_line)
-        self.state['shields'].pop(enemy_line.get('id'), None)
-        self.state['line_strengths'].pop(enemy_line.get('id'), None) # Clean up just in case
+            border_point = self._get_extended_border_point(p_start, p_end)
+            if not border_point: continue
+
+            attack_segment_p1 = p_end
+            attack_segment_p2 = border_point
+
+            if self._is_ray_blocked(attack_segment_p1, attack_segment_p2):
+                continue
+
+            # Check for hits
+            closest_hit = None
+            min_dist_sq = float('inf')
+
+            for enemy_line in enemy_lines:
+                is_shielded = enemy_line.get('id') in self.state['shields']
+                if is_shielded and not team_has_cross_rune:
+                    continue
+                
+                bastion_line_ids = self._get_bastion_line_ids()
+                if enemy_line.get('id') in bastion_line_ids:
+                    continue
+                
+                if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
+                ep1 = points[enemy_line['p1_id']]
+                ep2 = points[enemy_line['p2_id']]
+
+                intersection_point = get_segment_intersection_point(attack_segment_p1, attack_segment_p2, ep1, ep2)
+                if intersection_point:
+                    dist_sq = distance_sq(attack_segment_p1, intersection_point)
+                    if dist_sq < min_dist_sq:
+                        min_dist_sq = dist_sq
+                        closest_hit = {
+                            'target_line': enemy_line,
+                            'intersection_point': intersection_point,
+                            'bypassed_shield': is_shielded and team_has_cross_rune
+                        }
+            
+            # --- Execute Action ---
+            if closest_hit:
+                # HIT! Destroy the line.
+                enemy_line = closest_hit['target_line']
+                
+                # Check for Monolith strength
+                line_strength = self.state.get('line_strengths', {}).get(enemy_line['id'])
+                if line_strength and line_strength > 0:
+                    self.state['line_strengths'][enemy_line['id']] -= 1
+                    if self.state['line_strengths'][enemy_line['id']] <= 0:
+                        del self.state['line_strengths'][enemy_line['id']]
+                    
+                    return {
+                        'success': True, 'type': 'attack_line_strengthened',
+                        'damaged_line': enemy_line, 'attacker_line': line,
+                        'attack_ray': {'p1': attack_segment_p1, 'p2': closest_hit['intersection_point']},
+                        'intersection_point': closest_hit['intersection_point']
+                    }
+
+                # Line is not strengthened, destroy it
+                enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
+                self.state['lines'].remove(enemy_line)
+                self.state['shields'].pop(enemy_line.get('id'), None)
+                self.state['line_strengths'].pop(enemy_line.get('id'), None)
+                return {
+                    'success': True, 'type': 'attack_line', 'destroyed_team': enemy_team_name, 'destroyed_line': enemy_line,
+                    'attacker_line': line, 'attack_ray': {'p1': attack_segment_p1, 'p2': closest_hit['intersection_point']},
+                    'bypassed_shield': closest_hit['bypassed_shield']
+                }
+            else:
+                # MISS! Create a point on the border.
+                is_valid, _ = self._is_spawn_location_valid(border_point, teamId)
+                if is_valid:
+                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                    new_point = {**border_point, "teamId": teamId, "id": new_point_id}
+                    self.state['points'][new_point_id] = new_point
+                    return {
+                        'success': True,
+                        'type': 'attack_miss_spawn',
+                        'new_point': new_point,
+                        'attacker_line': line,
+                        'attack_ray': {'p1': attack_segment_p1, 'p2': border_point}
+                    }
         
-        return {
-            'success': True, 
-            'type': 'attack_line', 
-            'destroyed_team': enemy_team_name, 
-            'destroyed_line': enemy_line,
-            'attacker_line': chosen_attack['attacker_line'],
-            'attack_ray': chosen_attack['attack_ray'],
-            'bypassed_shield': chosen_attack['bypassed_shield']
-        }
+        # If loop finishes without finding a valid action
+        return {'success': False, 'reason': 'no valid attack or spawn opportunity found'}
 
     def _find_possible_nova_bursts(self, teamId):
         team_point_ids = self.get_team_point_ids(teamId)
@@ -959,29 +975,43 @@ class Game:
         return potential_sac_points
 
     def sacrifice_action_nova_burst(self, teamId):
-        """[SACRIFICE ACTION]: A point is destroyed, removing nearby enemy lines."""
-        potential_sac_points = self._find_possible_nova_bursts(teamId)
-        if not potential_sac_points:
-            return {'success': False, 'reason': 'no valid targets for nova burst'}
+        """[SACRIFICE ACTION]: A point is destroyed. If near enemy lines, it destroys them. Otherwise, it pushes all nearby points away."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) <= 2:
+            return {'success': False, 'reason': 'not enough points to sacrifice'}
 
-        sac_point_id = random.choice(potential_sac_points)
-        # We must copy the point's data before it's deleted by the helper function.
+        # Use the existing helper to find IDEAL sacrifice points (those that will destroy lines)
+        ideal_sac_points = self._find_possible_nova_bursts(teamId)
+
+        sac_point_id = None
+        if ideal_sac_points:
+            sac_point_id = random.choice(ideal_sac_points)
+        else:
+            # If no ideal point, pick any non-critical point for the fallback effect.
+            bastion_points = self._get_bastion_point_ids()
+            critical_point_ids = self._get_fortified_point_ids().union(
+                bastion_points['cores'], bastion_points['prongs']
+            )
+            fallback_candidates = [pid for pid in team_point_ids if pid not in critical_point_ids]
+            if not fallback_candidates:
+                # If all points are critical, maybe allow sacrificing a simple fortified one as a last resort
+                fortified = self._get_fortified_point_ids().intersection(team_point_ids)
+                fallback_candidates = [pid for pid in fortified if pid not in bastion_points['cores'] and pid not in bastion_points['prongs']]
+            
+            if not fallback_candidates:
+                return {'success': False, 'reason': 'no non-critical points to sacrifice'}
+            sac_point_id = random.choice(fallback_candidates)
+
         sac_point_coords = self.state['points'][sac_point_id].copy()
-        
-        # Define the blast radius (squared for efficiency)
-        blast_radius_sq = (self.state['grid_size'] * 0.25)**2 
+        blast_radius_sq = (self.state['grid_size'] * 0.25)**2
 
-        # Temporarily store lines connected to the sacrificed point to count them later
-        connected_lines_before = [l for l in self.state['lines'] if sac_point_id in (l['p1_id'], l['p2_id'])]
-        
-        # 1. Sacrifice the point and its direct connections/structures
+        # --- Perform Sacrifice ---
         self._delete_point_and_connections(sac_point_id, aggressor_team_id=teamId)
         
-        # 2. Find and remove nearby enemy lines that still exist
+        # --- Check for Primary Effect (Line Destruction) ---
         lines_to_remove_by_proximity = []
         points_to_check = self.state['points']
         bastion_line_ids = self._get_bastion_line_ids()
-        # Only check enemy lines that are still in the game state
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
 
         for line in enemy_lines:
@@ -994,71 +1024,120 @@ class Game:
             if distance_sq(sac_point_coords, p1) < blast_radius_sq or distance_sq(sac_point_coords, p2) < blast_radius_sq:
                 lines_to_remove_by_proximity.append(line)
 
-        # Perform removals
-        for l in lines_to_remove_by_proximity:
-            self.state['shields'].pop(l.get('id'), None)
-        
-        self.state['lines'] = [l for l in self.state['lines'] if l not in lines_to_remove_by_proximity]
-        
-        total_destroyed = len(connected_lines_before) + len(lines_to_remove_by_proximity)
+        if lines_to_remove_by_proximity:
+            # Primary effect happened
+            for l in lines_to_remove_by_proximity:
+                if l in self.state['lines']: # Check if it wasn't already removed by cascade
+                    self.state['lines'].remove(l)
+                    self.state['shields'].pop(l.get('id'), None)
+            
+            return {
+                'success': True,
+                'type': 'nova_burst',
+                'sacrificed_point': sac_point_coords,
+                'lines_destroyed': len(lines_to_remove_by_proximity)
+            }
+        else:
+            # Fallback Effect: Push points
+            pushed_points = []
+            push_distance = 2.0
+            grid_size = self.state['grid_size']
+            for point in self.state['points'].values():
+                if distance_sq(sac_point_coords, point) < blast_radius_sq:
+                    dx = point['x'] - sac_point_coords['x']
+                    dy = point['y'] - sac_point_coords['y']
+                    dist = math.sqrt(dx**2 + dy**2)
+                    if dist < 0.1: continue
 
-        return {'success': True, 'type': 'nova_burst', 'sacrificed_point': sac_point_coords, 'lines_destroyed': total_destroyed}
+                    push_vx = dx / dist
+                    push_vy = dy / dist
+
+                    new_x = point['x'] + push_vx * push_distance
+                    new_y = point['y'] + push_vy * push_distance
+                    
+                    point['x'] = round(max(0, min(grid_size - 1, new_x)))
+                    point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                    pushed_points.append(point.copy())
+            
+            return {
+                'success': True,
+                'type': 'nova_shockwave',
+                'sacrificed_point': sac_point_coords,
+                'pushed_points_count': len(pushed_points)
+            }
 
     def sacrifice_action_create_whirlpool(self, teamId):
-        """[SACRIFICE ACTION]: A point is destroyed, creating a swirling vortex."""
+        """[SACRIFICE ACTION]: A point is destroyed. If points are nearby, it creates a vortex. Otherwise, it creates a small fissure."""
         team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) <= 1: # Cannot sacrifice the last point
+        if len(team_point_ids) <= 1:
             return {'success': False, 'reason': 'not enough points to sacrifice'}
 
-        # To avoid destroying critical structures, prefer non-special points
+        # Find a non-critical point to sacrifice, with fallbacks
         bastion_points = self._get_bastion_point_ids()
-        non_critical_points = [
-            pid for pid in team_point_ids
-            if pid not in self._get_fortified_point_ids() and
-               pid not in bastion_points['cores'] and
-               pid not in bastion_points['prongs']
-        ]
-
-        if not non_critical_points:
-             # If all points are critical, maybe allow sacrificing a simple fortified one as a last resort
-            fortified = self._get_fortified_point_ids().intersection(team_point_ids)
-            # Exclude bastion points even from this fallback
-            eligible_fortified = [pid for pid in fortified if pid not in bastion_points['cores'] and pid not in bastion_points['prongs']]
-            if not eligible_fortified:
-                return {'success': False, 'reason': 'no non-critical points available to sacrifice'}
-            p_to_sac_id = random.choice(list(eligible_fortified))
-        else:
-            p_to_sac_id = random.choice(non_critical_points)
+        critical_structure_points = self._get_fortified_point_ids().union(
+            bastion_points['cores'], bastion_points['prongs']
+        )
+        sac_candidates = [pid for pid in team_point_ids if pid not in critical_structure_points]
         
-        # Get coords before deletion
+        if not sac_candidates:
+            # Fallback to any fortified point that isn't a bastion point
+            fortified = self._get_fortified_point_ids().intersection(team_point_ids)
+            sac_candidates = [pid for pid in fortified if pid not in bastion_points['cores'] and pid not in bastion_points['prongs']]
+
+        if not sac_candidates:
+            return {'success': False, 'reason': 'no non-critical points available to sacrifice'}
+        
+        p_to_sac_id = random.choice(sac_candidates)
         sac_point_coords = self.state['points'][p_to_sac_id].copy()
         
-        # Sacrifice the point
+        # Check for nearby points BEFORE sacrificing to decide the outcome
+        whirlpool_radius_sq = (self.state['grid_size'] * 0.3)**2
+        has_targets = any(
+            p['id'] != p_to_sac_id and distance_sq(sac_point_coords, p) < whirlpool_radius_sq
+            for p in self.state['points'].values()
+        )
+
+        # --- Perform Sacrifice ---
         sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
         if not sacrificed_point_data:
-             return {'success': False, 'reason': 'failed to sacrifice point'}
+            return {'success': False, 'reason': 'failed to sacrifice point'}
 
-        # Create the whirlpool
-        whirlpool_id = f"wp_{uuid.uuid4().hex[:6]}"
-        new_whirlpool = {
-            'id': whirlpool_id,
-            'teamId': teamId,
-            'coords': sac_point_coords,
-            'turns_left': 4,
-            'strength': 0.05, # pull-in strength per turn
-            'swirl': 0.5, # radians per turn
-            'radius_sq': (self.state['grid_size'] * 0.3)**2
-        }
-        
-        if 'whirlpools' not in self.state: self.state['whirlpools'] = []
-        self.state['whirlpools'].append(new_whirlpool)
+        # --- Determine Outcome ---
+        if has_targets:
+            # Primary Effect: Create Whirlpool
+            whirlpool_id = f"wp_{uuid.uuid4().hex[:6]}"
+            new_whirlpool = {
+                'id': whirlpool_id, 'teamId': teamId, 'coords': sac_point_coords,
+                'turns_left': 4, 'strength': 0.05, 'swirl': 0.5,
+                'radius_sq': whirlpool_radius_sq
+            }
+            if 'whirlpools' not in self.state: self.state['whirlpools'] = []
+            self.state['whirlpools'].append(new_whirlpool)
+            return {
+                'success': True, 'type': 'create_whirlpool',
+                'whirlpool': new_whirlpool, 'sacrificed_point': sacrificed_point_data
+            }
+        else:
+            # Fallback Effect: Create a small fissure
+            fissure_id = f"f_{uuid.uuid4().hex[:6]}"
+            fissure_len = self.state['grid_size'] * 0.2
+            angle = random.uniform(0, math.pi)
+            p1 = {'x': sac_point_coords['x'] - (fissure_len / 2) * math.cos(angle), 'y': sac_point_coords['y'] - (fissure_len / 2) * math.sin(angle)}
+            p2 = {'x': sac_point_coords['x'] + (fissure_len / 2) * math.cos(angle), 'y': sac_point_coords['y'] + (fissure_len / 2) * math.sin(angle)}
 
-        return {
-            'success': True, 
-            'type': 'create_whirlpool',
-            'whirlpool': new_whirlpool,
-            'sacrificed_point': sacrificed_point_data
-        }
+            grid_size = self.state['grid_size']
+            p1['x'] = round(max(0, min(grid_size - 1, p1['x'])))
+            p1['y'] = round(max(0, min(grid_size - 1, p1['y'])))
+            p2['x'] = round(max(0, min(grid_size - 1, p2['x'])))
+            p2['y'] = round(max(0, min(grid_size - 1, p2['y'])))
+
+            new_fissure = {'id': fissure_id, 'p1': p1, 'p2': p2, 'turns_left': 3}
+            if 'fissures' not in self.state: self.state['fissures'] = []
+            self.state['fissures'].append(new_fissure)
+            return {
+                'success': True, 'type': 'whirlpool_fizzle_fissure',
+                'fissure': new_fissure, 'sacrificed_point': sacrificed_point_data
+            }
 
     def sacrifice_action_phase_shift(self, teamId):
         """[SACRIFICE ACTION]: Sacrifice a line to teleport one of its points."""
@@ -2965,7 +3044,7 @@ class Game:
             'expand_fracture': (lambda: len(self._find_fracturable_lines(teamId)) > 0, "No non-territory lines long enough to fracture."),
             'expand_spawn': (lambda: num_team_points > 0, "Requires at least 1 point to spawn from."),
             'expand_orbital': (lambda: num_team_points >= 5, "Requires at least 5 points."),
-            'fight_attack': (lambda: len(self._find_possible_line_attacks(teamId)) > 0, "No valid attack targets in range."),
+            'fight_attack': (lambda: num_team_lines > 0, "Requires at least 1 line to attack from."),
             'fight_convert': (lambda: len(self._find_possible_conversions(teamId)) > 0, "No vulnerable enemy points in range."),
             'fight_pincer_attack': (lambda: len(self._find_possible_pincers(teamId)) > 0, "No valid pincer attack formations found."),
             'fight_territory_strike': (lambda: self._find_possible_territory_strikes(teamId) is not None, "No large territories or no valid targets."),
@@ -2987,7 +3066,7 @@ class Game:
             'terraform_create_fissure': (lambda: any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in self.state.get('rift_spires', {}).values()), "Requires a charged Rift Spire."),
             'terraform_raise_barricade': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('barricade', [])), "Requires an active Barricade Rune."),
             'fortify_build_wonder': (lambda: num_team_points >= 6 and not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()), "Requires >= 6 points and no existing Wonder."),
-            'sacrifice_nova': (lambda: len(self._find_possible_nova_bursts(teamId)) > 0, "Requires >2 points & an enemy line in range."),
+            'sacrifice_nova': (lambda: num_team_points > 2, "Requires more than 2 points to sacrifice one."),
             'sacrifice_whirlpool': (lambda: num_team_points > 1, "Requires more than 1 point to sacrifice one."),
             'sacrifice_phase_shift': (lambda: num_team_lines > 0, "Requires a line to sacrifice."),
             'rune_shoot_bisector': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])), "Requires an active V-Rune."),
@@ -3496,6 +3575,7 @@ class Game:
                 f"attacked and destroyed a line from Team {r['destroyed_team']}{', bypassing its shield with a Cross Rune!' if r.get('bypassed_shield') else '.'}",
                 "[PIERCE!]" if r.get('bypassed_shield') else "[ATTACK]"
             ),
+            'attack_miss_spawn': lambda r: ("launched an attack that missed, but the energy coalesced into a new point on the border.", "[ATTACK->SPAWN]"),
             'attack_line_strengthened': lambda r: ("attacked a strengthened line, weakening its defenses.", "[DAMAGE]"),
             'convert_point': lambda r: (f"sacrificed a line to convert a point from Team {r['original_team_name']}.", "[CONVERT]"),
             'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
@@ -3509,6 +3589,8 @@ class Game:
             'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
             'create_anchor': lambda r: ("sacrificed a point to create a gravitational anchor.", "[ANCHOR]"),
             'nova_burst': lambda r: (f"sacrificed a point in a nova burst, destroying {r['lines_destroyed']} lines.", "[NOVA]"),
+            'nova_shockwave': lambda r: (f"sacrificed a point in a shockwave, pushing back {r['pushed_points_count']} nearby points.", "[SHOCKWAVE]"),
+            'whirlpool_fizzle_fissure': lambda r: ("sacrificed a point to open a whirlpool, but with no targets in range, it collapsed into a temporary fissure.", "[WHIRLPOOL->FIZZLE]"),
             'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
             'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
             'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
@@ -3529,7 +3611,7 @@ class Game:
             'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET!]"),
             'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
             'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),
-        'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]")
+            'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]")
         }
 
         if action_type in log_generators:

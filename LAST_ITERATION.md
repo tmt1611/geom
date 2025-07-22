@@ -1,13 +1,23 @@
-### 1. Game-Phase UI Redesign: Multi-Column Layout
-- **Files**: `templates/index.html`, `static/css/style.css`, `static/js/main.js`
-- **Change**: The UI for the game-playing phase has been redesigned from a two-column layout to a four-column layout, providing better information separation and clarity, as requested.
-  - The main right-hand panel was split into three distinct, independently scrollable columns.
-  - **Column 1:** The grid remains the main focus area.
-  - **Column 2:** Contains high-level controls and status information (Game Controls, Dev Tools, Turn Counter, Live Stats, and the Final Analysis when the game ends).
-  - **Column 3:** Is now dedicated entirely to the "Action Preview" panel, giving it more space.
-  - **Column 4:** Is now dedicated entirely to the "Game Log".
-- **Benefit**: This new layout is cleaner, more organized, and makes better use of wider screens. It prevents different UI sections (like the log and stats) from competing for space within a single panel.
+### Action System Redesign: "Never Useless" Actions
 
-### 2. Code Refactoring and Cleanup
-- **`static/js/main.js`**: Refactored the monolithic `drawPoints` function. The specific drawing logic for each special point type (e.g., bastion, fortified, sentry) was extracted into a `pointRenderers` object. The main function now iterates through this map, making the code cleaner, more modular, and easier to extend with new point types.
-- **`game_app/game_logic.py`**: Refactored the complex `_delete_point_and_connections` method. A new helper, `_cleanup_structures_for_point`, was created to handle the removal of a point from all associated secondary structures (lines, territories, bastions, etc.). This simplifies the main deletion function, improving readability and separating concerns. The new helper was also made more robust to clean up all structure types that rely on point lists.
+In this iteration, I've performed a significant redesign of the game's action system to align with the principle that an action, once chosen, should always have a meaningful effect on the game state. This avoids "wasted" turns and makes the simulation more dynamic and interesting.
+
+-   **Files Modified**: `game_app/game_logic.py`, `static/js/main.js`
+
+-   **Core Change**: I refactored several actions to have both a primary (ideal) effect and a secondary (fallback) effect. The action's internal logic now determines which effect to trigger based on the current board state.
+
+-   **Specific Action Changes**:
+    1.  **`fight_attack`**: This action has been fundamentally changed.
+        -   **Primary Effect**: If the attack ray hits an enemy line, it destroys it (as before). The attack now targets the *closest* enemy line in its path.
+        -   **Fallback Effect**: If the attack ray hits no enemy lines, it doesn't fizzle. Instead, it creates a new friendly point at the border where the ray terminates, similar to the `expand_extend` action. This makes aggressive strategies still contribute to board presence even without a direct target.
+    2.  **`sacrifice_nova`**: This sacrifice action is now more versatile.
+        -   **Primary Effect**: If the sacrificed point is near enemy lines, it unleashes a destructive nova that destroys them.
+        -   **Fallback Effect**: If there are no enemy lines in range, the nova instead creates a powerful **shockwave**, pushing all nearby points (friendly and enemy) away from the blast's epicenter. This makes it a useful tool for both destruction and battlefield control.
+    3.  **`sacrifice_whirlpool`**: This action now guarantees a result.
+        -   **Primary Effect**: If there are other points within its potential radius, it creates a standard swirling whirlpool that pulls points in.
+        -   **Fallback Effect**: If the sacrificed point is isolated and would create an empty whirlpool, the action instead "fizzles" and creates a small, temporary **fissure** on the map. This turns a potentially useless action into a temporary terrain-blocking move.
+
+-   **System-level Improvements**:
+    -   **Simplified Preconditions**: The logic in `_get_all_actions_status` has been simplified. Instead of complex checks to pre-validate every possible target, it now uses simpler checks (e.g., "does the team have lines?"). The complex branching logic now resides within the action functions themselves.
+    -   **Code Cleanup**: As part of the refactor, the now-redundant `_find_possible_line_attacks` helper function was removed, and the action functions were cleaned up to be more self-contained.
+    -   **Frontend Visuals**: New visual effects were added in `static/js/main.js` to represent the new fallback action outcomes (`attack_miss_spawn`, `nova_shockwave`, `whirlpool_fizzle_fissure`), ensuring the user can see what happened.

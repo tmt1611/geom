@@ -1823,6 +1823,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 startTime: Date.now(),
                 duration: 1000
             });
+        },
+        'attack_miss_spawn': (details, gameState) => {
+            lastActionHighlights.points.add(details.new_point.id);
+            lastActionHighlights.lines.add(details.attacker_line.id);
+            const origin_point = details.attack_ray.p1;
+            if (origin_point) {
+                visualEffects.push({
+                    type: 'animated_ray',
+                    p1: origin_point,
+                    p2: details.new_point,
+                    startTime: Date.now(),
+                    duration: 700,
+                    color: gameState.teams[details.new_point.teamId].color,
+                    lineWidth: 2
+                });
+            }
+        },
+        'nova_shockwave': (details, gameState) => {
+            visualEffects.push({
+                type: 'shield_pulse', // Reusing shield pulse visual
+                center: details.sacrificed_point,
+                radius_sq: (gameState.grid_size * 0.25)**2,
+                color: 'rgba(255, 180, 50, 0.9)', // Orange-ish for nova
+                startTime: Date.now(),
+                duration: 800,
+            });
+        },
+        'whirlpool_fizzle_fissure': (details, gameState) => {
+             visualEffects.push({
+                type: 'growing_wall', // Reusing barricade visual
+                barricade: details.fissure, // It has p1 and p2, compatible
+                color: 'rgba(50, 50, 50, 0.8)',
+                startTime: Date.now(),
+                duration: 1000
+            });
         }
         // 'create_fissure' has no special effect beyond the fissure appearing.
     };
