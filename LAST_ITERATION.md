@@ -1,24 +1,27 @@
-### Action System Redesign (Part 6): Completing "Never Useless" Actions & Cleanup
+### Action System Redesign (Part 7): Never Useless Shield and Mirror Actions
 
-This iteration finalizes the core goal of making every action meaningful by adding fallbacks to the remaining actions that could previously fizzle or fail after being chosen. This ensures that a team's turn is never truly wasted and adds more layers of dynamic behavior to the simulation. Several significant code cleanup tasks were also performed.
+This iteration continues the overarching goal of making every action meaningful by adding intelligent fallback behaviors to several more actions. This ensures a team's turn is never truly wasted and adds more layers of dynamic behavior to the simulation. The focus this time was on `Fortify` and `Rune` actions that could previously fail if their primary targets were unavailable.
 
--   **Files Modified**: `game_app/game_logic.py`, `rules.md`, `LAST_ITERATION.md`
+-   **Files Modified**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`, `LAST_ITERATION.md`
 
 -   **Core Changes**:
-    -   **Code Cleanup**: Refactored `game_app/game_logic.py` to remove several duplicated or erroneous function definitions (`fight_action_territory_strike`, `fight_action_launch_payload`, `fight_action_chain_lightning`), simplifying the codebase and improving clarity. A helper function `_get_eligible_phase_shift_lines` was also created to reduce code duplication.
+    -   **`fortify_action_mirror_structure`**:
+        -   **Primary Effect**: Reflects points across a chosen axis to create new symmetrical points.
+        -   **New Fallback**: If a valid reflection cannot be found, the action now strengthens the lines connected to the points that were considered for mirroring, reinforcing the existing structure instead.
+        -   **New Secondary Fallback**: If strengthening also fails, it makes a final attempt to add a new line to ensure the action is productive.
 
-    -   **`fight_action_bastion_pulse`**:
-        -   **Primary Effect**: A bastion sacrifices a prong to destroy crossing enemy lines.
-        -   **New Fallback**: If the pulse fizzles (e.g., because the bastion dissolves after the sacrifice), the sacrificed prong's energy is now released as a **local shockwave**, pushing all nearby points away.
+    -   **`rune_action_area_shield`**:
+        -   **Primary Effect**: Protects all friendly lines inside the rune's triangular boundary with shields.
+        -   **New Fallback**: If no friendly lines are found inside the rune to protect, it now emits a gentle shockwave that pushes friendly points outwards, helping to de-clutter a dense formation.
 
-    -   **`sacrifice_action_phase_shift`**:
-        -   **Primary Effect**: Sacrifices a line to teleport one of its points to a new location.
-        -   **New Fallback**: The action now pays its cost (sacrificing the line) upfront. If a valid new location cannot be found, the sacrificed line's energy now implodes into the *other* endpoint, turning it into a temporary **gravitational anchor** that pulls in nearby enemies.
+    -   **`rune_action_shield_pulse`**:
+        -   **Primary Effect**: Emits a powerful shockwave that pushes all nearby *enemy* points away.
+        -   **New Fallback**: If no enemies are in range to be pushed, the pulse now reverses, gently pulling nearby *friendly* points closer to the rune's center to consolidate the team's position.
 
-    -   **`fight_action_chain_lightning`**:
-        -   **Primary Effect**: A Conduit sacrifices an internal point to fire a lightning bolt at a nearby enemy point.
-        -   **New Fallback**: If the attack fails to find a target (e.g., no enemies in range or the conduit's endpoints are gone), the sacrificed point now explodes in a **mini-nova**, destroying any nearby enemy lines.
+-   **Visual Effects & UI**:
+    -   Added new frontend visual effects in `static/js/main.js` for the new fallback actions, including a "point pull" effect for the shield pulse's new ability.
+    -   Updated the data payload for these actions to include the necessary information for the new visuals.
 
 -   **Documentation**:
-    -   Updated the action descriptions in `rules.md` to reflect the new tiered outcomes for these actions.
+    -   Updated `rules.md` to reflect the new dual-purpose nature of the modified actions.
     -   Added corresponding log messages in `game_logic.py` for each new fallback behavior.

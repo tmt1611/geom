@@ -1700,6 +1700,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
             });
         },
+        'mirror_fizzle_strengthen': (details, gameState) => {
+            details.strengthened_lines.forEach(line => {
+                lastActionHighlights.lines.add(line.id);
+                visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
+            });
+        },
         'create_orbital': (details, gameState) => {
             lastActionHighlights.points.add(details.center_point_id);
             const center_point = gameState.points[details.center_point_id];

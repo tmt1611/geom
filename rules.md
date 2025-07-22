@@ -53,8 +53,8 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. The territory's color fades, and its three corner points lose their **Fortified** status, making them vulnerable again.
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits.
 *   **[RUNE] Impale:** _(Requires an active Trident-Rune)_ Fires a devastating, long-range beam that pierces through all enemy lines in its path, ignoring shields. If the beam hits no targets, it instead creates a temporary defensive barricade along its path.
-*   **[RUNE] Area Shield:** _(Requires an active Shield-Rune)_ Creates a temporary shield on all friendly lines contained within the rune's triangular boundary, protecting a key area of a team's structure.
-*   **[RUNE] Shield Pulse:** _(Requires an active Shield-Rune)_ Emits a defensive shockwave from the rune's center, pushing all nearby enemy points outwards. A great tool for breaking up formations and creating space.
+*   **[RUNE] Area Shield:** _(Requires an active Shield-Rune)_ Creates a temporary shield on all friendly lines contained within the rune's triangular boundary. If no lines are found inside, it instead emits a gentle pulse that pushes friendly points outwards to de-clutter the area.
+*   **[RUNE] Shield Pulse:** _(Requires an active Shield-Rune)_ Emits a defensive shockwave from the rune's center, pushing all nearby enemy points outwards. If no enemies are in range, it instead gently pulls nearby friendly points inwards to consolidate the formation.
 *   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field for several turns. A point in stasis cannot be targeted by most actions and is effectively removed from play until the effect wears off.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Form Sentry:** A passive formation. When three of a team's points are collinear and connected by lines (forming Post-Eye-Post), they become a Sentry.
@@ -80,7 +80,7 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Formation:** Requires a tight, isosceles triangle (the "base") connected to a "counterweight" point along its axis of symmetry. All 5 lines that form the outer kite shape must exist.
     *   **Bonus:** Unlocks the **[FIGHT] Launch Payload** action.
 *   **[FORTIFY] Create Anchor:** Sacrifice one of its own points to turn another into a gravitational anchor. For a few turns, the anchor will slowly pull nearby enemy points towards it.
-*   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns.
+*   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns. If no valid reflections can be found, it instead reinforces the lines of the structure it was attempting to mirror.
 *   **[FORTIFY] Cultivate Heartwood:** A unique, powerful structure. Requires a central point connected to at least 5 other "branch" points.
     *   **Cost:** The central point and all branch points are sacrificed. This action can only be performed once per team.
     *   **Bonus 1 (Passive Growth):** Every few turns, the Heartwood automatically creates a new point for its team nearby.
