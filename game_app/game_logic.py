@@ -665,6 +665,31 @@ class Game:
         )
         return [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
 
+    def _strengthen_line(self, line):
+        """Helper to strengthen a single line, returns if it was strengthened."""
+        line_id = line.get('id')
+        if not line_id: return False
+        max_strength = 3
+        current_strength = self.state.get('line_strengths', {}).get(line_id, 0)
+        if current_strength < max_strength:
+            self.state['line_strengths'][line_id] = current_strength + 1
+            return True
+        return False
+
+    def _fallback_strengthen_random_line(self, teamId, action_type_prefix):
+        """Generic fallback to strengthen a random line."""
+        team_lines = self.get_team_lines(teamId)
+        if not team_lines:
+            return {'success': False, 'reason': 'no lines to perform action on or strengthen'}
+        
+        line_to_strengthen = random.choice(team_lines)
+        self._strengthen_line(line_to_strengthen) # It's okay if it fails (already maxed)
+        return {
+            'success': True,
+            'type': f'{action_type_prefix}_fizzle_strengthen',
+            'strengthened_line': line_to_strengthen
+        }
+
     # --- Game Actions ---
 
     def expand_action_add_line(self, teamId):
@@ -673,23 +698,15 @@ class Game:
         if len(team_point_ids) < 2:
             return {'success': False, 'reason': 'not enough points'}
 
-        # Create a set of existing lines for quick lookup
-        existing_line_keys = set()
-        for line in self.state['lines']:
-            if line['teamId'] == teamId:
-                existing_line_keys.add(tuple(sorted((line['p1_id'], line['p2_id']))))
-
-        # Try to find a non-existing line
-        possible_pairs = []
-        for i in range(len(team_point_ids)):
-            for j in range(i + 1, len(team_point_ids)):
-                p1_id = team_point_ids[i]
-                p2_id = team_point_ids[j]
-                if tuple(sorted((p1_id, p2_id))) not in existing_line_keys:
-                    possible_pairs.append((p1_id, p2_id))
+        # Using set operations is cleaner and often faster
+        existing_line_keys = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.state['lines'] if l['teamId'] == teamId}
         
+        possible_pairs = [
+            (p1, p2) for p1, p2 in combinations(team_point_ids, 2) 
+            if tuple(sorted((p1, p2))) not in existing_line_keys
+        ]
+
         if possible_pairs:
-            # Primary effect: Add a new line
             p1_id, p2_id = random.choice(possible_pairs)
             line_id = f"l_{uuid.uuid4().hex[:6]}"
             new_line = {"id": line_id, "p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
@@ -697,26 +714,7 @@ class Game:
             return {'success': True, 'type': 'add_line', 'line': new_line}
         else:
             # Fallback effect: Strengthen an existing line
-            team_lines = self.get_team_lines(teamId)
-            if not team_lines:
-                 # This case is rare (2+ points but 0 lines), but possible.
-                 # Let it fail and be handled by the action chooser.
-                return {'success': False, 'reason': 'fully connected but no lines found'}
-            
-            line_to_strengthen = random.choice(team_lines)
-            line_id = line_to_strengthen.get('id')
-            if line_id:
-                max_strength = 3
-                current_strength = self.state['line_strengths'].get(line_id, 0)
-                if current_strength < max_strength:
-                    self.state['line_strengths'][line_id] = current_strength + 1
-                return {
-                    'success': True, 
-                    'type': 'add_line_fallback_strengthen', 
-                    'strengthened_line': line_to_strengthen
-                }
-            # If line has no ID or something is wrong, let it fail.
-            return {'success': False, 'reason': 'no line to strengthen'}
+            return self._fallback_strengthen_random_line(teamId, 'add_line')
 
     def _get_extended_border_point(self, p1, p2):
         """
@@ -787,23 +785,7 @@ class Game:
 
         if not possible_extensions:
             # Fallback: Strengthen an existing line
-            team_lines = self.get_team_lines(teamId)
-            if not team_lines:
-                return {'success': False, 'reason': 'no valid lines to extend and no lines to strengthen'}
-            
-            line_to_strengthen = random.choice(team_lines)
-            line_id = line_to_strengthen.get('id')
-            if line_id:
-                max_strength = 3
-                current_strength = self.state['line_strengths'].get(line_id, 0)
-                if current_strength < max_strength:
-                    self.state['line_strengths'][line_id] = current_strength + 1
-                return {
-                    'success': True, 
-                    'type': 'extend_fizzle_strengthen', 
-                    'strengthened_line': line_to_strengthen
-                }
-            return {'success': False, 'reason': 'no line to strengthen'}
+            return self._fallback_strengthen_random_line(teamId, 'extend')
 
         chosen_extension = random.choice(possible_extensions)
         border_point = chosen_extension['border_point']
@@ -863,23 +845,7 @@ class Game:
         fracturable_lines = self._find_fracturable_lines(teamId)
         if not fracturable_lines:
             # Fallback: Strengthen an existing line
-            team_lines = self.get_team_lines(teamId)
-            if not team_lines:
-                return {'success': False, 'reason': 'no lines to fracture or strengthen'}
-            
-            line_to_strengthen = random.choice(team_lines)
-            line_id = line_to_strengthen.get('id')
-            if line_id:
-                max_strength = 3
-                current_strength = self.state['line_strengths'].get(line_id, 0)
-                if current_strength < max_strength:
-                    self.state['line_strengths'][line_id] = current_strength + 1
-                return {
-                    'success': True, 
-                    'type': 'fracture_fizzle_strengthen', 
-                    'strengthened_line': line_to_strengthen
-                }
-            return {'success': False, 'reason': 'no line to strengthen'}
+            return self._fallback_strengthen_random_line(teamId, 'fracture')
 
         line_to_fracture = random.choice(fracturable_lines)
         points = self.state['points']
@@ -1522,7 +1488,7 @@ class Game:
             return {'success': False, 'reason': 'no valid shield to overcharge'}
 
     def expand_action_grow_line(self, teamId):
-        """[EXPAND ACTION]: Grows a new short line from an existing point. If not possible, strengthens the source line."""
+        """[EXPAND ACTION]: Grows a new short line from an existing point. If not possible, strengthens a random friendly line."""
         team_lines = self.get_team_lines(teamId)
         if not team_lines:
             return {'success': False, 'reason': 'no lines to grow from'}
@@ -4047,10 +4013,10 @@ class Game:
 
         # Lambdas are used to defer f-string evaluation until the function is called.
         log_generators = {
+            'add_line_fizzle_strengthen': lambda r: ("could not add a new line, and instead reinforced an existing one.", "[ADD->REINFORCE]"),
             'extend_fizzle_strengthen': lambda r: ("tried to extend a line but couldn't, so it reinforced an existing line instead.", "[EXTEND->REINFORCE]"),
             'fracture_fizzle_strengthen': lambda r: ("could not find a line to fracture, and instead reinforced one.", "[FRACTURE->REINFORCE]"),
             'add_line': lambda r: ("connected two points.", "[+LINE]"),
-            'add_line_fallback_strengthen': lambda r: ("could not add a new line, and instead reinforced an existing one.", "[REINFORCE]"),
             'extend_line': lambda r: (
                 f"extended a line to the border, creating a new point{' with an empowered Conduit extension!' if r.get('is_empowered') else '.'}",
                 "[RAY!]" if r.get('is_empowered') else "[EXTEND]"

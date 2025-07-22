@@ -1,17 +1,23 @@
-This iteration focuses on a major strategic overhaul of the AI's action selection system to be more transparent, strategic, and aligned with team traits.
+This iteration focuses on improving code quality and ensuring the robustness of the "Expand" actions, aligning with the core design principle that actions should never be useless.
 
-### 1. New Action Selection System (Group-Based Probabilities)
-- **Previous System:** The old system assigned a weight to every individual action, which was then modified by a team's trait. This made it difficult to balance and understand a team's overall strategy.
-- **New System:** Actions are now categorized into five distinct strategic groups: `Expand`, `Fight`, `Fortify`, `Sacrifice`, and `Rune`.
-- **Trait-Driven Strategy:** Team traits (`Aggressive`, `Defensive`, etc.) now apply powerful multipliers to these *groups* instead of individual actions. For example, an 'Aggressive' team will have a much higher probability of choosing the 'Fight' group.
-- **Fairness within Groups:** Once a strategic group is chosen, the system picks one of the *valid* actions from that group with equal probability. This ensures that all available tactical options within a chosen strategy are considered fairly.
-- **Benefit:** This change makes team behavior more predictable and strategically coherent. An 'Expansive' team will clearly prioritize expansion, and its specific choice of *how* to expand is situational. This also makes balancing easier, as tweaks can be made at the group level.
+### 1. Code Refactoring for "Strengthen Line" Fallback
 
-### 2. UI Overhaul for Action Preview
-- The "Action Preview" panel on the frontend has been completely redesigned to reflect the new system.
-- It now clearly displays each action group, the total probability of the AI choosing that group, and then lists the available actions within it, each with its final calculated probability.
-- This makes the AI's decision-making process transparent to the player, enhancing the strategic and analytical aspects of the game.
+Several "Expand" actions (`Add Line`, `Extend Line`, `Fracture Line`, `Grow Line`) shared a common fallback behavior: if the primary action was not possible, they would strengthen an existing friendly line. This logic was duplicated across four different methods.
 
-### 3. Code Refactoring and Cleanup
-- **`game_logic.py`:** The core `_choose_action_for_team` and `get_action_probabilities` functions were rewritten to implement the new group-based logic. Old, complex data structures for per-action weights (`ACTION_BASE_WEIGHTS`, `TRAIT_MULTIPLIERS`) were removed and replaced with simpler, more powerful group-based structures.
-- **`static/js/main.js`:** The `updateActionPreview` function was refactored to parse and display the new grouped data structure from the API. The redundant `getActionCategory` helper function was removed.
+- **Introduced Helper Functions:** Two new internal helper methods, `_strengthen_line` and `_fallback_strengthen_random_line`, were created in `game_logic.py`. These centralize the logic for strengthening a line and generating the standard fallback action result.
+- **Simplified Action Methods:** The four "Expand" actions mentioned above were refactored to remove the duplicated code and now call the new `_fallback_strengthen_random_line` helper. This makes the action methods shorter, cleaner, and easier to maintain.
+- **Improved Code Readability:** The `expand_action_add_line` method was also slightly optimized to use a more Pythonic list comprehension with `itertools.combinations` for finding possible new lines, improving both readability and performance.
+
+### 2. Enhanced Action Logging and Consistency
+
+To improve clarity in the game log, the naming convention for "fizzled" actions that result in a fallback has been standardized.
+
+- **Consistent Naming:** The fallback type for the "Add Line" action was changed from `add_line_fallback_strengthen` to `add_line_fizzle_strengthen`, matching the pattern used by other similar actions.
+- **More Descriptive Logs:** The short log message for this fallback was updated from the generic `[REINFORCE]` to the more descriptive `[ADD->REINFORCE]`, making it clearer to the player what action was attempted and what the result was.
+
+### 3. Documentation and Rule Cleanup
+
+- **`rules.md`:** A minor text duplication in the description for the "Create Whirlpool" action was identified and corrected, improving the clarity of the rules documentation.
+- **`game_logic.py`:** Corrected a misleading docstring for the `expand_action_grow_line` method to accurately reflect that its fallback strengthens a *random* line, not necessarily the source line.
+
+Overall, these changes contribute to a cleaner, more maintainable codebase and a more consistent and understandable experience for the player, reinforcing the "never useless action" design philosophy.
