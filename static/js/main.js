@@ -3397,6 +3397,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
             ctx.fillText('💥', hit.x, hit.y);
         },
         'fight_convert': (ctx, w, h) => {
@@ -3431,6 +3433,56 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fill();
             ctx.globalAlpha = 1.0;
         },
+        'fight_bastion_pulse': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            
+            // Bastion
+            const core = {x: w*0.3, y: h*0.5};
+            const p_sac = {x: w*0.5, y: h*0.2};
+            const prongs = [
+                p_sac,
+                {x: w*0.5, y: h*0.8},
+                {x: w*0.1, y: h*0.5},
+            ];
+            // Draw bastion outline
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(prongs[0].x, prongs[0].y);
+            ctx.lineTo(prongs[1].x, prongs[1].y);
+            ctx.lineTo(prongs[2].x, prongs[2].y);
+            ctx.closePath();
+            ctx.strokeStyle = team1_color;
+            ctx.lineWidth = 4;
+            ctx.globalAlpha = 0.4;
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw bastion points
+            illustrationHelpers.drawPoints(ctx, [core, ...prongs], team1_color);
+            prongs.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: core, p2: p}], team1_color));
+
+            // Sacrificed point
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
+            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
+            ctx.stroke();
+
+            // Enemy line crossing perimeter
+            const ep1 = {x: w*0.8, y: h*0.1};
+            const ep2 = {x: w*0.2, y: h*0.9};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
+
+            // Pulse/blast
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('💥', w*0.4, h*0.7);
+        },
         'fight_pincer_attack': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
             const team2_color = 'hsl(240, 70%, 50%)';
@@ -3446,6 +3498,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
             ctx.fillText('💥', ep1.x, ep1.y);
         },
         'fight_sentry_zap': (ctx, w, h) => {
@@ -3465,6 +3519,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
             ctx.fillText('💥', ep1.x, ep1.y);
         },
         'fight_territory_strike': (ctx, w, h) => {
@@ -3493,6 +3549,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
             ctx.fillText('💥', ep1.x, ep1.y);
         },
         'fortify_anchor': (ctx, w, h) => {
@@ -3727,6 +3785,8 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawPoints(ctx, [center], team1_color);
             ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
             ctx.fillText('💥', center.x-20, center.y-20);
             
             // Enemy lines being destroyed
@@ -3781,6 +3841,8 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawPoints(ctx, [center], team1_color);
             ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
             ctx.fillText('💥', center.x-20, center.y-20);
 
             const pointsToPull = [
@@ -3914,6 +3976,8 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawPoints(ctx, [center], team1_color);
             ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
             ctx.fillText('💥', center.x-20, center.y-20);
 
             // Trap symbol
@@ -3955,12 +4019,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.dataset.description = action.description;
 
                 card.innerHTML = `
-                    <div class="action-card-header">
-                        <h4>${action.display_name}</h4>
-                        <span class="action-group">${action.group}</span>
+                    <canvas width="150" height="100"></canvas>
+                    <div class="action-card-text">
+                         <div class="action-card-header">
+                            <h4>${action.display_name}</h4>
+                            <span class="action-group">${action.group}</span>
+                        </div>
+                        <div class="action-card-description">${action.description}</div>
                     </div>
-                    <canvas width="300" height="150"></canvas>
-                    <div class="action-card-description">${action.description}</div>
                 `;
                 
                 actionGuideContent.appendChild(card);
@@ -3970,7 +4036,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ctx = canvas.getContext('2d');
                 
                 const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
-                drawer(ctx, canvas.width, canvas.height);
+                drawer(ctx, 150, 100);
             }
 
             function filterActions() {

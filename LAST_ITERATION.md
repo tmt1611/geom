@@ -1,21 +1,20 @@
-This iteration focused on fixing a critical bug and continuing the architectural improvements to the codebase.
+This iteration focused on improving the user interface and experience of the "Action Guide" tab, making it more compact, readable, and visually comprehensive.
 
-### Bug Fix: Premature "Extinction" Game Over
+### 1. Action Guide Layout Redesign
 
--   **Problem:** A bug was reported where the game would end with an "Extinction" message even though teams still had points on the board and the turn limit had not been reached.
--   **Investigation:** The logic for triggering an "Extinction" event was tied to the creation of an empty action queue at the start of a turn. The check for "Dominance" victory (a single team remaining) was also found to be flawed, as it was based on the turn's action queue rather than the actual state of points on the board at the end of the turn.
--   **Solution:**
-    1.  The `_check_end_of_turn_victory_conditions` method in `game_logic.py` was significantly improved. It now checks for victory conditions based on which teams currently have points, which is a more accurate reflection of the game state.
-    2.  An explicit "Extinction" check was added to this method, ensuring the game ends immediately at the end of a turn if no teams have any points left. This is more robust than waiting for the next turn to fail to start.
-    3.  The main game loop in `run_next_action` was refactored for better clarity, removing a redundant check and relying on the more robust end-of-turn checks to handle game state transitions correctly.
+-   **Problem:** The original Action Guide used a grid of large cards. This layout was not space-efficient, requiring users to scroll extensively to view all available actions, which could feel cluttered.
+-   **Solution:** The layout was redesigned from a grid to a compact list view.
+    -   **CSS Changes:** The CSS for the action guide was overhauled. Instead of a grid, a flexbox column layout is now used. Each action card is now a horizontal flexbox row, with a fixed-size illustration on the left and the textual information (title, group, description) on the right. This change allows more actions to be displayed on the screen at once, reducing clutter and improving scannability.
+    -   **HTML Structure Update:** The JavaScript function that dynamically generates the action cards was updated to produce a new HTML structure that is compatible with the new CSS, separating the canvas and the text content into distinct flex items.
 
-### Refactoring: `FightActionsHandler`
+### 2. New Illustration for "Bastion Pulse"
 
--   **Problem:** The `game_logic.py` file, while improved, still contained a large number of action implementations, making it hard to manage.
--   **Solution:** Following the pattern established in the previous iteration:
-    1.  A new file, `game_app/actions/fight_actions.py`, was created.
-    2.  A new `FightActionsHandler` class was implemented within this file.
-    3.  All ten action methods related to the 'Fight' category (e.g., `fight_action_attack_line`, `fight_action_convert_point`) and their associated private helper methods were moved from the `Game` class into the new handler.
-    4.  The `Game` class now instantiates `FightActionsHandler` and delegates all fight action calls to it.
+-   **Problem:** Several actions in the guide were missing a visual illustration, showing only a "No Illustration" placeholder.
+-   **Solution:** A new illustration was created for the "Bastion Pulse" action.
+    -   This new drawing function visually demonstrates the action by showing a friendly Bastion structure, one of its outer points being sacrificed, an enemy line crossing its perimeter, and an explosion effect where the pulse destroys the line.
+    -   This helps users to more quickly and intuitively understand the mechanics of this complex action.
 
-This change extracts a significant amount of complex logic out of the main `Game` class, making the code cleaner, more modular, and easier to maintain and debug. The combination of this refactoring and the bug fix greatly improves the stability and quality of the codebase.
+### 3. Minor Visual Fixes
+
+-   **Problem:** During the implementation of the new illustration, it was noticed that the "💥" explosion emoji used in several other illustrations was not properly centered on the point of impact.
+-   **Solution:** A minor fix was applied to all relevant illustration functions, setting `textAlign` and `textBaseline` on the canvas context before drawing the emoji. This ensures consistent and accurate visual feedback across all illustrations.

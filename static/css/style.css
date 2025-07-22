@@ -923,12 +923,12 @@ body.game-running .game-column {
 }
 
 .action-guide-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     flex-grow: 1;
     overflow-y: auto;
-    padding-top: 5px; /* space from controls */
+    padding: 5px 10px 5px 0; /* space from controls and for scrollbar */
 }
 .action-card {
     border: 1px solid #dfe4ea;
@@ -936,11 +936,23 @@ body.game-running .game-column {
     background-color: #fcfcfc;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 15px;
+    padding: 10px;
+}
+.action-card-text {
+    display: flex;
     flex-direction: column;
+    flex-grow: 1;
+    gap: 5px;
 }
 .action-card-header {
-    padding: 10px 15px;
-    border-bottom: 1px solid #dfe4ea;
+    padding: 0;
+    border-bottom: none;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
 }
 .action-card-header h4 {
     margin: 0;
@@ -953,13 +965,15 @@ body.game-running .game-column {
     text-transform: uppercase;
 }
 .action-card canvas {
-    width: 100%;
-    height: 150px;
+    width: 150px;
+    height: 100px;
     background-color: #fff;
-    border-bottom: 1px solid #dfe4ea;
+    border: 1px solid #dfe4ea;
+    border-radius: 4px;
+    flex-shrink: 0;
 }
 .action-card-description {
-    padding: 15px;
+    padding: 0;
     font-size: 0.9em;
     line-height: 1.5;
     color: #34495e;
