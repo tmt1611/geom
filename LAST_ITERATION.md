@@ -1,18 +1,14 @@
-This iteration addresses two main issues: a critical backend crash during gameplay and a major refactoring of the `game_logic.py` file to improve code organization and maintainability.
+This iteration continues the major refactoring of the `game_logic.py` file to improve code organization and maintainability, focusing on separating action logic from the main game class.
 
-### Issue 1: `KeyError` Crash during Action Logging
+### Refactoring Action Logic into Handlers
 
--   **Problem:** The server would crash with a `KeyError: 'destroyed_team_name'` when certain actions, like `pincer_attack`, were performed. The action's result dictionary, used to generate a log message, was missing the required key for the destroyed point's team name.
--   **Analysis:** A review of the `ACTION_LOG_GENERATORS` dictionary showed that several log messages relied on a `destroyed_team_name` or `target_team_name` key. However, the corresponding action methods in `game_logic.py` were not always adding this key to their return value.
--   **Solution:** I have systematically identified all action methods (`pincer_attack`, `sentry_zap`, `chain_lightning`, `launch_payload`, `hourglass_stasis`, and `focus_beam`) that could cause this error. Each method has been updated to include the necessary team name in its result dictionary upon successfully destroying or targeting an enemy point. This ensures that the log generation step will always have the data it needs, preventing the crash.
+- **Problem:** `game_logic.py` was still extremely large, with the bulk of its size coming from the implementations of dozens of game actions directly within the `Game` class. This made the class unwieldy and violated the Single Responsibility Principle.
 
-### Issue 2: Refactoring `game_logic.py`
+- **Solution:** I have initiated a structural refactoring to move action implementations into separate, dedicated "handler" classes.
+    1. A new directory, `game_app/actions/`, has been created to house these handlers.
+    2. A new file, `game_app/actions/expand_actions.py`, was created.
+    3. All action methods related to the 'Expand' category (e.g., `expand_action_add_line`, `expand_action_extend_line`) and their private helper methods (`_find_possible_extensions`, `_find_fracturable_lines`) have been moved from the `Game` class into a new `ExpandActionsHandler` class within this file.
+    4. The `Game` class now instantiates `ExpandActionsHandler` and the original `expand_action_*` methods have been converted into simple one-line wrappers that delegate the call to the handler instance.
+    5. Helper methods that are used by multiple action categories (like `_get_extended_border_point`) were correctly identified and left within the main `Game` class to be shared.
 
--   **Problem:** The `game_logic.py` file was over 4,000 lines long, with a significant portion dedicated to large, static dictionaries containing game data (action descriptions, weights, log messages, etc.). This made the file difficult to navigate and maintain.
--   **Solution:**
-    1.  A new file, `game_app/game_data.py`, has been created to act as a centralized repository for this static game data.
-    2.  All large data dictionaries (`ACTION_GROUPS`, `ACTION_DESCRIPTIONS`, `ACTION_VERBOSE_DESCRIPTIONS`, `ACTION_MAP`, `ACTION_LOG_GENERATORS`, etc.) have been moved from the `Game` class into `game_app/game_data.py`.
-    3.  The `Game` class in `game_logic.py` now imports this data from the new module. This separation of concerns drastically reduces the size of `game_logic.py` by nearly 300 lines, making the core game logic much cleaner and easier to read.
-    4.  During the refactoring, an unused and incorrect method, `_get_action_weights`, was identified and removed, further cleaning up the codebase.
-
-These changes resolve the critical bug and significantly improve the project's structure according to best practices, making future development more efficient.
+This change successfully extracts over 200 lines of logic from `game_logic.py` into a more focused module. It establishes a clear pattern for refactoring the remaining action categories in future iterations, significantly improving the project's architecture and making the core game logic file cleaner and easier to manage.
