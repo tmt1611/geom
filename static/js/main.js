@@ -109,14 +109,18 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.strokeStyle = '#e0e0e0';
         gridSize = currentGameState.grid_size || 10;
         cellSize = canvas.width / gridSize;
+        const totalGridSize = gridSize * cellSize; // This should be equal to canvas.width
+
         for (let i = 0; i <= gridSize; i++) {
+            // Vertical lines
             ctx.beginPath();
             ctx.moveTo(i * cellSize, 0);
-            ctx.lineTo(i * cellSize, canvas.height);
+            ctx.lineTo(i * cellSize, totalGridSize); // Use calculated size to ensure squareness
             ctx.stroke();
+            // Horizontal lines
             ctx.beginPath();
             ctx.moveTo(0, i * cellSize);
-            ctx.lineTo(canvas.width, i * cellSize);
+            ctx.lineTo(totalGridSize, i * cellSize); // Use calculated size
             ctx.stroke();
         }
     }

@@ -263,14 +263,11 @@ legend {
 }
 
 .speed-control {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
     align-items: center;
     gap: 10px;
     margin-top: 10px;
-}
-
-.speed-control input[type="range"] {
-    flex-grow: 1;
 }
 
 #speed-value {
