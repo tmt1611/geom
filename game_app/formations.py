@@ -182,11 +182,13 @@ class FormationManager:
 
         for tri_ids in all_triangles_pids:
             if any(pid in used_points for pid in tri_ids): continue
+            if not all(pid in all_points for pid in tri_ids): continue
             p1, p2, p3 = all_points[tri_ids[0]], all_points[tri_ids[1]], all_points[tri_ids[2]]
             
             other_point_ids = [pid for pid in team_point_ids if pid not in tri_ids and pid not in used_points]
             
             for core_id in other_point_ids:
+                if core_id not in all_points: continue
                 if self._is_point_inside_triangle(all_points[core_id], p1, p2, p3):
                     rune_points = set(tri_ids) | {core_id}
                     shield_runes.append({'triangle_ids': list(tri_ids), 'core_id': core_id})
@@ -258,6 +260,7 @@ class FormationManager:
         trident_runes, used_points = [], set()
 
         for p_ids_tuple in combinations(team_point_ids, 3):
+            if not all(pid in all_points for pid in p_ids_tuple): continue
             p1, p2, p3 = all_points[p_ids_tuple[0]], all_points[p_ids_tuple[1]], all_points[p_ids_tuple[2]]
             iso_info = get_isosceles_triangle_info(p1, p2, p3)
             if not iso_info: continue
@@ -268,6 +271,7 @@ class FormationManager:
             
             for handle_candidate_id in adj.get(p_apex['id'], set()):
                 if handle_candidate_id in (p_base[0]['id'], p_base[1]['id']): continue
+                if handle_candidate_id not in all_points: continue
                 
                 p_handle = all_points[handle_candidate_id]
                 base_midpoint_x, base_midpoint_y = (p_base[0]['x'] + p_base[1]['x']) / 2, (p_base[0]['y'] + p_base[1]['y']) / 2
@@ -323,11 +327,13 @@ class FormationManager:
         t_runes, used_points = [], set()
         for mid_id, neighbors_set in adj.items():
             if len(neighbors_set) < 3 or mid_id in used_points: continue
+            if mid_id not in all_points: continue
             
             neighbors = list(neighbors_set)
             p_mid = all_points[mid_id]
 
             for p_stem1_id, p_stem2_id in combinations(neighbors, 2):
+                if not all(pid in all_points for pid in [p_stem1_id, p_stem2_id]): continue
                 p_stem1, p_stem2 = all_points[p_stem1_id], all_points[p_stem2_id]
                 if orientation(p_stem1, p_mid, p_stem2) != 0: continue
                 
@@ -336,6 +342,7 @@ class FormationManager:
                 if v_mid_s1['x'] * v_mid_s2['x'] + v_mid_s1['y'] * v_mid_s2['y'] >= 0: continue
                 
                 for p_head_id in [nid for nid in neighbors if nid not in (p_stem1_id, p_stem2_id)]:
+                    if p_head_id not in all_points: continue
                     p_head = all_points[p_head_id]
                     v_stem_x, v_stem_y = p_stem2['x'] - p_stem1['x'], p_stem2['y'] - p_stem1['y']
                     v_head_x, v_head_y = p_head['x'] - p_mid['x'], p_head['y'] - p_mid['y']
@@ -372,8 +379,10 @@ class FormationManager:
             neighbors = list(adj.get(center_id, set()))
             if len(neighbors) < 4: continue
 
+            if center_id not in all_points: continue
             p_center = all_points[center_id]
             for arm_candidates_ids in combinations(neighbors, 4):
+                if not all(pid in all_points for pid in arm_candidates_ids): continue
                 p_arm1_id = arm_candidates_ids[0]
                 for i in range(1, 4):
                     p_arm2_id = arm_candidates_ids[i]
@@ -496,6 +505,7 @@ class FormationManager:
             for base1_id, base2_id in combinations(neighbors, 2):
                 if base1_id in used_points or base2_id in used_points: continue
 
+                if not all(pid in all_points for pid in [apex_id, base1_id, base2_id]): continue
                 p_apex, p_base1, p_base2 = all_points[apex_id], all_points[base1_id], all_points[base2_id]
                 leg1_sq, leg2_sq = distance_sq(p_apex, p_base1), distance_sq(p_apex, p_base2)
 
@@ -505,6 +515,7 @@ class FormationManager:
 
                 for cw_id in adj.get(base1_id, set()).intersection(adj.get(base2_id, set())):
                     if cw_id == apex_id or cw_id in used_points: continue
+                    if cw_id not in all_points: continue
                     
                     p_cw = all_points[cw_id]
                     base_midpoint = {'x': (p_base1['x'] + p_base2['x']) / 2, 'y': (p_base1['y'] + p_base2['y']) / 2}
