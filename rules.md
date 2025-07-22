@@ -63,3 +63,12 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Cost:** The central point and all branch points are sacrificed. This action can only be performed once per team.
     *   **Bonus 1 (Passive Growth):** Every few turns, the Heartwood automatically creates a new point for its team nearby.
     *   **Bonus 2 (Defensive Aura):** Prevents enemy points from being created in a large radius around it.
+
+## Wonders
+Wonders are unique, game-changing structures that require immense investment and provide a path to an alternative victory. Only one Wonder can be controlled by each team.
+
+*   **[WONDER] The Chronos Spire**
+    *   **Formation:** Requires a "star" formation: a central point connected to a cycle of 5 or 6 other points, where the cycle points are also connected to each other sequentially. All involved points and lines must belong to the same team.
+    *   **Cost:** The central point and all points in the cycle are sacrificed to create the Spire.
+    *   **Bonus 1 (Temporal Distortion):** The Spire grants its owner **one bonus action** every turn. This stacks with other sources of bonus actions like Nexuses.
+    *   **Bonus 2 (Victory Countdown):** The Spire is indestructible. If it remains on the field for **10 turns** after its creation, its owner immediately wins the game.

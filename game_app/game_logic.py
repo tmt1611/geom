@@ -203,6 +203,7 @@ class Game:
             "whirlpools": [], # {id, teamId, coords, turns_left, strength, radius_sq}
             "monoliths": {}, # {monolith_id: {teamId, point_ids, ...}}
             "trebuchets": {}, # {teamId: [trebuchet1, ...]}
+            "wonders": {}, # {wonder_id: {teamId, type, turns_to_victory, ...}}
             "empowered_lines": {}, # {line_id: strength}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
@@ -302,6 +303,7 @@ class Game:
         state_copy['whirlpools'] = self.state.get('whirlpools', [])
         state_copy['monoliths'] = self.state.get('monoliths', {})
         state_copy['trebuchets'] = self.state.get('trebuchets', {})
+        state_copy['wonders'] = self.state.get('wonders', {})
 
         # Add live stats for real-time display, regardless of phase, for consistency
         live_stats = {}
@@ -1305,6 +1307,140 @@ class Game:
             'sacrificed_points': sacrificed_points_data
         }
 
+    def _find_star_formations(self, teamId, min_cycle=5, max_cycle=6):
+        """
+        Finds "star" formations for a team.
+        A star is a central point connected to all points in a cycle of N points.
+        Returns a list of dicts, each describing a star formation.
+        e.g., [{'center_id': p_id, 'cycle_ids': [p1_id, p2_id, ...]}]
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < min_cycle + 1:
+            return []
+
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+
+        found_stars = []
+        
+        # Avoid reusing points for multiple stars in one turn
+        used_points = set()
+
+        for center_candidate_id in team_point_ids:
+            if center_candidate_id in used_points:
+                continue
+                
+            neighbors = list(adj.get(center_candidate_id, set()))
+            if len(neighbors) < min_cycle:
+                continue
+
+            # Check all combinations of neighbors to form a cycle
+            for cycle_len in range(min_cycle, max_cycle + 1):
+                if len(neighbors) < cycle_len:
+                    continue
+                
+                for cycle_candidate_ids in combinations(neighbors, cycle_len):
+                    # Check if these points form a cycle among themselves.
+                    # Build a sub-adjacency list for only the candidates.
+                    sub_adj = {pid: [] for pid in cycle_candidate_ids}
+                    for i, p_id in enumerate(cycle_candidate_ids):
+                        # Check connections within the cycle candidate points
+                        for j in range(i + 1, len(cycle_candidate_ids)):
+                            other_p_id = cycle_candidate_ids[j]
+                            if other_p_id in adj.get(p_id, set()):
+                                sub_adj[p_id].append(other_p_id)
+                                sub_adj[other_p_id].append(p_id)
+                    
+                    # Each node in a simple cycle must have exactly 2 neighbors in the cycle.
+                    if not all(len(sub_adj[pid]) == 2 for pid in cycle_candidate_ids):
+                        continue
+
+                    # We found a valid degree-2 subgraph. Now, confirm it is a single connected cycle
+                    # by walking it, not two disjoint cycles (e.g., 2 triangles for N=6).
+                    start_node = cycle_candidate_ids[0]
+                    ordered_cycle = [start_node]
+                    prev_node = start_node
+                    curr_node = sub_adj[start_node][0] 
+                    is_valid_cycle = True
+                    
+                    while curr_node != start_node and len(ordered_cycle) < cycle_len:
+                        ordered_cycle.append(curr_node)
+                        next_node_options = [n for n in sub_adj[curr_node] if n != prev_node]
+                        if not next_node_options:
+                            is_valid_cycle = False; break
+                        prev_node = curr_node
+                        curr_node = next_node_options[0]
+
+                    if not is_valid_cycle or len(ordered_cycle) != cycle_len:
+                        continue
+
+                    # Check if any points are already used in another star found this turn
+                    all_star_points = set(ordered_cycle) | {center_candidate_id}
+                    if not used_points.intersection(all_star_points):
+                        found_stars.append({
+                            'center_id': center_candidate_id,
+                            'cycle_ids': ordered_cycle,
+                            'all_points': list(all_star_points)
+                        })
+                        used_points.update(all_star_points)
+                        # Break from inner loops to not find smaller stars with the same center
+                        break
+                if center_candidate_id in used_points:
+                    break
+        
+        return found_stars
+
+    def fortify_action_build_chronos_spire(self, teamId):
+        """[WONDER ACTION]: Build the Chronos Spire."""
+        # Check if this team already has a wonder. Limit one per team for now.
+        if any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()):
+            return {'success': False, 'reason': 'team already has a wonder'}
+
+        star_formations = self._find_star_formations(teamId)
+        if not star_formations:
+            return {'success': False, 'reason': 'no star formation found'}
+
+        # Choose a formation to build on
+        formation = random.choice(star_formations)
+        
+        center_point = self.state['points'][formation['center_id']]
+        spire_coords = {'x': center_point['x'], 'y': center_point['y']}
+        
+        # Sacrifice all points in the formation
+        points_to_sacrifice = formation['all_points']
+        sacrificed_points_data = []
+        for pid in points_to_sacrifice:
+            sac_data = self._delete_point_and_connections(pid, aggressor_team_id=teamId)
+            if sac_data:
+                sacrificed_points_data.append(sac_data)
+        
+        if len(sacrificed_points_data) != len(points_to_sacrifice):
+            return {'success': False, 'reason': 'failed to sacrifice all formation points'}
+            
+        # Create the Wonder
+        wonder_id = f"w_{uuid.uuid4().hex[:6]}"
+        new_wonder = {
+            'id': wonder_id,
+            'teamId': teamId,
+            'type': 'ChronosSpire',
+            'coords': spire_coords,
+            'turns_to_victory': 10,
+            'creation_turn': self.state['turn']
+        }
+        
+        if 'wonders' not in self.state: self.state['wonders'] = {}
+        self.state['wonders'][wonder_id] = new_wonder
+        
+        return {
+            'success': True,
+            'type': 'build_chronos_spire',
+            'wonder': new_wonder,
+            'sacrificed_points_count': len(sacrificed_points_data)
+        }
+
     def _reflect_point(self, point, p1_axis, p2_axis):
         """Reflects a point across the line defined by p1_axis and p2_axis."""
         px, py = point['x'], point['y']
@@ -2051,6 +2187,7 @@ class Game:
             'fortify_form_bastion': self.fortify_action_form_bastion,
             'fortify_form_monolith': self.fortify_action_form_monolith,
             'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood,
+            'fortify_build_wonder': self.fortify_action_build_chronos_spire,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
             'defend_shield': self.shield_action_protect_line,
@@ -2082,6 +2219,7 @@ class Game:
             'fortify_form_bastion': bool(self._get_fortified_point_ids().intersection(team_point_ids)), # Team has at least one of its own fortified points
             'fortify_form_monolith': len(team_point_ids) >= 4,
             'fortify_cultivate_heartwood': len(team_point_ids) >= 6 and teamId not in self.state.get('heartwoods', {}),
+            'fortify_build_wonder': len(team_point_ids) >= 6 and not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()),
             'sacrifice_nova': len(team_point_ids) > 2,
             'sacrifice_whirlpool': len(team_point_ids) > 1,
             'rune_shoot_bisector': bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])),
@@ -2099,7 +2237,7 @@ class Game:
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
             'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25,
-            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_cultivate_heartwood': 20, # High value objective
+            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_cultivate_heartwood': 20, 'fortify_build_wonder': 100,
             'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
@@ -2301,6 +2439,29 @@ class Game:
                             current_strength = self.state['empowered_lines'].get(line.get('id'), 0)
                             if current_strength < max_strength:
                                 self.state['empowered_lines'][line['id']] = current_strength + 1
+        
+        # 6. Process Wonders
+        if self.state.get('wonders'):
+            for wonder_id, wonder in list(self.state['wonders'].items()):
+                if wonder['type'] == 'ChronosSpire':
+                    wonder['turns_to_victory'] -= 1
+                    team_name = self.state['teams'][wonder['teamId']]['name']
+                    
+                    log_msg = {
+                        'teamId': wonder['teamId'],
+                        'message': f"The Chronos Spire of Team {team_name} pulses. Victory in {wonder['turns_to_victory']} turns.",
+                        'short_message': f'[SPIRE: T-{wonder["turns_to_victory"]}]'
+                    }
+                    self.state['game_log'].append(log_msg)
+                    
+                    # Check for wonder victory here at start of turn
+                    if wonder['turns_to_victory'] <= 0:
+                        self.state['game_phase'] = 'FINISHED'
+                        self.state['victory_condition'] = f"Team '{team_name}' achieved victory with the Chronos Spire."
+                        self.state['game_log'].append({'message': self.state['victory_condition'], 'short_message': '[WONDER VICTORY]'})
+                        # We should stop processing the rest of the turn start.
+                        self.state['actions_queue_this_turn'] = [] # empty queue
+                        return # exit early
 
         # --- Set up action queue for the turn ---
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
@@ -2325,6 +2486,18 @@ class Game:
                     'short_message': f'[NEXUS:+{num_nexuses}ACT]'
                 })
                 for _ in range(num_nexuses):
+                    actions_queue.append({'teamId': teamId, 'is_bonus': True})
+
+            # Add bonus action from Wonders
+            num_wonders = sum(1 for w in self.state.get('wonders', {}).values() if w['teamId'] == teamId)
+            if num_wonders > 0:
+                team_name = self.state['teams'][teamId]['name']
+                plural = "s" if num_wonders > 1 else ""
+                self.state['game_log'].append({
+                    'message': f"Team {team_name} gains {num_wonders} bonus action{plural} from its Wonder{plural}.",
+                    'short_message': f'[WONDER:+{num_wonders}ACT]'
+                })
+                for _ in range(num_wonders):
                     actions_queue.append({'teamId': teamId, 'is_bonus': True})
 
         random.shuffle(actions_queue) # Randomize action order each turn
@@ -2386,6 +2559,7 @@ class Game:
             'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION]"),
             'form_monolith': lambda r: ("erected a resonant Monolith, a bastion of endurance.", "[MONOLITH]"),
             'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
+            'build_chronos_spire': lambda r: (f"sacrificed {r['sacrificed_points_count']} points to construct the Chronos Spire, a path to victory!", "[WONDER!]"),
             'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
             'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
             'create_anchor': lambda r: ("sacrificed a point to create a gravitational anchor.", "[ANCHOR]"),

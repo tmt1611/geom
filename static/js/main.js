@@ -671,6 +671,70 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function drawWonders(gameState) {
+        if (!gameState.wonders) return;
+    
+        for (const wonderId in gameState.wonders) {
+            const wonder = gameState.wonders[wonderId];
+            const team = gameState.teams[wonder.teamId];
+            if (!team || wonder.type !== 'ChronosSpire') continue;
+    
+            const cx = (wonder.coords.x + 0.5) * cellSize;
+            const cy = (wonder.coords.y + 0.5) * cellSize;
+            const now = Date.now();
+            const pulse = Math.abs(Math.sin(now / 500)); // Faster, more energetic pulse
+            const rotation = (now / 5000) % (2 * Math.PI);
+    
+            // Base
+            const baseRadius = 20;
+            ctx.beginPath();
+            ctx.arc(cx, cy, baseRadius, 0, 2 * Math.PI);
+            const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius);
+            gradient.addColorStop(0, team.color + "99");
+            gradient.addColorStop(1, team.color + "00");
+            ctx.fillStyle = gradient;
+            ctx.globalAlpha = 0.3 + pulse * 0.2;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+    
+            // Rotating rings
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(rotation);
+            ctx.strokeStyle = team.color;
+            ctx.lineWidth = 1.5;
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.arc(0, 0, baseRadius * 0.7, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.rotate(Math.PI / 2); // Rotate second ring
+            ctx.beginPath();
+            ctx.arc(0, 0, baseRadius * 1.2, 0, 1.5 * Math.PI); // Incomplete ring
+            ctx.stroke();
+            ctx.restore();
+    
+            // Central core
+            ctx.beginPath();
+            ctx.arc(cx, cy, 5 + pulse * 2, 0, 2 * Math.PI);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(cx, cy, 2 + pulse, 0, 2 * Math.PI);
+            ctx.fillStyle = team.color;
+            ctx.fill();
+    
+            // Countdown timer
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 4;
+            ctx.fillText(wonder.turns_to_victory, cx, cy);
+            ctx.shadowBlur = 0;
+        }
+    }
+
     function drawPrisms(gameState) {
         if (!gameState.prisms) return;
 
@@ -923,6 +987,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawConduits(currentGameState);
                 drawNexuses(currentGameState);
                 drawHeartwoods(currentGameState);
+                drawWonders(currentGameState); // Draw wonders on top of most things but under lines/points
                 drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
                 drawPoints(currentGameState.points, currentGameState.teams);
                 
@@ -1212,6 +1277,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: 800
             });
         }
+        if (details.type === 'build_chronos_spire') {
+            // The wonder itself will be drawn, which is a big visual cue.
+            // Add a creation effect for extra emphasis.
+            visualEffects.push({
+                type: 'point_implosion', // Reuse implosion for dramatic effect
+                x: details.wonder.coords.x,
+                y: details.wonder.coords.y,
+                startTime: Date.now(),
+                duration: 2000,
+                color: `rgba(255, 255, 150, ${1-0})` // Golden
+            });
+        }
 
         // Set a timer to clear the highlights
         lastActionHighlights.clearTimeout = setTimeout(() => {
@@ -1445,7 +1522,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms, sentries, conduits, nexuses, bastions, monoliths } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms, sentries, conduits, nexuses, bastions, monoliths, wonders } = gameState;
 
         let turnText = `Turn: ${turn} / ${max_turns}`;
         if (game_phase === 'RUNNING' && actions_queue_this_turn && actions_queue_this_turn.length > 0) {
@@ -1477,7 +1554,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         'Nexus': (nexuses && nexuses[teamId]) ? nexuses[teamId].length : 0,
                         'Bastion': Object.values(bastions || {}).filter(b => b.teamId === teamId).length,
                         'Monolith': Object.values(monoliths || {}).filter(m => m.teamId === teamId).length,
-                        'Trebuchet': (gameState.trebuchets && gameState.trebuchets[teamId]) ? gameState.trebuchets[teamId].length : 0
+                        'Trebuchet': (gameState.trebuchets && gameState.trebuchets[teamId]) ? gameState.trebuchets[teamId].length : 0,
+                        'Wonder': Object.values(wonders || {}).filter(w => w.teamId === teamId).length
                     };
 
                     let structureStrings = [];
