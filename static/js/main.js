@@ -3433,6 +3433,53 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = 'red';
             ctx.fillText('💥', ep1.x, ep1.y);
         },
+        'fight_sentry_zap': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p1 = {x: w*0.2, y: h*0.5};
+            const p2 = {x: w*0.4, y: h*0.5};
+            const p3 = {x: w*0.6, y: h*0.5};
+            const ep1 = {x: w*0.4, y: h*0.2};
+            
+            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1,p2}, {p1:p2,p2:p3}], team1_color);
+            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+
+            const beam_end = {x: w*0.4, y: h*0.05};
+            illustrationHelpers.drawArrow(ctx, p2, beam_end, 'rgba(255, 100, 100, 1.0)');
+
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.fillText('💥', ep1.x, ep1.y);
+        },
+        'fight_territory_strike': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p1 = {x: w*0.5, y: h*0.2};
+            const p2 = {x: w*0.2, y: h*0.8};
+            const p3 = {x: w*0.8, y: h*0.8};
+            const center = {x: (p1.x+p2.x+p3.x)/3, y: (p1.y+p2.y+p3.y)/3};
+            const ep1 = {x: w*0.8, y: h*0.2};
+
+            // Draw territory
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.3;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
+            
+            // Draw enemy
+            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+            
+            // Draw strike
+            illustrationHelpers.drawArrow(ctx, center, ep1, 'rgba(100, 255, 100, 1.0)');
+
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.fillText('💥', ep1.x, ep1.y);
+        },
         'fortify_anchor': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
             const team2_color = 'hsl(240, 70%, 50%)';
@@ -3517,6 +3564,51 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
             ctx.restore();
         },
+        'fortify_form_monolith': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = {x: w*0.4, y: h*0.1};
+            const p2 = {x: w*0.6, y: h*0.1};
+            const p3 = {x: w*0.6, y: h*0.9};
+            const p4 = {x: w*0.4, y: h*0.9};
+
+            const points = [p1, p2, p3, p4];
+            illustrationHelpers.drawPoints(ctx, points, team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1, p2}, {p1:p2,p2:p3}, {p1:p3,p2:p4}, {p1:p4,p2:p1}], team1_color);
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.lineTo(p4.x, p4.y);
+            ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.2;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        },
+        'fortify_mirror': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const axis1 = {x: w*0.5, y: h*0.1};
+            const axis2 = {x: w*0.5, y: h*0.9};
+            const p_orig = {x: w*0.3, y: h*0.3};
+            const p_refl = {x: w*0.7, y: h*0.3};
+
+            // Axis
+            illustrationHelpers.drawPoints(ctx, [axis1, axis2], team1_color);
+            illustrationHelpers.drawDashedLine(ctx, axis1, axis2, '#aaa');
+            
+            // Original point
+            illustrationHelpers.drawPoints(ctx, [p_orig], team1_color);
+            
+            // Reflection line
+            illustrationHelpers.drawDashedLine(ctx, p_orig, p_refl, '#aaa');
+            
+            // Reflected point
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+            illustrationHelpers.drawPoints(ctx, [p_refl], team1_color);
+            ctx.restore();
+        },
         'rune_area_shield': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
             const t1 = {x: w*0.5, y: h*0.1};
@@ -3590,6 +3682,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const ep2 = {x: w*0.7, y: h*0.7};
             illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
+        },
+        'rune_t_hammer_slam': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            // T-Rune
+            const p_mid = {x: w*0.3, y: h*0.5};
+            const p_head = {x: w*0.5, y: h*0.5};
+            const p_s1 = {x: w*0.3, y: h*0.2};
+            const p_s2 = {x: w*0.3, y: h*0.8};
+            illustrationHelpers.drawPoints(ctx, [p_mid, p_head, p_s1, p_s2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:p_s1, p2:p_mid}, {p1:p_mid, p2:p_s2}, {p1:p_mid, p2:p_head}], team1_color);
+
+            // Enemy points
+            const ep1 = {x: w*0.7, y: h*0.3};
+            const ep2 = {x: w*0.7, y: h*0.7};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+
+            // Push arrows
+            illustrationHelpers.drawArrow(ctx, ep1, {x:w*0.9, y:h*0.3}, '#aaa');
+            illustrationHelpers.drawArrow(ctx, ep2, {x:w*0.9, y:h*0.7}, '#aaa');
         },
         'sacrifice_nova': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
@@ -3681,11 +3793,25 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initActionGuide() {
         try {
             const allActions = await api.getAllActions();
-            actionGuideContent.innerHTML = ''; // Clear
-            
+            const searchInput = document.getElementById('guide-search');
+            const togglesContainer = document.getElementById('guide-group-toggles');
+            actionGuideContent.innerHTML = ''; // Clear content area
+
+            const groups = [...new Set(allActions.map(a => a.group))];
+            togglesContainer.innerHTML = `<button class="active" data-group="All">All</button>`;
+            groups.forEach(group => {
+                togglesContainer.innerHTML += `<button data-group="${group}">${group}</button>`;
+            });
+
+            const actionCards = [];
+
             for (const action of allActions) {
                 const card = document.createElement('div');
                 card.className = 'action-card';
+                card.dataset.name = action.name;
+                card.dataset.group = action.group;
+                card.dataset.displayName = action.display_name;
+                card.dataset.description = action.description;
 
                 card.innerHTML = `
                     <div class="action-card-header">
@@ -3697,6 +3823,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 
                 actionGuideContent.appendChild(card);
+                actionCards.push(card);
                 
                 const canvas = card.querySelector('canvas');
                 const ctx = canvas.getContext('2d');
@@ -3704,6 +3831,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
                 drawer(ctx, canvas.width, canvas.height);
             }
+
+            function filterActions() {
+                const searchTerm = searchInput.value.toLowerCase();
+                const activeGroup = togglesContainer.querySelector('button.active').dataset.group;
+
+                actionCards.forEach(card => {
+                    const groupMatch = activeGroup === 'All' || card.dataset.group === activeGroup;
+                    const nameMatch = card.dataset.displayName.toLowerCase().includes(searchTerm);
+                    const descMatch = card.dataset.description.toLowerCase().includes(searchTerm);
+                    const searchMatch = nameMatch || descMatch;
+
+                    if (groupMatch && searchMatch) {
+                        card.style.display = 'flex';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            }
+
+            searchInput.addEventListener('input', filterActions);
+            togglesContainer.addEventListener('click', e => {
+                if (e.target.tagName === 'BUTTON') {
+                    togglesContainer.querySelector('button.active').classList.remove('active');
+                    e.target.classList.add('active');
+                    filterActions();
+                }
+            });
+
         } catch (error) {
             actionGuideContent.innerHTML = '<p>Could not load action guide.</p>';
             console.error("Failed to initialize action guide:", error);
