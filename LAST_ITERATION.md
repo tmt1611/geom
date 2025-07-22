@@ -1,31 +1,37 @@
-This iteration focuses on enhancing the "Action Guide" tab, a key feature for user understanding of the game's mechanics. I've introduced powerful filtering and search capabilities, and added several new illustrations for complex actions, making the guide a more useful and interactive tool.
+This iteration focuses on a significant code cleanup and continues the expansion of the Action Guide with new illustrations and corresponding animations.
 
-### 1. Action Guide Filtering and Search
-To help users navigate the growing list of actions, the "Action Guide" tab now includes filter controls.
+### 1. Code Refactoring and Organization
 
-- **UI Implementation (`index.html` & `static/css/style.css`):**
-    - A search bar and a set of group toggle buttons (`Expand`, `Fight`, `Fortify`, etc.) have been added to the top of the Action Guide.
-    - The buttons allow users to show actions from a specific category or view all actions at once.
-    - The search bar allows users to filter actions by name or by keywords in their descriptions.
-    - CSS styles were added to make these controls responsive and visually consistent with the application's theme.
+To improve maintainability and readability, the monolithic `game_logic.py` file has been broken down into more specialized modules.
 
-- **Frontend Logic (`static/js/main.js`):**
-    - The `initActionGuide` function was refactored to support the new controls.
-    - It now dynamically generates the group filter buttons based on the action groups defined in the game logic.
-    - Event listeners are attached to the search input and the group buttons. A `filterActions` function handles the logic of showing or hiding action cards based on the currently active filters, providing an immediate and responsive user experience.
+- **`game_app/geometry.py` (New File):**
+  - All generic, stateless geometric helper functions (like `distance_sq`, `is_rectangle`, `segments_intersect`, etc.) have been moved from `game_logic.py` into this new, dedicated file.
+  - This separation of concerns makes the core geometric utilities reusable and easier to test independently.
 
-### 2. New Action Illustrations
-The visual dictionary of actions continues to expand with five new illustrations for key strategic actions.
+- **`game_app/formations.py` (New File):**
+  - A new `FormationManager` class has been created in this file.
+  - Its responsibility is to detect all complex geometric structures on the board, such as Runes (V-Rune, Shield-Rune, etc.), Prisms, Nexuses, and Trebuchets.
+  - Over 20 methods related to structure detection were moved from the main `Game` class into this manager, significantly reducing the size and complexity of `game_logic.py`.
+  - The `Game` class now holds an instance of `FormationManager` and delegates all formation-checking tasks to it.
+
+- **`game_logic.py` (Refactored):**
+  - The file is now much shorter and more focused on the core game loop and action execution.
+  - It now imports from the new `geometry` and `formations` modules, leading to cleaner code.
+
+- **Supporting Files (`utils.py`, `api.js`):**
+  - Both files were updated to recognize the new Python modules (`geometry.py`, `formations.py`). This ensures that the live-update checker and the Pyodide (in-browser) version of the game continue to function correctly.
+
+### 2. New Action Illustrations and Animations
+
+The "Action Guide" continues to be a priority. Five new illustrations and their corresponding animations have been added to provide better visual feedback to the user.
 
 - **`static/js/main.js`**:
-    - The `illustrationDrawers` object now includes drawing functions for:
-        - `fight_sentry_zap`: Depicts a collinear I-Rune firing a perpendicular beam at an enemy point.
-        - `fight_territory_strike`: Shows a bolt of energy emerging from the center of a claimed territory to strike a foe.
-        - `fortify_form_monolith`: Illustrates the formation of the tall, thin rectangular Monolith structure.
-        - `fortify_mirror`: Clearly shows a point being reflected across an axis line to create a new, symmetrical point.
-        - `rune_t_hammer_slam`: Visualizes a T-Rune formation and the perpendicular shockwave pushing enemy points away.
+  - The `illustrationDrawers` object, which powers the Action Guide, now includes drawings for:
+    - `fortify_cultivate_heartwood`: Shows the sacrifice of a star-like formation to create a central Heartwood.
+    - `fortify_form_purifier`: Illustrates the formation of a perfect pentagon structure.
+    - `fight_launch_payload`: Depicts a kite-shaped Trebuchet firing an arcing projectile.
+    - `rune_hourglass_stasis`: Visualizes an hourglass rune freezing an enemy point in a cage of light.
+    - `sacrifice_rift_trap`: Shows a point imploding to leave behind a latent, shimmering trap.
+  - The `actionVisualsMap` object has been updated with new animation handlers for these actions, reusing and extending the existing animation system for effects like projectile arcs, implosions, and flashes.
 
-### 3. Code Cleanup
-- **`static/js/main.js`**: As part of the update, the entire `illustrationDrawers` object was sorted alphabetically by action name. This improves code organization and makes it easier for developers to find and add new illustrations in the future.
-
-These improvements make the Action Guide a significantly more powerful tool for both new and experienced players, directly addressing the goal of making the game's complex geometric rules more accessible and understandable.
+This refactoring makes the project's structure more scalable for future development, while the new visuals continue to enrich the user's understanding of the game's complex mechanics.
