@@ -12,8 +12,9 @@
     </div>
     <div class="container">
         <div class="controls">
-            <h1>Geometric Divination Game</h1>
-            <div id="setup-phase">
+            <div id="setup-controls-content">
+                <h1>Geometric Divination Game</h1>
+                <div id="setup-phase">
                 <h2>1. Setup</h2>
                 <fieldset>
                     <legend>Create Teams</legend>
@@ -43,8 +44,10 @@
                     </div>
                 </fieldset>
 
+                </div>
             </div>
-            <div id="simulation-controls" style="display: none;">
+            <div id="running-controls-content">
+                <div id="simulation-controls">
                 <h2>2. Simulation</h2>
                  <fieldset id="live-controls" style="display: none;">
                     <legend>Live Controls</legend>
@@ -57,6 +60,7 @@
                     </div>
                 </fieldset>
                 <button id="restart-simulation-btn" style="width:100%; margin-top: 10px; display:none;">Restart Simulation</button>
+                </div>
             </div>
         </div>
         <div class="grid-container">
@@ -64,7 +68,8 @@
             <div id="status-bar">Waiting for game to start...</div>
         </div>
         <div class="interpretation-panel">
-            <div id="setup-actions" style="display: none;">
+            <div id="setup-panel-content">
+                <div id="setup-actions">
                 <button id="start-game-btn" style="width:100%; padding: 10px; font-size: 1.1em; margin-bottom: 15px;">Start Game</button>
                 <fieldset>
                     <legend>Game Settings</legend>
@@ -76,8 +81,10 @@
                         <input type="number" id="max-turns" value="100" style="width: 60px;">
                      </div>
                 </fieldset>
+                </div>
             </div>
-            <div id="running-analysis">
+            <div id="running-panel-content">
+                <div id="running-analysis">
                 <button id="reset-btn" style="width: 100%; margin-bottom: 15px; padding: 10px; font-size: 1.0em;">Reset Game (Back to Setup)</button>
                 <h2>Analysis</h2>
                 <div id="turn-counter">Turn: 0 / 100</div>
@@ -118,6 +125,7 @@
                         </div>
                     </div>
                     <div id="log" class="log-box">Awaiting game start...</div>
+                </div>
                 </div>
             </div>
         </div>
