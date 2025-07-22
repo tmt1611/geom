@@ -67,12 +67,18 @@ def next_action():
 
 @main_routes.route('/api/game/action_probabilities', methods=['GET'])
 def get_action_probabilities():
-    """Returns a list of possible actions and their probabilities for a given team."""
+    """
+    Returns a list of possible actions and their probabilities for a given team.
+    Can optionally include invalid actions by setting ?include_invalid=true
+    """
     teamId = request.args.get('teamId')
     if not teamId:
         return jsonify({"error": "teamId parameter is required"}), 400
     
-    probabilities = game_logic.game.get_action_probabilities(teamId)
+    include_invalid_str = request.args.get('include_invalid', 'false').lower()
+    include_invalid = include_invalid_str == 'true'
+    
+    probabilities = game_logic.game.get_action_probabilities(teamId, include_invalid=include_invalid)
     if "error" in probabilities:
         return jsonify(probabilities), 404
         

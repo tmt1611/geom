@@ -604,6 +604,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.globalAlpha = 1.0;
                 });
             }
+
+            // Draw Trident Runes
+            if (teamRunes.trident) {
+                teamRunes.trident.forEach(rune => {
+                    const p_apex = gameState.points[rune.apex_id];
+                    const p_h = gameState.points[rune.handle_id];
+                    const p_p1 = gameState.points[rune.prong_ids[0]];
+                    const p_p2 = gameState.points[rune.prong_ids[1]];
+                    if (!p_apex || !p_h || !p_p1 || !p_p2) return;
+
+                    ctx.beginPath();
+                    // Handle to Apex
+                    ctx.moveTo((p_h.x + 0.5) * cellSize, (p_h.y + 0.5) * cellSize);
+                    ctx.lineTo((p_apex.x + 0.5) * cellSize, (p_apex.y + 0.5) * cellSize);
+                    // Apex to Prongs
+                    ctx.moveTo((p_p1.x + 0.5) * cellSize, (p_p1.y + 0.5) * cellSize);
+                    ctx.lineTo((p_apex.x + 0.5) * cellSize, (p_apex.y + 0.5) * cellSize);
+                    ctx.lineTo((p_p2.x + 0.5) * cellSize, (p_p2.y + 0.5) * cellSize);
+                    
+                    ctx.strokeStyle = team.color;
+                    ctx.lineWidth = 8;
+                    ctx.globalAlpha = 0.4;
+                    ctx.filter = 'blur(2px)';
+                    ctx.stroke();
+                    ctx.filter = 'none';
+                    ctx.globalAlpha = 1.0;
+                });
+            }
     
             // Draw Cross-Runes
             if (teamRunes.cross) {
@@ -1098,6 +1126,59 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.fillStyle = `rgba(150, 255, 150, ${1 - progress})`;
                     ctx.fill();
                 });
+            } else if (effect.type === 'structure_formation') {
+                const progress = age / effect.duration;
+                // Use a curve that goes 0 -> 1 -> 0
+                const pulse = Math.sin(progress * Math.PI);
+                
+                ctx.globalAlpha = pulse * 0.8;
+                ctx.lineWidth = 4 + pulse * 4;
+                ctx.strokeStyle = effect.color;
+                
+                // Pulse lines
+                effect.line_ids.forEach(line_id => {
+                    const line = gameState.lines.find(l => l.id === line_id);
+                    if (line && gameState.points[line.p1_id] && gameState.points[line.p2_id]) {
+                        const p1 = gameState.points[line.p1_id];
+                        const p2 = gameState.points[line.p2_id];
+                        ctx.beginPath();
+                        ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
+                        ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
+                        ctx.stroke();
+                    }
+                });
+                
+                ctx.globalAlpha = 1.0;
+                
+            } else if (effect.type === 'portal_link') {
+                const progress = age / effect.duration;
+                const p1_x = (effect.p1.x + 0.5) * cellSize;
+                const p1_y = (effect.p1.y + 0.5) * cellSize;
+                const p2_x = (effect.p2.x + 0.5) * cellSize;
+                const p2_y = (effect.p2.y + 0.5) * cellSize;
+
+                // Draw two swirling portals
+                const portal_radius = 15 * Math.sin(progress * Math.PI); // Grow and shrink
+                [ {x: p1_x, y: p1_y}, {x: p2_x, y: p2_y} ].forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, portal_radius, 0, 2 * Math.PI);
+                    ctx.strokeStyle = effect.color;
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = 0.8;
+                    ctx.stroke();
+                });
+
+                // Draw a shimmering connector
+                if (progress > 0.1 && progress < 0.9) {
+                    ctx.beginPath();
+                    ctx.moveTo(p1_x, p1_y);
+                    ctx.lineTo(p2_x, p2_y);
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeStyle = `rgba(255,255,255, ${Math.random() * 0.5 + 0.3})`;
+                    ctx.stroke();
+                }
+
+                ctx.globalAlpha = 1.0;
             } else if (effect.type === 'heartwood_growth_ray') {
                 if (effect.heartwood && effect.new_point) {
                     const start_x = (effect.heartwood.center_coords.x + 0.5) * cellSize;
@@ -1345,8 +1426,14 @@ document.addEventListener('DOMContentLoaded', () => {
             details.new_lines.forEach(l => lastActionHighlights.lines.add(l.id));
         },
         'form_bastion': (details, gameState) => {
-            lastActionHighlights.points.add(details.bastion.core_id);
-            details.bastion.prong_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'structure_formation',
+                point_ids: details.point_ids,
+                line_ids: details.line_ids,
+                color: gameState.teams[details.bastion.teamId].color,
+                startTime: Date.now(),
+                duration: 1200
+            });
         },
         'chain_lightning': (details, gameState) => {
             details.conduit_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
@@ -1402,14 +1489,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'phase_shift': (details, gameState) => {
+            const teamColor = gameState.teams[details.sacrificed_line.teamId].color;
             if (details.original_coords) {
                 visualEffects.push({
-                    type: 'point_implosion', x: details.original_coords.x, y: details.original_coords.y, startTime: Date.now(), duration: 800, color: currentGameState.teams[details.sacrificed_line.teamId]?.color
-                });
-            }
-            if (details.new_coords) {
-                 visualEffects.push({
-                    type: 'point_explosion', x: details.new_coords.x, y: details.new_coords.y, startTime: Date.now() + 200, duration: 600
+                    type: 'portal_link',
+                    p1: details.original_coords,
+                    p2: details.new_coords,
+                    color: teamColor,
+                    startTime: Date.now(),
+                    duration: 1000
                 });
             }
             lastActionHighlights.points.add(details.moved_point_id);
@@ -1428,6 +1516,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 visualEffects.push({ type: 'animated_ray', p1: p2, p2: target, startTime: Date.now(), duration: 500, color: 'rgba(255,0,0,1.0)' });
             }
             visualEffects.push({ type: 'point_explosion', x: target.x, y: target.y, startTime: Date.now(), duration: 600 });
+        },
+        'rune_impale': (details, gameState) => {
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'animated_ray',
+                p1: details.attack_ray.p1,
+                p2: details.attack_ray.p2,
+                startTime: Date.now(),
+                duration: 500,
+                color: 'rgba(255, 100, 255, 1.0)',
+                lineWidth: 6,
+            });
+            // Add explosion effects at intersection points
+            details.intersection_points.forEach(p_intersect => {
+                visualEffects.push({
+                    type: 'point_explosion',
+                    x: p_intersect.x,
+                    y: p_intersect.y,
+                    startTime: Date.now(), // No delay, explode as the beam passes
+                    duration: 400
+                });
+            });
         },
         'territory_strike': (details, gameState) => {
             details.territory_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
@@ -1875,6 +1985,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateActionPreview(gameState) {
         const panel = document.getElementById('action-preview-panel');
         const content = document.getElementById('action-preview-content');
+        const showInvalid = document.getElementById('show-invalid-actions').checked;
     
         if (gameState.game_phase !== 'RUNNING' || !gameState.actions_queue_this_turn || gameState.actions_queue_this_turn.length === 0) {
             panel.style.display = 'none';
@@ -1892,29 +2003,45 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentActionInfo = gameState.actions_queue_this_turn[actionIndex];
         const teamId = currentActionInfo.teamId;
     
+        const fetchUrl = `/api/game/action_probabilities?teamId=${teamId}&include_invalid=${showInvalid}`;
+    
         // Fetch probabilities for the current team
-        fetch(`/api/game/action_probabilities?teamId=${teamId}`)
+        fetch(fetchUrl)
             .then(response => response.json())
             .then(data => {
-                if (data.error || !data.actions) {
+                if (data.error) {
                     content.innerHTML = `<p>Error loading actions for ${data.team_name || 'team'}.</p>`;
                     return;
                 }
     
                 let html = `<h5 style="border-color:${data.color};">Now: ${data.team_name}'s Turn</h5>`;
-                if (data.actions.length > 0) {
+                if ((data.valid && data.valid.length > 0) || (data.invalid && data.invalid.length > 0)) {
                     html += '<ul class="action-prob-list">';
-                    data.actions.forEach(action => {
-                        html += `
-                            <li>
-                                <span>${action.display_name}</span>
-                                <div class="action-prob-bar-container">
-                                    <div class="action-prob-bar" style="width: ${action.probability}%; background-color:${data.color};"></div>
-                                </div>
-                                <span class="action-prob-percent">${action.probability}%</span>
-                            </li>
-                        `;
-                    });
+                    // Valid actions
+                    if (data.valid) {
+                        data.valid.forEach(action => {
+                            html += `
+                                <li>
+                                    <span>${action.display_name}</span>
+                                    <div class="action-prob-bar-container">
+                                        <div class="action-prob-bar" style="width: ${action.probability}%; background-color:${data.color};"></div>
+                                    </div>
+                                    <span class="action-prob-percent">${action.probability}%</span>
+                                </li>
+                            `;
+                        });
+                    }
+                    // Invalid actions
+                    if (data.invalid) {
+                        data.invalid.forEach(action => {
+                             html += `
+                                <li class="invalid-action" title="${action.reason}">
+                                    <span>${action.display_name}</span>
+                                    <div class="action-prob-bar-container"></div>
+                                </li>
+                            `;
+                        });
+                    }
                     html += '</ul>';
                 } else {
                     html += '<p>No valid actions found. Passing turn.</p>';
@@ -1950,6 +2077,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Handlers & API Calls ---
+
+    document.getElementById('show-invalid-actions').addEventListener('change', () => {
+        updateActionPreview(currentGameState);
+    });
 
     compactLogToggle.addEventListener('click', () => {
         debugOptions.compactLog = compactLogToggle.checked;

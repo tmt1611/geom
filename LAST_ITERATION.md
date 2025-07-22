@@ -1,34 +1,32 @@
-This iteration focuses on making the game's logic more transparent to the user, enhancing strategic depth with a new rune, and improving the visual flair of actions.
+This iteration introduces a new high-tier rune, enhances the user's insight into the game's mechanics, and adds more distinct and visually stunning effects for key actions, improving both strategic depth and visual appeal.
 
-### 1. New Feature: Action Preview Panel
+### 1. New Rune: The Trident Rune
 
--   **Files**: `game_app/game_logic.py`, `game_app/routes.py`, `static/js/main.js`, `templates/index.html`, `static/css/style.css`
--   **Change**: A new "Action Preview" panel has been added to the UI. At the start of each team's turn, this panel now displays:
-    -   The name of the team whose turn it is.
-    -   A list of all possible actions they can take.
-    -   The percentage chance for each action to be selected, visualized with a bar graph.
--   **Benefit**: This makes the AI's decision-making process transparent and engaging. Users can now see why a team performs a certain action based on its available options and trait-influenced probabilities, adding a layer of analytical depth to the viewing experience.
+-   **Files**: `game_app/game_logic.py`, `rules.md`, `static/js/main.js`
+-   **Change**: A new offensive rune, the **Trident Rune**, has been added.
+    -   **Formation**: It forms from a "pitchfork" shape: an isosceles triangle with a fourth "handle" point extending from the apex.
+    -   **Ability**: Unlocks the **[RUNE] Impale** action, a devastating attack that fires a beam to destroy *all* enemy lines in its path, piercing through shields and other defenses.
+    -   **Frontend**: Trident Runes are now drawn with a distinct glowing effect. The Impale action has a unique, powerful beam animation with multiple impact explosions.
+-   **Benefit**: The Trident Rune adds a new high-level strategic objective for players. Its powerful action provides a tool to break through heavily fortified areas, creating more dynamic late-game scenarios.
 
-### 2. New Rune and Action: The Shield Rune
+### 2. Enhanced Action Transparency
 
--   **Files**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
--   **Change**: A new defensive rune, the **Shield Rune**, has been introduced.
-    -   **Formation**: It forms when three of a team's points, connected by lines to form a triangle, enclose another friendly point (the "core").
-    -   **Ability**: The rune unlocks the **[RUNE] Area Shield** action. When used, it applies a temporary shield to all friendly lines located inside the rune's triangular boundary, offering a powerful way to protect a core part of a team's structure.
-    -   **Frontend**: Shield Runes are now visualized as a pulsating, translucent triangle, and the Area Shield action triggers a distinct visual effect.
--   **Benefit**: The Shield Rune provides a strong defensive and area-denial option, encouraging players to build dense, layered formations and offering a new strategic counter to area-of-effect attacks.
+-   **Files**: `game_app/game_logic.py`, `game_app/routes.py`, `static/js/main.js`, `static/css/style.css`, `templates/index.html`
+-   **Change**: The "Action Preview" panel has been significantly upgraded. A new "Show Invalid" toggle allows users to see not just the team's possible actions, but also all the actions they *cannot* perform.
+    -   Invalid actions are greyed out and have a tooltip explaining the reason for their invalidity (e.g., "Requires more than 2 points," "No active Sentry").
+-   **Benefit**: This provides players with much deeper insight into the game's rules and each team's current strategic limitations, making the AI's decisions more understandable and the game state easier to analyze.
 
-### 3. Code Refactoring and Cleanup
+### 3. New and Redesigned Visual Effects
+
+-   **Files**: `static/js/main.js`
+-   **Change**: Key action visuals have been added or redesigned to be more unique and impactful.
+    -   **Phase Shift**: Now creates two linked, shimmering portals, visually representing the teleportation from origin to destination.
+    -   **Structure Formation**: Actions like `Form Bastion` now trigger a "power-up" animation where the structure's points and lines pulse with energy, giving clearer feedback on its creation.
+    -   **Impale**: The new rune action is visualized with a thick, piercing energy beam and multiple small explosions at each point of impact.
+-   **Benefit**: These visual enhancements make the game more exciting to watch and provide clearer, more intuitive feedback for complex game events.
+
+### 4. Codebase Refactoring for Robustness
 
 -   **File**: `game_app/game_logic.py`
--   **Change**: The action selection logic in `_choose_action_for_team` has been significantly refactored. The large dictionaries for action weights and multipliers were moved to class-level constants (`ACTION_BASE_WEIGHTS`, `TRAIT_MULTIPLIERS`). A new helper method, `_get_action_weights`, now centralizes the logic for calculating weighted probabilities.
--   **Benefit**: This refactoring reduces code duplication, as the new `get_action_probabilities` method and the `_choose_action_for_team` method now share the same core logic. This makes the system more maintainable and easier to expand with new actions or traits in the future.
-
-### 4. Enhanced Visual Effects
-
--   **File**: `static/js/main.js`
--   **Change**: The system for handling action visuals has been refactored from a large `if/else if` block into a more organized, dispatch-map pattern. Several key visual effects were enhanced to be more dynamic and "stunning":
-    -   **Attack Line**: Now an animated, streaking "comet" that travels from the attacker to the target's line.
-    -   **Pincer Attack**: Visualized as two converging animated rays.
-    -   **Nova Burst**: Now features energetic particles bursting outwards from the explosion's center.
--   **Benefit**: These improvements make the game more visually exciting and provide clearer, more impactful feedback for game events, fulfilling one of the core design goals.
+-   **Change**: The logic for determining action validity has been centralized into a new `_get_all_actions_status` helper method. This method now serves as the single source of truth for checking action preconditions.
+-   **Benefit**: This refactoring eliminates redundant checks that were scattered across the codebase. It simplifies the `_get_possible_actions` method and cleanly powers the new enhanced action preview feature. The result is more robust, maintainable, and easier-to-extend game logic.

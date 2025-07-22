@@ -77,7 +77,12 @@
             <div id="turn-counter">Turn: 0 / 100</div>
             <div id="stats"></div>
             <div id="action-preview-panel" style="display: none;">
-                <h4>Action Preview</h4>
+                <div class="action-preview-header">
+                    <h4>Action Preview</h4>
+                    <label title="Show actions that cannot be performed and why.">
+                        <input type="checkbox" id="show-invalid-actions"> Show Invalid
+                    </label>
+                </div>
                 <div id="action-preview-content"></div>
             </div>
             <details class="debug-fieldset">

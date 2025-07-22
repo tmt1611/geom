@@ -350,6 +350,28 @@ legend {
     border: 1px solid #dfe4ea;
     border-radius: 5px;
 }
+
+.action-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.action-preview-header h4 {
+    margin: 0;
+    font-size: 1.2em;
+}
+
+.action-preview-header label {
+    font-size: 0.85em;
+    color: #555;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+}
+
 #action-preview-content h5 {
     margin: 0 0 8px 0;
     padding-bottom: 5px;
@@ -360,7 +382,7 @@ legend {
     list-style: none;
     padding: 0;
     margin: 0;
-    max-height: 150px;
+    max-height: 200px;
     overflow-y: auto;
 }
 .action-prob-list li {
@@ -369,7 +391,25 @@ legend {
     align-items: center;
     font-size: 0.9em;
     padding: 4px 2px;
+    border-bottom: 1px solid #eee;
 }
+.action-prob-list li:last-child {
+    border-bottom: none;
+}
+
+.action-prob-list li.invalid-action {
+    color: #999;
+    cursor: help;
+}
+
+.invalid-action .action-prob-bar-container {
+    background-color: #f0f0f0;
+}
+
+.invalid-action .action-prob-percent {
+    display: none;
+}
+
 .action-prob-bar-container {
     flex-grow: 1;
     background-color: #e9ecef;
