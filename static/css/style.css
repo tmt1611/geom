@@ -32,8 +32,8 @@ h3 { font-size: 1.2em; }
     gap: 15px;
     width: 100%;
     height: 100%;
-    /* Setup: left, grid, right. Running: controls, grid, preview, log */
-    grid-template-columns: minmax(280px, 1.2fr) minmax(0, 3fr) minmax(280px, 1.2fr) minmax(260px, 1.2fr);
+    /* A consistent 4-column layout for all phases */
+    grid-template-columns: minmax(280px, 1.2fr) auto minmax(280px, 1.2fr) minmax(260px, 1.2fr);
     grid-template-rows: 1fr;
     align-items: stretch;
 }
@@ -430,7 +430,7 @@ legend {
     max-height: none;
 }
 .action-category h6 {
-    margin: 8px 0 4px 0;
+    margin: 4px 0 2px 0;
     padding: 3px 6px;
     font-size: 0.9em;
     font-weight: 500;
@@ -443,8 +443,8 @@ legend {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.85em;
-    padding: 2px 2px;
+    font-size: 0.8em;
+    padding: 1px 2px;
     border-bottom: 1px solid #eee;
 }
 .action-prob-list li:last-child {
@@ -469,7 +469,7 @@ legend {
     background-color: #e9ecef;
     border-radius: 3px;
     margin: 0 8px;
-    height: 16px;
+    height: 12px;
     display: flex;
     align-items: center;
 }
@@ -666,36 +666,12 @@ body.game-running {
     overflow: hidden; /* Prevent body from scrolling */
 }
 
-body.game-running .container {
-    display: grid;
-    max-width: none; /* Override default max-width */
-    width: 100%;
-    height: 100%;
-    gap: 15px;
-    /* Main grid, then 3 info columns */
-    /* Use a responsive grid that gives more space to the game area */
-    grid-template-columns: minmax(0, 2.5fr) repeat(3, minmax(240px, 1fr));
-    grid-template-rows: 1fr;
-    align-items: stretch;
+body.game-running .setup-column {
+    display: none;
 }
 
 body.game-running h1 {
     display: none;
-}
-
-/* --- Area Placements --- */
-body.game-running .grid-container {
-    flex: none; /* remove from old flex layout */
-    max-width: none;
-    /* height is now controlled by aspect-ratio and width from the grid column */
-    min-height: 0; /* Important for flex/grid items to shrink */
-}
-
-body.game-running .controls {
-    display: none;
-}
-body.game-running .interpretation-panel {
-    display: none; /* Setup panel is hidden when running */
 }
 
 .game-column {

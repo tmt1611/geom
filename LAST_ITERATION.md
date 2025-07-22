@@ -1,19 +1,13 @@
-This iteration focuses on a significant overhaul of the user interface and layout to address several usability issues and better align with the game's phases.
+This iteration focuses on improving the UI layout consistency and readability, particularly during the setup and game phases.
 
-### 1. Unified Layout for All Game Phases
+### 1. Consistent Grid Layout and Sizing
+The main layout grid is now consistent across all game phases (Setup, Running, Finished). Previously, different grid column definitions were used, causing the game grid canvas to be too large and overflow the screen during the setup phase. By unifying the CSS grid definition and simply toggling the visibility of setup vs. game panels, the grid now maintains a correct and stable size from the start. Obsolete and conflicting CSS rules for the running phase have been cleaned up.
 
-The game now uses a consistent CSS grid layout from the moment it loads, instead of switching from flexbox to grid. This resolves an issue where the game grid was incorrectly sized (often too large for the screen) during the initial setup phase. The main container is now a four-column grid, providing a stable structure for all panels and content.
+### 2. Compact Action Preview Panel
+The "Action Preview" panel, which displays a team's possible moves, has been made more vertically compact. The font size for action names, spacing between items, and the height of probability bars have all been reduced. This ensures that even for teams with many available actions, the entire list is visible without needing to scroll, providing a better at-a-glance overview.
 
-### 2. Improved Setup Phase Ergonomics
+### Other Items Checked
+- The request to move "Place Points" and "Game Settings" to a right-hand column during setup was confirmed to be already implemented from a previous iteration.
+- The request to move the end-game statistics into the now-empty "Action Preview" column upon game completion was also confirmed as already implemented.
 
-The setup controls, previously consolidated into a single left-hand panel, have been logically split. The "Create Teams" panel now resides in a new column to the left of the grid. The "Place Points" and "Game Settings" controls have been moved to a new column to the right of the grid. This provides a more balanced and intuitive workflow: create teams on the left, place points on the right, with the grid central.
-
-### 3. Redesigned "Game Finished" State
-
-When a game concludes, the "Action Preview" column (which becomes empty) is now repurposed to display the final game statistics and interpretation. The end-game analysis panel has been moved from the far-left column to this more prominent central-right position, making the results easier to view and analyze. A new `body.game-finished` CSS class manages this transition seamlessly.
-
-### 4. Optimized Action Preview Panel
-
-The list of possible actions in the "Action Preview" panel has been made more vertically compact. The font size and spacing for action categories and individual actions have been reduced. This change aims to display all valid actions for a team at once, eliminating the need for vertical scrolling and providing a better at-a-glance overview of a team's potential moves.
-
-These changes collectively create a cleaner, more professional, and user-friendly experience across all three phases of the game.
+These changes contribute to a cleaner and more user-friendly interface.
