@@ -73,8 +73,8 @@ h3 { font-size: 1.2em; }
 
 .controls, .interpretation-panel {
     flex: 1; /* allow flexible width */
-    min-width: 320px;
-    max-width: 400px;
+    min-width: 260px;
+    max-width: 340px;
     padding: 20px;
     border: 1px solid #dfe4ea;
     background-color: #fff;
@@ -636,8 +636,9 @@ body.game-running .container {
     height: 100%;
     gap: 15px;
     /* Main grid, then 3 info columns */
-    grid-template-columns: 1fr 320px 320px 320px;
-    grid-template-rows: 100%;
+    /* Use a responsive grid that gives more space to the game area */
+    grid-template-columns: minmax(0, 2.5fr) repeat(3, minmax(240px, 1fr));
+    grid-template-rows: 1fr;
     align-items: stretch;
 }
 
@@ -649,7 +650,7 @@ body.game-running h1 {
 body.game-running .grid-container {
     flex: none; /* remove from old flex layout */
     max-width: none;
-    height: 100%; /* fill grid area */
+    /* height is now controlled by aspect-ratio and width from the grid column */
     min-height: 0; /* Important for flex/grid items to shrink */
 }
 
