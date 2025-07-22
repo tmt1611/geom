@@ -7,7 +7,11 @@ from ..geometry import distance_sq
 class ExpandActionsHandler:
     def __init__(self, game):
         self.game = game
-        self.state = game.state
+
+    @property
+    def state(self):
+        """Provides direct access to the game's current state dictionary."""
+        return self.game.state
 
     def add_line(self, teamId):
         """[EXPAND ACTION]: Add a line between two random points. If not possible, strengthens an existing line."""

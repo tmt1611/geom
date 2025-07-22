@@ -27,9 +27,9 @@ class Game:
 
     def __init__(self):
         self.formation_manager = FormationManager()
+        self.reset()
         # Action handlers
         self.expand_handler = ExpandActionsHandler(self)
-        self.reset()
 
     def reset(self):
         """Initializes or resets the game state with default teams."""
