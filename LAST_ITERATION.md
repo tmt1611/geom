@@ -1,13 +1,19 @@
-This iteration focuses on improving the UI layout consistency and readability, particularly during the setup and game phases.
+This iteration introduces a major new feature: an "Action Guide" tab that provides visual and textual explanations for all game actions. It also includes backend data structuring to support this feature.
 
-### 1. Consistent Grid Layout and Sizing
-The main layout grid is now consistent across all game phases (Setup, Running, Finished). Previously, different grid column definitions were used, causing the game grid canvas to be too large and overflow the screen during the setup phase. By unifying the CSS grid definition and simply toggling the visibility of setup vs. game panels, the grid now maintains a correct and stable size from the start. Obsolete and conflicting CSS rules for the running phase have been cleaned up.
+### 1. New Feature: Action Guide Tab
+A new "Action Guide" tab has been added to the application, allowing users to browse and understand all available actions without leaving the game.
 
-### 2. Compact Action Preview Panel
-The "Action Preview" panel, which displays a team's possible moves, has been made more vertically compact. The font size for action names, spacing between items, and the height of probability bars have all been reduced. This ensures that even for teams with many available actions, the entire list is visible without needing to scroll, providing a better at-a-glance overview.
+- **UI Implementation (`index.html`, `style.css`):**
+    - The main layout has been refactored to include a tabbed navigation system ("Game" and "Action Guide").
+    - The Action Guide tab contains a responsive grid of "action cards". Each card is designed to clearly present information.
 
-### Other Items Checked
-- The request to move "Place Points" and "Game Settings" to a right-hand column during setup was confirmed to be already implemented from a previous iteration.
-- The request to move the end-game statistics into the now-empty "Action Preview" column upon game completion was also confirmed as already implemented.
+- **Backend Support (`game_logic.py`, `routes.py`):**
+    - A new `ACTION_VERBOSE_DESCRIPTIONS` dictionary has been added to `game_logic.py`, containing detailed explanations for every game action, derived from `rules.md`.
+    - A new API endpoint, `/api/actions/all`, was created to serve all action names, groups, and their verbose descriptions to the frontend.
 
-These changes contribute to a cleaner and more user-friendly interface.
+- **Frontend Logic (`api.js`, `main.js`):**
+    - The JavaScript API wrapper (`api.js`) has been updated to fetch data from the new endpoint, with a corresponding implementation for Pyodide/static mode.
+    - The "Action Guide" tab is dynamically populated with action cards upon page load.
+    - Each action card features a unique, dynamically-drawn canvas illustration that visually represents the action (e.g., drawing lines, explosions, shields). This provides an at-a-glance understanding of the action's purpose.
+
+This new feature significantly enhances the user experience by making the game's complex mechanics more accessible and understandable directly within the application.

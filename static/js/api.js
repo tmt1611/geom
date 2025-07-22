@@ -150,5 +150,40 @@ js_game_instance = game_logic.game
         }
         const response = await fetch(`/api/game/action_probabilities?teamId=${teamId}&include_invalid=${includeInvalid}`);
         return response.json();
+    },
+
+    async getAllActions() {
+        if (this._mode === 'pyodide') {
+            // This is more complex in Pyodide as we need to replicate the server logic.
+            const game = this._game;
+            const action_groups = this._pyProxyToJs(game.ACTION_GROUPS);
+            const action_descs = this._pyProxyToJs(game.ACTION_DESCRIPTIONS);
+            const action_verbose_descs = this._pyProxyToJs(game.ACTION_VERBOSE_DESCRIPTIONS);
+            
+            let actions_data = [];
+            for (const group in action_groups) {
+                const actions = action_groups[group];
+                actions.sort(); // Sort for consistency
+                for (const action_name of actions) {
+                    actions_data.push({
+                        'name': action_name,
+                        'display_name': action_descs[action_name] || action_name,
+                        'group': group,
+                        'description': action_verbose_descs[action_name] || 'No description available.'
+                    });
+                }
+            }
+            // Sort by group, then by name
+            actions_data.sort((a, b) => {
+                if (a.group < b.group) return -1;
+                if (a.group > b.group) return 1;
+                if (a.display_name < b.display_name) return -1;
+                if (a.display_name > b.display_name) return 1;
+                return 0;
+            });
+            return actions_data;
+        }
+        const response = await fetch('/api/actions/all');
+        return response.json();
     }
 };

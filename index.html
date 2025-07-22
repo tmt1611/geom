@@ -11,9 +11,17 @@
     <div id="dev-corner-buttons">
         <button id="restart-server-btn" class="dev-btn" title="Restart Server (Dev)">&#8635;</button>
     </div>
-    <div class="container">
-        <!-- Setup phase columns -->
-        <div class="setup-column" id="setup-column-left">
+    <div class="main-layout">
+        <header class="main-header">
+            <nav class="tabs">
+                <button class="tab-link active" data-tab="game-tab">Game</button>
+                <button class="tab-link" data-tab="guide-tab">Action Guide</button>
+            </nav>
+        </header>
+        <div id="game-tab" class="tab-content active">
+            <div class="container">
+                <!-- Setup phase columns -->
+                <div class="setup-column" id="setup-column-left">
             <h1>Geometric Divination</h1>
             <h2>Setup</h2>
             <fieldset>
@@ -119,16 +127,27 @@
             </div>
         </div>
 
-        <div class="game-column" id="game-log-column">
-            <div class="log-container">
-                <div class="log-header">
-                    <h3>Game Log</h3>
-                    <div>
-                        <button id="copy-log-btn" style="font-size: 0.8em; padding: 2px 5px;" title="Copy Log">Copy</button>
-                        <label title="Use short-form action log"><input type="checkbox" id="compact-log-toggle"> Compact</label>
+                <div class="game-column" id="game-log-column">
+                    <div class="log-container">
+                        <div class="log-header">
+                            <h3>Game Log</h3>
+                            <div>
+                                <button id="copy-log-btn" style="font-size: 0.8em; padding: 2px 5px;" title="Copy Log">Copy</button>
+                                <label title="Use short-form action log"><input type="checkbox" id="compact-log-toggle"> Compact</label>
+                            </div>
+                        </div>
+                        <div id="log" class="log-box">Awaiting game start...</div>
                     </div>
                 </div>
-                <div id="log" class="log-box">Awaiting game start...</div>
+            </div>
+        </div>
+        <div id="guide-tab" class="tab-content">
+            <div class="guide-container">
+                <h2>Action Guide</h2>
+                <p>A visual guide to all possible actions in the game.</p>
+                <div id="action-guide-content" class="action-guide-grid">
+                    <!-- Action cards will be dynamically inserted here -->
+                </div>
             </div>
         </div>
     </div>
