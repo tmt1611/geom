@@ -221,6 +221,10 @@ class Game:
     def __init__(self):
         self.reset()
 
+
+    def __init__(self):
+        self.reset()
+
     def reset(self):
         """Initializes or resets the game state with default teams."""
         # Using fixed IDs for default teams ensures they can be referenced consistently.
@@ -633,16 +637,16 @@ class Game:
     # --- Game Actions ---
 
     def expand_action_add_line(self, teamId):
-        """[EXPAND ACTION]: Add a line between two random points."""
+        """[EXPAND ACTION]: Add a line between two random points. If not possible, strengthens an existing line."""
         team_point_ids = self.get_team_point_ids(teamId)
         if len(team_point_ids) < 2:
             return {'success': False, 'reason': 'not enough points'}
 
         # Create a set of existing lines for quick lookup
-        existing_lines = set()
+        existing_line_keys = set()
         for line in self.state['lines']:
             if line['teamId'] == teamId:
-                existing_lines.add(tuple(sorted((line['p1_id'], line['p2_id']))))
+                existing_line_keys.add(tuple(sorted((line['p1_id'], line['p2_id']))))
 
         # Try to find a non-existing line
         possible_pairs = []
@@ -650,17 +654,38 @@ class Game:
             for j in range(i + 1, len(team_point_ids)):
                 p1_id = team_point_ids[i]
                 p2_id = team_point_ids[j]
-                if tuple(sorted((p1_id, p2_id))) not in existing_lines:
+                if tuple(sorted((p1_id, p2_id))) not in existing_line_keys:
                     possible_pairs.append((p1_id, p2_id))
         
-        if not possible_pairs:
-            return {'success': False, 'reason': 'no new lines possible'}
-
-        p1_id, p2_id = random.choice(possible_pairs)
-        line_id = f"l_{uuid.uuid4().hex[:6]}"
-        new_line = {"id": line_id, "p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
-        self.state['lines'].append(new_line)
-        return {'success': True, 'type': 'add_line', 'line': new_line}
+        if possible_pairs:
+            # Primary effect: Add a new line
+            p1_id, p2_id = random.choice(possible_pairs)
+            line_id = f"l_{uuid.uuid4().hex[:6]}"
+            new_line = {"id": line_id, "p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
+            self.state['lines'].append(new_line)
+            return {'success': True, 'type': 'add_line', 'line': new_line}
+        else:
+            # Fallback effect: Strengthen an existing line
+            team_lines = self.get_team_lines(teamId)
+            if not team_lines:
+                 # This case is rare (2+ points but 0 lines), but possible.
+                 # Let it fail and be handled by the action chooser.
+                return {'success': False, 'reason': 'fully connected but no lines found'}
+            
+            line_to_strengthen = random.choice(team_lines)
+            line_id = line_to_strengthen.get('id')
+            if line_id:
+                max_strength = 3
+                current_strength = self.state['line_strengths'].get(line_id, 0)
+                if current_strength < max_strength:
+                    self.state['line_strengths'][line_id] = current_strength + 1
+                return {
+                    'success': True, 
+                    'type': 'add_line_fallback_strengthen', 
+                    'strengthened_line': line_to_strengthen
+                }
+            # If line has no ID or something is wrong, let it fail.
+            return {'success': False, 'reason': 'no line to strengthen'}
 
     def _get_extended_border_point(self, p1, p2):
         """
@@ -1971,10 +1996,12 @@ class Game:
         return {'x': rx, 'y': ry}
 
     def fortify_action_mirror_structure(self, teamId):
-        """[FORTIFY ACTION]: Creates a symmetrical pattern by reflecting points."""
+        """[FORTIFY ACTION]: Reflects points to create symmetry. If not possible, reinforces the structure."""
         team_point_ids = self.get_team_point_ids(teamId)
         if len(team_point_ids) < 3:
             return {'success': False, 'reason': 'not enough points to mirror'}
+        
+        points_to_strengthen_ids = set()
 
         # Try a few times to find a good axis and points to mirror
         for _ in range(5):
@@ -1983,59 +2010,84 @@ class Game:
             p_axis1 = self.state['points'][axis_p_ids[0]]
             p_axis2 = self.state['points'][axis_p_ids[1]]
 
-            # Ensure axis points are not too close for stable calculation
-            if distance_sq(p_axis1, p_axis2) < (self.state['grid_size'] * 0.1)**2:
+            # Ensure axis points are not too close
+            if distance_sq(p_axis1, p_axis2) < 4.0:
                 continue
 
-            # 2. Select points to mirror (that are not on the axis)
+            # 2. Select points to mirror
             other_point_ids = [pid for pid in team_point_ids if pid not in axis_p_ids]
             if not other_point_ids:
                 continue
-
-            # Mirror up to 2 points for visual clarity
+            
             num_to_mirror = min(len(other_point_ids), 2)
             points_to_mirror_ids = random.sample(other_point_ids, num_to_mirror)
+            points_to_strengthen_ids.update(points_to_mirror_ids)
             
             new_points_to_create = []
             grid_size = self.state['grid_size']
+            all_reflections_valid = True
 
             # 3. Reflect points and check validity
             for pid in points_to_mirror_ids:
                 point_to_mirror = self.state['points'][pid]
                 reflected_p = self._reflect_point(point_to_mirror, p_axis1, p_axis2)
                 
-                if not reflected_p: continue
-
-                # Check if the new point is within the grid boundaries
-                if not (0 <= reflected_p['x'] < grid_size and 0 <= reflected_p['y'] < grid_size):
-                    continue
-
-                # Round to integer coords before checking validity.
+                if not reflected_p or not (0 <= reflected_p['x'] < grid_size and 0 <= reflected_p['y'] < grid_size):
+                    all_reflections_valid = False; break
+                
                 reflected_p_int = {'x': round(reflected_p['x']), 'y': round(reflected_p['y'])}
-
-                is_valid, reason = self._is_spawn_location_valid(reflected_p_int, teamId)
+                is_valid, _ = self._is_spawn_location_valid(reflected_p_int, teamId)
                 if not is_valid:
-                    continue
-
-                # If valid, add it to the list to be created
+                    all_reflections_valid = False; break
+                
                 new_point_id = f"p_{uuid.uuid4().hex[:6]}"
                 new_points_to_create.append({**reflected_p_int, "teamId": teamId, "id": new_point_id})
-
-            # 4. If we successfully found points to create, do it and return
-            if new_points_to_create:
+            
+            if all_reflections_valid and new_points_to_create:
+                # --- Primary Effect: Create Mirrored Points ---
                 for p in new_points_to_create:
-                    # Coordinates are already rounded integers
                     self.state['points'][p['id']] = p
                 
                 return {
-                    'success': True,
-                    'type': 'mirror_structure',
-                    'new_points': new_points_to_create,
-                    'axis_p1_id': axis_p_ids[0],
-                    'axis_p2_id': axis_p_ids[1],
+                    'success': True, 'type': 'mirror_structure',
+                    'new_points': new_points_to_create, 'axis_p1_id': axis_p_ids[0], 'axis_p2_id': axis_p_ids[1],
                 }
+        
+        # --- Fallback Effect: Strengthen Lines ---
+        if not points_to_strengthen_ids:
+            # Fallback failed because we couldn't even pick points to mirror.
+            return {'success': False, 'reason': 'could not select points to mirror'}
 
-        return {'success': False, 'reason': 'could not find a valid reflection'}
+        strengthened_lines = []
+        max_strength = 3
+        all_team_lines = self.get_team_lines(teamId)
+        
+        for line in all_team_lines:
+            if line['p1_id'] in points_to_strengthen_ids or line['p2_id'] in points_to_strengthen_ids:
+                line_id = line.get('id')
+                if line_id:
+                    current_strength = self.state['line_strengths'].get(line_id, 0)
+                    if current_strength < max_strength:
+                        self.state['line_strengths'][line_id] = current_strength + 1
+                        strengthened_lines.append(line)
+        
+        if not strengthened_lines:
+            # This can happen if the chosen points have no lines or their lines are max strength.
+            # To be truly "never useless", we can add a line between the last chosen axis points.
+            last_axis_pids = random.sample(team_point_ids, 2)
+            existing_lines_keys = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in all_team_lines}
+            if tuple(sorted(last_axis_pids)) not in existing_lines_keys:
+                line_id = f"l_{uuid.uuid4().hex[:6]}"
+                new_line = {"id": line_id, "p1_id": last_axis_pids[0], "p2_id": last_axis_pids[1], "teamId": teamId}
+                self.state['lines'].append(new_line)
+                return {'success': True, 'type': 'add_line', 'line': new_line} # Reuse add_line type
+            else:
+                return {'success': False, 'reason': 'mirroring failed and structure is already fully connected/strengthened'}
+
+        return {
+            'success': True, 'type': 'mirror_fizzle_strengthen',
+            'strengthened_lines': strengthened_lines
+        }
 
     def fortify_action_create_anchor(self, teamId):
         """[FORTIFY ACTION]: Sacrifice a point to turn another into a gravity well."""
@@ -2105,61 +2157,81 @@ class Game:
         
         return {'success': True, 'type': 'form_purifier', 'purifier': chosen_purifier_data}
 
-    def _find_possible_conversions(self, teamId):
-        """Finds all possible point conversions by sacrificing a line."""
-        team_lines = self.get_team_lines(teamId)
-        enemy_points = self._get_vulnerable_enemy_points(teamId)
-        points_map = self.state['points']
-
-        if not team_lines or not enemy_points:
-            return []
-
-        possible_conversions = []
-        conversion_range_sq = (self.state['grid_size'] * 0.3)**2
-
-        for line_to_sac in team_lines:
-            if line_to_sac['p1_id'] not in points_map or line_to_sac['p2_id'] not in points_map:
-                continue
-            
-            p1 = points_map[line_to_sac['p1_id']]
-            p2 = points_map[line_to_sac['p2_id']]
-            midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
-
-            for enemy_point in enemy_points:
-                dist_sq = distance_sq(midpoint, enemy_point)
-                if dist_sq < conversion_range_sq:
-                    possible_conversions.append({'line': line_to_sac, 'point': enemy_point})
-
-        return possible_conversions
-
     def fight_action_convert_point(self, teamId):
-        """[FIGHT ACTION]: Sacrifice a line to convert a nearby enemy point."""
-        possible_conversions = self._find_possible_conversions(teamId)
+        """[FIGHT ACTION]: Sacrifice a line to convert a nearby enemy point. If no target, creates a repulsive pulse."""
+        team_lines = self.get_team_lines(teamId)
+        if not team_lines:
+            return {'success': False, 'reason': 'no lines to sacrifice'}
 
-        if not possible_conversions:
-            return {'success': False, 'reason': 'no vulnerable enemy points in range'}
+        line_to_sac = random.choice(team_lines)
+        points_map = self.state['points']
+        
+        if line_to_sac['p1_id'] not in points_map or line_to_sac['p2_id'] not in points_map:
+             return {'success': False, 'reason': 'sacrificial line points do not exist'}
 
-        # Choose a random valid conversion and execute it
-        chosen_conversion = random.choice(possible_conversions)
-        line_to_sac = chosen_conversion['line']
-        point_to_convert = chosen_conversion['point']
-
-        # 1. Remove the sacrificed line
+        p1 = points_map[line_to_sac['p1_id']]
+        p2 = points_map[line_to_sac['p2_id']]
+        midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
+        
+        # --- Find Primary Target ---
+        enemy_points = self._get_vulnerable_enemy_points(teamId)
+        conversion_range_sq = (self.state['grid_size'] * 0.3)**2
+        
+        targets_in_range = []
+        for enemy_point in enemy_points:
+            if distance_sq(midpoint, enemy_point) < conversion_range_sq:
+                targets_in_range.append(enemy_point)
+        
+        # --- Sacrifice the line BEFORE executing effect ---
         self.state['lines'].remove(line_to_sac)
         self.state['shields'].pop(line_to_sac.get('id'), None)
 
-        # 2. Convert the enemy point
-        original_team_id = point_to_convert['teamId']
-        original_team_name = self.state['teams'][original_team_id]['name']
-        point_to_convert['teamId'] = teamId
+        if targets_in_range:
+            # --- Primary Effect: Convert Point ---
+            point_to_convert = min(targets_in_range, key=lambda p: distance_sq(midpoint, p))
+            
+            original_team_id = point_to_convert['teamId']
+            original_team_name = self.state['teams'][original_team_id]['name']
+            point_to_convert['teamId'] = teamId
 
-        return {
-            'success': True,
-            'type': 'convert_point',
-            'converted_point': point_to_convert,
-            'sacrificed_line': line_to_sac,
-            'original_team_name': original_team_name
-        }
+            return {
+                'success': True,
+                'type': 'convert_point',
+                'converted_point': point_to_convert,
+                'sacrificed_line': line_to_sac,
+                'original_team_name': original_team_name
+            }
+        else:
+            # --- Fallback Effect: Repulsive Pulse ---
+            pushed_points = []
+            push_distance = 2.0
+            grid_size = self.state['grid_size']
+            # We only push enemy points
+            for point in [p for p in self.state['points'].values() if p['teamId'] != teamId]:
+                if distance_sq(midpoint, point) < conversion_range_sq:
+                    dx = point['x'] - midpoint['x']
+                    dy = point['y'] - midpoint['y']
+                    dist = math.sqrt(dx**2 + dy**2)
+                    if dist < 0.1: continue
+
+                    push_vx = dx / dist
+                    push_vy = dy / dist
+
+                    new_x = point['x'] + push_vx * push_distance
+                    new_y = point['y'] + push_vy * push_distance
+                    
+                    point['x'] = round(max(0, min(grid_size - 1, new_x)))
+                    point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                    pushed_points.append(point.copy())
+
+            return {
+                'success': True,
+                'type': 'convert_fizzle_push',
+                'sacrificed_line': line_to_sac,
+                'pulse_center': midpoint,
+                'radius_sq': conversion_range_sq,
+                'pushed_points_count': len(pushed_points)
+            }
 
     def _find_possible_bastion_pulses(self, teamId):
         team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId and len(b['prong_ids']) > 0]
@@ -2773,7 +2845,7 @@ class Game:
                     })
 
     def rune_action_shoot_bisector(self, teamId):
-        """[RUNE ACTION]: Fires a powerful beam from a V-Rune."""
+        """[RUNE ACTION]: Fires a powerful beam from a V-Rune. If it misses, it creates a fissure."""
         active_v_runes = self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])
         if not active_v_runes:
             return {'success': False, 'reason': 'no active V-runes'}
@@ -2781,186 +2853,181 @@ class Game:
         rune = random.choice(active_v_runes)
         points = self.state['points']
         
-        p_vertex = points[rune['vertex_id']]
-        p_leg1 = points[rune['leg1_id']]
-        p_leg2 = points[rune['leg2_id']]
+        p_vertex = points.get(rune['vertex_id'])
+        p_leg1 = points.get(rune['leg1_id'])
+        p_leg2 = points.get(rune['leg2_id'])
+
+        if not all([p_vertex, p_leg1, p_leg2]):
+            return {'success': False, 'reason': 'rune points no longer exist'}
         
         # Calculate bisector vector
         v1 = {'x': p_leg1['x'] - p_vertex['x'], 'y': p_leg1['y'] - p_vertex['y']}
         v2 = {'x': p_leg2['x'] - p_vertex['x'], 'y': p_leg2['y'] - p_vertex['y']}
+        mag1, mag2 = math.sqrt(v1['x']**2 + v1['y']**2), math.sqrt(v2['x']**2 + v2['y']**2)
+        if mag1 == 0 or mag2 == 0: return {'success': False, 'reason': 'invalid V-rune geometry'}
 
-        # Normalize vectors
-        mag1 = math.sqrt(v1['x']**2 + v1['y']**2)
-        mag2 = math.sqrt(v2['x']**2 + v2['y']**2)
-        
-        if mag1 == 0 or mag2 == 0:
-            return {'success': False, 'reason': 'invalid V-rune geometry'}
-
-        v1_norm = {'x': v1['x']/mag1, 'y': v1['y']/mag1}
-        v2_norm = {'x': v2['x']/mag2, 'y': v2['y']/mag2}
-        
-        # Bisector direction is the sum of normalized vectors
-        bisector_v = {'x': v1_norm['x'] + v2_norm['x'], 'y': v1_norm['y'] + v2_norm['y']}
-
-        # Normalize bisector vector
+        bisector_v = {'x': v1['x']/mag1 + v2['x']/mag2, 'y': v1['y']/mag1 + v2['y']/mag2}
         mag_b = math.sqrt(bisector_v['x']**2 + bisector_v['y']**2)
-        if mag_b == 0:
-            return {'success': False, 'reason': 'V-rune legs are opposing'}
+        if mag_b == 0: return {'success': False, 'reason': 'V-rune legs are opposing'}
 
-        # Create a "dummy" point far along the bisector vector to define the attack ray
         p_end = {'x': p_vertex['x'] + bisector_v['x']/mag_b, 'y': p_vertex['y'] + bisector_v['y']/mag_b}
-        
         border_point = self._get_extended_border_point(p_vertex, p_end)
-        if not border_point:
-            return {'success': False, 'reason': 'bisector attack does not hit border'}
+        if not border_point: return {'success': False, 'reason': 'bisector attack path blocked'}
         
-        attack_ray_p1 = p_vertex
-        attack_ray_p2 = border_point
+        attack_ray_p1, attack_ray_p2 = p_vertex, border_point
 
         # Find first enemy line intersected by this ray
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        intersected_lines = []
+        hits = []
         for line in enemy_lines:
             if line['p1_id'] not in points or line['p2_id'] not in points: continue
-            ep1 = points[line['p1_id']]
-            ep2 = points[line['p2_id']]
-            if segments_intersect(attack_ray_p1, attack_ray_p2, ep1, ep2):
-                intersected_lines.append(line)
-
-        if not intersected_lines:
-            return {'success': False, 'reason': 'no target in bisector path'}
-
-        target_line = random.choice(intersected_lines)
+            # This attack CAN destroy bastion lines, but not shielded lines.
+            if line.get('id') in self.state['shields']: continue
+            
+            ep1, ep2 = points[line['p1_id']], points[line['p2_id']]
+            if get_segment_intersection_point(attack_ray_p1, attack_ray_p2, ep1, ep2):
+                hits.append(line)
         
-        # This special attack does not bypass shields by default.
-        # However, it CAN destroy bastion lines, making it a valuable counter.
-        if target_line.get('id') in self.state['shields']:
-            return {'success': False, 'reason': 'target is shielded'}
+        rune_points_payload = [rune['vertex_id'], rune['leg1_id'], rune['leg2_id']]
 
-        self.state['lines'].remove(target_line)
-        self.state['shields'].pop(target_line.get('id'), None)
-
-        return {
-            'success': True,
-            'type': 'rune_shoot_bisector',
-            'destroyed_line': target_line,
-            'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2},
-            'rune_points': [rune['vertex_id'], rune['leg1_id'], rune['leg2_id']]
-        }
+        if hits:
+            # --- Primary Effect: Destroy Line ---
+            target_line = random.choice(hits)
+            self.state['lines'].remove(target_line)
+            self.state['shields'].pop(target_line.get('id'), None)
+            return {
+                'success': True, 'type': 'rune_shoot_bisector', 'destroyed_line': target_line,
+                'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2}, 'rune_points': rune_points_payload
+            }
+        else:
+            # --- Fallback Effect: Create Fissure ---
+            fissure_id = f"f_{uuid.uuid4().hex[:6]}"
+            # The fissure is the segment from the vertex to the border
+            new_fissure = {'id': fissure_id, 'p1': p_vertex, 'p2': border_point, 'turns_left': 2}
+            self.state['fissures'].append(new_fissure)
+            return {
+                'success': True, 'type': 'vbeam_miss_fissure', 'fissure': new_fissure,
+                'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2}, 'rune_points': rune_points_payload
+            }
 
     def rune_action_area_shield(self, teamId):
-        """[RUNE ACTION]: Uses a Shield Rune to protect all friendly assets inside the rune's triangle."""
+        """[RUNE ACTION]: Uses a Shield Rune to protect internal lines, or de-clutter friendly points."""
         active_shield_runes = self.state.get('runes', {}).get(teamId, {}).get('shield', [])
         if not active_shield_runes:
             return {'success': False, 'reason': 'no active Shield Runes'}
 
         rune = random.choice(active_shield_runes)
         points = self.state['points']
-        
-        # Ensure all points for the rune exist
         all_rune_pids = rune['triangle_ids'] + [rune['core_id']]
         if not all(pid in points for pid in all_rune_pids):
-            return {'success': False, 'reason': 'rune point no longer exists'}
+            return {'success': False, 'reason': 'rune points no longer exist'}
             
         tri_points = [points[pid] for pid in rune['triangle_ids']]
-        if len(tri_points) != 3:
-            return {'success': False, 'reason': 'invalid Shield Rune geometry'}
-        
         p1, p2, p3 = tri_points[0], tri_points[1], tri_points[2]
         
-        shielded_lines = []
-        # Shield all friendly lines fully inside the triangle
+        # --- Find Primary Targets ---
+        lines_to_shield = []
         for line in self.get_team_lines(teamId):
-            # A line is inside if both its endpoints are inside.
-            line_p1 = points.get(line['p1_id'])
-            line_p2 = points.get(line['p2_id'])
-
-            if line_p1 and line_p2:
-                # The line's endpoints must not be part of the rune's outer triangle
-                # to avoid shielding the rune's own boundary lines.
-                if line_p1['id'] in rune['triangle_ids'] or line_p2['id'] in rune['triangle_ids']:
-                    continue
-
-                if self._is_point_inside_triangle(line_p1, p1, p2, p3) and \
-                   self._is_point_inside_triangle(line_p2, p1, p2, p3):
-                    
-                    # Shield the line if it's not already shielded
-                    if line.get('id') not in self.state['shields']:
-                        self.state['shields'][line['id']] = 3 # Shield for 3 turns
-                        shielded_lines.append(line)
+            if line.get('id') in self.state['shields']: continue
+            line_p1, line_p2 = points.get(line['p1_id']), points.get(line['p2_id'])
+            if line_p1 and line_p2 and line_p1['id'] not in rune['triangle_ids'] and line_p2['id'] not in rune['triangle_ids']:
+                if self._is_point_inside_triangle(line_p1, p1, p2, p3) and self._is_point_inside_triangle(line_p2, p1, p2, p3):
+                    lines_to_shield.append(line)
         
-        if not shielded_lines:
-            return {'success': False, 'reason': 'no unshielded lines found inside the rune'}
+        if lines_to_shield:
+            # --- Primary Effect: Shield Lines ---
+            for line in lines_to_shield:
+                self.state['shields'][line['id']] = 3 # Shield for 3 turns
+            return {
+                'success': True, 'type': 'rune_area_shield', 'shielded_lines_count': len(lines_to_shield),
+                'rune_points': all_rune_pids, 'rune_triangle_ids': rune['triangle_ids']
+            }
+        else:
+            # --- Fallback Effect: Push Friendly Points ---
+            pushed_points = []
+            rune_center = self._points_centroid(tri_points)
+            push_radius_sq = (self.state['grid_size'] * 0.2)**2
+            push_distance = 1.5
+            grid_size = self.state['grid_size']
             
-        return {
-            'success': True,
-            'type': 'rune_area_shield',
-            'shielded_lines_count': len(shielded_lines),
-            'rune_points': all_rune_pids,
-            'rune_triangle_ids': rune['triangle_ids']
-        }
+            # Find friendly points inside the push radius (but not part of the rune itself)
+            for point in [p for p in points.values() if p['teamId'] == teamId and p['id'] not in all_rune_pids]:
+                if distance_sq(rune_center, point) < push_radius_sq:
+                    dx, dy = point['x'] - rune_center['x'], point['y'] - rune_center['y']
+                    dist = math.sqrt(dx**2 + dy**2)
+                    if dist < 0.1: continue
+
+                    point['x'] = round(max(0, min(grid_size - 1, point['x'] + (dx/dist) * push_distance)))
+                    point['y'] = round(max(0, min(grid_size - 1, point['y'] + (dy/dist) * push_distance)))
+                    pushed_points.append(point.copy())
+            
+            return {
+                'success': True, 'type': 'area_shield_fizzle_push', 'pushed_points_count': len(pushed_points),
+                'rune_points': all_rune_pids, 'pulse_center': rune_center, 'pulse_radius_sq': push_radius_sq
+            }
 
     def rune_action_shield_pulse(self, teamId):
-        """[RUNE ACTION]: Uses a Shield Rune to push nearby enemies away."""
+        """[RUNE ACTION]: Uses a Shield Rune to push enemies away, or pull allies in."""
         active_shield_runes = self.state.get('runes', {}).get(teamId, {}).get('shield', [])
         if not active_shield_runes:
             return {'success': False, 'reason': 'no active Shield Runes'}
 
         rune = random.choice(active_shield_runes)
         points = self.state['points']
-        
         all_rune_pids = rune['triangle_ids'] + [rune['core_id']]
         if not all(pid in points for pid in all_rune_pids):
-            return {'success': False, 'reason': 'rune point no longer exists'}
+            return {'success': False, 'reason': 'rune points no longer exist'}
             
         tri_points = [points[pid] for pid in rune['triangle_ids']]
-        if len(tri_points) != 3:
-            return {'success': False, 'reason': 'invalid Shield Rune geometry'}
-        
         rune_center = self._points_centroid(tri_points)
-        if not rune_center:
-            return {'success': False, 'reason': 'could not calculate rune center'}
+        if not rune_center: return {'success': False, 'reason': 'could not calculate rune center'}
 
         pulse_radius_sq = (self.state['grid_size'] * 0.3)**2
-        push_distance = 3.0
         grid_size = self.state['grid_size']
 
-        enemy_points_in_range = [
-            p for p in self.state['points'].values() 
-            if p['teamId'] != teamId and distance_sq(rune_center, p) < pulse_radius_sq
-        ]
+        # --- Find Primary Targets (Enemies) ---
+        enemy_points_in_range = [p for p in points.values() if p['teamId'] != teamId and distance_sq(rune_center, p) < pulse_radius_sq]
 
-        if not enemy_points_in_range:
-            return {'success': False, 'reason': 'no enemy points in pulse range'}
+        if enemy_points_in_range:
+            # --- Primary Effect: Push Enemies ---
+            pushed_points = []
+            push_distance = 3.0
+            for point in enemy_points_in_range:
+                dx, dy = point['x'] - rune_center['x'], point['y'] - rune_center['y']
+                dist = math.sqrt(dx**2 + dy**2)
+                if dist < 0.1: continue
+                
+                new_x = point['x'] + (dx / dist) * push_distance
+                new_y = point['y'] + (dy / dist) * push_distance
+                point['x'] = round(max(0, min(grid_size - 1, new_x)))
+                point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                pushed_points.append(point.copy())
 
-        pushed_points = []
-        for point in enemy_points_in_range:
-            dx = point['x'] - rune_center['x']
-            dy = point['y'] - rune_center['y']
-            dist = math.sqrt(dx**2 + dy**2)
+            return {
+                'success': True, 'type': 'rune_shield_pulse', 'pushed_points_count': len(pushed_points),
+                'rune_points': all_rune_pids, 'pulse_center': rune_center, 'pulse_radius_sq': pulse_radius_sq
+            }
+        else:
+            # --- Fallback Effect: Pull Allies ---
+            pulled_points = []
+            pull_distance = 1.5
+            # Find friendly points inside the pulse radius (but not part of the rune itself)
+            for point in [p for p in points.values() if p['teamId'] == teamId and p['id'] not in all_rune_pids]:
+                if distance_sq(rune_center, point) < pulse_radius_sq:
+                    dx, dy = rune_center['x'] - point['x'], rune_center['y'] - point['y']
+                    dist = math.sqrt(dx**2 + dy**2)
+                    if dist < 0.1: continue
+                    
+                    new_x = point['x'] + (dx / dist) * pull_distance
+                    new_y = point['y'] + (dy / dist) * pull_distance
+                    point['x'] = round(max(0, min(grid_size - 1, new_x)))
+                    point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                    pulled_points.append(point.copy())
             
-            if dist < 0.1: continue # Don't move points already at the center
-
-            # Normalized push vector
-            push_vx = dx / dist
-            push_vy = dy / dist
-
-            new_x = point['x'] + push_vx * push_distance
-            new_y = point['y'] + push_vy * push_distance
-            
-            # Update point position, clamping to grid
-            point['x'] = round(max(0, min(grid_size - 1, new_x)))
-            point['y'] = round(max(0, min(grid_size - 1, new_y)))
-            pushed_points.append(point.copy())
-
-        return {
-            'success': True,
-            'type': 'rune_shield_pulse',
-            'pushed_points_count': len(pushed_points),
-            'rune_points': all_rune_pids,
-            'pulse_center': rune_center,
-            'pulse_radius_sq': pulse_radius_sq
-        }
+            return {
+                'success': True, 'type': 'shield_pulse_fizzle_pull', 'pulled_points_count': len(pulled_points),
+                'rune_points': all_rune_pids, 'pulse_center': rune_center, 'pulse_radius_sq': pulse_radius_sq
+            }
 
     def rune_action_impale(self, teamId):
         """[RUNE ACTION]: Fires a powerful, shield-piercing beam from a Trident Rune, hitting multiple lines."""
@@ -3045,7 +3112,7 @@ class Game:
             'expand_spawn': (lambda: num_team_points > 0, "Requires at least 1 point to spawn from."),
             'expand_orbital': (lambda: num_team_points >= 5, "Requires at least 5 points."),
             'fight_attack': (lambda: num_team_lines > 0, "Requires at least 1 line to attack from."),
-            'fight_convert': (lambda: len(self._find_possible_conversions(teamId)) > 0, "No vulnerable enemy points in range."),
+            'fight_convert': (lambda: num_team_lines > 0, "Requires at least 1 line to sacrifice."),
             'fight_pincer_attack': (lambda: len(self._find_possible_pincers(teamId)) > 0, "No valid pincer attack formations found."),
             'fight_territory_strike': (lambda: self._find_possible_territory_strikes(teamId) is not None, "No large territories or no valid targets."),
             'fight_bastion_pulse': (lambda: len(self._find_possible_bastion_pulses(teamId)) > 0, "No bastion has crossing enemy lines to pulse."),
@@ -3563,6 +3630,7 @@ class Game:
         # Lambdas are used to defer f-string evaluation until the function is called.
         log_generators = {
             'add_line': lambda r: ("connected two points.", "[+LINE]"),
+            'add_line_fallback_strengthen': lambda r: ("could not add a new line, and instead reinforced an existing one.", "[REINFORCE]"),
             'extend_line': lambda r: (
                 f"extended a line to the border, creating a new point{' with an empowered Conduit extension!' if r.get('is_empowered') else '.'}",
                 "[RAY!]" if r.get('is_empowered') else "[EXTEND]"
@@ -3578,6 +3646,7 @@ class Game:
             'attack_miss_spawn': lambda r: ("launched an attack that missed, but the energy coalesced into a new point on the border.", "[ATTACK->SPAWN]"),
             'attack_line_strengthened': lambda r: ("attacked a strengthened line, weakening its defenses.", "[DAMAGE]"),
             'convert_point': lambda r: (f"sacrificed a line to convert a point from Team {r['original_team_name']}.", "[CONVERT]"),
+            'convert_fizzle_push': lambda r: (f"attempted to convert a point but found no targets, instead unleashing a pulse that pushed back {r['pushed_points_count']} enemies.", "[CONVERT->PUSH]"),
             'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
             'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION!]"),
             'form_monolith': lambda r: ("erected a resonant Monolith from a pillar of light.", "[MONOLITH]"),
@@ -3587,14 +3656,18 @@ class Game:
             'build_chronos_spire': lambda r: (f"sacrificed {r['sacrificed_points_count']} points to construct the Chronos Spire, a path to victory!", "[WONDER!]"),
             'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
             'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
+            'mirror_fizzle_strengthen': lambda r: (f"attempted to mirror its structure, but instead reinforced {len(r['strengthened_lines'])} connected lines.", "[MIRROR->REINFORCE]"),
             'create_anchor': lambda r: ("sacrificed a point to create a gravitational anchor.", "[ANCHOR]"),
             'nova_burst': lambda r: (f"sacrificed a point in a nova burst, destroying {r['lines_destroyed']} lines.", "[NOVA]"),
             'nova_shockwave': lambda r: (f"sacrificed a point in a shockwave, pushing back {r['pushed_points_count']} nearby points.", "[SHOCKWAVE]"),
             'whirlpool_fizzle_fissure': lambda r: ("sacrificed a point to open a whirlpool, but with no targets in range, it collapsed into a temporary fissure.", "[WHIRLPOOL->FIZZLE]"),
             'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
             'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
+            'vbeam_miss_fissure': lambda r: ("unleashed a V-Rune beam that missed, scarring the earth with a temporary fissure.", "[V-BEAM->FISSURE]"),
             'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
+            'area_shield_fizzle_push': lambda r: (f"activated a Shield Rune with no lines to protect, instead pushing {r['pushed_points_count']} friendly points to de-clutter.", "[AEGIS->PUSH]"),
             'rune_shield_pulse': lambda r: (f"unleashed a shockwave from a Shield Rune, pushing back {r['pushed_points_count']} enemy points.", "[PULSE!]"),
+            'shield_pulse_fizzle_pull': lambda r: (f"unleashed a shockwave from a Shield Rune with no enemies in range, instead pulling in {r['pulled_points_count']} friendly points to consolidate.", "[PULSE->PULL]"),
             'rune_impale': lambda r: (f"fired a piercing blast from a Trident Rune, destroying {len(r['destroyed_lines'])} lines.", "[IMPALE!]"),
             'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from Team {self.state['teams'][r['target_point']['teamId']]['name']} in time.", "[STASIS!]"),
             'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),

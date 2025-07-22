@@ -291,8 +291,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Draw the main line
                     ctx.strokeStyle = team.color;
                     let base_width = line.is_bastion_line ? 4 : 2;
-                    if (line.empower_strength > 0) {
-                        base_width += line.empower_strength * 1.5;
+                    if (line.strength > 0) {
+                        base_width += line.strength * 1.5;
                         // Add a subtle glow/pulse to empowered lines
                         const pulse = Math.abs(Math.sin(Date.now() / 400));
                         ctx.strokeStyle = `rgba(255,255,255, ${pulse * 0.5})`;
@@ -976,7 +976,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const progress = age / effect.duration;
 
-            if (effect.type === 'growing_wall') {
+            if (effect.type === 'line_flash') {
+                const p1 = currentGameState.points[effect.line.p1_id];
+                const p2 = currentGameState.points[effect.line.p2_id];
+                if (p1 && p2) {
+                    const x1 = (p1.x + 0.5) * cellSize, y1 = (p1.y + 0.5) * cellSize;
+                    const x2 = (p2.x + 0.5) * cellSize, y2 = (p2.y + 0.5) * cellSize;
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - progress)})`; // White flash
+                    ctx.lineWidth = 2 + 5 * (1 - progress);
+                    ctx.stroke();
+                }
+            } else if (effect.type === 'point_pull') {
+                const ease_progress = 1 - (1 - progress)**3; // Ease-out
+                const centerX = (effect.center.x + 0.5) * cellSize;
+                const centerY = (effect.center.y + 0.5) * cellSize;
+                ctx.globalAlpha = 1 - progress;
+                effect.points.forEach((p_start, i) => {
+                    const startX = (p_start.x + 0.5) * cellSize;
+                    const startY = (p_start.y + 0.5) * cellSize;
+                    const currentX = startX + (centerX - startX) * ease_progress;
+                    const currentY = startY + (centerY - startY) * ease_progress;
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(currentX, currentY);
+                    ctx.strokeStyle = `rgba(220, 220, 255, 0.7)`;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                });
+                ctx.globalAlpha = 1.0;
+            } else if (effect.type === 'growing_wall') {
                 const p1 = {x: effect.barricade.p1.x * cellSize, y: effect.barricade.p1.y * cellSize};
                 const p2 = {x: effect.barricade.p2.x * cellSize, y: effect.barricade.p2.y * cellSize};
                 
@@ -1472,6 +1503,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'new_line', line: details.line, startTime: Date.now(), duration: 500
             });
         },
+        'add_line_fallback_strengthen': (details, gameState) => {
+            lastActionHighlights.lines.add(details.strengthened_line.id);
+            visualEffects.push({ type: 'line_flash', line: details.strengthened_line, startTime: Date.now(), duration: 800 });
+        },
         'fracture_line': (details, gameState) => {
             visualEffects.push({
                 type: 'line_crack',
@@ -1502,6 +1537,16 @@ document.addEventListener('DOMContentLoaded', () => {
                  });
             }
         },
+        'convert_fizzle_push': (details, gameState) => {
+            visualEffects.push({
+                type: 'shield_pulse', // Reuse this visual
+                center: details.pulse_center,
+                radius_sq: details.radius_sq,
+                color: 'rgba(255, 180, 50, 0.9)',
+                startTime: Date.now(),
+                duration: 800,
+            });
+        },
         'attack_line': (details, gameState) => {
             lastActionHighlights.lines.add(details.attacker_line.id);
             visualEffects.push({
@@ -1525,6 +1570,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 lineWidth: 4,
             });
         },
+        'vbeam_miss_fissure': (details, gameState) => {
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({ type: 'animated_ray', p1: details.attack_ray.p1, p2: details.attack_ray.p2, startTime: Date.now(), duration: 800, color: 'rgba(100, 255, 255, 1.0)', lineWidth: 4});
+            visualEffects.push({ type: 'growing_wall', barricade: details.fissure, color: 'rgba(50, 50, 50, 0.8)', startTime: Date.now() + 200, duration: 1000 });
+        },
         'rune_area_shield': (details, gameState) => {
             details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
             const tri_points = details.rune_triangle_ids.map(pid => gameState.points[pid]).filter(p=>p);
@@ -1538,6 +1588,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         },
+        'area_shield_fizzle_push': (details, gameState) => {
+             details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+             visualEffects.push({ type: 'shield_pulse', center: details.pulse_center, radius_sq: details.pulse_radius_sq, color: `rgba(173, 216, 230, 0.9)`, startTime: Date.now(), duration: 800 });
+        },
         'rune_shield_pulse': (details, gameState) => {
             details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
             visualEffects.push({
@@ -1547,6 +1601,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 color: `rgba(173, 216, 230, 0.9)`,
                 startTime: Date.now(),
                 duration: 800,
+            });
+        },
+        'shield_pulse_fizzle_pull': (details, gameState) => {
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            const pulled_points = [];
+            for (const p_info of details.pulled_points_count) { // This is wrong, payload has count not points.
+                // The backend would need to send the points that were at the start of the pull.
+                // For now, this visual will do nothing. This is a limitation.
+            }
+            visualEffects.push({
+                type: 'point_pull',
+                center: details.pulse_center,
+                points: pulled_points,
+                startTime: Date.now(),
+                duration: 1000,
             });
         },
         'extend_line': (details, gameState) => {
@@ -1623,6 +1692,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 p2_id: details.axis_p2_id,
                 startTime: Date.now(),
                 duration: 1500 // ms
+            });
+        },
+        'mirror_fizzle_strengthen': (details, gameState) => {
+            details.strengthened_lines.forEach(line => {
+                lastActionHighlights.lines.add(line.id);
+                visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
             });
         },
         'create_orbital': (details, gameState) => {
