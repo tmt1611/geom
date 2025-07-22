@@ -9,6 +9,11 @@ When a team is created, it is assigned a trait which influences its behavior. Th
 ## Runes
 Runes are special geometric formations that grant a team passive bonuses or unlock powerful new actions. They are checked at the start of a team's turn.
 
+*   **I-Rune (Line Rune):**
+    *   **Formation:** Three or more of a team's points are collinear and connected sequentially by lines.
+    *   **Bonus 1 (Passive):** Empowers the `Extend Line` action when it originates from one of the I-Rune's two endpoints. Empowered extensions automatically create a new line to the new point.
+    *   **Bonus 2 (Active):** Unlocks the `Sentry Zap` action.
+    *   **Bonus 3 (Active):** Unlocks the `Chain Lightning` action.
 *   **V-Rune:**
     *   **Formation:** Three points forming a 'V' shape, where two connected lines originating from the same point are of similar length.
     *   **Bonus:** Unlocks the **[RUNE] Shoot Bisector** action, a powerful, long-range attack fired from the 'V's vertex.
@@ -19,6 +24,12 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
 *   **Cross-Rune:**
     *   **Formation:** Four points that form a rectangle, with both internal diagonals existing as lines for that team.
     *   **Bonus:** Grants the `Piercing Attacks` passive. The team's standard `Attack Line` action can now bypass one enemy shield.
+*   **Plus-Rune (+):**
+    *   **Formation:** Five points forming a '+' shape, where a central point is connected to four other points that form two perpendicular, straight lines.
+    *   **Bonus:** Unlocks the **[RUNE] Cardinal Pulse** action. This is a powerful, one-use sacrificial action.
+*   **T-Rune:**
+    *   **Formation:** Four points in a 'T' shape. It requires a central point connected to three other points, where two of the connections form a straight line (the stem) and the third is perpendicular to it (the head). All three connecting lines must exist.
+    *   **Bonus:** Unlocks the **[RUNE] T-Hammer Slam** action.
 *   **Trident-Rune:**
     *   **Formation:** Four points forming a "trident" or "pitchfork" shape. This requires an isosceles triangle and a fourth "handle" point extending from the apex along the line of symmetry. All three connecting lines must exist.
     *   **Bonus:** Unlocks the **[RUNE] Impale** action.
@@ -28,33 +39,31 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
 *   **Barricade-Rune:**
     *   **Formation:** Four points that form a rectangle, with all four of its sides existing as connected lines.
     *   **Bonus:** Unlocks the **[TERRAFORM] Raise Barricade** action.
-*   **T-Rune:**
-    *   **Formation:** Four points in a 'T' shape. It requires a central point connected to three other points, where two of the connections form a straight line (the stem) and the third is perpendicular to it (the head). All three connecting lines must exist.
-    *   **Bonus:** Unlocks the **[RUNE] T-Hammer Slam** action.
 
 ## Actions
 On its turn, a team will perform one of the following actions, with the choice being influenced by its trait.
 
-*   **[EXPAND] Add Line:** Connect two of its own points with a new line.
-*   **[EXPAND] Extend Line:** Extend an existing line to the border of the grid, creating a new point.
+*   **[EXPAND] Add Line:** Connect two of its own points with a new line. If not possible, it will reinforce an existing friendly line.
+*   **[EXPAND] Extend Line:** Extend an existing line to the border of the grid, creating a new point. If no valid extensions can be found, it reinforces an existing friendly line.
 *   **[EXPAND] Grow Line (Vine):** Grow a new, short line segment from an existing point, creating organic, branching structures.
-*   **[EXPAND] Fracture Line:** Splits an existing line into two, creating a new point along the line's original path. This helps create denser networks.
+*   **[EXPAND] Fracture Line:** Splits an existing line into two, creating a new point along the line's original path. If no lines are long enough to fracture, it reinforces an existing friendly line.
 *   **[EXPAND] Spawn Point:** Creates a new point near an existing one. This is a last-resort action to ensure a team can recover even from a single point.
 *   **[EXPAND] Create Orbital:** A rare action where a team with enough points creates a constellation of 3-5 new "satellite" points in a circle around one of its existing points.
-*   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
+*   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed. If it misses, it creates a new friendly point on the border.
 *   **[FIGHT] Pincer Attack:** If two of a team's points are flanking a single enemy point (creating a wide angle), they can perform a joint attack to destroy it. This does not work on fortified or bastion points. If no suitable target is found, the points instead form a small, temporary barricade between them.
 *   **[FIGHT] Territory Strike:** _(Requires a large territory)_ Launches a bolt of energy from the center of a large claimed territory, destroying the nearest vulnerable enemy point. This makes controlling large areas of the map an offensive advantage. If no vulnerable enemies exist, the territory's boundary lines are reinforced instead.
 *   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range. If no target is found, it instead emits a repulsive pulse from the sacrifice location, pushing nearby enemies away.
-*   **[SACRIFICE] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
+*   **[SACRIFICE] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius. If no enemy lines are in range, it pushes all nearby points away instead.
 *   **[SACRIFICE] Create Whirlpool:** Sacrifices a point to create a vortex that pulls nearby points toward its center. If no points are nearby when created, the action instead creates a small, temporary fissure on the map.
 *   **[SACRIFICE] Create Rift Trap:** Sacrifices a point to create a temporary, invisible trap. If an enemy point moves into its small radius, the trap triggers, destroying the enemy point and itself. If the trap is not triggered after a few turns, it safely collapses and transforms into a new point for its owner.
 *   **[SACRIFICE] Phase Shift:** Sacrifices a line to instantly "teleport" one of the line's endpoints to a new random location. If a valid new location cannot be found, the energy implodes into the *other* endpoint, turning it into a temporary **gravitational anchor** that pulls in nearby enemies.
 *   **[FIGHT] Bastion Pulse:** _(Requires an active Bastion)_ Sacrifices one of the bastion's outer "prong" points to unleash a shockwave that destroys all enemy lines crossing the bastion's perimeter. If the pulse fizzles (e.g., the bastion dissolves upon sacrifice), the sacrificed point instead releases a **local shockwave**, pushing all nearby points away.
-*   **[FIGHT] Sentry Zap:** _(Requires an active Sentry)_ Fires a short, high-energy beam from the Sentry's "eye" along its perpendicular axis. Destroys the first enemy **point** it hits within range. This is a powerful, precision attack capable of removing fortified points. If the beam misses, it creates a new point for the team where it hits the border.
-*   **[FIGHT] Chain Lightning:** _(Requires a Conduit with internal points)_ Sacrifices one of the Conduit's internal points to fire a bolt of energy at the nearest enemy point, destroying it. If the attack fizzles (e.g., no target in range), the sacrificed point explodes in a **mini-nova**, destroying any nearby enemy lines.
+*   **[FIGHT] Sentry Zap:** _(Requires an active I-Rune)_ Fires a short, high-energy beam from an internal point of an I-Rune along its perpendicular axis. Destroys the first enemy **point** it hits within range. This is a powerful, precision attack capable of removing fortified points. If the beam misses, it creates a new point for the team where it hits the border.
+*   **[FIGHT] Chain Lightning:** _(Requires an I-Rune with internal points)_ Sacrifices one of the I-Rune's internal points to fire a bolt of energy at the nearest enemy point, destroying it. If the attack fizzles (e.g., no target in range), the sacrificed point explodes in a **mini-nova**, destroying any nearby enemy lines.
 *   **[FIGHT] Refraction Beam:** _(Requires an active Prism)_ Fires a beam from one of its lines that refracts off the Prism's shared edge, changing direction to hit an enemy line around obstacles. If the refracted beam misses, it creates a new friendly point where it hits the border.
 *   **[FIGHT] Launch Payload:** _(Requires an active Trebuchet)_ Fires an arcing projectile. It prioritizes destroying a random enemy high-value point (e.g., a fortified point, bastion core, or monolith point). If none exist, it targets any vulnerable enemy point. If there are no targets at all, the payload impacts a random spot on the battlefield, creating a small, temporary fissure.
 *   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. If there are no enemy territories to cleanse, it instead emits a defensive pulse that pushes all nearby enemy points away from it.
+*   **[RUNE] Cardinal Pulse:** _(Requires an active Plus-Rune)_ The rune is consumed. Four energy beams are fired from the central point through the four arm points. Beams destroy the first enemy line they hit (bypassing shields). Any beam that misses creates a new point on the border.
 *   **[RUNE] T-Hammer Slam:** _(Requires an active T-Rune)_ The rune sacrifices its 'head' point to create a shockwave emanating from its 'stem' line, pushing all nearby points away perpendicularly. If no points are in range, it instead reinforces the two lines that form the stem.
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits. If it misses, it creates a temporary fissure along its path.
 *   **[RUNE] Impale:** _(Requires an active Trident-Rune)_ Fires a devastating, long-range beam that pierces through all enemy lines in its path, ignoring shields. If the beam hits no targets, it instead creates a temporary defensive barricade along its path.
@@ -62,11 +71,6 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[RUNE] Shield Pulse:** _(Requires an active Shield-Rune)_ Emits a defensive shockwave from the rune's center, pushing all nearby enemy points outwards. If no enemies are in range, it instead gently pulls nearby friendly points inwards to consolidate the formation.
 *   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field. If no valid targets are in range, it instead sacrifices one of its own points to turn another of its rune-points into a temporary gravitational **anchor**.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
-*   **[DEFEND] Form Sentry:** A passive formation. When three of a team's points are collinear and connected by lines (forming Post-Eye-Post), they become a Sentry.
-    *   **Bonus:** Unlocks the **[FIGHT] Sentry Zap** action.
-*   **[DEFEND] Form Conduit:** A passive formation. When three or more of a team's points are collinear, they form a Conduit.
-    *   **Bonus 1 (Passive):** `Extend Line` actions originating from one of the Conduit's two endpoints become **Empowered**, creating a new line to the new point automatically.
-    *   **Bonus 2 (Active):** Unlocks the **[FIGHT] Chain Lightning** action.
 *   **[DEFEND] Form Prism:** A passive formation. A Prism is created when two of a team's claimed territories (triangles) share a common edge line.
     *   **Bonus:** Unlocks the **[FIGHT] Refraction Beam** action, which allows for powerful bank-shot attacks.
 *   **[DEFEND] Form Nexus:** A passive formation. A Nexus is a powerful economic structure that grants bonus actions.

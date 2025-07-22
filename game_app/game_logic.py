@@ -194,15 +194,18 @@ class Game:
     """Encapsulates the entire game state and logic."""
 
     ACTION_BASE_WEIGHTS = {
-        'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
-        'expand_orbital': 7,
-        'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25, 'fight_purify_territory': 28,
-        'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_form_purifier': 18, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'terraform_raise_barricade': 15, 'fortify_build_wonder': 100,
-        'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'sacrifice_phase_shift': 5, 'sacrifice_rift_trap': 7, 'defend_shield': 8,
-        'rune_shoot_bisector': 25, 'rune_area_shield': 20, 'rune_shield_pulse': 22, 'rune_impale': 30, 'rune_hourglass_stasis': 20, 'rune_t_hammer_slam': 25
+        # All actions have a base weight of 1. Team traits provide the only multipliers.
+        # This makes all valid actions equally likely for a 'Balanced' team.
+        'expand_add': 1, 'expand_extend': 1, 'expand_grow': 1, 'expand_fracture': 1, 'expand_spawn': 1,
+        'expand_orbital': 1,
+        'fight_attack': 1, 'fight_convert': 1, 'fight_pincer_attack': 1, 'fight_territory_strike': 1, 'fight_bastion_pulse': 1, 'fight_sentry_zap': 1, 'fight_chain_lightning': 1, 'fight_refraction_beam': 1, 'fight_launch_payload': 1, 'fight_purify_territory': 1,
+        'fortify_claim': 1, 'fortify_anchor': 1, 'fortify_mirror': 1, 'fortify_form_bastion': 1, 'fortify_form_monolith': 1, 'fortify_form_purifier': 1, 'fortify_cultivate_heartwood': 1, 'fortify_form_rift_spire': 1, 'terraform_create_fissure': 1, 'terraform_raise_barricade': 1, 'fortify_build_wonder': 1,
+        'sacrifice_nova': 1, 'sacrifice_whirlpool': 1, 'sacrifice_phase_shift': 1, 'sacrifice_rift_trap': 1, 'defend_shield': 1,
+        'rune_shoot_bisector': 1, 'rune_area_shield': 1, 'rune_shield_pulse': 1, 'rune_impale': 1, 'rune_hourglass_stasis': 1, 'rune_t_hammer_slam': 1,
+        'rune_starlight_cascade': 1, 'rune_focus_beam': 1, 'rune_cardinal_pulse': 1
     }
     TRAIT_MULTIPLIERS = {
-        'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0, 'rune_hourglass_stasis': 0.5, 'rune_shield_pulse': 0.5, 'rune_t_hammer_slam': 1.8},
+        'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0, 'rune_hourglass_stasis': 0.5, 'rune_shield_pulse': 0.5, 'rune_t_hammer_slam': 1.8, 'rune_cardinal_pulse': 3.0},
         'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5, 'sacrifice_phase_shift': 2.0},
         'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'terraform_raise_barricade': 2.0, 'rune_area_shield': 3.0, 'rune_hourglass_stasis': 2.0, 'rune_shield_pulse': 2.5},
         'Balanced':   {}
@@ -213,7 +216,7 @@ class Game:
         'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
         'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder",
         'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'sacrifice_rift_trap': "Create Rift Trap", 'defend_shield': "Shield Line",
-        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam",
+        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam", 'rune_cardinal_pulse': "Rune: Cardinal Pulse",
         'terraform_raise_barricade': "Raise Barricade"
     }
 
@@ -242,10 +245,8 @@ class Game:
             "stasis_points": {}, # {point_id: turns_left}
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
-            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': [], 'barricade': [], 't_shape': []}}
-            "sentries": {}, # {teamId: [sentry1, sentry2, ...]}
+            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': [], 'barricade': [], 't_shape': [], 'plus_shape': [], 'i_shape': []}}
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
-            "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
             "prisms": {}, # {teamId: [prism1, prism2, ...]}
             "barricades": [], # {id, teamId, p1, p2, turns_left}
             "heartwoods": {}, # {teamId: {id, center_coords, growth_counter}}
@@ -297,21 +298,13 @@ class Game:
         fortified_point_ids = self._get_fortified_point_ids()
         bastion_point_ids = self._get_bastion_point_ids()
         
-        # Get all Sentry point IDs for quick lookup
-        sentry_eye_ids = set()
-        sentry_post_ids = set()
-        for team_sentries in self.state.get('sentries', {}).values():
-            for sentry in team_sentries:
-                sentry_eye_ids.add(sentry['eye_id'])
-                sentry_post_ids.add(sentry['post1_id'])
-                sentry_post_ids.add(sentry['post2_id'])
-
-        # Get all Conduit point IDs for quick lookup
-        conduit_point_ids = set()
-        for team_conduits in self.state.get('conduits', {}).values():
-            for conduit in team_conduits:
-                for pid in conduit.get('point_ids', []):
-                    conduit_point_ids.add(pid)
+        # Get all I-Rune point IDs for quick lookup
+        i_rune_point_ids = set()
+        if self.state.get('runes'):
+            for team_runes in self.state['runes'].values():
+                for i_rune in team_runes.get('i_shape', []):
+                    for pid in i_rune.get('point_ids', []):
+                        i_rune_point_ids.add(pid)
         
         # Get all Nexus point IDs for quick lookup
         nexus_point_ids = set()
@@ -347,9 +340,7 @@ class Game:
             augmented_point['is_fortified'] = pid in fortified_point_ids
             augmented_point['is_bastion_core'] = pid in bastion_point_ids['cores']
             augmented_point['is_bastion_prong'] = pid in bastion_point_ids['prongs']
-            augmented_point['is_sentry_eye'] = pid in sentry_eye_ids
-            augmented_point['is_sentry_post'] = pid in sentry_post_ids
-            augmented_point['is_conduit_point'] = pid in conduit_point_ids
+            augmented_point['is_i_rune_point'] = pid in i_rune_point_ids
             augmented_point['is_nexus_point'] = pid in nexus_point_ids
             augmented_point['is_monolith_point'] = pid in monolith_point_ids
             augmented_point['is_trebuchet_point'] = pid in trebuchet_point_ids
@@ -551,7 +542,7 @@ class Game:
         self.state.get('stasis_points', {}).pop(point_id, None)
 
         # Handle other structures that are just lists of point IDs
-        structures_to_clean = ['trebuchets', 'purifiers', 'nexuses', 'conduits', 'prisms']
+        structures_to_clean = ['trebuchets', 'purifiers', 'nexuses', 'prisms']
         for struct_key in structures_to_clean:
             if self.state.get(struct_key):
                 for teamId in list(self.state[struct_key].keys()):
@@ -753,21 +744,38 @@ class Game:
         return possible_extensions
 
     def expand_action_extend_line(self, teamId):
-        """[EXPAND ACTION]: Extend a line to the border to create a new point."""
+        """[EXPAND ACTION]: Extend a line to the border to create a new point. If not possible, strengthens a line."""
         possible_extensions = self._find_possible_extensions(teamId)
 
         if not possible_extensions:
-            return {'success': False, 'reason': 'no valid lines can be extended to the border'}
+            # Fallback: Strengthen an existing line
+            team_lines = self.get_team_lines(teamId)
+            if not team_lines:
+                return {'success': False, 'reason': 'no valid lines to extend and no lines to strengthen'}
+            
+            line_to_strengthen = random.choice(team_lines)
+            line_id = line_to_strengthen.get('id')
+            if line_id:
+                max_strength = 3
+                current_strength = self.state['line_strengths'].get(line_id, 0)
+                if current_strength < max_strength:
+                    self.state['line_strengths'][line_id] = current_strength + 1
+                return {
+                    'success': True, 
+                    'type': 'extend_fizzle_strengthen', 
+                    'strengthened_line': line_to_strengthen
+                }
+            return {'success': False, 'reason': 'no line to strengthen'}
 
         chosen_extension = random.choice(possible_extensions)
         border_point = chosen_extension['border_point']
         origin_point_id = chosen_extension['origin_point_id']
         
-        # Check if this extension is empowered by a Conduit
+        # Check if this extension is empowered by an I-Rune
         is_empowered = False
-        team_conduits = self.state.get('conduits', {}).get(teamId, [])
-        for conduit in team_conduits:
-            if origin_point_id in (conduit['endpoint1_id'], conduit['endpoint2_id']):
+        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
+        for i_rune in team_i_runes:
+            if origin_point_id in i_rune.get('endpoints', []):
                 is_empowered = True
                 break
 
@@ -813,10 +821,27 @@ class Game:
         return fracturable_lines
 
     def expand_action_fracture_line(self, teamId):
-        """[EXPAND ACTION]: Splits a line into two, creating a new point."""
+        """[EXPAND ACTION]: Splits a line into two, creating a new point. If not possible, strengthens a line."""
         fracturable_lines = self._find_fracturable_lines(teamId)
         if not fracturable_lines:
-            return {'success': False, 'reason': 'no non-territory lines long enough to fracture'}
+            # Fallback: Strengthen an existing line
+            team_lines = self.get_team_lines(teamId)
+            if not team_lines:
+                return {'success': False, 'reason': 'no lines to fracture or strengthen'}
+            
+            line_to_strengthen = random.choice(team_lines)
+            line_id = line_to_strengthen.get('id')
+            if line_id:
+                max_strength = 3
+                current_strength = self.state['line_strengths'].get(line_id, 0)
+                if current_strength < max_strength:
+                    self.state['line_strengths'][line_id] = current_strength + 1
+                return {
+                    'success': True, 
+                    'type': 'fracture_fizzle_strengthen', 
+                    'strengthened_line': line_to_strengthen
+                }
+            return {'success': False, 'reason': 'no line to strengthen'}
 
         line_to_fracture = random.choice(fracturable_lines)
         points = self.state['points']
@@ -2503,22 +2528,33 @@ class Game:
             }
 
     def fight_action_sentry_zap(self, teamId):
-        """[FIGHT ACTION]: A sentry fires a beam to destroy an enemy point. If it misses, it creates a new point on the border."""
-        team_sentries = self.state.get('sentries', {}).get(teamId, [])
-        if not team_sentries:
-            return {'success': False, 'reason': 'no active sentries'}
+        """[FIGHT ACTION]: An I-Rune fires a beam to destroy an enemy point. If it misses, it creates a new point on the border."""
+        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
+        # A Sentry Zap requires an internal point to shoot from.
+        possible_zaps = [r for r in team_i_runes if r.get('internal_points')]
+        if not possible_zaps:
+            return {'success': False, 'reason': 'no I-Runes with an internal point to fire from'}
 
-        sentry = random.choice(team_sentries)
+        rune = random.choice(possible_zaps)
         points = self.state['points']
         
-        p_eye = points.get(sentry['eye_id'])
-        p_post1 = points.get(sentry['post1_id'])
-        p_post2 = points.get(sentry['post2_id'])
+        # Pick a random internal point as the 'eye'
+        eye_id = random.choice(rune['internal_points'])
+        eye_index = rune['point_ids'].index(eye_id)
+        
+        # Posts are its direct neighbors in the line
+        post1_id = rune['point_ids'][eye_index - 1]
+        post2_id = rune['point_ids'][eye_index + 1]
+
+        p_eye = points.get(eye_id)
+        p_post1 = points.get(post1_id)
+        p_post2 = points.get(post2_id)
 
         if not all([p_eye, p_post1, p_post2]):
-            return {'success': False, 'reason': 'sentry points no longer exist'}
+            return {'success': False, 'reason': 'I-Rune points no longer exist'}
         
-        # Vector of the sentry's alignment
+        # Vector of the I-Rune's alignment. Use posts relative to eye to find it.
+        # This is more robust than assuming p_post1 and p_post2 are opposite.
         vx = p_post1['x'] - p_eye['x']
         vy = p_post1['y'] - p_eye['y']
         
@@ -2562,7 +2598,7 @@ class Game:
             return {
                 'success': True, 'type': 'sentry_zap',
                 'destroyed_point': destroyed_point_data,
-                'sentry_points': [sentry['eye_id'], sentry['post1_id'], sentry['post2_id']],
+                'rune_points': rune['point_ids'],
                 'attack_ray': {'p1': p_eye, 'p2': zap_ray_end}
             }
         else:
@@ -2585,25 +2621,25 @@ class Game:
             return {
                 'success': True, 'type': 'sentry_zap_miss_spawn',
                 'new_point': new_point,
-                'sentry_points': [sentry['eye_id'], sentry['post1_id'], sentry['post2_id']],
+                'rune_points': rune['point_ids'],
                 'attack_ray': {'p1': p_eye, 'p2': border_point}
             }
 
     def fight_action_chain_lightning(self, teamId):
-        """[FIGHT ACTION]: A Conduit sacrifices an internal point to strike an enemy. If it fizzles, it creates a mini-nova."""
-        team_conduits = self.state.get('conduits', {}).get(teamId, [])
-        valid_conduits = [c for c in team_conduits if c.get('internal_point_ids')]
-        if not valid_conduits:
-            return {'success': False, 'reason': 'no conduits with sacrificial points'}
+        """[FIGHT ACTION]: An I-Rune sacrifices an internal point to strike an enemy. If it fizzles, it creates a mini-nova."""
+        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
+        # Requires an internal point to sacrifice
+        valid_runes = [r for r in team_i_runes if r.get('internal_points')]
+        if not valid_runes:
+            return {'success': False, 'reason': 'no I-Runes with sacrificial points'}
 
-        chosen_conduit = random.choice(valid_conduits)
-        p_to_sac_id = random.choice(chosen_conduit['internal_point_ids'])
+        chosen_rune = random.choice(valid_runes)
+        p_to_sac_id = random.choice(chosen_rune['internal_points'])
         sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
         if not sacrificed_point_data:
-             return {'success': False, 'reason': 'failed to sacrifice conduit point'}
+             return {'success': False, 'reason': 'failed to sacrifice I-Rune point'}
 
-        endpoint1_id = chosen_conduit['endpoint1_id']
-        endpoint2_id = chosen_conduit['endpoint2_id']
+        endpoint1_id, endpoint2_id = chosen_rune.get('endpoints', [None, None])
         
         target_point = None
         if endpoint1_id in self.state['points'] and endpoint2_id in self.state['points']:
@@ -2625,7 +2661,7 @@ class Game:
                 'success': True, 'type': 'chain_lightning',
                 'sacrificed_point': sacrificed_point_data,
                 'destroyed_point': destroyed_point_data,
-                'conduit_point_ids': chosen_conduit['point_ids']
+                'rune_points': chosen_rune['point_ids']
             }
         else:
             # --- Fallback Effect: Mini-Nova ---
@@ -2651,7 +2687,7 @@ class Game:
                 'success': True, 'type': 'chain_lightning_fizzle_nova',
                 'sacrificed_point': sacrificed_point_data,
                 'lines_destroyed_count': len(lines_destroyed),
-                'conduit_point_ids': chosen_conduit['point_ids']
+                'rune_points': chosen_rune['point_ids']
             }
 
     def _pincer_attack_fallback_barricade(self, teamId, p1_id, p2_id):
@@ -3338,8 +3374,8 @@ class Game:
             'fight_pincer_attack': (lambda: len(self.get_team_point_ids(teamId)) >= 2, "Requires at least 2 points."),
             'fight_territory_strike': (lambda: len(self._get_large_territories(teamId)) > 0, "No large territories available."),
             'fight_bastion_pulse': (lambda: len(self._find_possible_bastion_pulses(teamId)) > 0, "No bastion has crossing enemy lines to pulse."),
-            'fight_sentry_zap': (lambda: bool(self.state.get('sentries', {}).get(teamId, [])), "Requires an active Sentry."),
-            'fight_chain_lightning': (lambda: any(c.get('internal_point_ids') for c in self.state.get('conduits', {}).get(teamId, [])), "Requires a Conduit with internal points."),
+            'fight_sentry_zap': (lambda: any(r.get('internal_points') for r in self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])), "Requires an I-Rune with at least 3 points."),
+            'fight_chain_lightning': (lambda: any(r.get('internal_points') for r in self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])), "Requires an I-Rune with internal points."),
             'fight_refraction_beam': (lambda: bool(self.state.get('prisms', {}).get(teamId, [])) and num_enemy_lines > 0, "Requires a Prism and enemy lines."),
             'fight_launch_payload': (lambda: bool(self.state.get('trebuchets', {}).get(teamId, [])), "Requires a Trebuchet."),
             'fight_purify_territory': (lambda: bool(self.state.get('purifiers', {}).get(teamId, [])) and any(t['teamId'] != teamId for t in self.state.get('territories', [])), "Requires a Purifier and an enemy territory."),
@@ -3367,6 +3403,7 @@ class Game:
             'rune_starlight_cascade': (lambda: len(self._find_possible_starlight_cascades(teamId)) > 0, "No Star Rune has a valid target in range."),
             'rune_focus_beam': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('star', [])) and num_enemy_points > 0, "Requires a Star Rune and an enemy point."),
             'rune_t_hammer_slam': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('t_shape', [])), "Requires an active T-Rune."),
+            'rune_cardinal_pulse': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('plus_shape', [])), "Requires an active Plus-Rune."),
         }
 
         status = {}
@@ -3527,7 +3564,8 @@ class Game:
             'rune_hourglass_stasis': self.rune_action_hourglass_stasis,
             'rune_starlight_cascade': self.rune_action_starlight_cascade,
             'rune_focus_beam': self.rune_action_focus_beam,
-            'rune_t_hammer_slam': self.rune_action_t_hammer_slam
+            'rune_t_hammer_slam': self.rune_action_t_hammer_slam,
+            'rune_cardinal_pulse': self.rune_action_cardinal_pulse
         }
 
         # --- Evaluate possible actions based on game state and exclusion list ---
@@ -3898,6 +3936,8 @@ class Game:
 
         # Lambdas are used to defer f-string evaluation until the function is called.
         log_generators = {
+            'extend_fizzle_strengthen': lambda r: ("tried to extend a line but couldn't, so it reinforced an existing line instead.", "[EXTEND->REINFORCE]"),
+            'fracture_fizzle_strengthen': lambda r: ("could not find a line to fracture, and instead reinforced one.", "[FRACTURE->REINFORCE]"),
             'add_line': lambda r: ("connected two points.", "[+LINE]"),
             'add_line_fallback_strengthen': lambda r: ("could not add a new line, and instead reinforced an existing one.", "[REINFORCE]"),
             'extend_line': lambda r: (
@@ -3967,6 +4007,7 @@ class Game:
             'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[FOCUS BEAM]"),
             'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
             't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
+            'rune_cardinal_pulse': lambda r: (f"consumed a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points with four beams of energy.", "[CARDINAL PULSE!]"),
         }
 
         if action_type in log_generators:
@@ -4002,8 +4043,6 @@ class Game:
         # Update all special structures for the current team right before it acts.
         # This ensures the team acts based on its most current state.
         self._update_runes_for_team(teamId)
-        self._update_sentries_for_team(teamId)
-        self._update_conduits_for_team(teamId)
         self._update_prisms_for_team(teamId)
         self._update_trebuchets_for_team(teamId)
         # We also re-update nexuses here mainly so the frontend display is accurate
@@ -4236,6 +4275,8 @@ class Game:
         self.state['runes'][teamId]['star'] = self._check_star_rune(teamId)
         self.state['runes'][teamId]['barricade'] = self._check_barricade_rune(teamId)
         self.state['runes'][teamId]['t_shape'] = self._check_t_rune(teamId)
+        self.state['runes'][teamId]['plus_shape'] = self._check_plus_rune(teamId)
+        self.state['runes'][teamId]['i_shape'] = self._check_i_rune(teamId)
 
     def _check_barricade_rune(self, teamId):
         """
@@ -4280,41 +4321,7 @@ class Game:
         
         return barricade_runes
 
-    def _update_sentries_for_team(self, teamId):
-        """Checks for Sentry formations (3 collinear points with lines)."""
-        if 'sentries' not in self.state: self.state['sentries'] = {}
-        self.state['sentries'][teamId] = [] # Recalculate each time
-        
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 3:
-            return
 
-        points = self.state['points']
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
-        
-        for p_ids in combinations(team_point_ids, 3):
-            # Ensure all points still exist before lookup
-            if not all(pid in points for pid in p_ids): continue
-            p1, p2, p3 = points[p_ids[0]], points[p_ids[1]], points[p_ids[2]]
-
-            # Check for collinearity
-            if orientation(p1, p2, p3) == 0:
-                # Identify the middle point ('eye')
-                eye, post1, post2 = None, None, None
-                if on_segment(p1, p2, p3): eye, post1, post2 = p2, p1, p3
-                elif on_segment(p2, p1, p3): eye, post1, post2 = p1, p2, p3
-                elif on_segment(p1, p3, p2): eye, post1, post2 = p3, p1, p2
-                
-                if eye:
-                    # Check if lines from eye to posts exist
-                    line1_exists = tuple(sorted((eye['id'], post1['id']))) in existing_lines
-                    line2_exists = tuple(sorted((eye['id'], post2['id']))) in existing_lines
-                    if line1_exists and line2_exists:
-                        self.state['sentries'][teamId].append({
-                            'eye_id': eye['id'],
-                            'post1_id': post1['id'],
-                            'post2_id': post2['id'],
-                        })
 
     def _check_v_rune(self, teamId):
         """Finds all 'V' shapes for a team.
@@ -4881,60 +4888,7 @@ class Game:
             'beam_target': (target_point or target_wonder.get('coords'))
         }
 
-    def _update_conduits_for_team(self, teamId):
-        """Checks for Conduit formations (3+ collinear points)."""
-        if 'conduits' not in self.state: self.state['conduits'] = {}
-        
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 3:
-            self.state['conduits'][teamId] = []
-            return
 
-        points = self.state['points']
-        team_points = [points[pid] for pid in team_point_ids]
-        
-        # O(n^2) approach to find all sets of collinear points
-        found_conduits_sets = set()
-        for i in range(len(team_points)):
-            p1 = team_points[i]
-            slopes = {}
-            for j in range(i + 1, len(team_points)):
-                p2 = team_points[j]
-                dx = p2['x'] - p1['x']
-                dy = p2['y'] - p1['y']
-                
-                slope = math.atan2(dy, dx) # Use angle for consistent slope key
-                
-                if slope not in slopes:
-                    slopes[slope] = []
-                slopes[slope].append(p2['id'])
-
-            for slope in slopes:
-                if len(slopes[slope]) >= 2: # p1 + at least 2 other points form a line of 3+
-                    collinear_ids = tuple(sorted([p1['id']] + slopes[slope]))
-                    found_conduits_sets.add(collinear_ids)
-
-        # Convert sets of point IDs into formatted conduit objects
-        final_conduits = []
-        for id_tuple in found_conduits_sets:
-            conduit_points = [points[pid] for pid in id_tuple]
-            
-            # Sort points along the line to find endpoints
-            if len(set(p['x'] for p in conduit_points)) > 1: # Not a vertical line
-                conduit_points.sort(key=lambda p: p['x'])
-            else: # Vertical line
-                conduit_points.sort(key=lambda p: p['y'])
-            
-            sorted_ids = [p['id'] for p in conduit_points]
-            
-            final_conduits.append({
-                'point_ids': sorted_ids,
-                'endpoint1_id': sorted_ids[0],
-                'endpoint2_id': sorted_ids[-1],
-                'internal_point_ids': sorted_ids[1:-1]
-            })
-
-        self.state['conduits'][teamId] = final_conduits
 
     def _update_prisms_for_team(self, teamId):
         """Checks for Prism formations (two territories sharing an edge)."""
@@ -4975,6 +4929,180 @@ class Game:
                         'shared_p2_id': edge[1],
                         'all_point_ids': list(all_points)
                     })
+
+    def rune_action_cardinal_pulse(self, teamId):
+        """[RUNE ACTION]: A Plus-Rune is consumed to fire four beams from its center. Beams destroy the first enemy line hit, or create a point on the border if they miss."""
+        active_plus_runes = self.state.get('runes', {}).get(teamId, {}).get('plus_shape', [])
+        if not active_plus_runes:
+            return {'success': False, 'reason': 'no active Plus-Runes'}
+        
+        rune = random.choice(active_plus_runes)
+        points_map = self.state['points']
+        center_point = points_map.get(rune['center_id'])
+
+        if not center_point or not all(pid in points_map for pid in rune['arm_ids']):
+             return {'success': False, 'reason': 'rune points no longer exist'}
+        
+        # --- Consume the rune ---
+        sacrificed_points_data = []
+        for pid in rune['all_points']:
+            sac_data = self._delete_point_and_connections(pid, aggressor_team_id=teamId)
+            if sac_data:
+                sacrificed_points_data.append(sac_data)
+
+        if not sacrificed_points_data:
+            return {'success': False, 'reason': 'failed to sacrifice points for cardinal pulse'}
+            
+        # --- Fire 4 beams ---
+        lines_destroyed = []
+        points_created = []
+        attack_rays = []
+        
+        for arm_pid in rune['arm_ids']:
+            # The arm point itself was sacrificed, so we use its last known coordinates from the sacrifice data.
+            arm_point_data = next((p for p in sacrificed_points_data if p['id'] == arm_pid), None)
+            if not arm_point_data: continue
+
+            border_point = self._get_extended_border_point(center_point, arm_point_data)
+            if not border_point: continue
+
+            attack_ray = {'p1': center_point, 'p2': border_point}
+            attack_rays.append(attack_ray)
+            
+            # This is complex because points/lines are being removed as we iterate.
+            # We need to check against the current state of the board for each beam.
+            enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+            hits = []
+            for enemy_line in enemy_lines:
+                 # Cardinal Pulse is powerful, it bypasses shields but not bastions.
+                if enemy_line.get('id') in self._get_bastion_line_ids(): continue
+                if enemy_line['p1_id'] not in self.state['points'] or enemy_line['p2_id'] not in self.state['points']: continue
+                
+                ep1 = self.state['points'][enemy_line['p1_id']]
+                ep2 = self.state['points'][enemy_line['p2_id']]
+
+                intersection_point = get_segment_intersection_point(attack_ray['p1'], attack_ray['p2'], ep1, ep2)
+                if intersection_point:
+                    dist_sq = distance_sq(attack_ray['p1'], intersection_point)
+                    hits.append({'line': enemy_line, 'dist_sq': dist_sq})
+            
+            if hits:
+                # Destroy the closest line hit by this beam
+                closest_hit = min(hits, key=lambda h: h['dist_sq'])
+                line_to_destroy = closest_hit['line']
+                
+                if line_to_destroy in self.state['lines']: # Check it hasn't been destroyed by another beam
+                    self.state['lines'].remove(line_to_destroy)
+                    self.state['shields'].pop(line_to_destroy.get('id'), None)
+                    self.state['line_strengths'].pop(line_to_destroy.get('id'), None)
+                    lines_destroyed.append(line_to_destroy)
+            else:
+                # Miss: create point on border
+                is_valid, _ = self._is_spawn_location_valid(border_point, teamId)
+                if is_valid:
+                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                    new_point = {**border_point, "teamId": teamId, "id": new_point_id}
+                    self.state['points'][new_point_id] = new_point
+                    points_created.append(new_point)
+
+        if not lines_destroyed and not points_created:
+            return {'success': False, 'reason': 'cardinal pulse had no effect'}
+
+        return {
+            'success': True,
+            'type': 'rune_cardinal_pulse',
+            'sacrificed_points': sacrificed_points_data,
+            'lines_destroyed': lines_destroyed,
+            'points_created': points_created,
+            'attack_rays': attack_rays
+        }
+
+    def rune_action_cardinal_pulse(self, teamId):
+        """[RUNE ACTION]: A Plus-Rune is consumed to fire four beams from its center. Beams destroy the first enemy line hit, or create a point on the border if they miss."""
+        active_plus_runes = self.state.get('runes', {}).get(teamId, {}).get('plus_shape', [])
+        if not active_plus_runes:
+            return {'success': False, 'reason': 'no active Plus-Runes'}
+        
+        rune = random.choice(active_plus_runes)
+        points_map = self.state['points']
+        center_point = points_map.get(rune['center_id'])
+
+        if not center_point or not all(pid in points_map for pid in rune['arm_ids']):
+             return {'success': False, 'reason': 'rune points no longer exist'}
+        
+        # --- Consume the rune ---
+        sacrificed_points_data = []
+        for pid in rune['all_points']:
+            sac_data = self._delete_point_and_connections(pid, aggressor_team_id=teamId)
+            if sac_data:
+                sacrificed_points_data.append(sac_data)
+
+        if not sacrificed_points_data:
+            return {'success': False, 'reason': 'failed to sacrifice points for cardinal pulse'}
+            
+        # --- Fire 4 beams ---
+        lines_destroyed = []
+        points_created = []
+        attack_rays = []
+        
+        for arm_pid in rune['arm_ids']:
+            # The arm point itself was sacrificed, so we use its last known coordinates from the sacrifice data.
+            arm_point_data = next((p for p in sacrificed_points_data if p['id'] == arm_pid), None)
+            if not arm_point_data: continue
+
+            border_point = self._get_extended_border_point(center_point, arm_point_data)
+            if not border_point: continue
+
+            attack_ray = {'p1': center_point, 'p2': border_point}
+            attack_rays.append(attack_ray)
+            
+            # This is complex because points/lines are being removed as we iterate.
+            # We need to check against the current state of the board for each beam.
+            enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+            hits = []
+            for enemy_line in enemy_lines:
+                 # Cardinal Pulse is powerful, it bypasses shields but not bastions.
+                if enemy_line.get('id') in self._get_bastion_line_ids(): continue
+                if enemy_line['p1_id'] not in self.state['points'] or enemy_line['p2_id'] not in self.state['points']: continue
+                
+                ep1 = self.state['points'][enemy_line['p1_id']]
+                ep2 = self.state['points'][enemy_line['p2_id']]
+
+                intersection_point = get_segment_intersection_point(attack_ray['p1'], attack_ray['p2'], ep1, ep2)
+                if intersection_point:
+                    dist_sq = distance_sq(attack_ray['p1'], intersection_point)
+                    hits.append({'line': enemy_line, 'dist_sq': dist_sq})
+            
+            if hits:
+                # Destroy the closest line hit by this beam
+                closest_hit = min(hits, key=lambda h: h['dist_sq'])
+                line_to_destroy = closest_hit['line']
+                
+                if line_to_destroy in self.state['lines']: # Check it hasn't been destroyed by another beam
+                    self.state['lines'].remove(line_to_destroy)
+                    self.state['shields'].pop(line_to_destroy.get('id'), None)
+                    self.state['line_strengths'].pop(line_to_destroy.get('id'), None)
+                    lines_destroyed.append(line_to_destroy)
+            else:
+                # Miss: create point on border
+                is_valid, _ = self._is_spawn_location_valid(border_point, teamId)
+                if is_valid:
+                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                    new_point = {**border_point, "teamId": teamId, "id": new_point_id}
+                    self.state['points'][new_point_id] = new_point
+                    points_created.append(new_point)
+
+        if not lines_destroyed and not points_created:
+            return {'success': False, 'reason': 'cardinal pulse had no effect'}
+
+        return {
+            'success': True,
+            'type': 'rune_cardinal_pulse',
+            'sacrificed_points': sacrificed_points_data,
+            'lines_destroyed': lines_destroyed,
+            'points_created': points_created,
+            'attack_rays': attack_rays
+        }
 
     def rune_action_t_hammer_slam(self, teamId):
         """[RUNE ACTION]: A T-Rune sacrifices its head to push points away from its stem."""
