@@ -199,12 +199,12 @@ class Game:
         'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25, 'fight_purify_territory': 28,
         'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_form_purifier': 18, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'fortify_build_wonder': 100,
         'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'sacrifice_phase_shift': 5, 'defend_shield': 8,
-        'rune_shoot_bisector': 25, 'rune_area_shield': 20, 'rune_impale': 30
+        'rune_shoot_bisector': 25, 'rune_area_shield': 20, 'rune_impale': 30, 'rune_hourglass_stasis': 20
     }
     TRAIT_MULTIPLIERS = {
-        'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0},
+        'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0, 'rune_hourglass_stasis': 0.5},
         'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5, 'sacrifice_phase_shift': 2.0},
-        'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'rune_area_shield': 3.0},
+        'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'rune_area_shield': 3.0, 'rune_hourglass_stasis': 2.0},
         'Balanced':   {}
     }
     ACTION_DESCRIPTIONS = {
@@ -213,7 +213,7 @@ class Game:
         'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
         'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder",
         'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'defend_shield': "Shield Line",
-        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_impale': "Rune: Impale"
+        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis"
     }
 
 
@@ -234,9 +234,10 @@ class Game:
             "lines": [],  # Each line will now get a unique ID
             "shields": {}, # {line_id: turns_left}
             "anchors": {}, # {point_id: {teamId: teamId, turns_left: N}}
+            "stasis_points": {}, # {point_id: turns_left}
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
-            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': []}}
+            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': []}}
             "sentries": {}, # {teamId: [sentry1, sentry2, ...]}
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
@@ -347,6 +348,7 @@ class Game:
             augmented_point['is_monolith_point'] = pid in monolith_point_ids
             augmented_point['is_trebuchet_point'] = pid in trebuchet_point_ids
             augmented_point['is_purifier_point'] = pid in purifier_point_ids
+            augmented_point['is_in_stasis'] = pid in self.state.get('stasis_points', {})
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
 
@@ -558,8 +560,11 @@ class Game:
         for bastion_id in bastions_to_dissolve:
             if bastion_id in self.state['bastions']:
                 del self.state['bastions'][bastion_id]
+        
+        # 8. Handle Stasis
+        self.state.get('stasis_points', {}).pop(point_id, None)
 
-        # 6. Handle Trebuchets
+        # 9. Handle Trebuchets
         if self.state.get('trebuchets'):
             for teamId, trebuchets in list(self.state.get('trebuchets', {}).items()):
                 self.state['trebuchets'][teamId] = [
@@ -1893,7 +1898,8 @@ class Game:
         team_lines = self.get_team_lines(teamId)
         fortified_point_ids = self._get_fortified_point_ids()
         bastion_point_ids = self._get_bastion_point_ids()
-        immune_point_ids = fortified_point_ids.union(bastion_point_ids['cores']).union(bastion_point_ids['prongs'])
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        immune_point_ids = fortified_point_ids.union(bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids)
         enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
         points_map = self.state['points']
 
@@ -2035,16 +2041,18 @@ class Game:
         
         zap_range_sq = (self.state['grid_size'] * 0.35)**2
         
+        # Get list of vulnerable enemy points
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        # Sentry can destroy fortified points, but not stasis points
+        vulnerable_enemy_points = [p for p in points.values() if p['teamId'] != teamId and p['id'] not in stasis_point_ids]
+        
         # Check both directions of the perpendicular
         possible_targets = []
         for direction in [1, -1]:
             zap_dir_x = zap_vx * direction
             zap_dir_y = zap_vy * direction
             
-            # Find all enemy points
-            enemy_points = [p for p in points.values() if p['teamId'] != teamId]
-            
-            for enemy_p in enemy_points:
+            for enemy_p in vulnerable_enemy_points:
                 # Vector from eye to enemy
                 enemy_vx = enemy_p['x'] - p_eye['x']
                 enemy_vy = enemy_p['y'] - p_eye['y']
@@ -2136,9 +2144,19 @@ class Game:
                 'conduit_point_ids': chosen_conduit['point_ids']
             }
 
+        # Find vulnerable enemy points
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        vulnerable_enemy_points = [p for p in enemy_points if p['id'] not in stasis_point_ids]
+        if not vulnerable_enemy_points:
+             return {
+                'success': True, 'type': 'chain_lightning',
+                'sacrificed_point': sacrificed_point_data, 'destroyed_point': None,
+                'conduit_point_ids': chosen_conduit['point_ids']
+            }
+
         # Find the single closest enemy to either endpoint
         closest_enemy = min(
-            enemy_points,
+            vulnerable_enemy_points,
             key=lambda p: min(distance_sq(endpoint1, p), distance_sq(endpoint2, p))
         )
         
@@ -2164,7 +2182,12 @@ class Game:
         # Get a list of immune point IDs to exclude from targeting
         fortified_point_ids = self._get_fortified_point_ids()
         bastion_point_ids = self._get_bastion_point_ids()
-        immune_point_ids = fortified_point_ids.union(bastion_point_ids['cores']).union(bastion_point_ids['prongs'])
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        immune_point_ids = fortified_point_ids.union(
+            bastion_point_ids['cores'],
+            bastion_point_ids['prongs'],
+            stasis_point_ids
+        )
         
         enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
         if not enemy_points:
@@ -2251,7 +2274,14 @@ class Game:
             return {'success': False, 'reason': f'no territories with area >= {MIN_AREA}'}
 
         # Find enemy points to target
-        immune_point_ids = self._get_fortified_point_ids().union(self._get_bastion_point_ids()['cores']).union(self._get_bastion_point_ids()['prongs'])
+        fortified_point_ids = self._get_fortified_point_ids()
+        bastion_point_ids = self._get_bastion_point_ids()
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        immune_point_ids = fortified_point_ids.union(
+            bastion_point_ids['cores'],
+            bastion_point_ids['prongs'],
+            stasis_point_ids
+        )
         enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
         if not enemy_points:
             return {'success': False, 'reason': 'no vulnerable enemy points'}
@@ -2395,12 +2425,15 @@ class Game:
         fortified_ids = self._get_fortified_point_ids()
         bastion_cores = self._get_bastion_point_ids()['cores']
         monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
         
         possible_targets = [
             p for p in all_enemy_points if
-            p['id'] in fortified_ids or
-            p['id'] in bastion_cores or
-            p['id'] in monolith_point_ids
+            p['id'] not in stasis_point_ids and (
+                p['id'] in fortified_ids or
+                p['id'] in bastion_cores or
+                p['id'] in monolith_point_ids
+            )
         ]
         
         if not possible_targets:
@@ -2763,6 +2796,7 @@ class Game:
             'rune_shoot_bisector': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])), "Requires an active V-Rune."),
             'rune_area_shield': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('shield', [])), "Requires an active Shield Rune."),
             'rune_impale': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('trident', [])), "Requires an active Trident Rune."),
+            'rune_hourglass_stasis': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('hourglass', [])), "Requires an active Hourglass Rune."),
         }
 
         status = {}
@@ -2916,7 +2950,8 @@ class Game:
             'defend_shield': self.shield_action_protect_line,
             'rune_shoot_bisector': self.rune_action_shoot_bisector,
             'rune_area_shield': self.rune_action_area_shield,
-            'rune_impale': self.rune_action_impale
+            'rune_impale': self.rune_action_impale,
+            'rune_hourglass_stasis': self.rune_action_hourglass_stasis
         }
 
         # --- Evaluate possible actions based on game state and exclusion list ---
@@ -3152,6 +3187,12 @@ class Game:
                 if f['turns_left'] > 0:
                     active_fissures.append(f)
             self.state['fissures'] = active_fissures
+        
+        # 8. Process Stasis
+        if self.state.get('stasis_points'):
+            expired_stasis = [pid for pid, turns in self.state['stasis_points'].items() if turns - 1 <= 0]
+            self.state['stasis_points'] = {pid: turns - 1 for pid, turns in self.state['stasis_points'].items() if turns - 1 > 0}
+            # We don't need to do anything with expired_stasis list unless we want to log it
 
         # --- Set up action queue for the turn ---
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
@@ -3247,7 +3288,7 @@ class Game:
             'convert_point': lambda r: (f"sacrificed a line to convert a point from Team {r['original_team_name']}.", "[CONVERT]"),
             'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
             'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION!]"),
-            'form_monolith': lambda r: ("erected a resonant Monolith, a bastion of endurance.", "[MONOLITH]"),
+            'form_monolith': lambda r: ("erected a resonant Monolith from a pillar of light.", "[MONOLITH]"),
             'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
             'purify_territory': lambda r: (f"unleashed its Purifier, cleansing a territory from Team {self.state['teams'][r['cleansed_territory']['teamId']]['name']}.", "[PURIFY!]"),
             'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
@@ -3260,6 +3301,7 @@ class Game:
             'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
             'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
             'rune_impale': lambda r: (f"fired a piercing blast from a Trident Rune, destroying {len(r['destroyed_lines'])} lines.", "[IMPALE!]"),
+            'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from Team {self.state['teams'][r['target_point']['teamId']]['name']} in time.", "[STASIS!]"),
             'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[ZAP!]"),
             'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
             'chain_lightning': lambda r: (
@@ -3537,6 +3579,7 @@ class Game:
         self.state['runes'][teamId]['v_shape'] = self._check_v_rune(teamId)
         self.state['runes'][teamId]['shield'] = self._check_shield_rune(teamId)
         self.state['runes'][teamId]['trident'] = self._check_trident_rune(teamId)
+        self.state['runes'][teamId]['hourglass'] = self._check_hourglass_rune(teamId)
 
     def _update_sentries_for_team(self, teamId):
         """Checks for Sentry formations (3 collinear points with lines)."""
@@ -3794,6 +3837,112 @@ class Game:
                     break  # Found the correct diagonal pairing
         
         return cross_runes
+
+    def _check_hourglass_rune(self, teamId):
+        """
+        Finds Hourglass Runes: two triangles sharing a single vertex, where all 6 lines exist.
+        e.g., (A,B,V) and (C,D,V) are triangles.
+        Returns a list of dicts: [{'vertex_id': V, 'all_points': [V,A,B,C,D]}]
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 5:
+            return []
+
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+
+        hourglass_runes = []
+        used_points = set()
+
+        for vertex_id in team_point_ids:
+            if vertex_id in used_points:
+                continue
+            
+            neighbors = list(adj.get(vertex_id, []))
+            if len(neighbors) < 4:
+                continue
+
+            # Find all triangles connected to this vertex
+            triangles_from_vertex = []
+            for p1_id, p2_id in combinations(neighbors, 2):
+                if p2_id in adj.get(p1_id, set()):
+                    # (vertex_id, p1_id, p2_id) form a triangle
+                    triangles_from_vertex.append(set([p1_id, p2_id]))
+
+            if len(triangles_from_vertex) < 2:
+                continue
+
+            # We have at least two triangles, form an hourglass
+            # Using combinations to form pairs of these triangles
+            for tri1_others, tri2_others in combinations(triangles_from_vertex, 2):
+                # Ensure the two triangles don't share points other than the vertex
+                if not tri1_others.intersection(tri2_others):
+                    all_rune_points = {vertex_id}.union(tri1_others).union(tri2_others)
+                    
+                    if not used_points.intersection(all_rune_points):
+                        hourglass_runes.append({
+                            'vertex_id': vertex_id,
+                            'all_points': list(all_rune_points)
+                        })
+                        used_points.update(all_rune_points)
+                        # Break to not form more hourglasses with this vertex and these triangles
+                        break
+            if vertex_id in used_points:
+                continue
+        
+        return hourglass_runes
+
+    def rune_action_hourglass_stasis(self, teamId):
+        """[RUNE ACTION]: Uses an Hourglass Rune to freeze an enemy point in time."""
+        active_hourglass_runes = self.state.get('runes', {}).get(teamId, {}).get('hourglass', [])
+        if not active_hourglass_runes:
+            return {'success': False, 'reason': 'no active Hourglass Runes'}
+
+        rune = random.choice(active_hourglass_runes)
+        points_map = self.state['points']
+        
+        # All points in the rune formation
+        rune_points = [points_map.get(pid) for pid in rune['all_points']]
+        if not all(p for p in rune_points):
+            return {'success': False, 'reason': 'rune points no longer exist'}
+        
+        # Find vulnerable enemy points near the rune's vertex
+        p_vertex = points_map[rune['vertex_id']]
+        stasis_range_sq = (self.state['grid_size'] * 0.3)**2
+        
+        # Get a list of immune point IDs to exclude from targeting
+        fortified_point_ids = self._get_fortified_point_ids()
+        bastion_point_ids = self._get_bastion_point_ids()
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        immune_point_ids = fortified_point_ids.union(bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids)
+        
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
+        
+        possible_targets = []
+        for ep in enemy_points:
+            if distance_sq(p_vertex, ep) < stasis_range_sq:
+                possible_targets.append(ep)
+
+        if not possible_targets:
+            return {'success': False, 'reason': 'no vulnerable enemy points in range'}
+            
+        target_point = random.choice(possible_targets)
+        
+        # Apply stasis
+        stasis_duration = 3 # turns
+        if 'stasis_points' not in self.state: self.state['stasis_points'] = {}
+        self.state['stasis_points'][target_point['id']] = stasis_duration
+        
+        return {
+            'success': True,
+            'type': 'rune_hourglass_stasis',
+            'target_point': target_point,
+            'rune_points': rune['all_points'],
+            'rune_vertex_id': rune['vertex_id']
+        }
 
     def _update_conduits_for_team(self, teamId):
         """Checks for Conduit formations (3+ collinear points)."""

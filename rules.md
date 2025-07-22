@@ -21,6 +21,9 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
 *   **Trident-Rune:**
     *   **Formation:** Four points forming a "trident" or "pitchfork" shape. This requires an isosceles triangle and a fourth "handle" point extending from the apex along the line of symmetry. All three connecting lines must exist.
     *   **Bonus:** Unlocks the **[RUNE] Impale** action.
+*   **Hourglass-Rune:**
+    *   **Formation:** Five points forming two distinct triangles that share a single, common vertex point. All six lines required to form the two triangles must exist.
+    *   **Bonus:** Unlocks the **[RUNE] Time Stasis** action.
 
 ## Actions
 On its turn, a team will perform one of the following actions, with the choice being influenced by its trait.
@@ -47,6 +50,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits.
 *   **[RUNE] Impale:** _(Requires an active Trident-Rune)_ Fires a devastating, long-range beam that pierces through all enemy lines in its path, ignoring shields.
 *   **[RUNE] Area Shield:** _(Requires an active Shield-Rune)_ Creates a temporary shield on all friendly lines contained within the rune's triangular boundary, protecting a key area of a team's structure.
+*   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field for several turns. A point in stasis cannot be targeted by most actions and is effectively removed from play until the effect wears off.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Form Sentry:** A passive formation. When three of a team's points are collinear and connected by lines (forming Post-Eye-Post), they become a Sentry.
     *   **Bonus:** Unlocks the **[FIGHT] Sentry Zap** action.

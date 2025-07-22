@@ -248,6 +248,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.fill();
                 }
 
+                // Stasis effect (drawn on top of point)
+                if (p.is_in_stasis) {
+                    const pulse = Math.abs(Math.sin(Date.now() / 400));
+                    ctx.strokeStyle = `rgba(150, 220, 255, ${0.5 + pulse * 0.4})`;
+                    ctx.lineWidth = 1.5;
+                    // Draw a cage-like effect
+                    const cage_radius = radius + 3;
+                    ctx.beginPath(); // Vertical bars
+                    ctx.moveTo(cx - cage_radius, cy);
+                    ctx.lineTo(cx + cage_radius, cy);
+                    ctx.moveTo(cx, cy - cage_radius);
+                    ctx.lineTo(cx, cy + cage_radius);
+                    ctx.stroke();
+                    ctx.beginPath(); // Circle
+                    ctx.arc(cx, cy, cage_radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
+
 
                 if (debugOptions.showPointIds) {
                     ctx.fillStyle = '#000';
@@ -686,6 +704,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.globalAlpha = 0.3 + pulse * 0.4;
                     ctx.stroke();
 
+                    ctx.globalAlpha = 1.0;
+                });
+            }
+
+            // Draw Hourglass Runes
+            if (teamRunes.hourglass) {
+                teamRunes.hourglass.forEach(rune => {
+                    const p_v = gameState.points[rune.vertex_id];
+                    if (!p_v) return;
+
+                    const all_points = rune.all_points.map(pid => gameState.points[pid]);
+                    if (all_points.some(p => !p)) return;
+
+                    const tri1_pts = all_points.filter(p => p.id !== p_v.id).slice(0, 2);
+                    const tri2_pts = all_points.filter(p => p.id !== p_v.id).slice(2, 4);
+                    if (tri1_pts.length < 2 || tri2_pts.length < 2) return;
+
+                    ctx.beginPath();
+                    // tri 1
+                    ctx.moveTo((tri1_pts[0].x + 0.5) * cellSize, (tri1_pts[0].y + 0.5) * cellSize);
+                    ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
+                    ctx.lineTo((tri1_pts[1].x + 0.5) * cellSize, (tri1_pts[1].y + 0.5) * cellSize);
+                    // tri 2
+                    ctx.moveTo((tri2_pts[0].x + 0.5) * cellSize, (tri2_pts[0].y + 0.5) * cellSize);
+                    ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
+                    ctx.lineTo((tri2_pts[1].x + 0.5) * cellSize, (tri2_pts[1].y + 0.5) * cellSize);
+                    
+                    ctx.strokeStyle = team.color;
+                    ctx.lineWidth = 6;
+                    ctx.globalAlpha = 0.4;
+                    ctx.stroke();
                     ctx.globalAlpha = 1.0;
                 });
             }
@@ -1336,6 +1385,20 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         'convert_point': (details, gameState) => {
             lastActionHighlights.points.add(details.converted_point.id);
+            const line = details.sacrificed_line;
+            const p1 = gameState.points[line.p1_id];
+            const p2 = gameState.points[line.p2_id];
+            if (p1 && p2) {
+                 const midpoint = {x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2};
+                 visualEffects.push({
+                     type: 'energy_spiral',
+                     start: midpoint,
+                     end: details.converted_point,
+                     color: gameState.teams[details.converted_point.teamId].color,
+                     startTime: Date.now(),
+                     duration: 1000
+                 });
+            }
         },
         'attack_line': (details, gameState) => {
             lastActionHighlights.lines.add(details.attacker_line.id);
@@ -1427,12 +1490,20 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         'form_bastion': (details, gameState) => {
             visualEffects.push({
-                type: 'structure_formation',
-                point_ids: details.point_ids,
+                type: 'bastion_formation',
                 line_ids: details.line_ids,
                 color: gameState.teams[details.bastion.teamId].color,
                 startTime: Date.now(),
                 duration: 1200
+            });
+        },
+        'form_monolith': (details, gameState) => {
+            visualEffects.push({
+                type: 'monolith_formation',
+                center: details.monolith.center_coords,
+                color: gameState.teams[details.monolith.teamId].color,
+                startTime: Date.now(),
+                duration: 1500
             });
         },
         'chain_lightning': (details, gameState) => {
