@@ -2101,14 +2101,23 @@ document.addEventListener('DOMContentLoaded', () => {
             maxTurns: parseInt(maxTurnsInput.value),
             gridSize: parseInt(gridSizeInput.value)
         };
-        const response = await fetch('/api/game/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const gameState = await response.json();
-        initialPoints = []; // Clear setup points after game starts
-        updateStateAndRender(gameState);
+        try {
+            const response = await fetch('/api/game/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to start game. Server returned ${response.status}: ${errorText}`);
+            }
+            const gameState = await response.json();
+            initialPoints = []; // Clear setup points after game starts
+            updateStateAndRender(gameState);
+        } catch (error) {
+            // Let the global handler catch and display it
+            throw error;
+        }
     });
 
     restartSimulationBtn.addEventListener('click', async () => {
@@ -2116,20 +2125,34 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         stopAutoPlay();
-        const response = await fetch('/api/game/restart', { method: 'POST' });
-        if (response.ok) {
+        try {
+            const response = await fetch('/api/game/restart', { method: 'POST' });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to restart game. Server returned ${response.status}: ${errorText}`);
+            }
             const gameState = await response.json();
             updateStateAndRender(gameState);
-        } else {
-            const error = await response.json();
-            alert(`Could not restart game: ${error.message || 'Unknown error'}`);
+        } catch (error) {
+            // Let the global handler catch and display it
+            throw error;
         }
     });
 
     nextActionBtn.addEventListener('click', async () => {
-        const response = await fetch('/api/game/next_action', { method: 'POST' });
-        const gameState = await response.json();
-        updateStateAndRender(gameState);
+        try {
+            const response = await fetch('/api/game/next_action', { method: 'POST' });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to run next action. Server returned ${response.status}: ${errorText}`);
+            }
+            const gameState = await response.json();
+            updateStateAndRender(gameState);
+        } catch (error) {
+            stopAutoPlay();
+            // Let the global handler catch and display it
+            throw error;
+        }
     });
 
     function stopAutoPlay() {
@@ -2149,11 +2172,30 @@ document.addEventListener('DOMContentLoaded', () => {
                  stopAutoPlay();
                  return;
             }
-            const response = await fetch('/api/game/next_action', { method: 'POST' });
-            const gameState = await response.json();
-            updateStateAndRender(gameState);
-            if (gameState.game_phase === 'FINISHED') {
+            try {
+                const response = await fetch('/api/game/next_action', { method: 'POST' });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    // Don't throw here, as it would be unhandled inside setInterval.
+                    // Instead, stop autoplay and show the error.
+                    stopAutoPlay();
+                    const errorOverlay = document.getElementById('error-overlay');
+                    const errorDetails = document.getElementById('error-details');
+                    errorDetails.textContent = `Auto-play stopped. Server Error (${response.status}):\n\n${errorText}`;
+                    errorOverlay.style.display = 'flex';
+                    return;
+                }
+                const gameState = await response.json();
+                updateStateAndRender(gameState);
+                if (gameState.game_phase === 'FINISHED') {
+                    stopAutoPlay();
+                }
+            } catch (error) {
                 stopAutoPlay();
+                const errorOverlay = document.getElementById('error-overlay');
+                const errorDetails = document.getElementById('error-details');
+                errorDetails.textContent = `Auto-play stopped. Fetch/Parse Error:\n\n${error.stack}`;
+                errorOverlay.style.display = 'flex';
             }
         }, delay);
     }
@@ -2247,7 +2289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Also catch promise rejections
         window.addEventListener('unhandledrejection', event => {
             stopAutoPlay();
-            const errorText = `Unhandled Promise Rejection:\nReason: ${event.reason}`;
+            const errorText = `Unhandled Promise Rejection:\nReason: ${event.reason.stack || event.reason}`;
             errorDetails.textContent = errorText;
             errorOverlay.style.display = 'flex';
         });
