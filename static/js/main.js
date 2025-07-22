@@ -1944,6 +1944,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: 800,
             });
         },
+        'impale_fizzle_barricade': (details, gameState) => {
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            // Animate the beam first
+            visualEffects.push({
+                type: 'animated_ray',
+                p1: details.attack_ray.p1, p2: details.attack_ray.p2,
+                startTime: Date.now(), duration: 500,
+                color: 'rgba(255, 100, 255, 1.0)', lineWidth: 6,
+            });
+            // Then animate the wall growing
+            visualEffects.push({
+                type: 'growing_wall',
+                barricade: details.barricade,
+                color: gameState.teams[details.barricade.teamId].color,
+                startTime: Date.now() + 200, // Staggered start
+                duration: 800,
+            });
+        },
         'territory_fizzle_reinforce': (details, gameState) => {
             details.strengthened_lines.forEach(line => {
                 lastActionHighlights.lines.add(line.id);

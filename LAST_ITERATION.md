@@ -1,26 +1,24 @@
-### Action System Redesign (Part 4): "Never Useless" Fight Actions
+### Action System Redesign (Part 5): Expanding "Never Useless" Actions
 
-This iteration continues the work on the action system, focusing on making several key `FIGHT` actions more robust by giving them useful fallback effects. This reduces the number of "wasted" turns and adds another layer of strategic depth, as a failed attack can now pivot into a defensive or expansive outcome.
+This iteration continues the enhancement of the action system by adding fallback effects to several more actions, ensuring they are almost always useful and reducing wasted turns. This adds more dynamic and unexpected outcomes to the simulation.
 
 -   **Files Modified**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
 
 -   **Core Changes**:
-    -   **`fight_action_pincer_attack`**:
-        -   **Primary Effect**: Two friendly points flank and destroy an enemy point.
-        -   **Fallback Effect**: If no valid pincer target can be found, the two chosen points now create a small, temporary **Barricade** between them, pivoting a failed attack into a defensive maneuver.
+    -   **`rune_action_impale`**:
+        -   **Primary Effect**: A Trident Rune fires a beam that pierces and destroys all enemy lines in its path.
+        -   **Fallback Effect**: If the beam hits no targets, it now creates a temporary **Barricade** along its path, turning a missed attack into a useful area denial tool.
 
-    -   **`fight_action_territory_strike`**:
-        -   **Primary Effect**: A large territory fires a projectile to destroy the nearest enemy point.
-        -   **Fallback Effect**: If there are no vulnerable enemy points on the board, the territory now reinforces its own three boundary lines, increasing their strength and durability.
+    -   **`fight_action_launch_payload`**:
+        -   **Primary Effect**: A Trebuchet fires a payload to destroy a high-value enemy point (fortified, bastion core, etc.).
+        -   **Fallback 1**: If no high-value targets are available, it now targets any standard vulnerable enemy point.
+        -   **Fallback 2**: If there are no enemy points at all, the payload now impacts a random spot on the battlefield, creating a small, temporary **Fissure**.
 
-    -   **`fight_action_sentry_zap`**:
-        -   **Primary Effect**: A Sentry structure fires a precision shot to destroy an enemy point.
-        -   **Fallback Effect**: If the zap has no valid target in its line of fire, the beam now travels to the edge of the grid and creates a new friendly point, similar to the `fight_attack` miss effect.
+    -   **`fight_action_refraction_beam`**:
+        -   **Primary Effect**: A Prism structure is used to refract a beam and destroy an enemy line.
+        -   **Fallback Effect**: If the refracted beam does not hit any enemy lines, it now travels to the edge of the grid and creates a new friendly point, similar to other missed beam attacks.
 
 -   **Frontend & Documentation**:
-    -   Added new visual effects in `static/js/main.js` to clearly communicate when these fallback effects occur.
-    -   Updated the action descriptions in `rules.md` to reflect the new dual-outcome nature of these three actions.
+    -   Added new visual effects in `static/js/main.js` to communicate the new fallback behaviors (e.g., an arcing payload that creates a fissure).
+    -   Updated the action descriptions in `rules.md` to reflect the new tiered outcomes for these actions.
     -   Added corresponding log messages in `game_logic.py` for each new fallback.
-
--   **Refactoring**:
-    -   The internal logic for finding pincer attacks was moved directly into the action function, removing the need for a separate, expensive helper function (`_find_possible_pincers`) and simplifying the precondition checks.

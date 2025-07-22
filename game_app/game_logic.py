@@ -2337,21 +2337,24 @@ class Game:
         }
 
     def fight_action_launch_payload(self, teamId):
-        """[FIGHT ACTION]: A Trebuchet launches a payload to destroy a high-value enemy point."""
+        """[FIGHT ACTION]: A Trebuchet launches a payload. Prioritizes high-value points, then any enemy, and finally creates a fissure if no targets exist."""
         team_trebuchets = self.state.get('trebuchets', {}).get(teamId, [])
         if not team_trebuchets:
             return {'success': False, 'reason': 'no active trebuchets'}
 
-        # Find all possible high-value enemy targets
+        trebuchet = random.choice(team_trebuchets)
+
+        # --- Target Prioritization ---
+        target_point = None
+
+        # 1. High-value targets
         all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
-        
-        # Get IDs of special points for easier lookup
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
         fortified_ids = self._get_fortified_point_ids()
         bastion_cores = self._get_bastion_point_ids()['cores']
         monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
-        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
         
-        possible_targets = [
+        high_value_targets = [
             p for p in all_enemy_points if
             p['id'] not in stasis_point_ids and (
                 p['id'] in fortified_ids or
@@ -2360,24 +2363,64 @@ class Game:
             )
         ]
         
-        if not possible_targets:
-            return {'success': False, 'reason': 'no high-value enemy targets available'}
+        if high_value_targets:
+            target_point = random.choice(high_value_targets)
+        else:
+            # 2. Any vulnerable enemy target
+            vulnerable_targets = self._get_vulnerable_enemy_points(teamId)
+            if vulnerable_targets:
+                target_point = random.choice(vulnerable_targets)
         
-        trebuchet = random.choice(team_trebuchets)
-        target_point = random.choice(possible_targets)
-        
-        # Destroy the target point and all its connections
-        destroyed_point_data = self._delete_point_and_connections(target_point['id'])
-        if not destroyed_point_data:
-            return {'success': False, 'reason': 'failed to destroy target point'}
+        # --- Execute Action ---
+        if target_point:
+            # --- Primary or Secondary Effect: Destroy Point ---
+            destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+            if not destroyed_point_data:
+                return {'success': False, 'reason': 'failed to destroy target point'}
             
-        return {
-            'success': True,
-            'type': 'launch_payload',
-            'trebuchet_points': trebuchet['point_ids'],
-            'launch_point_id': trebuchet['apex_id'],
-            'destroyed_point': destroyed_point_data
-        }
+            # Determine if the target was high-value for logging/visuals
+            is_high_value = destroyed_point_data['id'] in fortified_ids or \
+                            destroyed_point_data['id'] in bastion_cores or \
+                            destroyed_point_data['id'] in monolith_point_ids
+
+            return {
+                'success': True,
+                'type': 'launch_payload' if is_high_value else 'launch_payload_fallback_hit',
+                'trebuchet_points': trebuchet['point_ids'],
+                'launch_point_id': trebuchet['apex_id'],
+                'destroyed_point': destroyed_point_data
+            }
+        else:
+            # --- Fallback Effect: Create Fissure ---
+            grid_size = self.state['grid_size']
+            fissure_id = f"f_{uuid.uuid4().hex[:6]}"
+            fissure_len = self.state['grid_size'] * 0.3
+            
+            # Create fissure at a random location
+            center_x = random.uniform(fissure_len, grid_size - fissure_len)
+            center_y = random.uniform(fissure_len, grid_size - fissure_len)
+            angle = random.uniform(0, math.pi)
+
+            p1 = {'x': center_x - (fissure_len / 2) * math.cos(angle), 'y': center_y - (fissure_len / 2) * math.sin(angle)}
+            p2 = {'x': center_x + (fissure_len / 2) * math.cos(angle), 'y': center_y + (fissure_len / 2) * math.sin(angle)}
+
+            p1['x'] = round(max(0, min(grid_size - 1, p1['x'])))
+            p1['y'] = round(max(0, min(grid_size - 1, p1['y'])))
+            p2['x'] = round(max(0, min(grid_size - 1, p2['x'])))
+            p2['y'] = round(max(0, min(grid_size - 1, p2['y'])))
+
+            new_fissure = {'id': fissure_id, 'p1': p1, 'p2': p2, 'turns_left': 3}
+            if 'fissures' not in self.state: self.state['fissures'] = []
+            self.state['fissures'].append(new_fissure)
+
+            return {
+                'success': True,
+                'type': 'launch_payload_fizzle_fissure',
+                'fissure': new_fissure,
+                'trebuchet_points': trebuchet['point_ids'],
+                'launch_point_id': trebuchet['apex_id'],
+                'impact_site': {'x': center_x, 'y': center_y}
+            }
 
     def fight_action_chain_lightning(self, teamId):
         """[FIGHT ACTION]: A Conduit sacrifices an internal point to strike a nearby enemy point."""
@@ -2816,97 +2859,115 @@ class Game:
         }
 
     def fight_action_refraction_beam(self, teamId):
-        """[FIGHT ACTION]: Uses a Prism to refract an attack beam."""
+        """[FIGHT ACTION]: Uses a Prism to refract an attack beam. If it misses, it creates a new point on the border."""
         team_prisms = self.state.get('prisms', {}).get(teamId, [])
         if not team_prisms:
             return {'success': False, 'reason': 'no active prisms'}
         
         points = self.state['points']
         
-        # All lines for this team that could be a "source beam"
-        # Exclude lines that are part of any prism for simplicity.
-        prism_point_ids = set()
-        for p in team_prisms:
-            prism_point_ids.update(p['all_point_ids'])
-        
+        prism_point_ids = {pid for p in team_prisms for pid in p['all_point_ids']}
         source_lines = [l for l in self.get_team_lines(teamId) if l['p1_id'] not in prism_point_ids and l['p2_id'] not in prism_point_ids]
         if not source_lines:
             return {'success': False, 'reason': 'no valid source lines for refraction'}
 
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        if not enemy_lines:
-            return {'success': False, 'reason': 'no enemy lines to target'}
         
+        potential_outcomes = []
+
         # Try a few combinations of prisms and source lines
         for _ in range(10):
             prism = random.choice(team_prisms)
             source_line = random.choice(source_lines)
 
-            # 1. Create the initial attack ray from the source line
             if source_line['p1_id'] not in points or source_line['p2_id'] not in points: continue
             
-            # Choose a random direction for the source ray
             ls1, ls2 = random.choice([(points[source_line['p1_id']], points[source_line['p2_id']]), (points[source_line['p2_id']], points[source_line['p1_id']])])
             
             source_ray_end = self._get_extended_border_point(ls1, ls2)
             if not source_ray_end: continue
             source_ray = {'p1': ls2, 'p2': source_ray_end}
 
-            # 2. Find intersection with the prism's shared edge
             if prism['shared_p1_id'] not in points or prism['shared_p2_id'] not in points: continue
             prism_edge_p1 = points[prism['shared_p1_id']]
             prism_edge_p2 = points[prism['shared_p2_id']]
 
             intersection_point = get_segment_intersection_point(source_ray['p1'], source_ray['p2'], prism_edge_p1, prism_edge_p2)
-            if not intersection_point:
-                continue # This combo doesn't work, try another
+            if not intersection_point: continue
 
-            # 3. Create refracted rays and check for hits
-            # Vector for the shared edge
             edge_vx = prism_edge_p2['x'] - prism_edge_p1['x']
             edge_vy = prism_edge_p2['y'] - prism_edge_p1['y']
             
-            # Perpendicular vectors (the two possible directions for the beam)
             perp_vectors = [(-edge_vy, edge_vx), (edge_vy, -edge_vx)]
 
             for pvx, pvy in perp_vectors:
                 mag = math.sqrt(pvx**2 + pvy**2)
                 if mag == 0: continue
                 
-                # Create a point far along the refracted ray to define it
                 refracted_end_dummy = {'x': intersection_point['x'] + pvx/mag, 'y': intersection_point['y'] + pvy/mag}
                 refracted_ray_end = self._get_extended_border_point(intersection_point, refracted_end_dummy)
                 if not refracted_ray_end: continue
                 
                 refracted_ray = {'p1': intersection_point, 'p2': refracted_ray_end}
 
-                # Check this ray against all enemy lines
-                for enemy_line in enemy_lines:
-                    if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
-                    ep1 = points[enemy_line['p1_id']]
-                    ep2 = points[enemy_line['p2_id']]
-
-                    # This special attack ignores shields but not bastions
+                # Check this ray for hits
+                hit_found = False
+                if enemy_lines:
                     bastion_line_ids = self._get_bastion_line_ids()
-                    if enemy_line.get('id') in bastion_line_ids:
-                        continue
+                    for enemy_line in enemy_lines:
+                        if enemy_line.get('id') in bastion_line_ids: continue
+                        if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
+                        ep1, ep2 = points[enemy_line['p1_id']], points[enemy_line['p2_id']]
 
-                    if segments_intersect(refracted_ray['p1'], refracted_ray['p2'], ep1, ep2):
-                        # We have a successful hit!
-                        self.state['lines'].remove(enemy_line)
-                        self.state['shields'].pop(enemy_line.get('id'), None)
-                        
-                        return {
-                            'success': True,
-                            'type': 'refraction_beam',
-                            'destroyed_line': enemy_line,
-                            'source_ray': source_ray,
-                            'refracted_ray': refracted_ray,
-                            'prism_point_ids': prism['all_point_ids']
-                        }
-        
-        # If loop finishes without a successful hit
-        return {'success': False, 'reason': 'no refraction path found to a target'}
+                        if segments_intersect(refracted_ray['p1'], refracted_ray['p2'], ep1, ep2):
+                            potential_outcomes.append({
+                                'type': 'hit', 'enemy_line': enemy_line, 'source_ray': source_ray,
+                                'refracted_ray': refracted_ray, 'prism': prism
+                            })
+                            hit_found = True
+                            break # Found a hit for this refracted ray
+                
+                if not hit_found:
+                    # If no hit, this is a potential miss outcome
+                    potential_outcomes.append({
+                        'type': 'miss', 'border_point': refracted_ray_end, 'source_ray': source_ray,
+                        'refracted_ray': refracted_ray, 'prism': prism
+                    })
+
+        if not potential_outcomes:
+            return {'success': False, 'reason': 'no valid refraction paths found'}
+
+        # Prioritize hits over misses
+        hits = [o for o in potential_outcomes if o['type'] == 'hit']
+        if hits:
+            # --- Primary Effect: Hit an enemy line ---
+            chosen_hit = random.choice(hits)
+            enemy_line = chosen_hit['enemy_line']
+            self.state['lines'].remove(enemy_line)
+            self.state['shields'].pop(enemy_line.get('id'), None)
+            
+            return {
+                'success': True, 'type': 'refraction_beam',
+                'destroyed_line': enemy_line, 'source_ray': chosen_hit['source_ray'],
+                'refracted_ray': chosen_hit['refracted_ray'], 'prism_point_ids': chosen_hit['prism']['all_point_ids']
+            }
+        else:
+            # --- Fallback Effect: Spawn a point on the border ---
+            chosen_miss = random.choice(potential_outcomes) # All are misses
+            border_point = chosen_miss['border_point']
+            is_valid, _ = self._is_spawn_location_valid(border_point, teamId)
+            if is_valid:
+                new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                new_point = {**border_point, "teamId": teamId, "id": new_point_id}
+                self.state['points'][new_point_id] = new_point
+                return {
+                    'success': True, 'type': 'refraction_miss_spawn',
+                    'new_point': new_point, 'source_ray': chosen_miss['source_ray'],
+                    'refracted_ray': chosen_miss['refracted_ray'], 'prism_point_ids': chosen_miss['prism']['all_point_ids']
+                }
+
+        # If we got here, it means we only had miss options but none were valid spawn locations
+        return {'success': False, 'reason': 'no valid spawn location for refracted beam miss'}
 
     def fight_action_launch_payload(self, teamId):
         """[FIGHT ACTION]: A Trebuchet launches a payload to destroy a high-value enemy point."""
@@ -3241,7 +3302,7 @@ class Game:
             }
 
     def rune_action_impale(self, teamId):
-        """[RUNE ACTION]: Fires a powerful, shield-piercing beam from a Trident Rune, hitting multiple lines."""
+        """[RUNE ACTION]: Fires a powerful, shield-piercing beam from a Trident Rune. If it misses, it creates a temporary barricade."""
         active_trident_runes = self.state.get('runes', {}).get(teamId, {}).get('trident', [])
         if not active_trident_runes:
             return {'success': False, 'reason': 'no active Trident Runes'}
@@ -3282,24 +3343,44 @@ class Game:
                 lines_to_destroy.append(line)
                 intersection_points.append(intersection_pt)
 
-        if not lines_to_destroy:
-            return {'success': False, 'reason': 'no targets in impale path'}
-            
-        # Destroy all hit lines
-        for line in lines_to_destroy:
-            if line in self.state['lines']:
-                self.state['lines'].remove(line)
-                self.state['shields'].pop(line.get('id'), None) # Pierces shields
-                self.state['line_strengths'].pop(line.get('id'), None) # Pierces monolith empowerment
-                
-        return {
-            'success': True,
-            'type': 'rune_impale',
-            'destroyed_lines': lines_to_destroy,
-            'intersection_points': intersection_points,
-            'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2},
-            'rune_points': [rune['handle_id'], rune['apex_id']] + rune['prong_ids']
-        }
+        rune_points_payload = [rune['handle_id'], rune['apex_id']] + rune['prong_ids']
+
+        if lines_to_destroy:
+            # --- Primary Effect: Destroy Lines ---
+            for line in lines_to_destroy:
+                if line in self.state['lines']:
+                    self.state['lines'].remove(line)
+                    self.state['shields'].pop(line.get('id'), None) # Pierces shields
+                    self.state['line_strengths'].pop(line.get('id'), None) # Pierces monolith empowerment
+                    
+            return {
+                'success': True,
+                'type': 'rune_impale',
+                'destroyed_lines': lines_to_destroy,
+                'intersection_points': intersection_points,
+                'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2},
+                'rune_points': rune_points_payload
+            }
+        else:
+            # --- Fallback Effect: Create Barricade ---
+            barricade_id = f"bar_{uuid.uuid4().hex[:6]}"
+            new_barricade = {
+                'id': barricade_id,
+                'teamId': teamId,
+                'p1': {'x': attack_ray_p1['x'], 'y': attack_ray_p1['y']},
+                'p2': {'x': attack_ray_p2['x'], 'y': attack_ray_p2['y']},
+                'turns_left': 2 # A short-lived barricade
+            }
+            if 'barricades' not in self.state: self.state['barricades'] = []
+            self.state['barricades'].append(new_barricade)
+
+            return {
+                'success': True,
+                'type': 'impale_fizzle_barricade',
+                'barricade': new_barricade,
+                'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2},
+                'rune_points': rune_points_payload
+            }
 
     def _get_all_actions_status(self, teamId):
         """
@@ -3880,12 +3961,14 @@ class Game:
             'rune_shield_pulse': lambda r: (f"unleashed a shockwave from a Shield Rune, pushing back {r['pushed_points_count']} enemy points.", "[PULSE!]"),
             'shield_pulse_fizzle_pull': lambda r: (f"unleashed a shockwave from a Shield Rune with no enemies in range, instead pulling in {r['pulled_points_count']} friendly points to consolidate.", "[PULSE->PULL]"),
             'rune_impale': lambda r: (f"fired a piercing blast from a Trident Rune, destroying {len(r['destroyed_lines'])} lines.", "[IMPALE!]"),
+            'impale_fizzle_barricade': lambda r: ("fired a Trident blast that missed all targets, creating a temporary barricade in its wake.", "[IMPALE->WALL]"),
             'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from Team {self.state['teams'][r['target_point']['teamId']]['name']} in time.", "[STASIS!]"),
             'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),
             'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[FOCUS BEAM!]"),
             'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[ZAP!]"),
             'sentry_zap_miss_spawn': lambda r: ("a Sentry fired a beam that missed all targets, creating a new point on the border.", "[ZAP->SPAWN]"),
             'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
+            'refraction_miss_spawn': lambda r: ("fired a refracted beam from a Prism that missed, creating a new point on the border.", "[REFRACT->SPAWN]"),
             'chain_lightning': lambda r: (
                 f"unleashed Chain Lightning from a Conduit, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}." if r.get('destroyed_point') 
                 else "attempted to use Chain Lightning, but the attack fizzled.",
@@ -3896,6 +3979,8 @@ class Game:
             'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TERRITORY!]"),
             'territory_fizzle_reinforce': lambda r: ("could not find a target for a territory strike, and instead reinforced its own boundaries.", "[TERRITORY->REINFORCE]"),
             'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET!]"),
+            'launch_payload_fallback_hit': lambda r: (f"found no high-value targets and instead launched a payload from a Trebuchet at a standard point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET]"),
+            'launch_payload_fizzle_fissure': lambda r: ("found no enemy targets and instead launched a payload from a Trebuchet that impacted the battlefield, creating a temporary fissure.", "[TREBUCHET->FIZZLE]"),
             'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
             'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),
             'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]")
