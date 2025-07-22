@@ -3196,6 +3196,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Canvas Sizing & Responsiveness ---
 
     function resizeCanvas() {
+        // If the canvas's container is hidden, its client dimensions will be 0.
+        // We avoid resizing the canvas to 0x0, which would erase its content and
+        // prevent it from being redrawn correctly when it becomes visible again.
+        // The ResizeObserver will trigger this function correctly when it's visible.
+        if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
+            return;
+        }
         // Match the drawing surface size to the element's size in the layout
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
@@ -3218,14 +3225,8 @@ document.addEventListener('DOMContentLoaded', () => {
             link.classList.add('active');
             document.getElementById(tabId).classList.add('active');
 
-            if (tabId === 'game-tab') {
-                // When switching back to a tab that was `display: none`, the browser
-                // needs a moment to recalculate the layout. `requestAnimationFrame` can
-                // sometimes fire too early for complex layouts (like this app's grid).
-                // A minimal `setTimeout` pushes the resize call to the end of the event
-                // queue, ensuring layout calculations are complete.
-                setTimeout(resizeCanvas, 0);
-            }
+            // The ResizeObserver is now the single source of truth for resizing,
+            // so we no longer need a manual call here. This prevents race conditions.
         });
     });
 

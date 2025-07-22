@@ -1,13 +1,17 @@
-This iteration focuses on fixing a UI rendering bug and improving server-side error reporting to help diagnose a backend crash.
+This iteration resolves a frontend rendering bug and a critical backend crash.
 
 **1. Fixed Disappearing Grid on Tab Switch (Issue #1)**
-- **Problem:** When switching from the "Action Guide" tab back to the "Game" tab during the setup phase, the canvas grid would disappear. This is a common issue when a canvas's parent container has `display: none`, as the canvas element's dimensions collapse to zero.
-- **Analysis:** The existing fix using `requestAnimationFrame` was insufficient for the complex CSS grid/flexbox layout, which can take longer than a single frame to reflow. The `resizeCanvas` function was being called before the canvas's container had its final, non-zero dimensions.
-- **Solution:** In `static/js/main.js`, the tab-switching event listener was modified to use `setTimeout(resizeCanvas, 0)` instead of `requestAnimationFrame`. Using a timeout of 0ms pushes the `resizeCanvas` call to the end of the browser's event queue. This ensures that all layout and rendering calculations triggered by the tab switch are complete before the canvas is resized, reliably solving the rendering issue.
+- **Problem:** The canvas grid and points would disappear when switching to another tab and back during the setup phase.
+- **Analysis:** This was caused by the canvas's parent container being set to `display: none`, which collapses the canvas's client dimensions to zero. When the tab became visible again, the `resizeCanvas` function was sometimes called before the layout was fully recalculated, causing the canvas's drawing surface to be incorrectly sized to 0x0. The `ResizeObserver` was the correct tool, but it could also be triggered when the canvas was hidden, setting its size to 0.
+- **Solution:** Two changes were made in `static/js/main.js`:
+    1.  A guard condition was added to `resizeCanvas()` to prevent it from executing if the canvas's `clientWidth` is 0. This stops the drawing buffer from being destroyed when the tab is hidden.
+    2.  The manual `setTimeout(resizeCanvas, 0)` call in the tab-switching logic was removed. This simplifies the code and makes the `ResizeObserver` the single source of truth for handling resizes, which is more robust and prevents potential race conditions.
 
-**2. Improved Server Error Diagnostics (Issue #2)**
-- **Problem:** A generic "Unhandled Promise Rejection" was reported from the frontend, indicating a server-side crash during gameplay, but with no details about the backend error.
-- **Analysis:** The frontend's `_fetchJson` function was correctly identifying the server error (e.g., HTTP 500) and rejecting the promise. However, the error information passed to the frontend's global error handler was generic and did not include the rich traceback information sent by the Flask debug server in the response body.
+**2. Fixed `AttributeError` Crash during Sacrifice Actions (Issue #2)**
+- **Problem:** The game server would crash with an `AttributeError: 'Game' object has no attribute '_find_non_critical_sacrificial_point'` when certain sacrifice actions (like `sacrifice_whirlpool`) were attempted.
+- **Analysis:** The error was straightforward: the `_find_non_critical_sacrificial_point` method was called by several actions but was never defined in the `Game` class in `game_app/game_logic.py`.
 - **Solution:**
-    1.  In `static/js/api.js`, the `_fetchJson` function was updated. When a server error occurs, it now attaches the full text of the server's response (which contains the HTML traceback) to the `Error` object it throws.
-    2.  In `static/js/main.js`, the global `unhandledrejection` event listener was enhanced. It now checks if the error object has the attached server response. If so, it extracts the traceback from the HTML and displays it in the error modal. This provides immediate, detailed diagnostic information to the user/developer, making it much easier to identify and fix the underlying Python bug.
+    1.  A new private method, `_find_non_critical_sacrificial_point`, was implemented and added to the `Game` class.
+    2.  This method provides crucial game logic to prevent teams from crippling themselves. It identifies a "safe" point to sacrifice by first excluding points that are part of important structures (Runes, Bastions, Monoliths, etc.).
+    3.  It then performs a graph analysis to ensure the chosen point is not an "articulation point" (i.e., its removal won't split the team's formation into separate, disconnected pieces).
+    4.  This fix not only resolves the crash but also significantly improves the game's AI by making sacrifice actions smarter and less self-destructive.

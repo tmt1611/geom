@@ -650,6 +650,90 @@ class Game:
             'strengthened_line': line_to_strengthen
         }
 
+    def _find_non_critical_sacrificial_point(self, teamId):
+        """
+        Finds a point that can be sacrificed without crippling the team.
+        A non-critical point is not part of a major structure and is not an articulation point.
+        Returns a point_id or None.
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) <= 2:
+            return None
+
+        # 1. Identify points in critical structures.
+        fortified_point_ids = self._get_fortified_point_ids()
+        bastion_pids = self._get_bastion_point_ids()
+        monolith_pids = {pid for m in self.state.get('monoliths', {}).values() for pid in m.get('point_ids', [])}
+        nexus_pids = {pid for nexus_list in self.state.get('nexuses', {}).values() for nexus in nexus_list for pid in nexus.get('point_ids', [])}
+        trebuchet_pids = {pid for trebuchet_list in self.state.get('trebuchets', {}).values() for trebuchet in trebuchet_list for pid in trebuchet.get('point_ids', [])}
+        purifier_pids = {pid for purifier_list in self.state.get('purifiers', {}).values() for purifier in purifier_list for pid in purifier.get('point_ids', [])}
+        
+        rune_pids = set()
+        team_runes_data = self.state.get('runes', {}).get(teamId, {})
+        for rune_category in team_runes_data.values():
+            for rune_instance in rune_category:
+                if isinstance(rune_instance, list):
+                    rune_pids.update(rune_instance)
+                elif isinstance(rune_instance, dict):
+                    for key in ['point_ids', 'all_points', 'cycle_ids', 'triangle_ids', 'prong_ids', 'arm_ids']:
+                        if key in rune_instance and rune_instance[key]: rune_pids.update(rune_instance[key])
+                    for key in ['core_id', 'vertex_id', 'handle_id', 'apex_id', 'center_id', 'mid_id', 'stem1_id', 'stem2_id', 'head_id']:
+                        if key in rune_instance and rune_instance[key]: rune_pids.add(rune_instance[key])
+        
+        critical_structure_pids = fortified_point_ids.union(
+            bastion_pids['cores'], bastion_pids['prongs'],
+            monolith_pids, nexus_pids, trebuchet_pids, purifier_pids, rune_pids
+        )
+        
+        candidate_pids = [pid for pid in team_point_ids if pid not in critical_structure_pids]
+
+        if not candidate_pids:
+            return None
+
+        # 2. Build adjacency list to check for articulation points.
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+        
+        # Prefer points with degree 1 (leaves), which are never articulation points.
+        degree_one_candidates = [pid for pid in candidate_pids if len(adj.get(pid, set())) == 1]
+        if degree_one_candidates:
+            return random.choice(degree_one_candidates)
+
+        # Check other candidates for being articulation points.
+        def count_components(nodes, adjacency_list):
+            if not nodes: return 0
+            visited, count = set(), 0
+            for node in nodes:
+                if node not in visited:
+                    count += 1
+                    stack = [node]
+                    visited.add(node)
+                    while stack:
+                        curr = stack.pop()
+                        for neighbor in adjacency_list.get(curr, set()):
+                            if neighbor in nodes and neighbor not in visited:
+                                visited.add(neighbor)
+                                stack.append(neighbor)
+            return count
+
+        initial_components = count_components(set(team_point_ids), adj)
+        
+        non_articulation_points = []
+        for pid in candidate_pids:
+            if len(adj.get(pid, set())) > 1:
+                remaining_nodes = set(team_point_ids) - {pid}
+                if count_components(remaining_nodes, adj) <= initial_components:
+                    non_articulation_points.append(pid)
+        
+        if non_articulation_points:
+            return random.choice(non_articulation_points)
+
+        # All remaining candidates are articulation points. Don't sacrifice.
+        return None
+
     # --- Game Actions ---
 
     def expand_action_add_line(self, teamId):
