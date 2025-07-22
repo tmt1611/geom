@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastActionHighlights = {
         points: new Set(),
         lines: new Set(),
+        structures: new Set(), // For non-point/line elements like fissures, wonders
         clearTimeout: null
     };
 
@@ -202,17 +203,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    function drawPoints(pointsDict, teams) {
+    function drawPoints(pointsDict, teams, isHighlightingActive = false) {
         if (!pointsDict) return;
         Object.values(pointsDict).forEach(p => {
             const team = teams[p.teamId];
             if (team) {
+                const isHighlighted = lastActionHighlights.points.has(p.id);
+
+                ctx.save();
+                if (isHighlightingActive && !isHighlighted) {
+                    ctx.globalAlpha = 0.2;
+                }
+
                 const cx = (p.x + 0.5) * cellSize;
                 const cy = (p.y + 0.5) * cellSize;
                 let radius = p.is_anchor ? 7 : 5;
 
                 // Highlight effect for last action
-                if (debugOptions.highlightLastAction && lastActionHighlights.points.has(p.id)) {
+                if (isHighlightingActive && isHighlighted) {
+                    ctx.globalAlpha = 1.0; // Ensure it's fully opaque if it's highlighted
                     ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
                     ctx.beginPath(); ctx.arc(cx, cy, radius + 5, 0, 2 * Math.PI); ctx.fill();
                 }
@@ -264,15 +273,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.fillStyle = '#000'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                     ctx.fillText(p.id, cx, cy - (radius + 2));
                 }
+
+                ctx.restore();
             }
         });
     }
 
-    function drawLines(pointsDict, lines, teams) {
+    function drawLines(pointsDict, lines, teams, isHighlightingActive = false) {
         if (!pointsDict) return;
         lines.forEach(line => {
             const team = teams[line.teamId];
             if (team) {
+                const isHighlighted = lastActionHighlights.lines.has(line.id);
+
+                ctx.save();
+                if (isHighlightingActive && !isHighlighted) {
+                    ctx.globalAlpha = 0.2;
+                }
+
                 const p1 = pointsDict[line.p1_id];
                 const p2 = pointsDict[line.p2_id];
                 if (p1 && p2) {
@@ -282,7 +300,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const y2 = (p2.y + 0.5) * cellSize;
 
                     // Highlight effect
-                    if (debugOptions.highlightLastAction && lastActionHighlights.lines.has(line.id)) {
+                    if (isHighlightingActive && isHighlighted) {
+                        ctx.globalAlpha = 1.0;
                         ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // Yellow halo
                         ctx.lineWidth = 8;
                         ctx.beginPath();
@@ -337,6 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.restore();
                     }
                 }
+                ctx.restore();
             }
         });
     }
@@ -399,34 +419,73 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function drawTerritories(pointsDict, territories, teams) {
+    function drawTerritories(pointsDict, territories, teams, isHighlightingActive = false) {
         if (!pointsDict || !territories) return;
         territories.forEach(territory => {
+            const isHighlighted = territory.point_ids.every(pid => lastActionHighlights.points.has(pid));
+            
+            ctx.save();
             const team = teams[territory.teamId];
             if (team) {
                 const triPoints = territory.point_ids.map(id => pointsDict[id]);
                 if (triPoints.length === 3 && triPoints.every(p => p)) {
                     ctx.fillStyle = team.color;
-                    ctx.globalAlpha = 0.3; // semi-transparent
+                    
+                    if (isHighlightingActive) {
+                        if(isHighlighted) {
+                           ctx.globalAlpha = 0.5; // More prominent
+                        } else {
+                           ctx.globalAlpha = 0.1; // Dimmed
+                        }
+                    } else {
+                        ctx.globalAlpha = 0.3; // Default
+                    }
+
                     ctx.beginPath();
                     ctx.moveTo((triPoints[0].x + 0.5) * cellSize, (triPoints[0].y + 0.5) * cellSize);
                     ctx.lineTo((triPoints[1].x + 0.5) * cellSize, (triPoints[1].y + 0.5) * cellSize);
                     ctx.lineTo((triPoints[2].x + 0.5) * cellSize, (triPoints[2].y + 0.5) * cellSize);
                     ctx.closePath();
                     ctx.fill();
-                    ctx.globalAlpha = 1.0; // reset alpha
                 }
             }
+            ctx.restore();
+            ctx.globalAlpha *= 0.3 + flicker * 0.4;
+            ctx.strokeStyle = team.color;
+            ctx.lineWidth = 1.5;
+
+            // Draw a simple broken circle rune
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0.2, Math.PI - 0.2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, Math.PI + 0.2, 2 * Math.PI - 0.2);
+            ctx.stroke();
+
+            ctx.restore();
         });
     }
 
-    function drawMonoliths(gameState) {
+    function drawMonoliths(gameState, isHighlightingActive = false) {
         if (!gameState.monoliths) return;
 
         for (const monolithId in gameState.monoliths) {
             const monolith = gameState.monoliths[monolithId];
+            const isHighlighted = monolith.point_ids.every(pid => lastActionHighlights.points.has(pid));
+
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
+
             const team = gameState.teams[monolith.teamId];
-            if (!team) continue;
+            if (!team) {
+                ctx.restore();
+                continue;
+            }
 
             const points = monolith.point_ids.map(pid => gameState.points[pid]).filter(p => p);
             if (points.length !== 4) continue;
@@ -455,11 +514,24 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = '#fff';
             ctx.stroke();
 
-            ctx.globalAlpha = 1.0;
+            // Use the current alpha contextually
+            const currentAlpha = ctx.globalAlpha;
+            ctx.globalAlpha = currentAlpha * 0.15;
+            ctx.fill();
+
+            // Add some "energy" effect inside
+            const pulse = Math.abs(Math.sin(Date.now() / 600));
+            ctx.globalAlpha = currentAlpha * (0.1 + pulse * 0.2);
+            ctx.lineWidth = 1 + pulse;
+            ctx.strokeStyle = '#fff';
+            ctx.stroke();
+
+            ctx.restore();
+            ctx.restore();
         }
     }
 
-    function drawTrebuchets(gameState) {
+    function drawTrebuchets(gameState, isHighlightingActive = false) {
         if (!gameState.trebuchets) return;
 
         for (const teamId in gameState.trebuchets) {
@@ -468,6 +540,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!team || !teamTrebuchets) continue;
 
             teamTrebuchets.forEach(trebuchet => {
+                const isHighlighted = trebuchet.point_ids.every(pid => lastActionHighlights.points.has(pid));
+                ctx.save();
+                if (isHighlightingActive && !isHighlighted) {
+                    ctx.globalAlpha = 0.2;
+                } else if (isHighlightingActive && isHighlighted) {
+                    ctx.globalAlpha = 1.0;
+                }
+
                 const apex = gameState.points[trebuchet.apex_id];
                 const cw = gameState.points[trebuchet.counterweight_id];
 
@@ -478,20 +558,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.lineTo((cw.x + 0.5) * cellSize, (cw.y + 0.5) * cellSize);
                     ctx.strokeStyle = team.color;
                     ctx.lineWidth = 4;
-                    ctx.globalAlpha = 0.4;
+                    ctx.globalAlpha *= 0.4;
                     ctx.stroke();
-                    ctx.globalAlpha = 1.0;
                 }
+                ctx.restore();
             });
         }
     }
 
-    function drawWhirlpools(gameState) {
+    function drawWhirlpools(gameState, isHighlightingActive = false) {
         if (!gameState.whirlpools) return;
     
         gameState.whirlpools.forEach(wp => {
             const team = gameState.teams[wp.teamId];
             if (!team) return;
+
+            const isHighlighted = lastActionHighlights.structures.has(wp.id);
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
 
             const cx = (wp.coords.x + 0.5) * cellSize;
             const cy = (wp.coords.y + 0.5) * cellSize;
@@ -529,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function drawNexuses(gameState) {
+    function drawNexuses(gameState, isHighlightingActive = false) {
         if (!gameState.nexuses) return;
     
         for (const teamId in gameState.nexuses) {
@@ -538,6 +626,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!team || !teamNexuses) continue;
     
             teamNexuses.forEach(nexus => {
+                const isHighlighted = nexus.point_ids.every(pid => lastActionHighlights.points.has(pid));
+                ctx.save();
+                if (isHighlightingActive && !isHighlighted) {
+                    ctx.globalAlpha = 0.2;
+                } else if (isHighlightingActive && isHighlighted) {
+                    ctx.globalAlpha = 1.0;
+                }
                 const points = nexus.point_ids.map(pid => gameState.points[pid]).filter(p => p);
                 if (points.length !== 4) return;
                 
@@ -579,12 +674,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.arc(orb_cx, orb_cy, 4 + pulse * 2, 0, 2 * Math.PI);
                 ctx.fill();
     
-                ctx.globalAlpha = 1.0;
+                const currentAlpha = ctx.globalAlpha;
+                ctx.globalAlpha = currentAlpha * 0.25;
+                ctx.fill();
+
+                // Draw the central orb
+                const orb_cx = (nexus.center.x + 0.5) * cellSize;
+                const orb_cy = (nexus.center.y + 0.5) * cellSize;
+                const pulse = Math.abs(Math.sin(Date.now() / 800)); // Faster pulse
+                
+                // Outer glow
+                const gradient = ctx.createRadialGradient(orb_cx, orb_cy, 0, orb_cx, orb_cy, 10 + pulse * 5);
+                gradient.addColorStop(0, `rgba(255, 255, 255, ${0.8 - pulse * 0.3})`);
+                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                ctx.fillStyle = gradient;
+                ctx.globalAlpha = currentAlpha;
+                ctx.beginPath();
+                ctx.arc(orb_cx, orb_cy, 10 + pulse * 5, 0, 2 * Math.PI);
+                ctx.fill();
+    
+                // Inner core
+                ctx.fillStyle = team.color;
+                ctx.beginPath();
+                ctx.arc(orb_cx, orb_cy, 4 + pulse * 2, 0, 2 * Math.PI);
+                ctx.fill();
+
+                ctx.restore();
             });
         }
     }
 
-    function drawRunes(gameState) {
+    function drawRunes(gameState, isHighlightingActive = false) {
         if (!gameState.runes) return;
     
         for (const teamId in gameState.runes) {
@@ -592,13 +712,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const team = gameState.teams[teamId];
             if (!team) continue;
     
+            const checkRuneHighlight = (point_ids) => point_ids.every(pid => lastActionHighlights.points.has(pid));
+    
             // Draw V-Runes
             if (teamRunes.v_shape) {
                 teamRunes.v_shape.forEach(rune => {
+                    const rune_points = [rune.vertex_id, rune.leg1_id, rune.leg2_id];
+                    const isHighlighted = checkRuneHighlight(rune_points);
+                    ctx.save();
+                    if (isHighlightingActive && !isHighlighted) {
+                        ctx.globalAlpha = 0.2;
+                    } else if (isHighlightingActive && isHighlighted) {
+                        ctx.globalAlpha = 1.0;
+                    }
+
                     const p_v = gameState.points[rune.vertex_id];
                     const p_l1 = gameState.points[rune.leg1_id];
                     const p_l2 = gameState.points[rune.leg2_id];
-                    if (!p_v || !p_l1 || !p_l2) return;
+                    if (!p_v || !p_l1 || !p_l2) {
+                        ctx.restore();
+                        return;
+                    }
     
                     ctx.beginPath();
                     ctx.moveTo((p_l1.x + 0.5) * cellSize, (p_l1.y + 0.5) * cellSize);
@@ -606,20 +740,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.lineTo((p_l2.x + 0.5) * cellSize, (p_l2.y + 0.5) * cellSize);
                     ctx.strokeStyle = team.color;
                     ctx.lineWidth = 6;
-                    ctx.globalAlpha = 0.4;
+                    ctx.globalAlpha *= 0.4;
                     ctx.stroke();
-                    ctx.globalAlpha = 1.0;
+                    ctx.restore();
                 });
             }
 
             // Draw Trident Runes
             if (teamRunes.trident) {
                 teamRunes.trident.forEach(rune => {
+                    const rune_points = [rune.apex_id, rune.handle_id, ...rune.prong_ids];
+                    const isHighlighted = checkRuneHighlight(rune_points);
+                    ctx.save();
+                    if (isHighlightingActive && !isHighlighted) {
+                        ctx.globalAlpha = 0.2;
+                    } else if (isHighlightingActive && isHighlighted) {
+                        ctx.globalAlpha = 1.0;
+                    }
+
                     const p_apex = gameState.points[rune.apex_id];
                     const p_h = gameState.points[rune.handle_id];
                     const p_p1 = gameState.points[rune.prong_ids[0]];
                     const p_p2 = gameState.points[rune.prong_ids[1]];
-                    if (!p_apex || !p_h || !p_p1 || !p_p2) return;
+                    if (!p_apex || !p_h || !p_p1 || !p_p2) {
+                        ctx.restore();
+                        return;
+                    }
 
                     ctx.beginPath();
                     // Handle to Apex
@@ -632,19 +778,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     ctx.strokeStyle = team.color;
                     ctx.lineWidth = 8;
-                    ctx.globalAlpha = 0.4;
+                    ctx.globalAlpha *= 0.4;
                     ctx.filter = 'blur(2px)';
                     ctx.stroke();
                     ctx.filter = 'none';
-                    ctx.globalAlpha = 1.0;
+                    ctx.restore();
                 });
             }
     
             // Draw Cross-Runes
             if (teamRunes.cross) {
                 teamRunes.cross.forEach(rune_p_ids => {
+                    const isHighlighted = checkRuneHighlight(rune_p_ids);
+                    ctx.save();
+                    if (isHighlightingActive && !isHighlighted) {
+                        ctx.globalAlpha = 0.2;
+                    } else if (isHighlightingActive && isHighlighted) {
+                        ctx.globalAlpha = 1.0;
+                    }
+
                     const points = rune_p_ids.map(pid => gameState.points[pid]).filter(p => p);
-                    if (points.length !== 4) return;
+                    if (points.length !== 4) {
+                        ctx.restore();
+                        return;
+                    }
                     
                     // Sort points angularly around their centroid to draw the polygon correctly
                     const centroid = {
@@ -662,18 +819,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     ctx.closePath();
                     ctx.fillStyle = team.color;
-                    ctx.globalAlpha = 0.2;
+                    ctx.globalAlpha *= 0.2;
                     ctx.fill();
-                    ctx.globalAlpha = 1.0;
+                    ctx.restore();
                 });
             }
 
             // Draw Shield Runes
             if (teamRunes.shield) {
                 teamRunes.shield.forEach(rune => {
+                    const rune_points = [...rune.triangle_ids, rune.core_id];
+                    const isHighlighted = checkRuneHighlight(rune_points);
+                    ctx.save();
+                    if (isHighlightingActive && !isHighlighted) {
+                        ctx.globalAlpha = 0.2;
+                    } else if (isHighlightingActive && isHighlighted) {
+                        ctx.globalAlpha = 1.0;
+                    }
+
                     const tri_points = rune.triangle_ids.map(pid => gameState.points[pid]).filter(p => p);
                     const core_point = gameState.points[rune.core_id];
-                    if (tri_points.length !== 3 || !core_point) return;
+                    if (tri_points.length !== 3 || !core_point) {
+                        ctx.restore();
+                        return;
+                    }
 
                     // Draw the filled triangle
                     ctx.beginPath();
@@ -682,26 +851,38 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.lineTo((tri_points[2].x + 0.5) * cellSize, (tri_points[2].y + 0.5) * cellSize);
                     ctx.closePath();
                     
+                    const currentAlpha = ctx.globalAlpha;
                     ctx.fillStyle = team.color;
-                    ctx.globalAlpha = 0.25;
+                    ctx.globalAlpha = currentAlpha * 0.25;
                     ctx.fill();
 
                     // Draw an outline pulse
                     const pulse = Math.abs(Math.sin(Date.now() / 500));
                     ctx.strokeStyle = '#fff';
                     ctx.lineWidth = 1 + pulse * 2;
-                    ctx.globalAlpha = 0.3 + pulse * 0.4;
+                    ctx.globalAlpha = currentAlpha * (0.3 + pulse * 0.4);
                     ctx.stroke();
 
-                    ctx.globalAlpha = 1.0;
+                    ctx.restore();
                 });
             }
 
             // Draw Hourglass Runes
             if (teamRunes.hourglass) {
                 teamRunes.hourglass.forEach(rune => {
+                    const isHighlighted = checkRuneHighlight(rune.all_points);
+                    ctx.save();
+                    if (isHighlightingActive && !isHighlighted) {
+                        ctx.globalAlpha = 0.2;
+                    } else if (isHighlightingActive && isHighlighted) {
+                        ctx.globalAlpha = 1.0;
+                    }
+
                     const p_v = gameState.points[rune.vertex_id];
-                    if (!p_v) return;
+                    if (!p_v) {
+                        ctx.restore();
+                        return;
+                    }
 
                     const all_points = rune.all_points.map(pid => gameState.points[pid]);
                     if (all_points.some(p => !p)) return;
@@ -722,15 +903,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     ctx.strokeStyle = team.color;
                     ctx.lineWidth = 6;
-                    ctx.globalAlpha = 0.4;
+                    ctx.globalAlpha *= 0.4;
                     ctx.stroke();
-                    ctx.globalAlpha = 1.0;
+                    ctx.restore();
                 });
             }
         }
     }
 
-    function drawHeartwoods(gameState) {
+    function drawHeartwoods(gameState, isHighlightingActive = false) {
         if (!gameState.heartwoods) return;
 
         for (const teamId in gameState.heartwoods) {
@@ -738,19 +919,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const team = gameState.teams[teamId];
             if (!team || !heartwood) continue;
 
+            const isHighlighted = lastActionHighlights.structures.has(heartwood.id);
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
+
             const cx = (heartwood.center_coords.x + 0.5) * cellSize;
             const cy = (heartwood.center_coords.y + 0.5) * cellSize;
             const pulse = Math.abs(Math.sin(Date.now() / 1200)); // Slow, deep pulse
             const baseRadius = 10;
             const radius = baseRadius + pulse * 5;
 
+            const currentAlpha = ctx.globalAlpha;
+
             // Draw the aura
             ctx.beginPath();
             ctx.arc(cx, cy, (gameState.grid_size * 0.2) * cellSize, 0, 2 * Math.PI);
             ctx.fillStyle = team.color;
-            ctx.globalAlpha = 0.05 + pulse * 0.05;
+            ctx.globalAlpha = currentAlpha * (0.05 + pulse * 0.05);
             ctx.fill();
-            ctx.globalAlpha = 1.0;
 
             // Draw the core
             // Outer ring
@@ -758,21 +948,21 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
             ctx.strokeStyle = team.color;
             ctx.lineWidth = 2 + pulse * 2;
-            ctx.globalAlpha = 0.5 + pulse * 0.5;
+            ctx.globalAlpha = currentAlpha * (0.5 + pulse * 0.5);
             ctx.stroke();
             
             // Inner core
             ctx.beginPath();
             ctx.arc(cx, cy, baseRadius * 0.5, 0, 2 * Math.PI);
             ctx.fillStyle = team.color;
-            ctx.globalAlpha = 1.0;
+            ctx.globalAlpha = currentAlpha;
             ctx.fill();
 
             // Maybe draw some 'roots'
             ctx.save();
             ctx.translate(cx, cy);
             ctx.lineWidth = 1;
-            ctx.globalAlpha = 0.4;
+            ctx.globalAlpha = currentAlpha * 0.4;
             for(let i=0; i < 5; i++) {
                 ctx.rotate( (2 * Math.PI / 5) + (pulse * 0.1) );
                 ctx.beginPath();
@@ -780,14 +970,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.quadraticCurveTo(radius, radius, radius * 1.5, radius * 0.5);
                 ctx.stroke();
             }
-            ctx.restore();
+            ctx.restore(); // for rotation
+            ctx.restore(); // for alpha
         }
     }
 
-    function drawFissures(gameState) {
+    function drawFissures(gameState, isHighlightingActive = false) {
         if (!gameState.fissures) return;
 
         gameState.fissures.forEach(fissure => {
+            const isHighlighted = lastActionHighlights.structures.has(fissure.id);
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
+
             const p1 = {x: (fissure.p1.x + 0.5) * cellSize, y: (fissure.p1.y + 0.5) * cellSize};
             const p2 = {x: (fissure.p2.x + 0.5) * cellSize, y: (fissure.p2.y + 0.5) * cellSize};
             
@@ -797,16 +996,25 @@ document.addEventListener('DOMContentLoaded', () => {
             // Jagged line effect
             drawJaggedLine(p1, p2, 15, 6);
             ctx.lineCap = 'butt';
+            ctx.restore();
         });
     }
 
-    function drawRiftSpires(gameState) {
+    function drawRiftSpires(gameState, isHighlightingActive = false) {
         if (!gameState.rift_spires) return;
 
         for (const spireId in gameState.rift_spires) {
             const spire = gameState.rift_spires[spireId];
             const team = gameState.teams[spire.teamId];
             if (!team) continue;
+
+            const isHighlighted = lastActionHighlights.structures.has(spire.id);
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
 
             const cx = (spire.coords.x + 0.5) * cellSize;
             const cy = (spire.coords.y + 0.5) * cellSize;
@@ -851,12 +1059,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function drawRiftTraps(gameState) {
+    function drawRiftTraps(gameState, isHighlightingActive = false) {
         if (!gameState.rift_traps) return;
 
         gameState.rift_traps.forEach(trap => {
             const team = gameState.teams[trap.teamId];
             if (!team) return;
+
+            const isHighlighted = lastActionHighlights.structures.has(trap.id);
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
 
             const cx = (trap.coords.x + 0.5) * cellSize;
             const cy = (trap.coords.y + 0.5) * cellSize;
@@ -882,25 +1098,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function drawBarricades(gameState) {
+    function drawBarricades(gameState, isHighlightingActive = false) {
         if (!gameState.barricades) return;
 
         gameState.barricades.forEach(barricade => {
             const team = gameState.teams[barricade.teamId];
             if (!team) return;
 
+            const isHighlighted = lastActionHighlights.structures.has(barricade.id);
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
+
             const p1 = {x: (barricade.p1.x + 0.5) * cellSize, y: (barricade.p1.y + 0.5) * cellSize};
             const p2 = {x: (barricade.p2.x + 0.5) * cellSize, y: (barricade.p2.y + 0.5) * cellSize};
             
+            const currentAlpha = ctx.globalAlpha;
             // Draw a thick, "rocky" looking line
             ctx.strokeStyle = team.color; // Use team color to show who built it
-            ctx.globalAlpha = 0.5 + (barricade.turns_left / 5) * 0.5; // Fade as it expires
+            ctx.globalAlpha = currentAlpha * (0.5 + (barricade.turns_left / 5) * 0.5); // Fade as it expires
             ctx.lineWidth = 6;
             ctx.lineCap = 'round';
             drawJaggedLine(p1, p2, 10, 4);
             
             // Add a solid "core" to it
-            ctx.globalAlpha = 0.8;
+            ctx.globalAlpha = currentAlpha * 0.8;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
@@ -908,17 +1133,25 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
 
             ctx.lineCap = 'butt';
-            ctx.globalAlpha = 1.0;
+            ctx.restore();
         });
     }
 
-    function drawWonders(gameState) {
+    function drawWonders(gameState, isHighlightingActive = false) {
         if (!gameState.wonders) return;
     
         for (const wonderId in gameState.wonders) {
             const wonder = gameState.wonders[wonderId];
             const team = gameState.teams[wonder.teamId];
             if (!team || wonder.type !== 'ChronosSpire') continue;
+    
+            const isHighlighted = lastActionHighlights.structures.has(wonder.id);
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
     
             const cx = (wonder.coords.x + 0.5) * cellSize;
             const cy = (wonder.coords.y + 0.5) * cellSize;
@@ -930,13 +1163,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const baseRadius = 20;
             ctx.beginPath();
             ctx.arc(cx, cy, baseRadius, 0, 2 * Math.PI);
+            const currentAlpha = ctx.globalAlpha;
             const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius);
             gradient.addColorStop(0, team.color + "99");
             gradient.addColorStop(1, team.color + "00");
             ctx.fillStyle = gradient;
-            ctx.globalAlpha = 0.3 + pulse * 0.2;
+            ctx.globalAlpha = currentAlpha * (0.3 + pulse * 0.2);
             ctx.fill();
-            ctx.globalAlpha = 1.0;
     
             // Rotating rings
             ctx.save();
@@ -944,7 +1177,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.rotate(rotation);
             ctx.strokeStyle = team.color;
             ctx.lineWidth = 1.5;
-            ctx.globalAlpha = 0.8;
+            ctx.globalAlpha = currentAlpha * 0.8;
             ctx.beginPath();
             ctx.arc(0, 0, baseRadius * 0.7, 0, 2 * Math.PI);
             ctx.stroke();
@@ -973,10 +1206,11 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.shadowBlur = 4;
             ctx.fillText(wonder.turns_to_victory, cx, cy);
             ctx.shadowBlur = 0;
+            ctx.restore();
         }
     }
 
-    function drawPrisms(gameState) {
+    function drawPrisms(gameState, isHighlightingActive = false) {
         if (!gameState.prisms) return;
 
         for (const teamId in gameState.prisms) {
@@ -985,6 +1219,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!team || !teamPrisms) continue;
 
             teamPrisms.forEach(prism => {
+                const isHighlighted = prism.all_point_ids.every(pid => lastActionHighlights.points.has(pid));
+                ctx.save();
+                if (isHighlightingActive && !isHighlighted) {
+                    ctx.globalAlpha = 0.2;
+                } else if (isHighlightingActive && isHighlighted) {
+                    ctx.globalAlpha = 1.0;
+                }
                 const p1 = gameState.points[prism.shared_p1_id];
                 const p2 = gameState.points[prism.shared_p2_id];
 
@@ -1000,14 +1241,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.lineTo(x2, y2);
                     ctx.strokeStyle = team.color;
                     ctx.lineWidth = 8;
-                    ctx.globalAlpha = 0.5;
+                    ctx.globalAlpha *= 0.5;
                     ctx.filter = 'blur(4px)'; // Glow effect
                     ctx.stroke();
                     
                     // Reset filters
                     ctx.filter = 'none';
-                    ctx.globalAlpha = 1.0;
                 }
+                ctx.restore();
             });
         }
     }
@@ -1483,28 +1724,30 @@ document.addEventListener('DOMContentLoaded', () => {
         // Central drawing function, called every frame by animationLoop
         drawGrid();
 
+        const isHighlightingActive = debugOptions.highlightLastAction && (lastActionHighlights.points.size > 0 || lastActionHighlights.lines.size > 0 || lastActionHighlights.structures.size > 0);
+
         if (currentGameState.game_phase === 'SETUP') {
              // During setup, draw the temporary points from the local array
              const tempPointsDict = {};
              initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
-             drawPoints(tempPointsDict, localTeams); // Use localTeams for colors
+             drawPoints(tempPointsDict, localTeams, isHighlightingActive); // Use localTeams for colors
         } else {
             // During RUNNING or FINISHED, draw from the official game state
             if (currentGameState.teams) {
-                drawTerritories(currentGameState.points, currentGameState.territories, currentGameState.teams);
-                drawMonoliths(currentGameState);
-                drawTrebuchets(currentGameState);
-                drawPrisms(currentGameState);
-                drawRunes(currentGameState);
-                drawNexuses(currentGameState);
-                drawHeartwoods(currentGameState);
-                drawWonders(currentGameState);
-                drawRiftSpires(currentGameState);
-                drawRiftTraps(currentGameState);
-                drawFissures(currentGameState);
-                drawBarricades(currentGameState);
-                drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
-                drawPoints(currentGameState.points, currentGameState.teams);
+                drawTerritories(currentGameState.points, currentGameState.territories, currentGameState.teams, isHighlightingActive);
+                drawMonoliths(currentGameState, isHighlightingActive);
+                drawTrebuchets(currentGameState, isHighlightingActive);
+                drawPrisms(currentGameState, isHighlightingActive);
+                drawRunes(currentGameState, isHighlightingActive);
+                drawNexuses(currentGameState, isHighlightingActive);
+                drawHeartwoods(currentGameState, isHighlightingActive);
+                drawWonders(currentGameState, isHighlightingActive);
+                drawRiftSpires(currentGameState, isHighlightingActive);
+                drawRiftTraps(currentGameState, isHighlightingActive);
+                drawFissures(currentGameState, isHighlightingActive);
+                drawBarricades(currentGameState, isHighlightingActive);
+                drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams, isHighlightingActive);
+                drawPoints(currentGameState.points, currentGameState.teams, isHighlightingActive);
                 
                 // Draw hulls if game is finished and toggled on
                 if (currentGameState.game_phase === 'FINISHED') {
@@ -2071,6 +2314,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(lastActionHighlights.clearTimeout);
         lastActionHighlights.points.clear();
         lastActionHighlights.lines.clear();
+        lastActionHighlights.structures.clear();
 
         const visualizer = actionVisualsMap[details.type];
         if (visualizer) {
@@ -2081,6 +2325,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lastActionHighlights.clearTimeout = setTimeout(() => {
             lastActionHighlights.points.clear();
             lastActionHighlights.lines.clear();
+            lastActionHighlights.structures.clear();
         }, 2000); // Highlight for 2 seconds
     }
 
