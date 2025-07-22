@@ -213,7 +213,7 @@ class Game:
         'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
         'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder",
         'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'defend_shield': "Shield Line",
-        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis"
+        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam"
     }
 
 
@@ -237,7 +237,7 @@ class Game:
             "stasis_points": {}, # {point_id: turns_left}
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
-            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': []}}
+            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': []}}
             "sentries": {}, # {teamId: [sentry1, sentry2, ...]}
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
@@ -251,7 +251,7 @@ class Game:
             "rift_spires": {}, # {spire_id: {teamId, coords, charge}}
             "fissures": [], # {id, p1, p2, turns_left}
             "wonders": {}, # {wonder_id: {teamId, type, turns_to_victory, ...}}
-            "empowered_lines": {}, # {line_id: strength}
+            "line_strengths": {}, # {line_id: strength}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
             "max_turns": 100,
@@ -283,7 +283,7 @@ class Game:
             augmented_line = line.copy()
             augmented_line['is_shielded'] = line.get('id') in self.state['shields']
             augmented_line['is_bastion_line'] = line.get('id') in bastion_line_ids
-            augmented_line['empower_strength'] = self.state.get('empowered_lines', {}).get(line.get('id'), 0)
+            augmented_line['strength'] = self.state.get('line_strengths', {}).get(line.get('id'), 0)
             augmented_lines.append(augmented_line)
         state_copy['lines'] = augmented_lines
 
@@ -849,7 +849,7 @@ class Game:
                     if is_shielded and not team_has_cross_rune:
                         continue # Shield protects if attacker has no Cross Rune
                     
-                    empower_strength = self.state.get('empowered_lines', {}).get(enemy_line.get('id'))
+                    empower_strength = self.state.get('line_strengths', {}).get(enemy_line.get('id'))
 
                     if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
                     
@@ -865,13 +865,15 @@ class Game:
                     if is_blocked_by_fissure:
                         continue
 
-                    if segments_intersect(attack_segment_p1, attack_segment_p2, ep1, ep2):
+                    intersection_point = get_segment_intersection_point(attack_segment_p1, attack_segment_p2, ep1, ep2)
+                    if intersection_point:
                         possible_attacks.append({
                             'attacker_line': line,
                             'target_line': enemy_line,
                             'attack_ray': {'p1': attack_segment_p1, 'p2': attack_segment_p2},
                             'bypassed_shield': is_shielded and team_has_cross_rune,
-                            'was_empowered': bool(empower_strength)
+                            'was_strengthened': bool(empower_strength),
+                            'intersection_point': intersection_point
                         })
 
         if not possible_attacks:
@@ -882,26 +884,27 @@ class Game:
         enemy_line = chosen_attack['target_line']
         enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
         
-        # Check if the line is empowered by a Monolith
-        empower_strength = self.state.get('empowered_lines', {}).get(enemy_line['id'])
-        if empower_strength:
-            self.state['empowered_lines'][enemy_line['id']] -= 1
-            if self.state['empowered_lines'][enemy_line['id']] <= 0:
-                del self.state['empowered_lines'][enemy_line['id']]
+        # Check if the line is strengthened by a Monolith
+        line_strength = self.state.get('line_strengths', {}).get(enemy_line['id'])
+        if line_strength and line_strength > 0:
+            self.state['line_strengths'][enemy_line['id']] -= 1
+            if self.state['line_strengths'][enemy_line['id']] <= 0:
+                del self.state['line_strengths'][enemy_line['id']]
             
             # The line was hit but not destroyed
             return {
                 'success': True,
-                'type': 'attack_line_empowered',
+                'type': 'attack_line_strengthened',
                 'damaged_line': enemy_line,
                 'attacker_line': chosen_attack['attacker_line'],
-                'attack_ray': chosen_attack['attack_ray']
+                'attack_ray': chosen_attack['attack_ray'],
+                'intersection_point': chosen_attack.get('intersection_point')
             }
 
-        # Line is not empowered, destroy it
+        # Line is not strengthened, destroy it
         self.state['lines'].remove(enemy_line)
         self.state['shields'].pop(enemy_line.get('id'), None)
-        self.state['empowered_lines'].pop(enemy_line.get('id'), None) # Clean up just in case
+        self.state['line_strengths'].pop(enemy_line.get('id'), None) # Clean up just in case
         
         return {
             'success': True, 
@@ -2737,7 +2740,7 @@ class Game:
             if line in self.state['lines']:
                 self.state['lines'].remove(line)
                 self.state['shields'].pop(line.get('id'), None) # Pierces shields
-                self.state['empowered_lines'].pop(line.get('id'), None) # Pierces monolith empowerment
+                self.state['line_strengths'].pop(line.get('id'), None) # Pierces monolith empowerment
                 
         return {
             'success': True,
@@ -2797,6 +2800,8 @@ class Game:
             'rune_area_shield': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('shield', [])), "Requires an active Shield Rune."),
             'rune_impale': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('trident', [])), "Requires an active Trident Rune."),
             'rune_hourglass_stasis': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('hourglass', [])), "Requires an active Hourglass Rune."),
+            'rune_starlight_cascade': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('star', [])), "Requires an active Star Rune."),
+            'rune_focus_beam': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('star', [])), "Requires an active Star Rune."),
         }
 
         status = {}
@@ -2951,7 +2956,9 @@ class Game:
             'rune_shoot_bisector': self.rune_action_shoot_bisector,
             'rune_area_shield': self.rune_action_area_shield,
             'rune_impale': self.rune_action_impale,
-            'rune_hourglass_stasis': self.rune_action_hourglass_stasis
+            'rune_hourglass_stasis': self.rune_action_hourglass_stasis,
+            'rune_starlight_cascade': self.rune_action_starlight_cascade,
+            'rune_focus_beam': self.rune_action_focus_beam
         }
 
         # --- Evaluate possible actions based on game state and exclusion list ---
@@ -3284,7 +3291,7 @@ class Game:
                 f"attacked and destroyed a line from Team {r['destroyed_team']}{', bypassing its shield with a Cross Rune!' if r.get('bypassed_shield') else '.'}",
                 "[PIERCE!]" if r.get('bypassed_shield') else "[ATTACK]"
             ),
-            'attack_line_empowered': lambda r: ("attacked an empowered line, weakening its defenses.", "[DAMAGE]"),
+            'attack_line_strengthened': lambda r: ("attacked a strengthened line, weakening its defenses.", "[DAMAGE]"),
             'convert_point': lambda r: (f"sacrificed a line to convert a point from Team {r['original_team_name']}.", "[CONVERT]"),
             'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
             'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION!]"),
@@ -3302,6 +3309,8 @@ class Game:
             'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
             'rune_impale': lambda r: (f"fired a piercing blast from a Trident Rune, destroying {len(r['destroyed_lines'])} lines.", "[IMPALE!]"),
             'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from Team {self.state['teams'][r['target_point']['teamId']]['name']} in time.", "[STASIS!]"),
+            'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),
+            'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[FOCUS BEAM!]"),
             'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[ZAP!]"),
             'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
             'chain_lightning': lambda r: (
@@ -3580,6 +3589,7 @@ class Game:
         self.state['runes'][teamId]['shield'] = self._check_shield_rune(teamId)
         self.state['runes'][teamId]['trident'] = self._check_trident_rune(teamId)
         self.state['runes'][teamId]['hourglass'] = self._check_hourglass_rune(teamId)
+        self.state['runes'][teamId]['star'] = self._check_star_rune(teamId)
 
     def _update_sentries_for_team(self, teamId):
         """Checks for Sentry formations (3 collinear points with lines)."""
@@ -3713,6 +3723,10 @@ class Game:
                     break 
                     
         return shield_runes
+
+    def _check_star_rune(self, teamId):
+        """Finds all 'Star' runes for a team, which are used for wonders and other actions."""
+        return self._find_star_formations(teamId, min_cycle=5, max_cycle=6)
 
     def _check_trident_rune(self, teamId):
         """
@@ -3942,6 +3956,144 @@ class Game:
             'target_point': target_point,
             'rune_points': rune['all_points'],
             'rune_vertex_id': rune['vertex_id']
+        }
+
+    def rune_action_starlight_cascade(self, teamId):
+        """[RUNE ACTION]: A Star Rune sacrifices a point to damage nearby enemy lines."""
+        active_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
+        if not active_star_runes:
+            return {'success': False, 'reason': 'no active Star Runes'}
+
+        # Find runes that have cycle points to sacrifice
+        valid_runes = [r for r in active_star_runes if r.get('cycle_ids')]
+        if not valid_runes:
+            return {'success': False, 'reason': 'no points in rune to sacrifice'}
+
+        rune = random.choice(valid_runes)
+        
+        # Sacrifice a random point from the outer cycle
+        p_to_sac_id = random.choice(rune['cycle_ids'])
+        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
+        
+        if not sacrificed_point_data:
+            return {'success': False, 'reason': 'failed to sacrifice rune point'}
+            
+        # Define damage area
+        damage_radius_sq = (self.state['grid_size'] * 0.3)**2
+        
+        # Find enemy lines within the area
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        bastion_line_ids = self._get_bastion_line_ids()
+        damaged_lines = []
+        points_map = self.state['points']
+
+        for line in enemy_lines:
+            if line.get('id') in bastion_line_ids or line.get('id') in self.state['shields']:
+                continue
+            if line['p1_id'] not in points_map or line['p2_id'] not in points_map:
+                continue
+            
+            p1 = points_map[line['p1_id']]
+            p2 = points_map[line['p2_id']]
+            midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
+
+            if distance_sq(sacrificed_point_data, midpoint) < damage_radius_sq:
+                # Damage the line by reducing its strength
+                line_strength = self.state.get('line_strengths', {}).get(line['id'])
+                if line_strength and line_strength > 0:
+                    self.state['line_strengths'][line['id']] -= 1
+                    damaged_lines.append(line)
+                    if self.state['line_strengths'][line['id']] <= 0:
+                        del self.state['line_strengths'][line['id']]
+                else:
+                    # Line had no strength, so it's destroyed
+                    if line in self.state['lines']:
+                        self.state['lines'].remove(line)
+                        damaged_lines.append(line)
+
+        return {
+            'success': True,
+            'type': 'rune_starlight_cascade',
+            'damaged_lines': damaged_lines,
+            'sacrificed_point': sacrificed_point_data,
+            'rune_points': rune['all_points']
+        }
+
+    def rune_action_focus_beam(self, teamId):
+        """[RUNE ACTION]: A Star Rune channels energy to fire a powerful beam at a high-value target."""
+        active_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
+        if not active_star_runes:
+            return {'success': False, 'reason': 'no active Star Runes'}
+
+        rune = random.choice(active_star_runes)
+        points_map = self.state['points']
+        
+        # Check if rune is still valid
+        center_point = points_map.get(rune['center_id'])
+        cycle_points = [points_map.get(pid) for pid in rune['cycle_ids']]
+        if not center_point or any(p is None for p in cycle_points):
+            return {'success': False, 'reason': 'rune points no longer exist'}
+            
+        # Find high-value enemy targets (bastion cores, monolith points, wonder)
+        all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        bastion_cores = self._get_bastion_point_ids()['cores']
+        monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
+        wonder_coords_list = [w['coords'] for w in self.state.get('wonders', {}).values() if w['teamId'] != teamId]
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+
+        possible_targets = [
+            p for p in all_enemy_points if p['id'] not in stasis_point_ids and (
+                p['id'] in bastion_cores or p['id'] in monolith_point_ids
+            )
+        ]
+
+        if not possible_targets and not wonder_coords_list:
+             return {'success': False, 'reason': 'no high-value enemy structures to target'}
+
+        # Prioritize Wonders, then other structures
+        target_point = None
+        target_wonder = None
+        if wonder_coords_list:
+            # Find closest wonder to the rune's center
+            target_wonder = min(wonder_coords_list, key=lambda wc: distance_sq(center_point, wc))
+            # Find the Wonder object itself
+            for wonder in self.state['wonders'].values():
+                if wonder['coords'] == target_wonder:
+                    target_wonder = wonder
+                    break
+        elif possible_targets:
+            # Find closest structure point to the rune's center
+            target_point = min(possible_targets, key=lambda p: distance_sq(center_point, p))
+
+        # Destroy the target
+        destroyed_point_data = None
+        destroyed_wonder_data = None
+        if target_wonder:
+            destroyed_wonder_data = self.state['wonders'].pop(target_wonder['id'])
+            team_name = self.state['teams'][destroyed_wonder_data['teamId']]['name']
+            log_msg = {
+                'teamId': teamId,
+                'message': f"The Focus Beam obliterated the Chronos Spire of Team {team_name}!",
+                'short_message': '[WONDER DESTROYED!]'
+            }
+            self.state['game_log'].append(log_msg)
+
+        elif target_point:
+            destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+            if not destroyed_point_data:
+                return {'success': False, 'reason': 'failed to destroy target point'}
+        
+        else: # Should be unreachable
+            return {'success': False, 'reason': 'no target could be finalized'}
+
+        return {
+            'success': True,
+            'type': 'rune_focus_beam',
+            'destroyed_point': destroyed_point_data,
+            'destroyed_wonder': destroyed_wonder_data,
+            'rune_points': rune['all_points'],
+            'beam_origin': center_point,
+            'beam_target': target_point or target_wonder.get('coords')
         }
 
     def _update_conduits_for_team(self, teamId):
