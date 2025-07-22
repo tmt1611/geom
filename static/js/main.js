@@ -3337,9 +3337,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Setup resize observer
         const gridContainer = document.querySelector('.grid-container');
         const resizeObserver = new ResizeObserver(() => {
-            if(currentGameState && currentGameState.grid_size) {
-                resizeCanvas();
-            }
+            // Decouple the resize logic from the observer's notification loop
+            // to prevent the "ResizeObserver loop limit exceeded" error.
+            requestAnimationFrame(() => {
+                if(currentGameState && currentGameState.grid_size) {
+                    resizeCanvas();
+                }
+            });
         });
         resizeObserver.observe(gridContainer);
 
