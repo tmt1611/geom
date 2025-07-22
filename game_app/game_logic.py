@@ -510,13 +510,56 @@ class Game:
             log_msg = f"The blast destroyed {destroyed_points_count} points and {destroyed_lines_count} lines."
             self.state['game_log'].append({'message': log_msg, 'short_message': '[CASCADE]', 'teamId': nexus_owner_teamId})
 
+    def _cleanup_structures_for_point(self, point_id):
+        """Helper to remove a point from all associated secondary structures after it has been deleted."""
+        # Remove connected lines (and their shields)
+        lines_before = self.state['lines'][:]
+        self.state['lines'] = []
+        for l in lines_before:
+            if point_id in (l['p1_id'], l['p2_id']):
+                self.state['shields'].pop(l.get('id'), None)
+                self.state.get('line_strengths', {}).pop(l.get('id'), None)
+            else:
+                self.state['lines'].append(l)
+
+        # Remove territories that used this point
+        self.state['territories'] = [t for t in self.state['territories'] if point_id not in t['point_ids']]
+
+        # Handle anchors
+        self.state['anchors'].pop(point_id, None)
+
+        # Handle bastions
+        bastions_to_dissolve = []
+        for bastion_id, bastion in list(self.state['bastions'].items()):
+            if bastion['core_id'] == point_id:
+                bastions_to_dissolve.append(bastion_id)
+            elif point_id in bastion['prong_ids']:
+                bastion['prong_ids'].remove(point_id)
+                if len(bastion['prong_ids']) < 2:
+                    bastions_to_dissolve.append(bastion_id)
+        
+        for bastion_id in bastions_to_dissolve:
+            if bastion_id in self.state['bastions']: del self.state['bastions'][bastion_id]
+        
+        # Handle Stasis
+        self.state.get('stasis_points', {}).pop(point_id, None)
+
+        # Handle other structures that are just lists of point IDs
+        structures_to_clean = ['trebuchets', 'purifiers', 'nexuses', 'conduits', 'prisms']
+        for struct_key in structures_to_clean:
+            if self.state.get(struct_key):
+                for teamId in list(self.state[struct_key].keys()):
+                    # Filter out any structure that contained the deleted point
+                    self.state[struct_key][teamId] = [
+                        s for s in self.state[struct_key][teamId] if point_id not in s.get('point_ids', []) and point_id not in s.get('all_point_ids', [])
+                    ]
+
     def _delete_point_and_connections(self, point_id, aggressor_team_id=None):
         """A robust helper to delete a point and handle all cascading effects."""
         if point_id not in self.state['points']:
             return None # Point already gone
 
-        # 1. Pre-deletion checks for cascades
-        # Check for Nexus destruction. A point can only belong to one nexus.
+        # 1. Pre-deletion checks for cascades (e.g., Nexus detonation)
         nexus_to_detonate = None
         all_nexuses = [n for team_nexuses in self.state.get('nexuses', {}).values() for n in team_nexuses]
         for nexus in all_nexuses:
@@ -531,47 +574,8 @@ class Game:
         if nexus_to_detonate and aggressor_team_id:
             self._trigger_nexus_detonation(nexus_to_detonate, aggressor_team_id)
 
-        # 4. Remove connected lines (and their shields)
-        lines_before = self.state['lines'][:]
-        self.state['lines'] = []
-        for l in lines_before:
-            if point_id in (l['p1_id'], l['p2_id']):
-                self.state['shields'].pop(l.get('id'), None)
-            else:
-                self.state['lines'].append(l)
-
-        # 5. Remove territories that used this point
-        self.state['territories'] = [t for t in self.state['territories'] if point_id not in t['point_ids']]
-
-        # 6. Handle anchors
-        self.state['anchors'].pop(point_id, None)
-
-        # 7. Handle bastions
-        bastions_to_dissolve = []
-        for bastion_id, bastion in list(self.state['bastions'].items()):
-            if bastion['core_id'] == point_id:
-                # Core is gone, bastion dissolves completely
-                bastions_to_dissolve.append(bastion_id)
-            elif point_id in bastion['prong_ids']:
-                # A prong is gone, update the bastion
-                bastion['prong_ids'].remove(point_id)
-                # If bastion has too few prongs, it dissolves
-                if len(bastion['prong_ids']) < 2:
-                    bastions_to_dissolve.append(bastion_id)
-        
-        for bastion_id in bastions_to_dissolve:
-            if bastion_id in self.state['bastions']:
-                del self.state['bastions'][bastion_id]
-        
-        # 8. Handle Stasis
-        self.state.get('stasis_points', {}).pop(point_id, None)
-
-        # 9. Handle Trebuchets
-        if self.state.get('trebuchets'):
-            for teamId, trebuchets in list(self.state.get('trebuchets', {}).items()):
-                self.state['trebuchets'][teamId] = [
-                    t for t in trebuchets if point_id not in t['point_ids']
-                ]
+        # 4. Clean up all other structures that might reference this point
+        self._cleanup_structures_for_point(point_id)
         
         return deleted_point_data
 

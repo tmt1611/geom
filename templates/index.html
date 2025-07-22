@@ -11,50 +11,39 @@
         <button id="restart-server-btn" class="dev-btn" title="Restart Server (Dev)">&#8635;</button>
     </div>
     <div class="container">
-        <div class="controls">
-            <div id="setup-controls-content">
-                <h1>Geometric Divination Game</h1>
-                <div id="setup-phase">
-                <h2>1. Setup</h2>
-                <fieldset>
-                    <legend>Create Teams</legend>
-                    <div class="teams-section">
-                        <ul id="teams-list"></ul>
-                        <div class="add-team-form">
-                            <input type="text" id="new-team-name" placeholder="New Team Name">
-                            <input type="color" id="new-team-color" value="#ff0000" title="Team Color">
-                            <select id="new-team-trait" title="Team Trait">
-                                <option value="Random" selected>Random</option>
-                                <option value="Balanced">Balanced</option>
-                                <option value="Aggressive">Aggressive</option>
-                                <option value="Expansive">Expansive</option>
-                                <option value="Defensive">Defensive</option>
-                            </select>
-                            <button id="add-team-btn">Add</button>
-                        </div>
+        <!-- Setup phase panel -->
+        <div class="controls interpretation-panel">
+            <h1>Geometric Divination Game</h1>
+            <div id="setup-phase">
+            <h2>1. Setup</h2>
+            <fieldset>
+                <legend>Create Teams</legend>
+                <div class="teams-section">
+                    <ul id="teams-list"></ul>
+                    <div class="add-team-form">
+                        <input type="text" id="new-team-name" placeholder="New Team Name">
+                        <input type="color" id="new-team-color" value="#ff0000" title="Team Color">
+                        <select id="new-team-trait" title="Team Trait">
+                            <option value="Random" selected>Random</option>
+                            <option value="Balanced">Balanced</option>
+                            <option value="Aggressive">Aggressive</option>
+                            <option value="Expansive">Expansive</option>
+                            <option value="Defensive">Defensive</option>
+                        </select>
+                        <button id="add-team-btn">Add</button>
                     </div>
-                </fieldset>
-                <fieldset>
-                    <legend>Place Points</legend>
-                    <div class="placement-section">
-                        <p>Select a team, then click on the grid to place points.</p>
-                        <button id="undo-point-btn">Undo Last Point</button>
-                        <button id="clear-points-btn">Clear All Points</button>
-                        <button id="randomize-points-btn">Randomize Points</button>
-                    </div>
-                </fieldset>
-
                 </div>
-            </div>
-            <!-- This div is hidden during game running phase -->
-        </div>
-        <div class="grid-container">
-            <canvas id="grid" width="600" height="600"></canvas>
-            <div id="status-bar">Waiting for game to start...</div>
-        </div>
-        <div class="interpretation-panel">
-            <div id="setup-panel-content">
-                <div id="setup-actions">
+            </fieldset>
+            <fieldset>
+                <legend>Place Points</legend>
+                <div class="placement-section">
+                    <p>Select a team, then click on the grid to place points.</p>
+                    <button id="undo-point-btn">Undo Last Point</button>
+                    <button id="clear-points-btn">Clear All Points</button>
+                    <button id="randomize-points-btn">Randomize Points</button>
+                </div>
+            </fieldset>
+             <div id="setup-actions">
                 <button id="start-game-btn" style="width:100%; padding: 10px; font-size: 1.1em; margin-bottom: 15px;">Start Game</button>
                 <fieldset>
                     <legend>Game Settings</legend>
@@ -66,69 +55,78 @@
                         <input type="number" id="max-turns" value="100" style="width: 60px;">
                      </div>
                 </fieldset>
-                </div>
             </div>
-            <div id="running-panel-content">
-                <div id="running-analysis">
-                <div id="running-controls-content">
-                    <fieldset id="live-controls">
-                        <legend>Game Controls</legend>
-                        <div class="control-buttons-row">
-                            <button id="next-action-btn">Next Action</button>
-                            <button id="auto-play-btn">Auto-Play</button>
-                        </div>
-                        <div class="speed-control">
-                            <label for="auto-play-speed">Speed:</label>
-                            <input type="range" id="auto-play-speed" min="10" max="1000" value="500" step="10">
-                            <span id="speed-value">500ms</span>
-                        </div>
-                         <div class="control-buttons-row">
-                            <button id="restart-simulation-btn">Restart Sim</button>
-                            <button id="reset-btn" title="End the current game and return to the setup screen.">End Game</button>
-                        </div>
-                    </fieldset>
+            </div>
+        </div>
+
+        <!-- Grid (always visible) -->
+        <div class="grid-container">
+            <canvas id="grid" width="600" height="600"></canvas>
+            <div id="status-bar">Waiting for game to start...</div>
+        </div>
+
+        <!-- Columns for Game Running Phase -->
+        <div class="game-column" id="game-controls-column">
+            <fieldset id="live-controls">
+                <legend>Game Controls</legend>
+                <div class="control-buttons-row">
+                    <button id="next-action-btn">Next Action</button>
+                    <button id="auto-play-btn">Auto-Play</button>
                 </div>
-                <h2>Analysis</h2>
-                <div id="turn-counter">Turn: 0 / 100</div>
-                <div id="stats"></div>
-                <div id="action-preview-panel">
-                    <div class="action-preview-header">
-                        <h4>Action Preview</h4>
-                        <label title="Show actions that cannot be performed and why.">
-                            <input type="checkbox" id="show-invalid-actions"> Show Invalid
-                        </label>
+                <div class="speed-control">
+                    <label for="auto-play-speed">Speed:</label>
+                    <input type="range" id="auto-play-speed" min="10" max="1000" value="500" step="10">
+                    <span id="speed-value">500ms</span>
+                </div>
+                 <div class="control-buttons-row">
+                    <button id="restart-simulation-btn">Restart Sim</button>
+                    <button id="reset-btn" title="End the current game and return to the setup screen.">End Game</button>
+                </div>
+            </fieldset>
+             <details class="debug-fieldset">
+                <summary>Developer Tools</summary>
+                <div class="debug-options">
+                    <label><input type="checkbox" id="debug-point-ids"> Show Point IDs</label>
+                    <label><input type="checkbox" id="debug-line-ids"> Show Line IDs</label>
+                    <label><input type="checkbox" id="debug-last-action"> Highlight Last Action</label>
+                    <button id="copy-state-btn">Copy Game State to Clipboard</button>
+                </div>
+            </details>
+            <div id="turn-counter">Turn: 0 / 100</div>
+            <div id="stats"></div>
+            <div id="final-interpretation" style="display: none;">
+                <div class="final-analysis-header">
+                    <h4>Final Analysis</h4>
+                    <div class="debug-options" id="final-analysis-options" style="display: none;">
+                        <label><input type="checkbox" id="show-hulls-toggle"> Show Convex Hulls</label>
                     </div>
-                    <div id="action-preview-content"></div>
                 </div>
-                <details class="debug-fieldset">
-                    <summary>Developer Tools</summary>
-                    <div class="debug-options">
-                        <label><input type="checkbox" id="debug-point-ids"> Show Point IDs</label>
-                        <label><input type="checkbox" id="debug-line-ids"> Show Line IDs</label>
-                        <label><input type="checkbox" id="debug-last-action"> Highlight Last Action</label>
-                        <button id="copy-state-btn">Copy Game State to Clipboard</button>
+                <div id="final-stats-content"></div>
+            </div>
+        </div>
+
+        <div class="game-column" id="game-preview-column">
+            <div id="action-preview-panel">
+                <div class="action-preview-header">
+                    <h4>Action Preview</h4>
+                    <label title="Show actions that cannot be performed and why.">
+                        <input type="checkbox" id="show-invalid-actions"> Show Invalid
+                    </label>
+                </div>
+                <div id="action-preview-content"></div>
+            </div>
+        </div>
+
+        <div class="game-column" id="game-log-column">
+            <div class="log-container">
+                <div class="log-header">
+                    <h3>Game Log</h3>
+                    <div>
+                        <button id="copy-log-btn" style="font-size: 0.8em; padding: 2px 5px;" title="Copy Log">Copy</button>
+                        <label title="Use short-form action log"><input type="checkbox" id="compact-log-toggle"> Compact</label>
                     </div>
-                </details>
-                <div id="final-interpretation" style="display: none;">
-                    <div class="final-analysis-header">
-                        <h4>Final Analysis</h4>
-                        <div class="debug-options" id="final-analysis-options" style="display: none;">
-                            <label><input type="checkbox" id="show-hulls-toggle"> Show Convex Hulls</label>
-                        </div>
-                    </div>
-                    <div id="final-stats-content"></div>
                 </div>
-                <div class="log-container">
-                    <div class="log-header">
-                        <h3>Game Log</h3>
-                        <div>
-                            <button id="copy-log-btn" style="font-size: 0.8em; padding: 2px 5px;" title="Copy Log">Copy</button>
-                            <label title="Use short-form action log"><input type="checkbox" id="compact-log-toggle"> Compact</label>
-                        </div>
-                    </div>
-                    <div id="log" class="log-box">Awaiting game start...</div>
-                </div>
-                </div>
+                <div id="log" class="log-box">Awaiting game start...</div>
             </div>
         </div>
     </div>

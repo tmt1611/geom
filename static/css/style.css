@@ -632,10 +632,9 @@ body.game-running .container {
     width: 100%;
     height: 100%;
     gap: 15px;
-    grid-template-columns: 1fr 400px;
+    /* Main grid, then 3 info columns */
+    grid-template-columns: 1fr 320px 320px 320px;
     grid-template-rows: 100%;
-    grid-template-areas:
-        "main info";
     align-items: stretch;
 }
 
@@ -645,7 +644,6 @@ body.game-running h1 {
 
 /* --- Area Placements --- */
 body.game-running .grid-container {
-    grid-area: main;
     flex: none; /* remove from old flex layout */
     max-width: none;
     height: 100%; /* fill grid area */
@@ -655,75 +653,64 @@ body.game-running .grid-container {
 body.game-running .controls {
     display: none;
 }
-
 body.game-running .interpretation-panel {
-    grid-area: info;
-    flex: none;
-    max-width: none;
-    padding: 15px;
-    background: #fff;
-    border-left: 1px solid #dfe4ea;
-    box-shadow: -2px 0 5px rgba(0,0,0,0.05);
-    min-width: 0;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
+    display: none; /* Setup panel is hidden when running */
 }
 
-/* --- Info Panel (Right Column) --- */
-body.game-running #running-panel-content,
-body.game-running #running-analysis {
-    display: flex;
+.game-column {
+    display: none; /* Hidden by default */
     flex-direction: column;
     gap: 15px;
-    flex-grow: 1;
-    min-height: 0;
+    min-width: 0;
+    height: 100%;
+    overflow-y: auto; /* Allow individual columns to scroll */
+    padding: 10px;
+    background-color: #fcfcfc;
+    border-left: 1px solid #e9ecef;
+}
+body.game-running .game-column {
+    display: flex; /* Shown only when running */
 }
 
-body.game-running #running-analysis h2 {
-    font-size: 1.3em;
-    margin: 0;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #eee;
+#game-controls-column > *,
+#game-preview-column > *,
+#game-log-column > * {
+    flex-shrink: 0; /* Prevent items from shrinking by default */
 }
 
-body.game-running #running-analysis > #stats,
-body.game-running #action-preview-panel,
-body.game-running .log-container {
+#game-controls-column #stats {
     border: 1px solid #dfe4ea;
-    background-color: #fff;
     border-radius: 5px;
     padding: 10px;
+    background-color: #f8f9fa;
 }
-body.game-running #running-analysis > #stats {
-    flex-shrink: 0;
-}
-body.game-running #action-preview-panel {
-    flex-shrink: 0;
-    margin-top: 0;
-    padding: 15px;
-}
-body.game-running #action-preview-content {
-    max-height: 25vh; /* Give it a max height relative to screen */
-    overflow-y: auto;
-}
-body.game-running .log-container {
-    flex-grow: 1; /* Take remaining space */
+
+#game-preview-column #action-preview-panel {
+    flex-grow: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
+    border: none;
+    padding: 0;
+}
+#game-preview-column #action-preview-content {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+#game-log-column .log-container {
+    flex-grow: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border: none;
+    padding: 0;
+}
+#game-log-column .log-box {
+    flex-grow: 1;
+    height: auto;
 }
 
-body.game-running .log-box {
-    height: 100%;
-}
-
-/* --- Control Panel (Right Side) --- */
-body.game-running #running-controls-content {
-    flex-shrink: 0;
-}
-
-body.game-running #live-controls {
+#live-controls {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -766,7 +753,7 @@ body.game-running #live-controls {
     background-color: #ebccd1;
 }
 
-body.game-running #turn-counter {
+#turn-counter {
     font-size: 1.2em;
     font-weight: 500;
     color: #2c3e50;
@@ -777,11 +764,6 @@ body.game-running #turn-counter {
     border: 1px solid #dfe4ea;
 }
 
-body.game-running #final-interpretation {
+#final-interpretation {
     order: 10; /* Move to the bottom when it appears */
-}
-
-/* Old big reset button is now part of the control box */
-#running-analysis > button#reset-btn {
-    display: none;
 }

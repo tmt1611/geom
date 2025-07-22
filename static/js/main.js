@@ -116,6 +116,83 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    const pointRenderers = {
+        'is_bastion_core': (p, cx, cy, radius) => {
+            const squareSize = radius * 2.5;
+            ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        },
+        'is_bastion_prong': (p, cx, cy, radius) => {
+            const squareSize = radius * 1.5;
+            ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
+            ctx.fill();
+        },
+        'is_fortified': (p, cx, cy, radius) => {
+            const size = radius * 1.7;
+            ctx.moveTo(cx, cy - size); ctx.lineTo(cx + size, cy); ctx.lineTo(cx, cy + size); ctx.lineTo(cx - size, cy);
+            ctx.closePath();
+            ctx.fill();
+        },
+        'is_sentry_eye': (p, cx, cy, radius) => {
+            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius * 0.4, 0, 2 * Math.PI);
+            ctx.fill();
+        },
+        'is_sentry_post': (p, cx, cy, radius) => {
+            ctx.arc(cx, cy, radius * 0.7, 0, 2 * Math.PI);
+            ctx.fill();
+        },
+        'is_monolith_point': (p, cx, cy, radius) => {
+            const w = radius * 0.8; const h = radius * 2.5;
+            ctx.rect(cx - w / 2, cy - h / 2, w, h);
+            ctx.fill();
+        },
+        'is_purifier_point': (p, cx, cy, radius) => {
+            const spikes = 5; const outerRadius = radius * 2.2; const innerRadius = radius * 1.1;
+            ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                let x_outer = cx + Math.cos(i * 2 * Math.PI / spikes - Math.PI/2) * outerRadius;
+                let y_outer = cy + Math.sin(i * 2 * Math.PI / spikes - Math.PI/2) * outerRadius;
+                ctx.lineTo(x_outer, y_outer);
+                let x_inner = cx + Math.cos((i + 0.5) * 2 * Math.PI / spikes - Math.PI/2) * innerRadius;
+                let y_inner = cy + Math.sin((i + 0.5) * 2 * Math.PI / spikes - Math.PI/2) * innerRadius;
+                ctx.lineTo(x_inner, y_inner);
+            }
+            ctx.closePath();
+            ctx.fill();
+        },
+        'is_trebuchet_point': (p, cx, cy, radius) => {
+            const pointCount = 5;
+            ctx.moveTo(cx + radius, cy);
+            for (let i = 1; i <= pointCount; i++) ctx.lineTo(cx + radius * Math.cos(i * 2 * Math.PI / pointCount), cy + radius * Math.sin(i * 2 * Math.PI / pointCount));
+            ctx.closePath();
+            ctx.fill();
+        },
+        'is_anchor': (p, cx, cy, radius) => {
+            const squareSize = radius * 1.8;
+            ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
+            ctx.fill();
+        },
+        'is_nexus_point': (p, cx, cy, radius) => {
+            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius * 0.5, 0, 2 * Math.PI);
+            ctx.fill();
+        },
+        'default': (p, cx, cy, radius) => {
+            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+    };
+
     function drawPoints(pointsDict, teams) {
         if (!pointsDict) return;
         Object.values(pointsDict).forEach(p => {
@@ -123,156 +200,55 @@ document.addEventListener('DOMContentLoaded', () => {
             if (team) {
                 const cx = (p.x + 0.5) * cellSize;
                 const cy = (p.y + 0.5) * cellSize;
-                let radius = 5;
+                let radius = p.is_anchor ? 7 : 5;
 
                 // Highlight effect for last action
                 if (debugOptions.highlightLastAction && lastActionHighlights.points.has(p.id)) {
                     ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, radius + 5, 0, 2 * Math.PI);
-                    ctx.fill();
+                    ctx.beginPath(); ctx.arc(cx, cy, radius + 5, 0, 2 * Math.PI); ctx.fill();
                 }
 
-                // Anchor point visualization (drawn on top of highlight, below main point)
+                // Pre-draw effects
                 if (p.is_anchor) {
-                    radius = 7;
-                    // Pulsing effect for anchor
-                    const pulse_rate = 1500; // ms for one pulse cycle
-                    const pulse = Math.abs(Math.sin(Date.now() / pulse_rate));
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, radius + 4 + (pulse * 4), 0, 2 * Math.PI);
+                    const pulse = Math.abs(Math.sin(Date.now() / 1500));
+                    ctx.beginPath(); ctx.arc(cx, cy, radius + 4 + (pulse * 4), 0, 2 * Math.PI);
                     ctx.strokeStyle = `rgba(200, 200, 255, ${0.7 - (pulse * 0.5)})`;
-                    ctx.lineWidth = 3;
-                    ctx.stroke();
+                    ctx.lineWidth = 3; ctx.stroke();
                 }
-
-                // Conduit point visualization (glow)
                 if (p.is_conduit_point) {
                     ctx.fillStyle = `rgba(200, 230, 255, 0.7)`;
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, radius + 3, 0, 2 * Math.PI);
-                    ctx.fill();
+                    ctx.beginPath(); ctx.arc(cx, cy, radius + 3, 0, 2 * Math.PI); ctx.fill();
                 }
 
                 // Main point drawing
                 ctx.fillStyle = team.color;
                 ctx.beginPath();
-                if (p.is_bastion_core) {
-                    // Draw bastion cores as large outlined squares
-                    const squareSize = radius * 2.5;
-                    ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
-                    ctx.fill();
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                } else if (p.is_bastion_prong) {
-                    // Draw bastion prongs as small squares
-                    const squareSize = radius * 1.5;
-                    ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
-                    ctx.fill();
-                } else if (p.is_fortified) {
-                    // Draw fortified points as diamonds
-                    const size = radius * 1.7;
-                    ctx.moveTo(cx, cy - size); // Top
-                    ctx.lineTo(cx + size, cy); // Right
-                    ctx.lineTo(cx, cy + size); // Bottom
-                    ctx.lineTo(cx - size, cy); // Left
-                    ctx.closePath();
-                    ctx.fill();
-                } else if (p.is_sentry_eye) {
-                    // Draw Sentry eyes as a circle with a dot
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-                    ctx.fill();
-                    ctx.fillStyle = '#fff';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, radius * 0.4, 0, 2 * Math.PI);
-                    ctx.fill();
-                } else if (p.is_sentry_post) {
-                    // Draw Sentry posts as smaller circles
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, radius * 0.7, 0, 2 * Math.PI);
-                    ctx.fill();
-                } else if (p.is_monolith_point) {
-                    // Draw monolith points as tall thin rects
-                    const w = radius * 0.8;
-                    const h = radius * 2.5;
-                    ctx.rect(cx - w / 2, cy - h / 2, w, h);
-                    ctx.fill();
-                } else if (p.is_purifier_point) {
-                    // Draw purifier points as stars
-                    ctx.beginPath();
-                    const spikes = 5;
-                    const outerRadius = radius * 2.2;
-                    const innerRadius = radius * 1.1;
-                    ctx.moveTo(cx, cy - outerRadius);
-                    for (let i = 0; i < spikes; i++) {
-                        let x_outer = cx + Math.cos(i * 2 * Math.PI / spikes - Math.PI/2) * outerRadius;
-                        let y_outer = cy + Math.sin(i * 2 * Math.PI / spikes - Math.PI/2) * outerRadius;
-                        ctx.lineTo(x_outer, y_outer);
-                        let x_inner = cx + Math.cos((i + 0.5) * 2 * Math.PI / spikes - Math.PI/2) * innerRadius;
-                        let y_inner = cy + Math.sin((i + 0.5) * 2 * Math.PI / spikes - Math.PI/2) * innerRadius;
-                        ctx.lineTo(x_inner, y_inner);
+
+                let rendered = false;
+                for (const key in pointRenderers) {
+                    if (key !== 'default' && p[key]) {
+                        pointRenderers[key](p, cx, cy, radius);
+                        rendered = true;
+                        break;
                     }
-                    ctx.closePath();
-                    ctx.fill();
-                } else if (p.is_trebuchet_point) {
-                    // Draw trebuchet points distinctively (as a pentagon)
-                    ctx.beginPath();
-                    const pointCount = 5;
-                    ctx.moveTo(cx + radius, cy);
-                    for (let i = 1; i <= pointCount; i++) {
-                        const angle = i * 2 * Math.PI / pointCount;
-                        ctx.lineTo(cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
-                    }
-                    ctx.closePath();
-                    ctx.fill();
-                } else if (p.is_anchor) {
-                    // Draw anchors as squares
-                    const squareSize = radius * 1.8;
-                    ctx.rect(cx - squareSize / 2, cy - squareSize / 2, squareSize, squareSize);
-                    ctx.fill();
-                } else if (p.is_nexus_point) {
-                    // Draw Nexus points as concentric circles
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-                    ctx.fill();
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, radius * 0.5, 0, 2 * Math.PI);
-                    ctx.fill();
-                } else {
-                    // Draw normal points as circles
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-                    ctx.fill();
+                }
+                if (!rendered) {
+                    pointRenderers['default'](p, cx, cy, radius);
                 }
 
-                // Stasis effect (drawn on top of point)
+                // Post-draw effects
                 if (p.is_in_stasis) {
                     const pulse = Math.abs(Math.sin(Date.now() / 400));
                     ctx.strokeStyle = `rgba(150, 220, 255, ${0.5 + pulse * 0.4})`;
                     ctx.lineWidth = 1.5;
-                    // Draw a cage-like effect
                     const cage_radius = radius + 3;
-                    ctx.beginPath(); // Vertical bars
-                    ctx.moveTo(cx - cage_radius, cy);
-                    ctx.lineTo(cx + cage_radius, cy);
-                    ctx.moveTo(cx, cy - cage_radius);
-                    ctx.lineTo(cx, cy + cage_radius);
-                    ctx.stroke();
-                    ctx.beginPath(); // Circle
-                    ctx.arc(cx, cy, cage_radius, 0, 2 * Math.PI);
-                    ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(cx - cage_radius, cy); ctx.lineTo(cx + cage_radius, cy);
+                    ctx.moveTo(cx, cy - cage_radius); ctx.lineTo(cx, cy + cage_radius); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(cx, cy, cage_radius, 0, 2 * Math.PI); ctx.stroke();
                 }
 
-
                 if (debugOptions.showPointIds) {
-                    ctx.fillStyle = '#000';
-                    ctx.font = '10px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'bottom';
-                    // Display the point's unique ID
+                    ctx.fillStyle = '#000'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                     ctx.fillText(p.id, cx, cy - (radius + 2));
                 }
             }
@@ -2380,15 +2356,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.body.classList.toggle('game-running', !inSetup);
 
-        // In setup, show setup controls. In running, hide them.
-        document.querySelector('.controls').style.display = inSetup ? 'flex' : 'none';
-
-        // In setup, show setup panel. In running, show running panel.
-        document.getElementById('setup-panel-content').style.display = inSetup ? 'flex' : 'none';
-        document.getElementById('running-panel-content').style.display = inSetup ? 'none' : 'flex';
-
-        // These controls are now inside the running panel, so they are toggled by its parent.
-        // We only need to handle their disabled state.
+        // The new layout is controlled entirely by the 'game-running' class on the body.
+        // We only need to manage the enabled/disabled state of buttons here.
         if (isFinished) {
             if (autoPlayInterval) stopAutoPlay();
             autoPlayBtn.textContent = 'Auto-Play';

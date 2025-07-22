@@ -1,12 +1,13 @@
-### 1. Major UI/Layout Overhaul for Gameplay Phase
+### 1. Game-Phase UI Redesign: Multi-Column Layout
 - **Files**: `templates/index.html`, `static/css/style.css`, `static/js/main.js`
-- **Change**: The user interface during the game simulation phase (`game-running`) has been completely redesigned for better usability and information hierarchy.
-  - The previous layout with a right-side info panel and a separate bottom control bar has been replaced with a clean, two-column layout: the game grid on the left and a single, comprehensive "dashboard" panel on the right.
-  - All game controls (`Next Action`, `Auto-Play`, `Restart`, `End Game`) have been moved from the bottom bar into a dedicated `Game Controls` fieldset at the top of the right-hand dashboard. This fixes a bug where these buttons were not visible during gameplay.
-  - The right-hand panel is now vertically organized, containing Game Controls, turn/action counters, live team stats, the action preview, and the game log. This aligns with the request to have these elements organized "in their own column". The entire panel is now scrollable to accommodate all information on any screen size.
-- **Benefit**: This change resolves the critical bug of invisible controls and provides a much cleaner, more intuitive layout for observing and interacting with the game as it unfolds.
+- **Change**: The UI for the game-playing phase has been redesigned from a two-column layout to a four-column layout, providing better information separation and clarity, as requested.
+  - The main right-hand panel was split into three distinct, independently scrollable columns.
+  - **Column 1:** The grid remains the main focus area.
+  - **Column 2:** Contains high-level controls and status information (Game Controls, Dev Tools, Turn Counter, Live Stats, and the Final Analysis when the game ends).
+  - **Column 3:** Is now dedicated entirely to the "Action Preview" panel, giving it more space.
+  - **Column 4:** Is now dedicated entirely to the "Game Log".
+- **Benefit**: This new layout is cleaner, more organized, and makes better use of wider screens. It prevents different UI sections (like the log and stats) from competing for space within a single panel.
 
-### 2. Code Refactoring and Simplification
-- **Files**: `game_app/game_logic.py`
-- **Change**: To improve code quality and reduce redundancy, a new helper method `_get_vulnerable_enemy_points` was created. This method centralizes the logic for identifying which enemy points can be targeted by standard actions (i.e., not immune due to being fortified, part of a bastion, or in stasis).
-- **Benefit**: This helper function simplified the code in four different action-finder methods (`_find_possible_conversions`, `_find_possible_pincers`, `_find_possible_territory_strikes`, `rune_action_hourglass_stasis`), making the game logic easier to read, maintain, and preventing potential inconsistencies in targeting rules.
+### 2. Code Refactoring and Cleanup
+- **`static/js/main.js`**: Refactored the monolithic `drawPoints` function. The specific drawing logic for each special point type (e.g., bastion, fortified, sentry) was extracted into a `pointRenderers` object. The main function now iterates through this map, making the code cleaner, more modular, and easier to extend with new point types.
+- **`game_app/game_logic.py`**: Refactored the complex `_delete_point_and_connections` method. A new helper, `_cleanup_structures_for_point`, was created to handle the removal of a point from all associated secondary structures (lines, territories, bastions, etc.). This simplifies the main deletion function, improving readability and separating concerns. The new helper was also made more robust to clean up all structure types that rely on point lists.
