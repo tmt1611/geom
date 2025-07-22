@@ -225,8 +225,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.beginPath();
 
                 let rendered = false;
-                for (const key in pointRenderers) {
-                    if (key !== 'default' && p[key]) {
+                const render_order = [
+                    'is_bastion_core', 'is_purifier_point', 'is_sentry_eye', 'is_bastion_prong', 'is_monolith_point',
+                    'is_fortified', 'is_sentry_post', 'is_trebuchet_point', 'is_anchor', 'is_nexus_point'
+                ];
+                for (const key of render_order) {
+                    if (p[key]) {
                         pointRenderers[key](p, cx, cy, radius);
                         rendered = true;
                         break;
@@ -1482,7 +1486,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawTrebuchets(currentGameState);
                 drawPrisms(currentGameState);
                 drawRunes(currentGameState);
-                drawConduits(currentGameState);
                 drawNexuses(currentGameState);
                 drawHeartwoods(currentGameState);
                 drawWonders(currentGameState);
@@ -1774,10 +1777,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'chain_lightning': (details, gameState) => {
-            details.conduit_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
             visualEffects.push({
                 type: 'chain_lightning',
-                point_ids: details.conduit_point_ids,
+                point_ids: details.rune_points,
                 destroyed_point: details.destroyed_point,
                 startTime: Date.now(),
                 duration: 1000 // ms
@@ -1812,7 +1815,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'sentry_zap': (details, gameState) => {
-            details.sentry_points.forEach(pid => lastActionHighlights.points.add(pid));
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
              visualEffects.push({
                 type: 'attack_ray', p1: details.attack_ray.p1, p2: details.attack_ray.p2, startTime: Date.now(), duration: 400, color: `rgba(255, 100, 100, ${1-0})`, lineWidth: 2
             });
@@ -2019,7 +2022,7 @@ document.addEventListener('DOMContentLoaded', () => {
             details.territory_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
         },
         'sentry_zap_miss_spawn': (details, gameState) => {
-            details.sentry_points.forEach(pid => lastActionHighlights.points.add(pid));
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
             lastActionHighlights.points.add(details.new_point.id);
             visualEffects.push({
                 type: 'attack_ray',

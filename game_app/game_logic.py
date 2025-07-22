@@ -215,7 +215,7 @@ class Game:
         'expand_orbital': "Create Orbital",
         'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
         'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder",
-        'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'sacrifice_rift_trap': "Create Rift Trap", 'defend_shield': "Shield Line",
+        'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'sacrifice_rift_trap': "Create Rift Trap", 'defend_shield': "Shield Line / Overcharge",
         'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam", 'rune_cardinal_pulse': "Rune: Cardinal Pulse",
         'terraform_raise_barricade': "Raise Barricade"
     }
@@ -300,11 +300,17 @@ class Game:
         
         # Get all I-Rune point IDs for quick lookup
         i_rune_point_ids = set()
+        i_rune_sentry_eyes = set()
+        i_rune_sentry_posts = set()
         if self.state.get('runes'):
             for team_runes in self.state['runes'].values():
                 for i_rune in team_runes.get('i_shape', []):
                     for pid in i_rune.get('point_ids', []):
                         i_rune_point_ids.add(pid)
+                    for pid in i_rune.get('internal_points', []):
+                        i_rune_sentry_eyes.add(pid)
+                    for pid in i_rune.get('endpoints', []):
+                        i_rune_sentry_posts.add(pid)
         
         # Get all Nexus point IDs for quick lookup
         nexus_point_ids = set()
@@ -341,6 +347,9 @@ class Game:
             augmented_point['is_bastion_core'] = pid in bastion_point_ids['cores']
             augmented_point['is_bastion_prong'] = pid in bastion_point_ids['prongs']
             augmented_point['is_i_rune_point'] = pid in i_rune_point_ids
+            augmented_point['is_sentry_eye'] = pid in i_rune_sentry_eyes
+            augmented_point['is_sentry_post'] = pid in i_rune_sentry_posts
+            augmented_point['is_conduit_point'] = pid in i_rune_point_ids # I-Runes are also Conduits
             augmented_point['is_nexus_point'] = pid in nexus_point_ids
             augmented_point['is_monolith_point'] = pid in monolith_point_ids
             augmented_point['is_trebuchet_point'] = pid in trebuchet_point_ids
@@ -1368,14 +1377,15 @@ class Game:
         return {'success': False, 'reason': 'could not find a valid position to spawn'}
 
     def expand_action_create_orbital(self, teamId):
-        """[EXPAND ACTION]: Creates a new orbital structure of points around an existing point."""
+        """[EXPAND ACTION]: Creates a new orbital structure. If not possible, strengthens lines around a potential center."""
         team_point_ids = self.get_team_point_ids(teamId)
         if len(team_point_ids) < 5:
             return {'success': False, 'reason': 'not enough points to create an orbital'}
 
+        shuffled_point_ids = random.sample(team_point_ids, len(team_point_ids))
+
         # Try a few times to find a valid spot
-        for _ in range(5):
-            p_center_id = random.choice(team_point_ids)
+        for p_center_id in shuffled_point_ids[:5]:
             p_center = self.state['points'][p_center_id]
             
             num_satellites = random.randint(3, 5)
@@ -1390,59 +1400,65 @@ class Game:
                 new_x = p_center['x'] + math.cos(angle) * radius
                 new_y = p_center['y'] + math.sin(angle) * radius
                 
-                # Clamp to grid and round to integer
                 grid_size = self.state['grid_size']
                 final_x = round(max(0, min(grid_size - 1, new_x)))
                 final_y = round(max(0, min(grid_size - 1, new_y)))
 
                 new_p_coords = {'x': final_x, 'y': final_y}
-                # Use a larger clearance for orbitals to look good
-                is_valid, reason = self._is_spawn_location_valid(new_p_coords, teamId, min_dist_sq=2.0)
+                is_valid, _ = self._is_spawn_location_valid(new_p_coords, teamId, min_dist_sq=2.0)
                 if not is_valid:
-                    valid_orbital = False
-                    break
+                    valid_orbital = False; break
                 
-                # Check proximity to other points in this same orbital creation
-                is_too_close_to_sibling = False
-                for p_sibling in new_points_to_create:
-                    if distance_sq(new_p_coords, p_sibling) < 2.0:
-                         is_too_close_to_sibling = True
-                         break
+                is_too_close_to_sibling = any(distance_sq(new_p_coords, p_sib) < 2.0 for p_sib in new_points_to_create)
                 if is_too_close_to_sibling:
-                    valid_orbital = False
-                    break
+                    valid_orbital = False; break
                 
                 new_point_id = f"p_{uuid.uuid4().hex[:6]}"
                 new_points_to_create.append({"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id})
             
             if not valid_orbital:
-                continue # Try with another center point
+                continue
 
-            # If we're here, the orbital is valid. Create points and lines.
+            # --- Primary Effect: Create Orbital ---
             created_points = []
             created_lines = []
             for new_p_data in new_points_to_create:
                 self.state['points'][new_p_data['id']] = new_p_data
                 created_points.append(new_p_data)
-
-                # Add a line from the center to the new satellite point
                 line_id = f"l_{uuid.uuid4().hex[:6]}"
                 new_line = {"id": line_id, "p1_id": p_center_id, "p2_id": new_p_data['id'], "teamId": teamId}
                 self.state['lines'].append(new_line)
                 created_lines.append(new_line)
             
             return {
-                'success': True,
-                'type': 'create_orbital',
-                'center_point_id': p_center_id,
-                'new_points': created_points,
-                'new_lines': created_lines
+                'success': True, 'type': 'create_orbital', 'center_point_id': p_center_id,
+                'new_points': created_points, 'new_lines': created_lines
             }
+        
+        # --- Fallback: Strengthen lines around a chosen center ---
+        p_center_id_fallback = random.choice(team_point_ids)
+        lines_to_strengthen = [l for l in self.get_team_lines(teamId) if l['p1_id'] == p_center_id_fallback or l['p2_id'] == p_center_id_fallback]
+        
+        if not lines_to_strengthen:
+             return {'success': False, 'reason': 'could not find a valid position for an orbital and no lines to strengthen'}
+        
+        strengthened_lines_info = []
+        max_strength = 3
+        for line in lines_to_strengthen:
+            line_id = line.get('id')
+            if line_id:
+                current_strength = self.state['line_strengths'].get(line_id, 0)
+                if current_strength < max_strength:
+                    self.state['line_strengths'][line_id] = current_strength + 1
+                    strengthened_lines_info.append(line)
 
-        return {'success': False, 'reason': 'could not find a valid position for an orbital'}
+        return {
+            'success': True, 'type': 'orbital_fizzle_strengthen',
+            'center_point_id': p_center_id_fallback, 'strengthened_lines': strengthened_lines_info
+        }
 
     def shield_action_protect_line(self, teamId):
-        """[DEFEND ACTION]: Applies a temporary shield to a line, protecting it from attacks."""
+        """[DEFEND ACTION]: Applies a temporary shield to a line. If all lines are shielded, it overcharges one."""
         team_lines = self.get_team_lines(teamId)
         if not team_lines:
             return {'success': False, 'reason': 'no lines to shield'}
@@ -1450,76 +1466,96 @@ class Game:
         # Find lines that are not already shielded
         unshielded_lines = [l for l in team_lines if l.get('id') not in self.state['shields']]
 
-        if not unshielded_lines:
-            return {'success': False, 'reason': 'all lines are already shielded'}
-        
-        line_to_shield = random.choice(unshielded_lines)
-        shield_duration = 3 # in turns
-        self.state['shields'][line_to_shield['id']] = shield_duration
-        
-        return {'success': True, 'type': 'shield_line', 'shielded_line': line_to_shield}
+        if unshielded_lines:
+            # --- Primary Effect: Shield a new line ---
+            line_to_shield = random.choice(unshielded_lines)
+            shield_duration = 3 # in turns
+            self.state['shields'][line_to_shield['id']] = shield_duration
+            return {'success': True, 'type': 'shield_line', 'shielded_line': line_to_shield}
+        else:
+            # --- Fallback Effect: Overcharge an existing shield ---
+            line_to_overcharge = random.choice(team_lines)
+            line_id = line_to_overcharge.get('id')
+            if line_id and line_id in self.state['shields']:
+                max_shield_duration = 6
+                current_duration = self.state['shields'][line_id]
+                if current_duration < max_shield_duration:
+                    self.state['shields'][line_id] += 2 # Add 2 turns
+                
+                return {
+                    'success': True, 
+                    'type': 'shield_overcharge', 
+                    'overcharged_line': line_to_overcharge,
+                    'new_duration': self.state['shields'][line_id]
+                }
+            
+            # This should be very rare (e.g., lines have no IDs)
+            return {'success': False, 'reason': 'no valid shield to overcharge'}
 
     def expand_action_grow_line(self, teamId):
-        """[EXPAND ACTION]: Grows a new short line from an existing point, like a vine."""
+        """[EXPAND ACTION]: Grows a new short line from an existing point. If not possible, strengthens the source line."""
         team_lines = self.get_team_lines(teamId)
         if not team_lines:
             return {'success': False, 'reason': 'no lines to grow from'}
 
-        random.shuffle(team_lines)
+        shuffled_lines = random.sample(team_lines, len(team_lines))
         points_map = self.state['points']
         
-        for line in team_lines:
+        for line in shuffled_lines:
             if not (line['p1_id'] in points_map and line['p2_id'] in points_map):
                 continue
             
-            # Choose a random endpoint to grow from
-            p_origin_id, p_other_id = random.choice([(line['p1_id'], line['p2_id']), (line['p2_id'], line['p1_id'])])
-            p_origin = points_map[p_origin_id]
-            p_other = points_map[p_other_id]
+            # Try to grow from this line
+            for _ in range(2): # Try both endpoints
+                p_origin_id, p_other_id = random.choice([(line['p1_id'], line['p2_id']), (line['p2_id'], line['p1_id'])])
+                p_origin = points_map[p_origin_id]
+                p_other = points_map[p_other_id]
 
-            # Vector from other to origin, defining the line's direction at the origin
-            vx = p_origin['x'] - p_other['x']
-            vy = p_origin['y'] - p_other['y']
+                vx = p_origin['x'] - p_other['x']
+                vy = p_origin['y'] - p_other['y']
+                angle = random.uniform(-math.pi * 2/3, math.pi * 2/3)
+                new_vx = vx * math.cos(angle) - vy * math.sin(angle)
+                new_vy = vx * math.sin(angle) + vy * math.cos(angle)
+                mag = math.sqrt(new_vx**2 + new_vy**2)
+                if mag == 0: continue
+                
+                growth_length = self.state['grid_size'] * random.uniform(0.1, 0.2)
+                new_x = p_origin['x'] + (new_vx / mag) * growth_length
+                new_y = p_origin['y'] + (new_vy / mag) * growth_length
 
-            # Rotate this vector by a random angle. Avoids growing straight back.
-            angle = random.uniform(-math.pi * 2/3, math.pi * 2/3) # -120 to +120 degrees
-            
-            new_vx = vx * math.cos(angle) - vy * math.sin(angle)
-            new_vy = vx * math.sin(angle) + vy * math.cos(angle)
+                grid_size = self.state['grid_size']
+                if not (0 <= new_x < grid_size and 0 <= new_y < grid_size):
+                    continue
 
-            # Normalize the new vector
-            mag = math.sqrt(new_vx**2 + new_vy**2)
-            if mag == 0: continue # Should not happen if line has length
+                new_point_coords = {"x": round(new_x), "y": round(new_y)}
+                is_valid, _ = self._is_spawn_location_valid(new_point_coords, teamId)
+                if not is_valid:
+                    continue
 
-            # Define the length of the new "vine"
-            growth_length = self.state['grid_size'] * random.uniform(0.1, 0.2)
-            
-            # Calculate new point position
-            new_x = p_origin['x'] + (new_vx / mag) * growth_length
-            new_y = p_origin['y'] + (new_vy / mag) * growth_length
+                # --- Primary Effect: Grow Line ---
+                new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                new_point = {**new_point_coords, "teamId": teamId, "id": new_point_id}
+                self.state['points'][new_point_id] = new_point
+                line_id = f"l_{uuid.uuid4().hex[:6]}"
+                new_line = {"id": line_id, "p1_id": p_origin_id, "p2_id": new_point_id, "teamId": teamId}
+                self.state['lines'].append(new_line)
+                return {'success': True, 'type': 'grow_line', 'new_point': new_point, 'new_line': new_line}
 
-            # Check if the new point is within the grid boundaries and valid
-            grid_size = self.state['grid_size']
-            if not (0 <= new_x < grid_size and 0 <= new_y < grid_size):
-                continue
-
-            new_point_coords = {"x": round(new_x), "y": round(new_y)}
-            is_valid, reason = self._is_spawn_location_valid(new_point_coords, teamId)
-            if not is_valid:
-                continue
-
-            # We found a valid growth, create the new point and line
-            new_point_id = f"p_{uuid.uuid4().hex[:6]}"
-            new_point = {**new_point_coords, "teamId": teamId, "id": new_point_id}
-            self.state['points'][new_point_id] = new_point
-
-            line_id = f"l_{uuid.uuid4().hex[:6]}"
-            new_line = {"id": line_id, "p1_id": p_origin_id, "p2_id": new_point_id, "teamId": teamId}
-            self.state['lines'].append(new_line)
-
-            return {'success': True, 'type': 'grow_line', 'new_point': new_point, 'new_line': new_line}
-
-        return {'success': False, 'reason': 'could not find a valid position to grow'}
+        # --- Fallback: Strengthen a line ---
+        line_to_strengthen = random.choice(team_lines)
+        line_id = line_to_strengthen.get('id')
+        if line_id:
+            max_strength = 3
+            current_strength = self.state['line_strengths'].get(line_id, 0)
+            if current_strength < max_strength:
+                self.state['line_strengths'][line_id] = current_strength + 1
+            return {
+                'success': True, 
+                'type': 'grow_fizzle_strengthen', 
+                'strengthened_line': line_to_strengthen
+            }
+        
+        return {'success': False, 'reason': 'could not find a valid position to grow and no line to strengthen'}
 
     def _find_claimable_triangles(self, teamId):
         """Finds all triangles for a team that have not yet been claimed."""
@@ -3379,7 +3415,7 @@ class Game:
             'fight_refraction_beam': (lambda: bool(self.state.get('prisms', {}).get(teamId, [])) and num_enemy_lines > 0, "Requires a Prism and enemy lines."),
             'fight_launch_payload': (lambda: bool(self.state.get('trebuchets', {}).get(teamId, [])), "Requires a Trebuchet."),
             'fight_purify_territory': (lambda: bool(self.state.get('purifiers', {}).get(teamId, [])) and any(t['teamId'] != teamId for t in self.state.get('territories', [])), "Requires a Purifier and an enemy territory."),
-            'defend_shield': (lambda: any(l.get('id') not in self.state['shields'] for l in self.get_team_lines(teamId)), "Requires an unshielded line."),
+            'defend_shield': (lambda: num_team_lines > 0, "Requires at least one line to shield or overcharge."),
             'fortify_claim': (lambda: len(self._find_claimable_triangles(teamId)) > 0, "No new triangles available to claim."),
             'fortify_anchor': (lambda: num_team_points >= 3, "Requires at least 3 points to sacrifice one."),
             'fortify_mirror': (lambda: num_team_points >= 3, "Requires at least 3 points to mirror."),
@@ -3465,8 +3501,6 @@ class Game:
             
         # Update structures for the team to get the most accurate list of possible actions
         self._update_runes_for_team(teamId)
-        self._update_sentries_for_team(teamId)
-        self._update_conduits_for_team(teamId)
         self._update_prisms_for_team(teamId)
         self._update_trebuchets_for_team(teamId)
         self._update_nexuses_for_team(teamId)
@@ -3948,6 +3982,7 @@ class Game:
             'fracture_line': lambda r: ("fractured a line, creating a new point.", "[FRACTURE]"),
             'spawn_point': lambda r: ("spawned a new point from an existing one.", "[SPAWN]"),
             'create_orbital': lambda r: (f"created an orbital structure with {len(r['new_points'])} new points.", "[ORBITAL]"),
+            'orbital_fizzle_strengthen': lambda r: (f"failed to form an orbital and instead reinforced {len(r['strengthened_lines'])} lines around a central point.", "[ORBITAL->REINFORCE]"),
             'attack_line': lambda r: (
                 f"attacked and destroyed a line from Team {r['destroyed_team']}{', bypassing its shield with a Cross Rune!' if r.get('bypassed_shield') else '.'}",
                 "[PIERCE!]" if r.get('bypassed_shield') else "[ATTACK]"
@@ -3972,6 +4007,8 @@ class Game:
             'nova_shockwave': lambda r: (f"sacrificed a point in a shockwave, pushing back {r['pushed_points_count']} nearby points.", "[SHOCKWAVE]"),
             'whirlpool_fizzle_fissure': lambda r: ("sacrificed a point to open a whirlpool, but with no targets in range, it collapsed into a temporary fissure.", "[WHIRLPOOL->FIZZLE]"),
             'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
+            'shield_overcharge': lambda r: (f"could not shield a new line, and instead overcharged an existing shield to last for {r['new_duration']} turns.", "[OVERCHARGE]"),
+            'grow_fizzle_strengthen': lambda r: ("failed to grow a new branch and instead reinforced an existing line.", "[GROW->REINFORCE]"),
             'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
             'vbeam_miss_fissure': lambda r: ("unleashed a V-Rune beam that missed, scarring the earth with a temporary fissure.", "[V-BEAM->FISSURE]"),
             'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
@@ -4005,6 +4042,7 @@ class Game:
             'purify_fizzle_push': lambda r: (f"found no territories to cleanse, and instead emitted a pulse that pushed back {r['pushed_points_count']} enemies.", "[PURIFY->PUSH]"),
             'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead sacrificed a rune point to create a temporary anchor.", "[STASIS->ANCHOR]"),
             'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[FOCUS BEAM]"),
+            'focus_beam_fizzle_fissure': lambda r: ("found no targets for its Focus Beam and instead scarred the enemy's heartland with a temporary fissure.", "[FOCUS->FIZZLE]"),
             'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
             't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
             'rune_cardinal_pulse': lambda r: (f"consumed a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points with four beams of energy.", "[CARDINAL PULSE!]"),
@@ -4259,6 +4297,78 @@ class Game:
             p2 = points[(i + 1) % n]
             perimeter += math.sqrt(distance_sq(p1, p2))
         return perimeter
+
+    def _check_i_rune(self, teamId):
+        """
+        Finds I-Runes: a line of 3 or more collinear points, connected by lines.
+        Returns [{'point_ids': [p1,p2,p3,...], 'internal_points': [p2,...], 'endpoints': [p1,p_last]}]
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 3:
+            return []
+
+        points = self.state['points']
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+        
+        i_runes = []
+        
+        # We need to find simple paths (no branches)
+        # Start from points with degree 1 (endpoints of a chain)
+        endpoints = {pid for pid, neighbors in adj.items() if len(neighbors) == 1}
+        
+        visited_in_a_path = set()
+
+        for start_pid in endpoints:
+            if start_pid in visited_in_a_path:
+                continue
+            
+            path = [start_pid]
+            visited_in_a_path.add(start_pid)
+            
+            curr_pid = start_pid
+            prev_pid = None
+
+            while True:
+                neighbors = adj.get(curr_pid, set())
+                # On a simple path, internal nodes must have degree 2, endpoints degree 1.
+                # Find the next neighbor that isn't the one we just came from.
+                next_candidates = [nid for nid in neighbors if nid != prev_pid]
+                
+                if len(next_candidates) != 1:
+                    break # End of simple path (either dead-end or a fork)
+                
+                next_pid = next_candidates[0]
+
+                # Check for collinearity. We need at least 3 points.
+                if len(path) >= 2:
+                    p1 = points.get(path[-2])
+                    p2 = points.get(path[-1])
+                    p3 = points.get(next_pid)
+                    if not p1 or not p2 or not p3 or orientation(p1, p2, p3) != 0:
+                        break # Path is not straight
+                
+                if next_pid in visited_in_a_path:
+                    break # Loop detected, not a simple path
+
+                path.append(next_pid)
+                visited_in_a_path.add(next_pid)
+                prev_pid = curr_pid
+                curr_pid = next_pid
+
+            if len(path) >= 3:
+                # We have a straight path of 3 or more points. This is an I-Rune.
+                i_runes.append({
+                    'point_ids': path,
+                    'endpoints': [path[0], path[-1]],
+                    'internal_points': path[1:-1]
+                })
+
+        return i_runes
+
 
     # --- Rune System ---
     
@@ -4828,7 +4938,7 @@ class Game:
         }
 
     def rune_action_focus_beam(self, teamId):
-        """[RUNE ACTION]: A Star Rune fires a beam at a high-value target, or a regular one as fallback."""
+        """[RUNE ACTION]: A Star Rune fires a beam at a high-value target. If none, a regular one. If no targets, creates a fissure."""
         active_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
         if not active_star_runes:
             return {'success': False, 'reason': 'no active Star Runes'}
@@ -4864,31 +4974,66 @@ class Game:
                 target_point = min(vulnerable_targets, key=lambda p: distance_sq(center_point, p))
                 target_type = 'fallback_point'
 
-        if not target_type:
-            return {'success': False, 'reason': 'no valid targets found'}
-
-        # --- Execute destruction ---
-        destroyed_point_data, destroyed_wonder_data = None, None
-        if target_type == 'wonder':
-            destroyed_wonder_data = self.state['wonders'].pop(target_wonder['id'])
-            team_name = self.state['teams'][destroyed_wonder_data['teamId']]['name']
-            self.state['game_log'].append({'teamId': teamId, 'message': f"The Focus Beam obliterated the Chronos Spire of Team {team_name}!", 'short_message': '[WONDER DESTROYED!]'})
-        else:
-            destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
-            if not destroyed_point_data:
-                return {'success': False, 'reason': 'failed to destroy target point'}
+        # --- Execute Action ---
+        if target_type:
+            destroyed_point_data, destroyed_wonder_data = None, None
+            if target_type == 'wonder':
+                destroyed_wonder_data = self.state['wonders'].pop(target_wonder['id'])
+                team_name = self.state['teams'][destroyed_wonder_data['teamId']]['name']
+                self.state['game_log'].append({'teamId': teamId, 'message': f"The Focus Beam obliterated the Chronos Spire of Team {team_name}!", 'short_message': '[WONDER DESTROYED!]'})
+            else:
+                destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+                if not destroyed_point_data:
+                    return {'success': False, 'reason': 'failed to destroy target point'}
+            
+            return {
+                'success': True,
+                'type': 'rune_focus_beam' if target_type != 'fallback_point' else 'focus_beam_fallback_hit',
+                'destroyed_point': destroyed_point_data,
+                'destroyed_wonder': destroyed_wonder_data,
+                'rune_points': rune['all_points'],
+                'beam_origin': center_point,
+                'beam_target': (target_point or target_wonder.get('coords'))
+            }
         
-        return {
-            'success': True,
-            'type': 'rune_focus_beam' if target_type != 'fallback_point' else 'focus_beam_fallback_hit',
-            'destroyed_point': destroyed_point_data,
-            'destroyed_wonder': destroyed_wonder_data,
-            'rune_points': rune['all_points'],
-            'beam_origin': center_point,
-            'beam_target': (target_point or target_wonder.get('coords'))
-        }
+        # 3. Fallback to creating a fissure if no targets were found at all
+        else:
+            # Aim at the centroid of the enemy team with the most points
+            enemy_team_points = {}
+            for pid, p in points_map.items():
+                if p['teamId'] != teamId:
+                    if p['teamId'] not in enemy_team_points: enemy_team_points[p['teamId']] = []
+                    enemy_team_points[p['teamId']].append(p)
+            
+            if not enemy_team_points:
+                return {'success': False, 'reason': 'no enemies to target for focus beam fizzle'}
 
+            largest_enemy_team_id = max(enemy_team_points, key=lambda tid: len(enemy_team_points[tid]))
+            enemy_centroid = self._points_centroid(enemy_team_points[largest_enemy_team_id])
 
+            fissure_id = f"f_{uuid.uuid4().hex[:6]}"
+            fissure_len = self.state['grid_size'] * 0.2
+            angle = random.uniform(0, math.pi)
+            p1 = {'x': enemy_centroid['x'] - (fissure_len / 2) * math.cos(angle), 'y': enemy_centroid['y'] - (fissure_len / 2) * math.sin(angle)}
+            p2 = {'x': enemy_centroid['x'] + (fissure_len / 2) * math.cos(angle), 'y': enemy_centroid['y'] + (fissure_len / 2) * math.sin(angle)}
+
+            grid_size = self.state['grid_size']
+            p1['x'] = round(max(0, min(grid_size - 1, p1['x'])))
+            p1['y'] = round(max(0, min(grid_size - 1, p1['y'])))
+            p2['x'] = round(max(0, min(grid_size - 1, p2['x'])))
+            p2['y'] = round(max(0, min(grid_size - 1, p2['y'])))
+
+            new_fissure = {'id': fissure_id, 'p1': p1, 'p2': p2, 'turns_left': 2}
+            self.state['fissures'].append(new_fissure)
+            
+            return {
+                'success': True,
+                'type': 'focus_beam_fizzle_fissure',
+                'fissure': new_fissure,
+                'rune_points': rune['all_points'],
+                'beam_origin': center_point,
+                'beam_target': enemy_centroid
+            }
 
     def _update_prisms_for_team(self, teamId):
         """Checks for Prism formations (two territories sharing an edge)."""

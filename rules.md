@@ -45,10 +45,10 @@ On its turn, a team will perform one of the following actions, with the choice b
 
 *   **[EXPAND] Add Line:** Connect two of its own points with a new line. If not possible, it will reinforce an existing friendly line.
 *   **[EXPAND] Extend Line:** Extend an existing line to the border of the grid, creating a new point. If no valid extensions can be found, it reinforces an existing friendly line.
-*   **[EXPAND] Grow Line (Vine):** Grow a new, short line segment from an existing point, creating organic, branching structures.
+*   **[EXPAND] Grow Line (Vine):** Grow a new, short line segment from an existing point. If it cannot find a valid position, it reinforces the line it was trying to grow from.
 *   **[EXPAND] Fracture Line:** Splits an existing line into two, creating a new point along the line's original path. If no lines are long enough to fracture, it reinforces an existing friendly line.
 *   **[EXPAND] Spawn Point:** Creates a new point near an existing one. This is a last-resort action to ensure a team can recover even from a single point.
-*   **[EXPAND] Create Orbital:** A rare action where a team with enough points creates a constellation of 3-5 new "satellite" points in a circle around one of its existing points.
+*   **[EXPAND] Create Orbital:** Creates a constellation of 3-5 new "satellite" points in a circle around one of its existing points. If no valid formation can be made, it instead reinforces all lines connected to the chosen center point.
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed. If it misses, it creates a new friendly point on the border.
 *   **[FIGHT] Pincer Attack:** If two of a team's points are flanking a single enemy point (creating a wide angle), they can perform a joint attack to destroy it. This does not work on fortified or bastion points. If no suitable target is found, the points instead form a small, temporary barricade between them.
 *   **[FIGHT] Territory Strike:** _(Requires a large territory)_ Launches a bolt of energy from the center of a large claimed territory, destroying the nearest vulnerable enemy point. This makes controlling large areas of the map an offensive advantage. If no vulnerable enemies exist, the territory's boundary lines are reinforced instead.
@@ -69,8 +69,10 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[RUNE] Impale:** _(Requires an active Trident-Rune)_ Fires a devastating, long-range beam that pierces through all enemy lines in its path, ignoring shields. If the beam hits no targets, it instead creates a temporary defensive barricade along its path.
 *   **[RUNE] Area Shield:** _(Requires an active Shield-Rune)_ Creates a temporary shield on all friendly lines contained within the rune's triangular boundary. If no lines are found inside, it instead emits a gentle pulse that pushes friendly points outwards to de-clutter the area.
 *   **[RUNE] Shield Pulse:** _(Requires an active Shield-Rune)_ Emits a defensive shockwave from the rune's center, pushing all nearby enemy points outwards. If no enemies are in range, it instead gently pulls nearby friendly points inwards to consolidate the formation.
+*   **[RUNE] Starlight Cascade:** _(Requires a Star-Rune)_ Sacrifices one of the outer cycle points to damage or destroy nearby unshielded/unfortified enemy lines in a small radius.
+*   **[RUNE] Focus Beam:** _(Requires a Star-Rune)_ Fires a beam from the central point to destroy a high-value enemy structure (Wonder, Bastion core, etc). If no high-value targets exist, it targets a regular point. If no targets exist at all, it creates a small fissure in the heart of the enemy's territory.
 *   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field. If no valid targets are in range, it instead sacrifices one of its own points to turn another of its rune-points into a temporary gravitational **anchor**.
-*   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
+*   **[DEFEND] Shield Line:** Applies a temporary shield to one of its lines. If all lines are already shielded, it will instead **overcharge** an existing shield, extending its duration.
 *   **[DEFEND] Form Prism:** A passive formation. A Prism is created when two of a team's claimed territories (triangles) share a common edge line.
     *   **Bonus:** Unlocks the **[FIGHT] Refraction Beam** action, which allows for powerful bank-shot attacks.
 *   **[DEFEND] Form Nexus:** A passive formation. A Nexus is a powerful economic structure that grants bonus actions.
@@ -103,8 +105,11 @@ On its turn, a team will perform one of the following actions, with the choice b
 ## Wonders
 Wonders are unique, game-changing structures that require immense investment and provide a path to an alternative victory. Only one Wonder can be controlled by each team.
 
-*   **[WONDER] The Chronos Spire**
-    *   **Formation:** Requires a "star" formation: a central point connected to a cycle of 5 or 6 other points, where the cycle points are also connected to each other sequentially. All involved points and lines must belong to the same team.
+*   **Star-Rune:**
+    *   **Formation:** A central point connected to a cycle of 5 or 6 other points, where the cycle points are also connected to each other sequentially. All required lines must exist.
+    *   **Bonus 1:** Unlocks the **[RUNE] Starlight Cascade** action.
+    *   **Bonus 2:** Unlocks the **[RUNE] Focus Beam** action.
+    *   **Bonus 3:** This formation is a prerequisite for building the **Chronos Spire** wonder.
     *   **Cost:** The central point and all points in the cycle are sacrificed to create the Spire.
     *   **Bonus 1 (Temporal Distortion):** The Spire grants its owner **one bonus action** every turn. This stacks with other sources of bonus actions like Nexuses.
     *   **Bonus 2 (Victory Countdown):** The Spire is indestructible. If it remains on the field for **10 turns** after its creation, its owner immediately wins the game.
