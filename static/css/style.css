@@ -89,6 +89,7 @@ fieldset {
     border-radius: 5px;
     padding: 15px;
     margin: 0;
+    min-width: 0; /* Fix for fieldset width issues in flexbox */
 }
 
 legend {

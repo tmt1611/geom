@@ -1110,7 +1110,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.arc(
                         (effect.x + 0.5) * cellSize + Math.cos(angle) * dist,
                         (effect.y + 0.5) * cellSize + Math.sin(angle) * dist,
-                        2 * (1-progress), 0, 2*Math.PI
+                        Math.max(0, 2 * (1-progress)), 0, 2*Math.PI
                     );
                     ctx.fillStyle = `rgba(255, 150, 100, ${1 - progress})`;
                     ctx.fill();
@@ -1238,7 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const current_y = start_y + (end_y - start_y) * progress;
 
                     ctx.beginPath();
-                    ctx.arc(current_x, current_y, 8 * (1 - progress), 0, 2*Math.PI);
+                    ctx.arc(current_x, current_y, Math.max(0, 8 * (1 - progress)), 0, 2*Math.PI);
                     ctx.fillStyle = `rgba(150, 255, 150, ${1 - progress})`;
                     ctx.fill();
                 });
