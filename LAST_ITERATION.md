@@ -1,27 +1,28 @@
-### Action System Redesign (Part 7): Never Useless Shield and Mirror Actions
+### Action System Redesign (Part 8): More "Never Useless" Actions
 
-This iteration continues the overarching goal of making every action meaningful by adding intelligent fallback behaviors to several more actions. This ensures a team's turn is never truly wasted and adds more layers of dynamic behavior to the simulation. The focus this time was on `Fortify` and `Rune` actions that could previously fail if their primary targets were unavailable.
+This iteration continues the overarching goal of making every action meaningful by adding intelligent fallback behaviors to more actions. This ensures a team's turn is never truly wasted and adds more layers of dynamic behavior to the simulation. The focus this time was on `Fortify` and `Rune` actions that previously failed if their primary targets or conditions were not met.
 
--   **Files Modified**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`, `LAST_ITERATION.md`
+-   **Files Modified**: `game_app/game_logic.py`, `LAST_ITERATION.md`
 
 -   **Core Changes**:
-    -   **`fortify_action_mirror_structure`**:
-        -   **Primary Effect**: Reflects points across a chosen axis to create new symmetrical points.
-        -   **New Fallback**: If a valid reflection cannot be found, the action now strengthens the lines connected to the points that were considered for mirroring, reinforcing the existing structure instead.
-        -   **New Secondary Fallback**: If strengthening also fails, it makes a final attempt to add a new line to ensure the action is productive.
+    -   **`fortify_action_claim_territory`**:
+        -   **Primary Effect**: Claims a new triangle of points as territory.
+        -   **New Fallback**: If no new triangles are available to be claimed, the action now strengthens the boundary lines of an *existing* friendly territory, making it more resilient.
 
-    -   **`rune_action_area_shield`**:
-        -   **Primary Effect**: Protects all friendly lines inside the rune's triangular boundary with shields.
-        -   **New Fallback**: If no friendly lines are found inside the rune to protect, it now emits a gentle shockwave that pushes friendly points outwards, helping to de-clutter a dense formation.
+    -   **`fight_action_purify_territory`**:
+        -   **Primary Effect**: A Purifier structure cleanses a nearby enemy territory, removing its fortified status.
+        -   **New Fallback**: If no enemy territories are available to cleanse, the Purifier now emits a pulse that pushes nearby enemy points away from it, disrupting enemy formations.
 
-    -   **`rune_action_shield_pulse`**:
-        -   **Primary Effect**: Emits a powerful shockwave that pushes all nearby *enemy* points away.
-        -   **New Fallback**: If no enemies are in range to be pushed, the pulse now reverses, gently pulling nearby *friendly* points closer to the rune's center to consolidate the team's position.
+    -   **`rune_action_hourglass_stasis`**:
+        -   **Primary Effect**: An Hourglass Rune freezes a nearby enemy point in time, making it unable to act.
+        -   **New Fallback**: If there are no valid enemy targets in range, the rune's power is turned inward, transforming a nearby friendly point (not part of the rune itself) into a temporary gravitational anchor that pulls enemies towards it.
 
--   **Visual Effects & UI**:
-    -   Added new frontend visual effects in `static/js/main.js` for the new fallback actions, including a "point pull" effect for the shield pulse's new ability.
-    -   Updated the data payload for these actions to include the necessary information for the new visuals.
+    -   **`rune_action_focus_beam`**:
+        -   **Primary Effect**: A Star Rune fires a powerful beam to destroy a high-value enemy structure (Wonder, Bastion Core, Monolith point).
+        -   **New Fallback**: If no high-value targets are available, the beam will instead target and destroy a regular, vulnerable enemy point.
 
--   **Documentation**:
-    -   Updated `rules.md` to reflect the new dual-purpose nature of the modified actions.
-    -   Added corresponding log messages in `game_logic.py` for each new fallback behavior.
+-   **Code Quality**:
+    -   The `ACTION_DESCRIPTIONS` dictionary was completely reorganized and updated to include user-friendly names for all primary and fallback action types, improving clarity in the frontend action preview panel.
+
+-   **Precondition Logic**:
+    -   The precondition checks for the modified actions in `_get_all_actions_status` were updated to account for their new fallbacks, ensuring they are correctly identified as "valid" actions more often.
