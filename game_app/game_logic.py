@@ -5063,8 +5063,15 @@ class Game:
             mid1 = self._points_centroid([d1_p1, d1_p2])
             mid2 = self._points_centroid([d2_p1, d2_p2])
             
-            p1_coords = {'x': round(mid1['x']), 'y': round(mid1['y'])}
-            p2_coords = {'x': round(mid2['x']), 'y': round(mid2['y'])}
+            grid_size = self.state['grid_size']
+            p1_coords = {
+                'x': round(max(0, min(grid_size - 1, mid1['x']))),
+                'y': round(max(0, min(grid_size - 1, mid1['y'])))
+            }
+            p2_coords = {
+                'x': round(max(0, min(grid_size - 1, mid2['x']))),
+                'y': round(max(0, min(grid_size - 1, mid2['y'])))
+            }
             
             is_valid1, _ = self._is_spawn_location_valid(p1_coords, teamId)
             is_valid2, _ = self._is_spawn_location_valid(p2_coords, teamId)
