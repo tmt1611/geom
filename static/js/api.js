@@ -48,7 +48,9 @@ import game_app
             `);
 
             // Get a reference to the 'game' instance from the game_logic module within the package
-            this._game = this._pyodide.pyimport('game_app.game_logic.game');
+            const gameLogicModule = this._pyodide.pyimport('game_app.game_logic');
+            this._game = gameLogicModule.get('game');
+            gameLogicModule.destroy(); // Clean up the module proxy
             console.log('Pyodide backend ready.');
         } else {
             this._mode = 'http';
