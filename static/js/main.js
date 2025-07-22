@@ -2824,10 +2824,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const rect = canvas.getBoundingClientRect();
-        const x = Math.floor((e.clientX - rect.left) / cellSize);
-        const y = Math.floor((e.clientY - rect.top) / cellSize);
+        // The grid is drawn as a square based on canvas.width.
+        // We must ignore clicks outside of this drawn square, even if the canvas element is taller.
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
 
-        // Ensure the click is within the grid boundaries
+        if (clickX < 0 || clickY < 0 || clickX > canvas.width || clickY > canvas.width) {
+            // Click is outside the drawable square grid area
+            return;
+        }
+
+        const x = Math.floor(clickX / cellSize);
+        const y = Math.floor(clickY / cellSize);
+
+        // This check is slightly redundant now but provides an extra layer of safety.
         if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
             return;
         }

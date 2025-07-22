@@ -132,6 +132,46 @@ legend {
     margin-bottom: 15px;
 }
 
+.placement-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.placement-section button {
+    padding: 8px 12px;
+    font-size: 1em;
+    font-weight: 500;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+    color: white;
+}
+
+#undo-point-btn {
+    background-color: #7f8c8d;
+    border: 1px solid #616a6b;
+}
+#undo-point-btn:hover {
+    background-color: #95a5a6;
+}
+
+#clear-points-btn {
+    background-color: #e74c3c;
+    border: 1px solid #c0392b;
+}
+#clear-points-btn:hover {
+    background-color: #c0392b;
+}
+
+#randomize-points-btn {
+    background-color: #3498db;
+    border: 1px solid #2980b9;
+}
+#randomize-points-btn:hover {
+    background-color: #2980b9;
+}
+
 .teams-section > * {
     margin-top: 5px;
     margin-bottom: 5px;
