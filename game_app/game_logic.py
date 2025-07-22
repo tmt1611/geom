@@ -83,12 +83,11 @@ def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_
         if distance_sq(new_point_coords, existing_p) < min_dist_sq:
             return False, 'too close to an existing point'
     
-    # Check proximity to fissures & barricades (a simple bounding box check for performance)
-    obstacles = self.state.get('fissures', []) + self.state.get('barricades', [])
-    for obstacle in obstacles:
-        p1 = obstacle['p1']
-        p2 = obstacle['p2']
-        # Bounding box of the obstacle segment
+    # Check proximity to fissures (a simple bounding box check for performance)
+    for fissure in self.state.get('fissures', []):
+        p1 = fissure['p1']
+        p2 = fissure['p2']
+        # Bounding box of the fissure segment
         box_x_min = min(p1['x'], p2['x']) - 1
         box_x_max = max(p1['x'], p2['x']) + 1
         box_y_min = min(p1['y'], p2['y']) - 1
@@ -97,7 +96,7 @@ def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_
         if (new_point_coords['x'] >= box_x_min and new_point_coords['x'] <= box_x_max and
             new_point_coords['y'] >= box_y_min and new_point_coords['y'] <= box_y_max):
             # A more precise check can be done here if needed, but this is a good first pass
-            return False, 'too close to a fissure or barricade'
+            return False, 'too close to a fissure'
 
     # Check against enemy Heartwood defensive aura
     if self.state.get('heartwoods'):
@@ -188,6 +187,38 @@ def get_isosceles_triangle_info(p1, p2, p3):
     
     return None
 
+def is_regular_pentagon(p1, p2, p3, p4, p5):
+    """Checks if five points form a regular pentagon."""
+    points = [p1, p2, p3, p4, p5]
+    if len(set((p['x'], p['y']) for p in points)) < 5:
+        return False
+
+    # Calculate all 10 squared distances between the 5 points.
+    dists_sq = sorted([distance_sq(pi, pj) for pi, pj in combinations(points, 2)])
+    
+    # A regular pentagon has 5 equal sides (shortest distance) and 5 equal diagonals (next shortest).
+    side_sq = dists_sq[0]
+    diag_sq = dists_sq[5]
+
+    # Check for 5 equal sides
+    if not all(abs(d - side_sq) < 0.01 for d in dists_sq[0:5]):
+        return False
+
+    # Check for 5 equal diagonals
+    if not all(abs(d - diag_sq) < 0.01 for d in dists_sq[5:10]):
+        return False
+        
+    # Check the golden ratio property: diag^2 / side^2 = phi^2
+    # phi^2 = ((1+sqrt(5))/2)^2 = (3+sqrt(5))/2 ~= 2.618034
+    if side_sq < 0.01: return False # Not a real pentagon
+    ratio_sq = diag_sq / side_sq
+    
+    phi_sq = ((1 + math.sqrt(5)) / 2)**2
+    if abs(ratio_sq - phi_sq) > 0.05: # Allow some tolerance for float inaccuracies
+        return False
+        
+    return True
+
 # --- Game Class ---
 class Game:
     """Encapsulates the entire game state and logic."""
@@ -219,9 +250,9 @@ class Game:
             "whirlpools": [], # {id, teamId, coords, turns_left, strength, radius_sq}
             "monoliths": {}, # {monolith_id: {teamId, point_ids, ...}}
             "trebuchets": {}, # {teamId: [trebuchet1, ...]}
+            "purifiers": {}, # {teamId: [purifier1, ...]}
             "rift_spires": {}, # {spire_id: {teamId, coords, charge}}
             "fissures": [], # {id, p1, p2, turns_left}
-            "barricades": [], # {id, teamId, p1, p2, turns_left}
             "wonders": {}, # {wonder_id: {teamId, type, turns_to_victory, ...}}
             "empowered_lines": {}, # {line_id: strength}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
@@ -299,6 +330,13 @@ class Game:
                 for pid in trebuchet.get('point_ids', []):
                     trebuchet_point_ids.add(pid)
 
+        # Get all Purifier point IDs for quick lookup
+        purifier_point_ids = set()
+        for team_purifiers in self.state.get('purifiers', {}).values():
+            for purifier in team_purifiers:
+                for pid in purifier.get('point_ids', []):
+                    purifier_point_ids.add(pid)
+
         augmented_points = {}
         for pid, point in self.state['points'].items():
             augmented_point = point.copy()
@@ -312,6 +350,7 @@ class Game:
             augmented_point['is_nexus_point'] = pid in nexus_point_ids
             augmented_point['is_monolith_point'] = pid in monolith_point_ids
             augmented_point['is_trebuchet_point'] = pid in trebuchet_point_ids
+            augmented_point['is_purifier_point'] = pid in purifier_point_ids
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
 
@@ -322,9 +361,9 @@ class Game:
         state_copy['whirlpools'] = self.state.get('whirlpools', [])
         state_copy['monoliths'] = self.state.get('monoliths', {})
         state_copy['trebuchets'] = self.state.get('trebuchets', {})
+        state_copy['purifiers'] = self.state.get('purifiers', {})
         state_copy['rift_spires'] = self.state.get('rift_spires', {})
         state_copy['fissures'] = self.state.get('fissures', [])
-        state_copy['barricades'] = self.state.get('barricades', [])
         state_copy['wonders'] = self.state.get('wonders', {})
 
         # Add live stats for real-time display, regardless of phase, for consistency
@@ -533,13 +572,14 @@ class Game:
         
         return deleted_point_data
 
-    def _triangle_centroid(self, points):
-        """Calculates the centroid of a triangle. Assumes points is a list of 3 point dicts."""
-        if not points or len(points) != 3:
+    def _points_centroid(self, points):
+        """Calculates the geometric centroid of a list of points."""
+        if not points:
             return None
+        num_points = len(points)
         x_sum = sum(p['x'] for p in points)
         y_sum = sum(p['y'] for p in points)
-        return {'x': x_sum / 3.0, 'y': y_sum / 3.0}
+        return {'x': x_sum / num_points, 'y': y_sum / num_points}
 
     # --- Game Actions ---
 
@@ -585,13 +625,12 @@ class Game:
 
         if dx == 0 and dy == 0: return None
 
-        # Check if extension is blocked by a fissure or barricade
+        # Check if extension is blocked by a fissure
         # Create a very long ray for intersection test
         ray_end_point = {'x': p2['x'] + dx * grid_size * 2, 'y': p2['y'] + dy * grid_size * 2}
-        obstacles = self.state.get('fissures', []) + self.state.get('barricades', [])
-        for obstacle in obstacles:
-            if segments_intersect(p2, ray_end_point, obstacle['p1'], obstacle['p2']):
-                return None # Extension is blocked
+        for fissure in self.state.get('fissures', []):
+            if segments_intersect(p2, ray_end_point, fissure['p1'], fissure['p2']):
+                return None # Extension is blocked by a fissure
 
         # We are calculating p_new = p1 + t * (p2 - p1) for t > 1
         t_values = []
@@ -784,14 +823,13 @@ class Game:
                     ep1 = points[enemy_line['p1_id']]
                     ep2 = points[enemy_line['p2_id']]
 
-                    # Check if attack ray is blocked by a fissure or barricade
-                    is_blocked = False
-                    obstacles = self.state.get('fissures', []) + self.state.get('barricades', [])
-                    for obstacle in obstacles:
-                        if get_segment_intersection_point(attack_segment_p1, attack_segment_p2, obstacle['p1'], obstacle['p2']):
-                            is_blocked = True
-                            break
-                    if is_blocked:
+                    # Check if attack ray is blocked by a fissure
+                    is_blocked_by_fissure = False
+                    for fissure in self.state.get('fissures', []):
+                        if get_segment_intersection_point(attack_segment_p1, attack_segment_p2, fissure['p1'], fissure['p2']):
+                             is_blocked_by_fissure = True
+                             break
+                    if is_blocked_by_fissure:
                         continue
 
                     if segments_intersect(attack_segment_p1, attack_segment_p2, ep1, ep2):
@@ -1566,46 +1604,6 @@ class Game:
             'sacrificed_point': sacrificed_point_data
         }
 
-    def terraform_action_raise_barricade(self, teamId):
-        """[TERRAFORM ACTION]: Creates a temporary defensive wall between two points."""
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 2:
-            return {'success': False, 'reason': 'not enough points to build a barricade'}
-
-        # Find two points that are not too close and not already connected by a line
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
-        points_map = self.state['points']
-        possible_pairs = []
-        for p1_id, p2_id in combinations(team_point_ids, 2):
-            if tuple(sorted((p1_id, p2_id))) in existing_lines:
-                continue
-            
-            p1 = points_map[p1_id]
-            p2 = points_map[p2_id]
-            # Barricade must have a minimum length to be useful
-            if distance_sq(p1, p2) > (self.state['grid_size'] * 0.1)**2:
-                possible_pairs.append((p1_id, p2_id))
-        
-        if not possible_pairs:
-            return {'success': False, 'reason': 'no valid location for a barricade'}
-        
-        p1_id, p2_id = random.choice(possible_pairs)
-        p1 = self.state['points'][p1_id]
-        p2 = self.state['points'][p2_id]
-
-        barricade_id = f"bar_{uuid.uuid4().hex[:6]}"
-        new_barricade = {
-            'id': barricade_id,
-            'teamId': teamId,
-            'p1': {'x': p1['x'], 'y': p1['y']}, # Store coords, not IDs, as points might move
-            'p2': {'x': p2['x'], 'y': p2['y']},
-            'turns_left': 5,
-        }
-        if 'barricades' not in self.state: self.state['barricades'] = []
-        self.state['barricades'].append(new_barricade)
-
-        return {'success': True, 'type': 'raise_barricade', 'barricade': new_barricade}
-
     def terraform_action_create_fissure(self, teamId):
         """[TERRAFORM ACTION]: A Rift Spire creates a fissure on the map."""
         team_spires = [s for s in self.state.get('rift_spires', {}).values() if s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3)]
@@ -1812,6 +1810,46 @@ class Game:
             'anchor_point': anchor_point,
             'sacrificed_point': sacrificed_point_data
         }
+
+    def fortify_action_form_purifier(self, teamId):
+        """[FORTIFY ACTION]: Forms a Purifier from a regular pentagon of points."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 5:
+            return {'success': False, 'reason': 'not enough points'}
+
+        points = self.state['points']
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
+        
+        # Get points already used in other major structures
+        existing_purifier_points = {pid for p_list in self.state.get('purifiers', {}).values() for p in p_list for pid in p['point_ids']}
+
+        possible_purifiers = []
+        for p_ids_tuple in combinations(team_point_ids, 5):
+            if any(pid in existing_purifier_points for pid in p_ids_tuple):
+                continue
+
+            p_list = [points[pid] for pid in p_ids_tuple]
+            if is_regular_pentagon(*p_list):
+                # To be a valid formation, the 5 outer "side" lines must exist.
+                all_pairs = list(combinations(p_ids_tuple, 2))
+                all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
+                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
+                side_pairs = sorted_pairs[0:5]
+
+                if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
+                    possible_purifiers.append({'point_ids': list(p_ids_tuple)})
+        
+        if not possible_purifiers:
+            return {'success': False, 'reason': 'no valid pentagon formation found'}
+
+        chosen_purifier_data = random.choice(possible_purifiers)
+        
+        if teamId not in self.state.get('purifiers', {}):
+            self.state['purifiers'][teamId] = []
+            
+        self.state['purifiers'][teamId].append(chosen_purifier_data)
+        
+        return {'success': True, 'type': 'form_purifier', 'purifier': chosen_purifier_data}
 
     def fight_action_convert_point(self, teamId):
         """[FIGHT ACTION]: Sacrifice a line to convert a nearby enemy point."""
@@ -2188,7 +2226,7 @@ class Game:
         for territory in large_territories:
             p_ids = territory['point_ids']
             triangle_points = [points_map[pid] for pid in p_ids]
-            centroid = self._triangle_centroid(triangle_points)
+            centroid = self._points_centroid(triangle_points)
             
             for ep in enemy_points:
                 dist_sq = distance_sq(centroid, ep)
@@ -2347,6 +2385,59 @@ class Game:
             'destroyed_point': destroyed_point_data
         }
 
+    def fight_action_purify_territory(self, teamId):
+        """[FIGHT ACTION]: A Purifier cleanses a nearby enemy territory."""
+        team_purifiers = self.state.get('purifiers', {}).get(teamId, [])
+        if not team_purifiers:
+            return {'success': False, 'reason': 'no purifiers available'}
+
+        enemy_territories = [t for t in self.state.get('territories', []) if t['teamId'] != teamId]
+        if not enemy_territories:
+            return {'success': False, 'reason': 'no enemy territories to purify'}
+
+        points_map = self.state['points']
+        best_target = None
+        min_dist_sq = float('inf')
+
+        # Find the closest enemy territory to any of the team's purifiers
+        for purifier in team_purifiers:
+            if not all(pid in points_map for pid in purifier['point_ids']): continue
+            purifier_points = [points_map[pid] for pid in purifier['point_ids']]
+            purifier_center = self._points_centroid(purifier_points)
+            if not purifier_center: continue
+            
+            for territory in enemy_territories:
+                if not all(pid in points_map for pid in territory['point_ids']): continue
+                territory_points = [points_map[pid] for pid in territory['point_ids']]
+                if len(territory_points) != 3: continue
+                territory_center = self._points_centroid(territory_points)
+
+                dist_sq = distance_sq(purifier_center, territory_center)
+                if dist_sq < min_dist_sq:
+                    min_dist_sq = dist_sq
+                    best_target = {
+                        'purifier_point_ids': purifier['point_ids'],
+                        'territory_to_cleanse': territory
+                    }
+        
+        if not best_target:
+            return {'success': False, 'reason': 'no valid targets found'}
+
+        territory_to_cleanse = best_target['territory_to_cleanse']
+        
+        # The actual cleansing action
+        self.state['territories'].remove(territory_to_cleanse)
+        
+        # The points that formed the territory are no longer "fortified"
+        # The frontend will update this automatically because the territory is gone.
+        
+        return {
+            'success': True,
+            'type': 'purify_territory',
+            'cleansed_territory': territory_to_cleanse,
+            'purifier_point_ids': best_target['purifier_point_ids']
+        }
+
     def _update_nexuses_for_team(self, teamId):
         """Checks for Nexus formations (a square of points with outer lines and one diagonal)."""
         if 'nexuses' not in self.state: self.state['nexuses'] = {}
@@ -2474,15 +2565,69 @@ class Game:
             'rune_points': [rune['vertex_id'], rune['leg1_id'], rune['leg2_id']]
         }
 
+    def _get_possible_actions(self, teamId, exclude_actions=None):
+        """
+        Checks all available actions and returns a list of names of actions
+        that the given team can currently perform.
+        """
+        if exclude_actions is None:
+            exclude_actions = []
+
+        team_point_ids = self.get_team_point_ids(teamId)
+        team_lines = self.get_team_lines(teamId)
+        
+        # A dictionary mapping action names to a lambda function that returns True if the action is possible.
+        # This keeps the precondition logic organized and co-located.
+        preconditions = {
+            'fight_sentry_zap': lambda: bool(self.state.get('sentries', {}).get(teamId, [])),
+            'fight_chain_lightning': lambda: any(c.get('internal_point_ids') for c in self.state.get('conduits', {}).get(teamId, [])),
+            'fight_refraction_beam': lambda: bool(self.state.get('prisms', {}).get(teamId, [])),
+            'fight_launch_payload': lambda: bool(self.state.get('trebuchets', {}).get(teamId, [])),
+            'fight_purify_territory': lambda: bool(self.state.get('purifiers', {}).get(teamId, [])) and any(t['teamId'] != teamId for t in self.state.get('territories', [])),
+            'expand_add': lambda: len(team_point_ids) >= 2,
+            'expand_extend': lambda: bool(team_lines),
+            'expand_grow': lambda: bool(team_lines),
+            'expand_fracture': lambda: any(distance_sq(self.state['points'][l['p1_id']], self.state['points'][l['p2_id']]) >= 4.0 for l in team_lines if l['p1_id'] in self.state['points'] and l['p2_id'] in self.state['points']),
+            'expand_spawn': lambda: len(team_point_ids) > 0,
+            'expand_orbital': lambda: len(team_point_ids) >= 5,
+            'fight_attack': lambda: bool(team_lines) and any(l['teamId'] != teamId for l in self.state['lines']),
+            'fight_convert': lambda: bool(team_lines) and any(p['teamId'] != teamId for p in self.state['points'].values()),
+            'fight_pincer_attack': lambda: len(team_point_ids) >= 2 and any(p['teamId'] != teamId for p in self.state['points'].values()),
+            'fight_territory_strike': lambda: len([t for t in self.state.get('territories', []) if t['teamId'] == teamId]) > 0,
+            'fight_bastion_pulse': lambda: any(b['teamId'] == teamId for b in self.state.get('bastions', {}).values()),
+            'defend_shield': lambda: any(l.get('id') not in self.state['shields'] for l in team_lines),
+            'fortify_claim': lambda: len(team_point_ids) >= 3,
+            'fortify_anchor': lambda: len(team_point_ids) >= 3,
+            'fortify_mirror': lambda: len(team_point_ids) >= 3,
+            'fortify_form_bastion': lambda: bool(self._get_fortified_point_ids().intersection(team_point_ids)), # Team has at least one of its own fortified points
+            'fortify_form_monolith': lambda: len(team_point_ids) >= 4,
+            'fortify_form_purifier': lambda: len(team_point_ids) >= 5,
+            'fortify_cultivate_heartwood': lambda: len(team_point_ids) >= 6 and teamId not in self.state.get('heartwoods', {}),
+            'fortify_form_rift_spire': lambda: len([t for t in self.state.get('territories', []) if t['teamId'] == teamId]) >= 3,
+            'terraform_create_fissure': lambda: any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in self.state.get('rift_spires', {}).values()),
+            'fortify_build_wonder': lambda: len(team_point_ids) >= 6 and not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()),
+            'sacrifice_nova': lambda: len(team_point_ids) > 2,
+            'sacrifice_whirlpool': lambda: len(team_point_ids) > 1,
+            'sacrifice_phase_shift': lambda: bool(team_lines),
+            'rune_shoot_bisector': lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])),
+        }
+
+        possible_actions = []
+        for name, is_possible_func in preconditions.items():
+            if name not in exclude_actions and is_possible_func():
+                possible_actions.append(name)
+        
+        return possible_actions
+
     def _choose_action_for_team(self, teamId, exclude_actions=None):
         """Intelligently chooses an action for a team, excluding any that have already failed this turn."""
         if exclude_actions is None:
             exclude_actions = []
 
         team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
-        team_point_ids = self.get_team_point_ids(teamId)
-        team_lines = self.get_team_lines(teamId)
         
+        # This is the single source of truth for all available actions in the game.
+        # It maps an action's unique name to its execution function.
         action_map = {
             'expand_add': self.expand_action_add_line,
             'expand_extend': self.expand_action_extend_line,
@@ -2498,62 +2643,27 @@ class Game:
             'fight_chain_lightning': self.fight_action_chain_lightning,
             'fight_refraction_beam': self.fight_action_refraction_beam,
             'fight_launch_payload': self.fight_action_launch_payload,
+            'fight_sentry_zap': self.fight_action_sentry_zap,
+            'fight_purify_territory': self.fight_action_purify_territory,
             'fortify_claim': self.fortify_action_claim_territory,
             'fortify_anchor': self.fortify_action_create_anchor,
             'fortify_mirror': self.fortify_action_mirror_structure,
             'fortify_form_bastion': self.fortify_action_form_bastion,
             'fortify_form_monolith': self.fortify_action_form_monolith,
+            'fortify_form_purifier': self.fortify_action_form_purifier,
             'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood,
             'fortify_form_rift_spire': self.fortify_action_form_rift_spire,
             'terraform_create_fissure': self.terraform_action_create_fissure,
-            'terraform_raise_barricade': self.terraform_action_raise_barricade,
             'fortify_build_wonder': self.fortify_action_build_chronos_spire,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
             'sacrifice_phase_shift': self.sacrifice_action_phase_shift,
             'defend_shield': self.shield_action_protect_line,
-            'rune_shoot_bisector': self.rune_action_shoot_bisector,
-            'fight_sentry_zap': self.fight_action_sentry_zap,
+            'rune_shoot_bisector': self.rune_action_shoot_bisector
         }
 
         # --- Evaluate possible actions based on game state and exclusion list ---
-        possible_actions = []
-        action_preconditions = {
-            'fight_sentry_zap': bool(self.state.get('sentries', {}).get(teamId, [])),
-            'fight_chain_lightning': any(c.get('internal_point_ids') for c in self.state.get('conduits', {}).get(teamId, [])),
-            'fight_refraction_beam': bool(self.state.get('prisms', {}).get(teamId, [])),
-            'fight_launch_payload': bool(self.state.get('trebuchets', {}).get(teamId, [])),
-            'expand_add': len(team_point_ids) >= 2,
-            'expand_extend': bool(team_lines),
-            'expand_grow': bool(team_lines),
-            'expand_fracture': any(distance_sq(self.state['points'][l['p1_id']], self.state['points'][l['p2_id']]) >= 4.0 for l in team_lines if l['p1_id'] in self.state['points'] and l['p2_id'] in self.state['points']),
-            'expand_spawn': len(team_point_ids) > 0,
-            'expand_orbital': len(team_point_ids) >= 5,
-            'fight_attack': bool(team_lines) and any(l['teamId'] != teamId for l in self.state['lines']),
-            'fight_convert': bool(team_lines) and any(p['teamId'] != teamId for p in self.state['points'].values()),
-            'fight_pincer_attack': len(team_point_ids) >= 2 and any(p['teamId'] != teamId for p in self.state['points'].values()),
-            'fight_territory_strike': len([t for t in self.state.get('territories', []) if t['teamId'] == teamId]) > 0,
-            'fight_bastion_pulse': any(b['teamId'] == teamId for b in self.state.get('bastions', {}).values()),
-            'defend_shield': any(l.get('id') not in self.state['shields'] for l in team_lines),
-            'fortify_claim': len(team_point_ids) >= 3,
-            'fortify_anchor': len(team_point_ids) >= 3,
-            'fortify_mirror': len(team_point_ids) >= 3,
-            'fortify_form_bastion': bool(self._get_fortified_point_ids().intersection(team_point_ids)), # Team has at least one of its own fortified points
-            'fortify_form_monolith': len(team_point_ids) >= 4,
-            'fortify_cultivate_heartwood': len(team_point_ids) >= 6 and teamId not in self.state.get('heartwoods', {}),
-            'fortify_form_rift_spire': len([t for t in self.state.get('territories', []) if t['teamId'] == teamId]) >= 3,
-            'terraform_create_fissure': any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in self.state.get('rift_spires', {}).values()),
-            'terraform_raise_barricade': len(team_point_ids) >= 2,
-            'fortify_build_wonder': len(team_point_ids) >= 6 and not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()),
-            'sacrifice_nova': len(team_point_ids) > 2,
-            'sacrifice_whirlpool': len(team_point_ids) > 1,
-            'sacrifice_phase_shift': bool(team_lines),
-            'rune_shoot_bisector': bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])),
-        }
-
-        for name, is_possible in action_preconditions.items():
-            if name not in exclude_actions and is_possible:
-                possible_actions.append(name)
+        possible_actions = self._get_possible_actions(teamId, exclude_actions)
         
         if not possible_actions:
             return None, None
@@ -2562,15 +2672,15 @@ class Game:
         base_weights = {
             'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
             'expand_orbital': 7,
-            'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25,
-            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'fortify_build_wonder': 100,
+            'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25, 'fight_purify_territory': 28,
+            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_form_purifier': 18, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'fortify_build_wonder': 100,
             'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'defend_shield': 8,
             'rune_shoot_bisector': 25, # High value special action
         }
         trait_multipliers = {
-            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0},
+            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0},
             'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5},
-            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5},
+            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0},
             'Balanced':   {}
         }
         multipliers = trait_multipliers.get(team_trait, {})
@@ -2802,15 +2912,6 @@ class Game:
                 if f['turns_left'] > 0:
                     active_fissures.append(f)
             self.state['fissures'] = active_fissures
-        
-        # 8. Process Barricades (decay)
-        if self.state.get('barricades'):
-            active_barricades = []
-            for b in self.state['barricades']:
-                b['turns_left'] -= 1
-                if b['turns_left'] > 0:
-                    active_barricades.append(b)
-            self.state['barricades'] = active_barricades
 
         # --- Set up action queue for the turn ---
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
@@ -2907,6 +3008,8 @@ class Game:
             'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
             'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION]"),
             'form_monolith': lambda r: ("erected a resonant Monolith, a bastion of endurance.", "[MONOLITH]"),
+            'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
+            'purify_territory': lambda r: (f"unleashed its Purifier, cleansing a territory from Team {self.state['teams'][r['cleansed_territory']['teamId']]['name']}.", "[PURIFY!]"),
             'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
             'build_chronos_spire': lambda r: (f"sacrificed {r['sacrificed_points_count']} points to construct the Chronos Spire, a path to victory!", "[WONDER!]"),
             'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
@@ -2926,8 +3029,7 @@ class Game:
             'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TERRITORY!]"),
             'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET!]"),
             'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
-            'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),
-            'raise_barricade': lambda r: ("raised a temporary defensive barricade.", "[BARRICADE]")
+            'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]")
         }
 
         if action_type in log_generators:

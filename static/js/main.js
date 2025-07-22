@@ -198,6 +198,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     const h = radius * 2.5;
                     ctx.rect(cx - w / 2, cy - h / 2, w, h);
                     ctx.fill();
+                } else if (p.is_purifier_point) {
+                    // Draw purifier points as stars
+                    ctx.beginPath();
+                    const spikes = 5;
+                    const outerRadius = radius * 2.2;
+                    const innerRadius = radius * 1.1;
+                    ctx.moveTo(cx, cy - outerRadius);
+                    for (let i = 0; i < spikes; i++) {
+                        let x_outer = cx + Math.cos(i * 2 * Math.PI / spikes - Math.PI/2) * outerRadius;
+                        let y_outer = cy + Math.sin(i * 2 * Math.PI / spikes - Math.PI/2) * outerRadius;
+                        ctx.lineTo(x_outer, y_outer);
+                        let x_inner = cx + Math.cos((i + 0.5) * 2 * Math.PI / spikes - Math.PI/2) * innerRadius;
+                        let y_inner = cy + Math.sin((i + 0.5) * 2 * Math.PI / spikes - Math.PI/2) * innerRadius;
+                        ctx.lineTo(x_inner, y_inner);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
                 } else if (p.is_trebuchet_point) {
                     // Draw trebuchet points distinctively (as a pentagon)
                     ctx.beginPath();
@@ -1037,6 +1054,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
                 ctx.fillStyle = effect.color || `rgba(200, 180, 255, ${1 - progress})`; // Purple-ish fade out
                 ctx.fill();
+            } else if (effect.type === 'territory_fade') {
+                const team = currentGameState.teams[effect.territory.teamId];
+                const triPoints = effect.territory.point_ids.map(id => currentGameState.points[id]);
+                if (team && triPoints.length === 3 && triPoints.every(p => p)) {
+                    ctx.fillStyle = team.color;
+                    ctx.globalAlpha = 0.3 * (1 - progress); // Fade out alpha
+                    ctx.beginPath();
+                    ctx.moveTo((triPoints[0].x + 0.5) * cellSize, (triPoints[0].y + 0.5) * cellSize);
+                    ctx.lineTo((triPoints[1].x + 0.5) * cellSize, (triPoints[1].y + 0.5) * cellSize);
+                    ctx.lineTo((triPoints[2].x + 0.5) * cellSize, (triPoints[2].y + 0.5) * cellSize);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0; // reset alpha
+                }
             } else if (effect.type === 'arc_projectile') {
                 const startX = (effect.start.x + 0.5) * cellSize;
                 const startY = (effect.start.y + 0.5) * cellSize;
@@ -1420,6 +1451,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: 800
             });
         }
+        if (details.type === 'form_purifier' && details.purifier) {
+            details.purifier.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+        }
+        if (details.type === 'purify_territory' && details.cleansed_territory) {
+            details.purifier_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            // Effect: territory fades out
+            visualEffects.push({
+                type: 'territory_fade',
+                territory: details.cleansed_territory,
+                startTime: Date.now(),
+                duration: 1500
+            });
+        }
         if (details.type === 'build_chronos_spire') {
             // The wonder itself will be drawn, which is a big visual cue.
             // Add a creation effect for extra emphasis.
@@ -1689,7 +1733,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms, sentries, conduits, nexuses, bastions, monoliths, wonders } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms, sentries, conduits, nexuses, bastions, monoliths, wonders, purifiers } = gameState;
 
         let turnText = `Turn: ${turn} / ${max_turns}`;
         if (game_phase === 'RUNNING' && actions_queue_this_turn && actions_queue_this_turn.length > 0) {
@@ -1722,6 +1766,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         'Bastion': Object.values(bastions || {}).filter(b => b.teamId === teamId).length,
                         'Monolith': Object.values(monoliths || {}).filter(m => m.teamId === teamId).length,
                         'Trebuchet': (gameState.trebuchets && gameState.trebuchets[teamId]) ? gameState.trebuchets[teamId].length : 0,
+                        'Purifier': (purifiers && purifiers[teamId]) ? purifiers[teamId].length : 0,
                         'Rift Spire': Object.values(gameState.rift_spires || {}).filter(s => s.teamId === teamId).length,
                         'Wonder': Object.values(wonders || {}).filter(w => w.teamId === teamId).length
                     };

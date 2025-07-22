@@ -38,6 +38,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Chain Lightning:** _(Requires a Conduit with internal points)_ Sacrifice one of the Conduit's internal points. A bolt of energy travels along the Conduit and then jumps to the nearest enemy point, destroying it.
 *   **[FIGHT] Refraction Beam:** _(Requires an active Prism)_ Fires a beam from one of its lines that refracts off the Prism's shared edge, changing direction to hit an enemy line around obstacles.
 *   **[FIGHT] Launch Payload:** _(Requires an active Trebuchet)_ Fires an arcing projectile at a random enemy high-value point (e.g., a fortified point, bastion core, or monolith point), destroying it. This is a powerful siege attack for breaking down entrenched defenses.
+*   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. The territory's color fades, and its three corner points lose their **Fortified** status, making them vulnerable again.
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Form Sentry:** A passive formation. When three of a team's points are collinear and connected by lines (forming Post-Eye-Post), they become a Sentry.
@@ -56,6 +57,9 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Bonus:** The bastion's core point, prong points, and connecting lines become immune to standard attacks and conversion.
 *   **[FORTIFY] Form Monolith:** Forms a special defensive structure from four points that create a tall, thin rectangle with its perimeter lines connected.
     *   **Bonus (Resonance Wave):** Every few turns, the Monolith emits a wave that **Empowers** all friendly lines in a radius around it. Empowered lines can absorb one or more hits before being destroyed.
+*   **[FORTIFY] Form Purifier:** A high-level strategic structure for countering area-control strategies.
+    *   **Formation:** Requires five points to form a perfect, regular pentagon, with all 5 outer lines connected. This is a difficult and resource-intensive shape to create.
+    *   **Bonus:** Unlocks the **[FIGHT] Purify Territory** action.
 *   **[FORTIFY] Form Trebuchet:** Forms a powerful siege engine from a kite-shaped formation of four points.
     *   **Formation:** Requires a tight, isosceles triangle (the "base") connected to a "counterweight" point along its axis of symmetry. All 5 lines that form the outer kite shape must exist.
     *   **Bonus:** Unlocks the **[FIGHT] Launch Payload** action.
