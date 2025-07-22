@@ -76,12 +76,14 @@ This application supports two deployment modes:
 
 ### Deploying to GitHub Pages
 
-No build step is required. The application is configured to run directly from the repository.
+No build step is required. The project is structured to work on GitHub Pages out-of-the-box.
 
-1.  Push all the files (`run.py`, `game_app/`, `static/`, etc.) to your GitHub repository.
-2.  In your repository's settings, go to the "Pages" section.
-3.  Choose to deploy from a branch, select your main branch, and set the folder to `/ (root)`.
-4.  Save the settings. GitHub will build and deploy your site. It may take a few minutes.
+1.  Push all the files (`index.html`, `run.py`, `game_app/`, `static/`, etc.) to your GitHub repository.
+2.  Ensure there is an empty file named `.nojekyll` in the root of your repository. This prevents GitHub from running your site through the Jekyll static site generator, which can sometimes cause issues.
+3.  In your repository's settings, go to the "Pages" section.
+4.  Under "Build and deployment", select "Deploy from a branch" as the source.
+5.  Select your main branch and set the folder to `/ (root)`.
+6.  Save the settings. GitHub will deploy your site. It may take a few minutes for the site to become live at `https://<your-username>.github.io/<repository-name>/`.
 
 When accessed via the `github.io` URL, the application will automatically detect it's in static mode and load the Pyodide engine to run the game.
 
