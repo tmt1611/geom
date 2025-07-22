@@ -178,6 +178,7 @@ legend {
     flex-grow: 1;
     align-items: center;
     gap: 8px;
+    min-width: 0; /* Allow shrinking */
 }
 .team-edit-controls input[type="text"] {
     flex-grow: 1;
@@ -211,6 +212,7 @@ legend {
     flex-direction: column;
     justify-content: center;
     gap: 2px;
+    min-width: 0; /* Allow shrinking */
 }
 
 .team-name {

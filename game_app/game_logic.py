@@ -1699,6 +1699,83 @@ class Game:
             'spire_id': spire['id']
         }
 
+    def terraform_action_raise_barricade(self, teamId):
+        """[TERRAFORM ACTION]: Consumes a Barricade Rune to create a barricade."""
+        active_barricade_runes = self.state.get('runes', {}).get(teamId, {}).get('barricade', [])
+        if not active_barricade_runes:
+            return {'success': False, 'reason': 'no active Barricade Runes'}
+
+        rune_p_ids_tuple = random.choice(active_barricade_runes)
+        points = self.state['points']
+        
+        if not all(pid in points for pid in rune_p_ids_tuple):
+            return {'success': False, 'reason': 'rune points no longer exist'}
+        
+        p_list = [points[pid] for pid in rune_p_ids_tuple]
+        
+        # Sacrifice the rune points
+        sacrificed_points_data = []
+        for pid in rune_p_ids_tuple:
+            sac_data = self._delete_point_and_connections(pid, aggressor_team_id=teamId)
+            if sac_data:
+                sacrificed_points_data.append(sac_data)
+
+        # Determine barricade from midpoints of an opposite pair of sides of the rectangle
+        # Use the original coordinates from p_list for this.
+        all_pairs = list(combinations(p_list, 2))
+        all_pair_dists = {tuple(p['id'] for p in pair): distance_sq(pair[0], pair[1]) for pair in all_pairs}
+        sorted_pair_ids = sorted(all_pair_dists.keys(), key=lambda pair_ids: all_pair_dists[pair_ids])
+
+        # The two longest pairs are diagonals, the other four are sides.
+        side_pair_ids = sorted_pair_ids[0:4]
+
+        # Pick one side
+        side1_ids = set(side_pair_ids[0])
+        # Find its opposite
+        side2_ids = None
+        for i in range(1, 4):
+            candidate_side_ids = set(side_pair_ids[i])
+            if not side1_ids.intersection(candidate_side_ids):
+                side2_ids = candidate_side_ids
+                break
+        
+        if not side2_ids:
+            # Fallback for weird geometry, this should be rare for a valid rect.
+            side1_ids = set(side_pair_ids[2])
+            side2_ids = set()
+            for i in [0,1,3]:
+                candidate_side_ids = set(side_pair_ids[i])
+                if not side1_ids.intersection(candidate_side_ids):
+                    side2_ids = candidate_side_ids
+                    break
+        
+        id_to_point = {p['id']: p for p in p_list}
+        side1_pts = [id_to_point[pid] for pid in list(side1_ids)]
+        side2_pts = [id_to_point[pid] for pid in list(side2_ids)]
+        
+        mid1 = self._points_centroid(side1_pts)
+        mid2 = self._points_centroid(side2_pts)
+
+        barricade_id = f"bar_{uuid.uuid4().hex[:6]}"
+        new_barricade = {
+            'id': barricade_id,
+            'teamId': teamId,
+            'p1': mid1,
+            'p2': mid2,
+            'turns_left': 5
+        }
+
+        if 'barricades' not in self.state: self.state['barricades'] = []
+        self.state['barricades'].append(new_barricade)
+
+        return {
+            'success': True,
+            'type': 'raise_barricade',
+            'barricade': new_barricade,
+            'rune_points': list(rune_p_ids_tuple),
+            'sacrificed_points_count': len(sacrificed_points_data)
+        }
+
     def fortify_action_build_chronos_spire(self, teamId):
         """[WONDER ACTION]: Build the Chronos Spire."""
         # Check if this team already has a wonder. Limit one per team for now.
@@ -3023,7 +3100,7 @@ class Game:
             'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood,
             'fortify_form_rift_spire': self.fortify_action_form_rift_spire,
             'terraform_create_fissure': self.terraform_action_create_fissure,
-            'terraform_raise_barricade': self.terraform_raise_barricade,
+            'terraform_raise_barricade': self.terraform_action_raise_barricade,
             'fortify_build_wonder': self.fortify_action_build_chronos_spire,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
@@ -3408,7 +3485,8 @@ class Game:
             'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TERRITORY!]"),
             'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET!]"),
             'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
-            'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]")
+            'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),
+        'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]")
         }
 
         if action_type in log_generators:
@@ -3677,6 +3755,49 @@ class Game:
         self.state['runes'][teamId]['hourglass'] = self._check_hourglass_rune(teamId)
         self.state['runes'][teamId]['star'] = self._check_star_rune(teamId)
         self.state['runes'][teamId]['barricade'] = self._check_barricade_rune(teamId)
+
+    def _check_barricade_rune(self, teamId):
+        """
+        Finds Barricade Runes: a rectangle with all four sides present as lines.
+        Returns a list of lists, each containing the 4 point IDs of a barricade rune.
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 4:
+            return []
+
+        points = self.state['points']
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
+        
+        barricade_runes = []
+        used_points = set()
+
+        for p_ids_tuple in combinations(team_point_ids, 4):
+            if any(pid in used_points for pid in p_ids_tuple):
+                continue
+
+            if not all(pid in points for pid in p_ids_tuple):
+                continue
+            p_list = [points[pid] for pid in p_ids_tuple]
+            is_rect, _ = is_rectangle(*p_list)
+
+            if is_rect:
+                # We found a rectangle. Now check for the 4 side lines.
+                all_pairs = list(combinations(p_ids_tuple, 2))
+                all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
+                
+                # For a rectangle, the 4 shortest distances are the sides.
+                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
+                side_pairs = sorted_pairs[0:4]
+                
+                # Check if all 4 side lines exist
+                num_side_lines = sum(1 for p1_id, p2_id in side_pairs if tuple(sorted((p1_id, p2_id))) in existing_lines)
+                
+                if num_side_lines == 4:
+                    # This is a valid Barricade Rune.
+                    barricade_runes.append(list(p_ids_tuple))
+                    used_points.update(p_ids_tuple)
+        
+        return barricade_runes
 
     def _update_sentries_for_team(self, teamId):
         """Checks for Sentry formations (3 collinear points with lines)."""
