@@ -1941,12 +1941,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
             });
         },
-        'mirror_fizzle_strengthen': (details, gameState) => {
-            details.strengthened_lines.forEach(line => {
-                lastActionHighlights.lines.add(line.id);
-                visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
-            });
-        },
         'create_orbital': (details, gameState) => {
             lastActionHighlights.points.add(details.center_point_id);
             const center_point = gameState.points[details.center_point_id];
@@ -3278,6 +3272,27 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.font = '16px Arial';
             ctx.fillText('No Illustration', w / 2, h / 2);
         },
+        'defend_shield': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = {x: w*0.3, y: h*0.5};
+            const p2 = {x: w*0.7, y: h*0.5};
+            
+            // Draw line first
+            illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
+            
+            // Draw shield on top
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)';
+            ctx.lineWidth = 8;
+            ctx.stroke();
+            ctx.restore();
+
+            // Redraw points on top of shield
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+        },
         'expand_add': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
             const p1 = {x: w*0.3, y: h*0.5};
@@ -3313,6 +3328,35 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fill();
             ctx.restore();
         },
+        'expand_grow': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = {x: w*0.3, y: h*0.5};
+            const p2 = {x: w*0.5, y: h*0.5};
+            const p3 = {x: w*0.65, y: h*0.3};
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
+            illustrationHelpers.drawDashedLine(ctx, p2, p3, team1_color);
+            illustrationHelpers.drawPoints(ctx, [p3], team1_color);
+        },
+        'expand_orbital': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const center = {x: w*0.5, y: h*0.5};
+            illustrationHelpers.drawPoints(ctx, [center], team1_color);
+
+            const radius = w * 0.3;
+            const num_satellites = 5;
+            const satellites = [];
+            for (let i = 0; i < num_satellites; i++) {
+                const angle = (i / num_satellites) * 2 * Math.PI;
+                const p = {
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y + Math.sin(angle) * radius,
+                };
+                satellites.push(p);
+                illustrationHelpers.drawDashedLine(ctx, center, p, team1_color);
+            }
+            illustrationHelpers.drawPoints(ctx, satellites, team1_color);
+        },
         'expand_spawn': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
             const p1 = {x: w*0.4, y: h*0.5};
@@ -3339,115 +3383,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.fillText('💥', hit.x, hit.y);
-        },
-        'fortify_claim': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1 = {x: w*0.5, y: h*0.2};
-            const p2 = {x: w*0.2, y: h*0.8};
-            const p3 = {x: w*0.8, y: h*0.8};
-
-            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1, p2}, {p2, p3}, {p3, p1}], team1_color);
-
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.lineTo(p3.x, p3.y);
-            ctx.closePath();
-            ctx.fillStyle = team1_color;
-            ctx.globalAlpha = 0.3;
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
-        },
-        'defend_shield': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1 = {x: w*0.3, y: h*0.5};
-            const p2 = {x: w*0.7, y: h*0.5};
-            
-            // Draw line first
-            illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
-            
-            // Draw shield on top
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)';
-            ctx.lineWidth = 8;
-            ctx.stroke();
-            ctx.restore();
-
-            // Redraw points on top of shield
-            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
-        },
-        'sacrifice_nova': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            const center = {x: w*0.5, y: h*0.5};
-            
-            // Sacrificed point
-            illustrationHelpers.drawPoints(ctx, [center], team1_color);
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.fillText('💥', center.x-20, center.y-20);
-            
-            // Enemy lines being destroyed
-            const ep1 = {x: w*0.8, y: h*0.3};
-            const ep2 = {x: w*0.8, y: h*0.7};
-            const ep3 = {x: w*0.2, y: h*0.2};
-            const ep4 = {x: w*0.3, y: h*0.8};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2, ep3, ep4], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}, {p1: ep3, p2: ep4}], team2_color, 1);
-            
-            // Blast radius
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(center.x, center.y, w*0.3, 0, 2*Math.PI);
-            ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
-            ctx.setLineDash([5,5]);
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
-        },
-        'rune_impale': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            // Trident rune
-            const p_handle = {x: w*0.1, y: h*0.5};
-            const p_apex = {x: w*0.3, y: h*0.5};
-            const p_p1 = {x: w*0.4, y: h*0.3};
-            const p_p2 = {x: w*0.4, y: h*0.7};
-            illustrationHelpers.drawPoints(ctx, [p_handle, p_apex, p_p1, p_p2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:p_handle, p2:p_apex}, {p1:p_apex, p2:p_p1}, {p1:p_apex, p2:p_p2}], team1_color);
-            
-            // Beam
-            const hit_point = {x: w*0.9, y: h*0.5};
-            illustrationHelpers.drawArrow(ctx, p_apex, hit_point, 'rgba(255, 100, 255, 1.0)');
-
-            // Enemy line
-            const ep1 = {x: w*0.7, y: h*0.2};
-            const ep2 = {x: w*0.7, y: h*0.8};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
-        },
-        'expand_orbital': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const center = {x: w*0.5, y: h*0.5};
-            illustrationHelpers.drawPoints(ctx, [center], team1_color);
-
-            const radius = w * 0.3;
-            const num_satellites = 5;
-            const satellites = [];
-            for (let i = 0; i < num_satellites; i++) {
-                const angle = (i / num_satellites) * 2 * Math.PI;
-                const p = {
-                    x: center.x + Math.cos(angle) * radius,
-                    y: center.y + Math.sin(angle) * radius,
-                };
-                satellites.push(p);
-                illustrationHelpers.drawDashedLine(ctx, center, p, team1_color);
-            }
-            illustrationHelpers.drawPoints(ctx, satellites, team1_color);
         },
         'fight_convert': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
@@ -3478,6 +3413,70 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.arc(ep1.x, ep1.y, 8, 0, 2 * Math.PI);
             ctx.fillStyle = team1_color;
             ctx.globalAlpha = 0.5;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        },
+        'fight_pincer_attack': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p1 = {x: w*0.3, y: h*0.3};
+            const p2 = {x: w*0.3, y: h*0.7};
+            const ep1 = {x: w*0.7, y: h*0.5};
+
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+
+            illustrationHelpers.drawArrow(ctx, p1, ep1, team1_color);
+            illustrationHelpers.drawArrow(ctx, p2, ep1, team1_color);
+            
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.fillText('💥', ep1.x, ep1.y);
+        },
+        'fortify_anchor': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p_sac = {x: w*0.2, y: h*0.5};
+            const p_anchor = {x: w*0.4, y: h*0.5};
+            const ep1 = {x: w*0.8, y: h*0.3};
+            const ep2 = {x: w*0.8, y: h*0.7};
+
+            // Sacrificed point
+            illustrationHelpers.drawPoints(ctx, [p_sac], team1_color);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
+            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
+            ctx.stroke();
+
+            // Anchor point
+            ctx.fillStyle = team1_color;
+            ctx.fillRect(p_anchor.x - 5, p_anchor.y - 5, 10, 10);
+
+            // Enemy points
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            
+            // Pull arrows
+            illustrationHelpers.drawArrow(ctx, ep1, p_anchor, '#aaa');
+            illustrationHelpers.drawArrow(ctx, ep2, p_anchor, '#aaa');
+        },
+        'fortify_claim': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = {x: w*0.5, y: h*0.2};
+            const p2 = {x: w*0.2, y: h*0.8};
+            const p3 = {x: w*0.8, y: h*0.8};
+
+            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1, p2}, {p2, p3}, {p3, p1}], team1_color);
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.3;
             ctx.fill();
             ctx.globalAlpha = 1.0;
         },
@@ -3518,6 +3517,134 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
             ctx.restore();
         },
+        'rune_area_shield': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const t1 = {x: w*0.5, y: h*0.1};
+            const t2 = {x: w*0.1, y: h*0.9};
+            const t3 = {x: w*0.9, y: h*0.9};
+            const core = {x: w*0.5, y: h*0.6};
+            
+            // Draw rune
+            illustrationHelpers.drawPoints(ctx, [t1, t2, t3, core], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:t1,p2:t2},{p1:t2,p2:t3},{p1:t3,p2:t1}], team1_color);
+            
+            // Fill area
+            ctx.beginPath();
+            ctx.moveTo(t1.x, t1.y); ctx.lineTo(t2.x, t2.y); ctx.lineTo(t3.x, t3.y); ctx.closePath();
+            ctx.fillStyle = 'rgba(173, 216, 230, 0.5)'; // Shield color
+            ctx.fill();
+
+            // Line inside
+            const l1 = {x: w*0.4, y: h*0.5};
+            const l2 = {x: w*0.6, y: h*0.7};
+            illustrationHelpers.drawPoints(ctx, [l1, l2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:l1, p2:l2}], team1_color);
+            
+            // Shield on line
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(l1.x, l1.y); ctx.lineTo(l2.x, l2.y);
+            ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)';
+            ctx.lineWidth = 8;
+            ctx.stroke();
+            ctx.restore();
+        },
+        'rune_impale': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            // Trident rune
+            const p_handle = {x: w*0.1, y: h*0.5};
+            const p_apex = {x: w*0.3, y: h*0.5};
+            const p_p1 = {x: w*0.4, y: h*0.3};
+            const p_p2 = {x: w*0.4, y: h*0.7};
+            illustrationHelpers.drawPoints(ctx, [p_handle, p_apex, p_p1, p_p2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:p_handle, p2:p_apex}, {p1:p_apex, p2:p_p1}, {p1:p_apex, p2:p_p2}], team1_color);
+            
+            // Beam
+            const hit_point = {x: w*0.9, y: h*0.5};
+            illustrationHelpers.drawArrow(ctx, p_apex, hit_point, 'rgba(255, 100, 255, 1.0)');
+
+            // Enemy line
+            const ep1 = {x: w*0.7, y: h*0.2};
+            const ep2 = {x: w*0.7, y: h*0.8};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
+        },
+        'rune_shoot_bisector': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            
+            // V-Rune
+            const p_v = {x: w*0.2, y: h*0.5};
+            const p_l1 = {x: w*0.4, y: h*0.2};
+            const p_l2 = {x: w*0.4, y: h*0.8};
+            illustrationHelpers.drawPoints(ctx, [p_v, p_l1, p_l2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1: p_v, p2: p_l1}, {p1: p_v, p2: p_l2}], team1_color);
+            
+            // Beam
+            const hit_point = {x: w*0.9, y: h*0.5};
+            illustrationHelpers.drawArrow(ctx, p_v, hit_point, 'rgba(100, 255, 255, 1.0)');
+
+            // Enemy Line
+            const ep1 = {x: w*0.7, y: h*0.3};
+            const ep2 = {x: w*0.7, y: h*0.7};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
+        },
+        'sacrifice_nova': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const center = {x: w*0.5, y: h*0.5};
+            
+            // Sacrificed point
+            illustrationHelpers.drawPoints(ctx, [center], team1_color);
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.fillText('💥', center.x-20, center.y-20);
+            
+            // Enemy lines being destroyed
+            const ep1 = {x: w*0.8, y: h*0.3};
+            const ep2 = {x: w*0.8, y: h*0.7};
+            const ep3 = {x: w*0.2, y: h*0.2};
+            const ep4 = {x: w*0.3, y: h*0.8};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2, ep3, ep4], team2_color);
+            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}, {p1: ep3, p2: ep4}], team2_color, 1);
+            
+            // Blast radius
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, w*0.3, 0, 2*Math.PI);
+            ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
+            ctx.setLineDash([5,5]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        },
+        'sacrifice_phase_shift': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1_orig = {x: w*0.2, y: h*0.5};
+            const p2 = {x: w*0.5, y: h*0.5};
+            const p1_new = {x: w*0.8, y: h*0.3};
+
+            // Sacrificed line
+            illustrationHelpers.drawLines(ctx, [{p1:p1_orig, p2:p2}], team1_color, 1);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(w*0.3, h*0.4); ctx.lineTo(w*0.4, h*0.6);
+            ctx.moveTo(w*0.3, h*0.6); ctx.lineTo(w*0.4, h*0.4);
+            ctx.stroke();
+
+            // Original points
+            illustrationHelpers.drawPoints(ctx, [p1_orig, p2], team1_color);
+            ctx.globalAlpha = 0.3;
+            illustrationHelpers.drawPoints(ctx, [p1_orig], team1_color); // Redraw to fade it
+            ctx.globalAlpha = 1.0;
+
+            // New point and path
+            illustrationHelpers.drawDashedLine(ctx, p1_orig, p1_new, '#aaa');
+            illustrationHelpers.drawPoints(ctx, [p1_new], team1_color);
+        },
         'sacrifice_whirlpool': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
             const team2_color = 'hsl(240, 70%, 50%)';
@@ -3548,27 +3675,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.stroke();
             });
             ctx.setLineDash([]);
-        },
-        'rune_shoot_bisector': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            
-            // V-Rune
-            const p_v = {x: w*0.2, y: h*0.5};
-            const p_l1 = {x: w*0.4, y: h*0.2};
-            const p_l2 = {x: w*0.4, y: h*0.8};
-            illustrationHelpers.drawPoints(ctx, [p_v, p_l1, p_l2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1: p_v, p2: p_l1}, {p1: p_v, p2: p_l2}], team1_color);
-            
-            // Beam
-            const hit_point = {x: w*0.9, y: h*0.5};
-            illustrationHelpers.drawArrow(ctx, p_v, hit_point, 'rgba(100, 255, 255, 1.0)');
-
-            // Enemy Line
-            const ep1 = {x: w*0.7, y: h*0.3};
-            const ep2 = {x: w*0.7, y: h*0.7};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
         },
     };
 
