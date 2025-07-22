@@ -198,7 +198,7 @@ class Game:
         'expand_orbital': 7,
         'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25, 'fight_purify_territory': 28,
         'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_form_purifier': 18, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'terraform_raise_barricade': 15, 'fortify_build_wonder': 100,
-        'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'sacrifice_phase_shift': 5, 'defend_shield': 8,
+        'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'sacrifice_phase_shift': 5, 'sacrifice_rift_trap': 7, 'defend_shield': 8,
         'rune_shoot_bisector': 25, 'rune_area_shield': 20, 'rune_shield_pulse': 22, 'rune_impale': 30, 'rune_hourglass_stasis': 20, 'rune_t_hammer_slam': 25
     }
     TRAIT_MULTIPLIERS = {
@@ -212,7 +212,7 @@ class Game:
         'expand_orbital': "Create Orbital",
         'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
         'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder",
-        'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'defend_shield': "Shield Line",
+        'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'sacrifice_rift_trap': "Create Rift Trap", 'defend_shield': "Shield Line",
         'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam",
         'terraform_raise_barricade': "Raise Barricade"
     }
@@ -254,6 +254,7 @@ class Game:
             "trebuchets": {}, # {teamId: [trebuchet1, ...]}
             "purifiers": {}, # {teamId: [purifier1, ...]}
             "rift_spires": {}, # {spire_id: {teamId, coords, charge}}
+            "rift_traps": [], # {id, teamId, coords, turns_left, radius_sq}
             "fissures": [], # {id, p1, p2, turns_left}
             "wonders": {}, # {wonder_id: {teamId, type, turns_to_victory, ...}}
             "line_strengths": {}, # {line_id: strength}
@@ -366,6 +367,7 @@ class Game:
         state_copy['trebuchets'] = self.state.get('trebuchets', {})
         state_copy['purifiers'] = self.state.get('purifiers', {})
         state_copy['rift_spires'] = self.state.get('rift_spires', {})
+        state_copy['rift_traps'] = self.state.get('rift_traps', [])
         state_copy['fissures'] = self.state.get('fissures', [])
         state_copy['barricades'] = self.state.get('barricades', [])
         state_copy['wonders'] = self.state.get('wonders', {})
@@ -1254,6 +1256,54 @@ class Game:
                 'success': True, 'type': 'phase_shift_fizzle_anchor',
                 'anchor_point': anchor_point, 'sacrificed_line': line_to_sac
             }
+
+    def sacrifice_action_rift_trap(self, teamId):
+        """[SACRIFICE ACTION]: Sacrifices a point to create a temporary trap. If an enemy enters, it's destroyed. If not, the trap becomes a new point."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) <= 1:
+            return {'success': False, 'reason': 'not enough points to sacrifice'}
+
+        # Find a non-critical point to sacrifice
+        bastion_points = self._get_bastion_point_ids()
+        critical_structure_points = self._get_fortified_point_ids().union(
+            bastion_points['cores'], bastion_points['prongs']
+        )
+        sac_candidates = [pid for pid in team_point_ids if pid not in critical_structure_points]
+        
+        if not sac_candidates:
+            # Fallback to any fortified point that isn't a bastion point
+            fortified = self._get_fortified_point_ids().intersection(team_point_ids)
+            sac_candidates = [pid for pid in fortified if pid not in bastion_points['cores'] and pid not in bastion_points['prongs']]
+
+        if not sac_candidates:
+            return {'success': False, 'reason': 'no non-critical points available to sacrifice'}
+        
+        p_to_sac_id = random.choice(sac_candidates)
+        sac_point_coords = self.state['points'][p_to_sac_id].copy()
+        
+        # Perform Sacrifice
+        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
+        if not sacrificed_point_data:
+            return {'success': False, 'reason': 'failed to sacrifice point for trap'}
+
+        # Create the trap
+        trap_id = f"rt_{uuid.uuid4().hex[:6]}"
+        new_trap = {
+            'id': trap_id,
+            'teamId': teamId,
+            'coords': sac_point_coords,
+            'turns_left': 4, # Expires at the start of turn 4, so exists for 3 full turns
+            'radius_sq': (self.state['grid_size'] * 0.1)**2,
+        }
+        if 'rift_traps' not in self.state: self.state['rift_traps'] = []
+        self.state['rift_traps'].append(new_trap)
+        
+        return {
+            'success': True,
+            'type': 'create_rift_trap',
+            'trap': new_trap,
+            'sacrificed_point': sacrificed_point_data
+        }
 
     def expand_action_spawn_point(self, teamId):
         """[EXPAND ACTION]: Creates a new point near an existing one. A last resort action."""
@@ -3308,6 +3358,7 @@ class Game:
             'sacrifice_nova': (lambda: num_team_points > 2, "Requires more than 2 points to sacrifice one."),
             'sacrifice_whirlpool': (lambda: num_team_points > 1, "Requires more than 1 point to sacrifice one."),
             'sacrifice_phase_shift': (lambda: num_team_lines > 0, "Requires a line to sacrifice."),
+            'sacrifice_rift_trap': (lambda: num_team_points > 1, "Requires more than 1 point to sacrifice."),
             'rune_shoot_bisector': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])), "Requires an active V-Rune."),
             'rune_area_shield': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('shield', [])), "Requires an active Shield Rune."),
             'rune_shield_pulse': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('shield', [])), "Requires an active Shield Rune."),
@@ -3467,6 +3518,7 @@ class Game:
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
             'sacrifice_phase_shift': self.sacrifice_action_phase_shift,
+            'sacrifice_rift_trap': self.sacrifice_action_rift_trap,
             'defend_shield': self.shield_action_protect_line,
             'rune_shoot_bisector': self.rune_action_shoot_bisector,
             'rune_area_shield': self.rune_action_area_shield,
@@ -3526,7 +3578,50 @@ class Game:
         expired_shields = [lid for lid, turns in self.state['shields'].items() if turns - 1 <= 0]
         self.state['shields'] = {lid: turns - 1 for lid, turns in self.state['shields'].items() if turns - 1 > 0}
 
-        # 2. Process anchors
+        # 2. Process Rift Traps
+        if self.state.get('rift_traps'):
+            remaining_traps = []
+            for trap in self.state['rift_traps']:
+                # 2a. Check for trigger
+                triggered_point_id = None
+                for pid, point in self.state['points'].items():
+                    if point['teamId'] != trap['teamId'] and distance_sq(trap['coords'], point) < trap['radius_sq']:
+                        triggered_point_id = pid
+                        break
+                
+                if triggered_point_id:
+                    # Trap triggered. It will be removed from the list.
+                    destroyed_point = self._delete_point_and_connections(triggered_point_id, aggressor_team_id=trap['teamId'])
+                    if destroyed_point:
+                        team_name = self.state['teams'][trap['teamId']]['name']
+                        enemy_team_name = self.state['teams'][destroyed_point['teamId']]['name']
+                        log_msg = { 'teamId': trap['teamId'], 'message': f"A Rift Trap from Team {team_name} snared and destroyed a point from Team {enemy_team_name}!", 'short_message': '[TRAP!]'}
+                        self.state['game_log'].append(log_msg)
+                        self.state['new_turn_events'].append({ 'type': 'rift_trap_trigger', 'trap': trap, 'destroyed_point': destroyed_point })
+                    continue # Do not add to remaining_traps
+
+                # 2b. If not triggered, handle countdown
+                trap['turns_left'] -= 1
+                if trap['turns_left'] <= 0:
+                    # Trap expires. It will be removed from the list.
+                    is_valid, _ = self._is_spawn_location_valid(trap['coords'], trap['teamId'])
+                    if is_valid:
+                        new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                        new_point = {"x": round(trap['coords']['x']), "y": round(trap['coords']['y']), "teamId": trap['teamId'], "id": new_point_id}
+                        self.state['points'][new_point_id] = new_point
+                        
+                        team_name = self.state['teams'][trap['teamId']]['name']
+                        log_msg = { 'teamId': trap['teamId'], 'message': f"An unused Rift Trap from Team {team_name} stabilized into a new point.", 'short_message': '[TRAP->SPAWN]' }
+                        self.state['game_log'].append(log_msg)
+                        self.state['new_turn_events'].append({ 'type': 'rift_trap_expire', 'trap': trap, 'new_point': new_point })
+                    continue # Do not add to remaining_traps
+                
+                # 2c. If not triggered and not expired, it survives to the next turn.
+                remaining_traps.append(trap)
+            
+            self.state['rift_traps'] = remaining_traps
+
+        # 3. Process anchors
         expired_anchors = []
         pull_strength = 0.2
         grid_size = self.state['grid_size']
@@ -3552,7 +3647,7 @@ class Game:
         for anchor_pid in expired_anchors:
             if anchor_pid in self.state['anchors']: del self.state['anchors'][anchor_pid]
             
-        # 3. Process Heartwoods
+        # 4. Process Heartwoods
         if self.state.get('heartwoods'):
             for teamId, heartwood in self.state['heartwoods'].items():
                 heartwood['growth_counter'] += 1
@@ -3594,7 +3689,7 @@ class Game:
                         })
                         break # Stop trying to find a spot
         
-        # 4. Process Whirlpools
+        # 5. Process Whirlpools
         if self.state.get('whirlpools'):
             active_whirlpools = []
             grid_size = self.state['grid_size']
@@ -3637,7 +3732,7 @@ class Game:
 
             self.state['whirlpools'] = active_whirlpools
 
-        # 5. Process Monoliths
+        # 6. Process Monoliths
         if self.state.get('monoliths'):
             for monolith_id, monolith in list(self.state['monoliths'].items()):
                 monolith['charge_counter'] += 1
@@ -3675,7 +3770,7 @@ class Game:
                             if current_strength < max_strength:
                                 self.state['empowered_lines'][line['id']] = current_strength + 1
         
-        # 6. Process Wonders
+        # 7. Process Wonders
         if self.state.get('wonders'):
             for wonder_id, wonder in list(self.state['wonders'].items()):
                 if wonder['type'] == 'ChronosSpire':
@@ -3698,7 +3793,7 @@ class Game:
                         self.state['actions_queue_this_turn'] = [] # empty queue
                         return # exit early
         
-        # 7. Process Rift Spires (charging) and Fissures/Barricades (decay)
+        # 8. Process Rift Spires (charging) and Fissures/Barricades (decay)
         if self.state.get('rift_spires'):
             for spire in self.state['rift_spires'].values():
                 if spire.get('charge', 0) < spire.get('charge_needed', 3):
@@ -3720,7 +3815,7 @@ class Game:
                     active_barricades.append(b)
             self.state['barricades'] = active_barricades
         
-        # 8. Process Stasis
+        # 9. Process Stasis
         if self.state.get('stasis_points'):
             expired_stasis = [pid for pid, turns in self.state['stasis_points'].items() if turns - 1 <= 0]
             self.state['stasis_points'] = {pid: turns - 1 for pid, turns in self.state['stasis_points'].items() if turns - 1 > 0}
@@ -3864,6 +3959,7 @@ class Game:
             'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
             'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),
             'phase_shift_fizzle_anchor': lambda r: (f"attempted to phase shift a point but failed, instead causing the residual energy to form a temporary gravitational anchor.", "[PHASE->ANCHOR]"),
+            'create_rift_trap': lambda r: ("sacrificed a point to lay a latent Rift Trap.", "[TRAP SET]"),
             'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]"),
             'claim_fizzle_reinforce': lambda r: ("could not find a new territory to claim, and instead reinforced an existing one.", "[CLAIM->REINFORCE]"),
             'purify_fizzle_push': lambda r: (f"found no territories to cleanse, and instead emitted a pulse that pushed back {r['pushed_points_count']} enemies.", "[PURIFY->PUSH]"),

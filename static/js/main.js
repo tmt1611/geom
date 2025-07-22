@@ -838,6 +838,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function drawRiftTraps(gameState) {
+        if (!gameState.rift_traps) return;
+
+        gameState.rift_traps.forEach(trap => {
+            const team = gameState.teams[trap.teamId];
+            if (!team) return;
+
+            const cx = (trap.coords.x + 0.5) * cellSize;
+            const cy = (trap.coords.y + 0.5) * cellSize;
+            const now = Date.now();
+            const flicker = (Math.sin(now / 100) + Math.sin(now / 237)) / 2; // more erratic flicker
+            const radius = Math.sqrt(trap.radius_sq) * cellSize;
+
+            ctx.save();
+            ctx.globalAlpha = 0.3 + flicker * 0.4;
+            ctx.strokeStyle = team.color;
+            ctx.lineWidth = 1.5;
+
+            // Draw a simple broken circle rune
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0.2, Math.PI - 0.2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, Math.PI + 0.2, 2 * Math.PI - 0.2);
+            ctx.stroke();
+
+            ctx.restore();
+        });
+    }
+
     function drawBarricades(gameState) {
         if (!gameState.barricades) return;
 
@@ -1456,6 +1487,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawHeartwoods(currentGameState);
                 drawWonders(currentGameState);
                 drawRiftSpires(currentGameState);
+                drawRiftTraps(currentGameState);
                 drawFissures(currentGameState);
                 drawBarricades(currentGameState);
                 drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams);
@@ -1794,6 +1826,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: 'heartwood_creation', sacrificed_points: details.sacrificed_points, center_coords: details.heartwood.center_coords, startTime: Date.now(), duration: 1500
             });
         },
+        'create_rift_trap': (details, gameState) => {
+            lastActionHighlights.points.add(details.sacrificed_point.id);
+            visualEffects.push({
+                type: 'point_implosion',
+                x: details.sacrificed_point.x,
+                y: details.sacrificed_point.y,
+                startTime: Date.now(),
+                duration: 800,
+                color: currentGameState.teams[details.sacrificed_point.teamId]?.color
+            });
+        },
         'phase_shift': (details, gameState) => {
             const teamColor = gameState.teams[details.sacrificed_line.teamId].color;
             if (details.original_coords) {
@@ -2052,6 +2095,32 @@ document.addEventListener('DOMContentLoaded', () => {
                         radius_sq: event.radius_sq,
                         startTime: Date.now(),
                         duration: 1200,
+                    });
+                } else if (event.type === 'rift_trap_trigger') {
+                    visualEffects.push({
+                        type: 'point_explosion',
+                        x: event.destroyed_point.x,
+                        y: event.destroyed_point.y,
+                        startTime: Date.now(),
+                        duration: 800
+                    });
+                    visualEffects.push({
+                        type: 'point_implosion',
+                        x: event.trap.coords.x,
+                        y: event.trap.coords.y,
+                        startTime: Date.now(),
+                        duration: 800,
+                        color: gameState.teams[event.trap.teamId].color
+                    });
+                } else if (event.type === 'rift_trap_expire') {
+                    lastActionHighlights.points.add(event.new_point.id);
+                    visualEffects.push({
+                        type: 'point_implosion', // Implodes and then spawns
+                        x: event.trap.coords.x,
+                        y: event.trap.coords.y,
+                        startTime: Date.now(),
+                        duration: 1000,
+                        color: 'rgba(220, 220, 255, 0.9)'
                     });
                 }
             });
