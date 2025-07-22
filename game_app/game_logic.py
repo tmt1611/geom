@@ -1335,7 +1335,7 @@ class Game:
         }
 
     def expand_action_spawn_point(self, teamId):
-        """[EXPAND ACTION]: Creates a new point near an existing one. A last resort action."""
+        """[EXPAND ACTION]: Creates a new point near an existing one. If not possible, strengthens a line."""
         team_point_ids = self.get_team_point_ids(teamId)
         if not team_point_ids:
             return {'success': False, 'reason': 'no points to spawn from'}
@@ -1369,7 +1369,8 @@ class Game:
 
             return {'success': True, 'type': 'spawn_point', 'new_point': new_point}
 
-        return {'success': False, 'reason': 'could not find a valid position to spawn'}
+        # Fallback: Strengthen a random line
+        return self._fallback_strengthen_random_line(teamId, 'spawn')
 
     def expand_action_create_orbital(self, teamId):
         """[EXPAND ACTION]: Creates a new orbital structure. If not possible, strengthens lines around a potential center."""
@@ -1715,43 +1716,64 @@ class Game:
         return {'success': True, 'type': 'form_bastion', 'bastion': new_bastion, 'point_ids': [core_id] + new_bastion['prong_ids'], 'line_ids': bastion_line_ids}
 
     def fortify_action_form_monolith(self, teamId):
-        """[FORTIFY ACTION]: Forms a Monolith from a tall, thin rectangle of points."""
+        """[FORTIFY ACTION]: Forms a Monolith from a tall, thin rectangle. If not possible, reinforces a regular rectangle."""
         team_point_ids = self.get_team_point_ids(teamId)
         if len(team_point_ids) < 4:
             return {'success': False, 'reason': 'not enough points'}
 
         points = self.state['points']
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
+        existing_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.get_team_lines(teamId)}
         existing_monolith_points = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
 
         possible_monoliths = []
+        fallback_candidates = []
+        
         for p_ids_tuple in combinations(team_point_ids, 4):
-            # Check if any of these points are already part of a monolith
             if any(pid in existing_monolith_points for pid in p_ids_tuple):
                 continue
             
             p_list = [points[pid] for pid in p_ids_tuple]
             is_rect, aspect_ratio = is_rectangle(*p_list)
 
-            # Monolith requires a thin rectangle, aspect ratio > 3.0
-            if is_rect and aspect_ratio > 3.0:
+            if is_rect:
                 # Check for the 4 outer perimeter lines
                 all_pairs = list(combinations(p_ids_tuple, 2))
                 all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
                 sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
                 side_pairs = sorted_pairs[0:4]
 
-                if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
-                    center_x = sum(p['x'] for p in p_list) / 4
-                    center_y = sum(p['y'] for p in p_list) / 4
-                    possible_monoliths.append({
-                        'point_ids': list(p_ids_tuple),
-                        'center_coords': {'x': center_x, 'y': center_y}
-                    })
+                if all(tuple(sorted(pair)) in existing_lines_by_points for pair in side_pairs):
+                    # Monolith requires a thin rectangle, aspect ratio > 3.0
+                    if aspect_ratio > 3.0:
+                        center_x = sum(p['x'] for p in p_list) / 4
+                        center_y = sum(p['y'] for p in p_list) / 4
+                        possible_monoliths.append({
+                            'point_ids': list(p_ids_tuple),
+                            'center_coords': {'x': center_x, 'y': center_y}
+                        })
+                    else:
+                        fallback_candidates.append({'point_ids': list(p_ids_tuple), 'side_pairs': side_pairs})
         
         if not possible_monoliths:
-            return {'success': False, 'reason': 'no valid monolith formation found'}
+            # --- Fallback: Reinforce a regular rectangle ---
+            if not fallback_candidates:
+                return {'success': False, 'reason': 'no valid monolith or rectangle formation found'}
+            
+            candidate = random.choice(fallback_candidates)
+            strengthened_lines = []
+            for pair in candidate['side_pairs']:
+                line = existing_lines_by_points.get(tuple(sorted(pair)))
+                if line and self._strengthen_line(line):
+                    strengthened_lines.append(line)
+            
+            return {
+                'success': True,
+                'type': 'monolith_fizzle_reinforce',
+                'reinforced_point_ids': candidate['point_ids'],
+                'strengthened_lines': strengthened_lines
+            }
 
+        # --- Primary Action: Form Monolith ---
         chosen_monolith_data = random.choice(possible_monoliths)
         monolith_id = f"m_{uuid.uuid4().hex[:6]}"
         new_monolith = {
@@ -4036,6 +4058,7 @@ class Game:
             'convert_fizzle_push': lambda r: (f"attempted to convert a point but found no targets, instead unleashing a pulse that pushed back {r['pushed_points_count']} enemies.", "[CONVERT->PUSH]"),
             'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
             'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION!]"),
+            'monolith_fizzle_reinforce': lambda r: (f"failed to form a Monolith and instead reinforced the {len(r['strengthened_lines'])} lines of a potential structure.", "[MONOLITH->REINFORCE]"),
             'form_monolith': lambda r: ("erected a resonant Monolith from a pillar of light.", "[MONOLITH]"),
             'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
             'purify_territory': lambda r: (f"unleashed its Purifier, cleansing a territory from Team {self.state['teams'][r['cleansed_territory']['teamId']]['name']}.", "[PURIFY!]"),
@@ -4049,6 +4072,7 @@ class Game:
             'create_anchor': lambda r: ("sacrificed a point to create a gravitational anchor.", "[ANCHOR]"),
             'nova_burst': lambda r: (f"sacrificed a point in a nova burst, destroying {r['lines_destroyed']} lines.", "[NOVA]"),
             'nova_shockwave': lambda r: (f"sacrificed a point in a shockwave, pushing back {r['pushed_points_count']} nearby points.", "[SHOCKWAVE]"),
+            'spawn_fizzle_strengthen': lambda r: ("could not find a place to spawn a new point, and instead reinforced an existing line.", "[SPAWN->REINFORCE]"),
             'whirlpool_fizzle_fissure': lambda r: ("sacrificed a point to open a whirlpool, but with no targets in range, it collapsed into a temporary fissure.", "[WHIRLPOOL->FIZZLE]"),
             'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
             'shield_overcharge': lambda r: (f"could not shield a new line, and instead overcharged an existing shield to last for {r['new_duration']} turns.", "[OVERCHARGE]"),

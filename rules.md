@@ -50,7 +50,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[EXPAND] Extend Line:** Extend an existing line to the border of the grid, creating a new point. If no valid extensions can be found, it reinforces an existing friendly line.
 *   **[EXPAND] Grow Line (Vine):** Grow a new, short line segment from an existing point. If it cannot find a valid position, it reinforces the line it was trying to grow from.
 *   **[EXPAND] Fracture Line:** Splits an existing line into two, creating a new point along the line's original path. If no lines are long enough to fracture, it reinforces an existing friendly line.
-*   **[EXPAND] Spawn Point:** Creates a new point near an existing one. This is a last-resort action to ensure a team can recover even from a single point.
+*   **[EXPAND] Spawn Point:** Creates a new point near an existing one. If it cannot find a valid position, it reinforces an existing friendly line instead.
 *   **[EXPAND] Create Orbital:** Creates a constellation of 3-5 new "satellite" points in a circle around one of its existing points. If no valid formation can be made, it instead reinforces all lines connected to the chosen center point.
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed. If it misses, it creates a new friendly point on the border.
 *   **[FIGHT] Pincer Attack:** If two of a team's points are flanking a single enemy point (creating a wide angle), they can perform a joint attack to destroy it. This does not work on fortified or bastion points. If no suitable target is found, the points instead form a small, temporary barricade between them.
@@ -86,7 +86,7 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Bonus:** The three points of a claimed territory become **Fortified**, making them immune to conversion. The three boundary lines become **Reinforced** and cannot be fractured by their owner, preserving the structure.
 *   **[FORTIFY] Form Bastion:** Converts a fortified point (a vertex of a claimed territory) and at least three of its connected, non-fortified points into a powerful defensive structure. If no valid formation can be found, it instead reinforces all lines connected to the team's most-connected fortified point.
     *   **Bonus:** The bastion's core point, prong points, and connecting lines become immune to standard attacks and conversion.
-*   **[FORTIFY] Form Monolith:** Forms a special defensive structure from four points that create a tall, thin rectangle with its perimeter lines connected.
+*   **[FORTIFY] Form Monolith:** Forms a special defensive structure from four points that create a tall, thin rectangle with its perimeter lines connected. If no valid formation is found, it will instead reinforce the boundary lines of any existing rectangular structure.
     *   **Bonus (Resonance Wave):** Every few turns, the Monolith emits a wave that **Empowers** all friendly lines in a radius around it. Empowered lines can absorb one or more hits before being destroyed.
 *   **[FORTIFY] Form Purifier:** A high-level strategic structure for countering area-control strategies.
     *   **Formation:** Requires five points to form a perfect, regular pentagon, with all 5 outer lines connected. This is a difficult and resource-intensive shape to create.
