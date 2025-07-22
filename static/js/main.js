@@ -1107,7 +1107,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     x: details.sacrificed_point.x,
                     y: details.sacrificed_point.y,
                     startTime: Date.now(),
-                    duration: 800
+                    duration: 800,
+                    color: currentGameState.teams[details.sacrificed_point.teamId]?.color
                 });
             }
         }
@@ -1118,7 +1119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 y: details.sacrificed_point.y,
                 startTime: Date.now(),
                 duration: 1200,
-                color: `rgba(150, 220, 255, ${1-0})` // Blueish for water
+                color: currentGameState.teams[details.sacrificed_point.teamId]?.color || `rgba(150, 220, 255, ${1-0})` // Blueish for water
             });
         }
         if (details.type === 'mirror_structure' && details.new_points) {
@@ -1199,7 +1200,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 x: details.sacrificed_prong.x,
                 y: details.sacrificed_prong.y,
                 startTime: Date.now(),
-                duration: 800
+                duration: 800,
+                color: currentGameState.teams[details.sacrificed_prong.teamId]?.color
             });
         }
         if (details.type === 'sentry_zap' && details.destroyed_point) {
@@ -1231,6 +1233,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 startTime: Date.now(),
                 duration: 1500
             });
+        }
+        if (details.type === 'phase_shift') {
+            if (details.original_coords) {
+                visualEffects.push({
+                    type: 'point_implosion',
+                    x: details.original_coords.x,
+                    y: details.original_coords.y,
+                    startTime: Date.now(),
+                    duration: 800,
+                    color: currentGameState.teams[details.sacrificed_line.teamId]?.color
+                });
+            }
+            if (details.new_coords) {
+                 visualEffects.push({
+                    type: 'point_explosion',
+                    x: details.new_coords.x,
+                    y: details.new_coords.y,
+                    startTime: Date.now() + 200, // delayed appearance
+                    duration: 600
+                });
+            }
+            lastActionHighlights.points.add(details.moved_point_id);
         }
         if (details.type === 'pincer_attack' && details.destroyed_point) {
             lastActionHighlights.points.add(details.attacker_p1_id);
@@ -1460,13 +1484,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
             // --- Set visibility based on state ---
             if (inSetupPhase && team.isEditing) {
-                teamInfo.style.display = 'none';
-                actionsDiv.style.display = 'none';
-                editControls.style.display = 'flex';
+                teamInfo.style.display = 'flex'; // Keep it visible
+                actionsDiv.style.display = 'none'; // Hide the normal actions (edit/delete buttons)
+                editControls.style.display = 'flex'; // Show the edit controls
             } else {
                 teamInfo.style.display = 'flex';
-                actionsDiv.style.display = 'flex';
-                editControls.style.display = 'none';
+                actionsDiv.style.display = 'flex'; // Show normal actions
+                editControls.style.display = 'none'; // Hide edit controls
             }
     
             teamsList.appendChild(li);

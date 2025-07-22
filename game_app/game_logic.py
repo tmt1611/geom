@@ -896,6 +896,81 @@ class Game:
             'sacrificed_point': sacrificed_point_data
         }
 
+    def sacrifice_action_phase_shift(self, teamId):
+        """[SACRIFICE ACTION]: Sacrifice a line to teleport one of its points."""
+        team_lines = self.get_team_lines(teamId)
+        if not team_lines:
+            return {'success': False, 'reason': 'no lines to sacrifice'}
+
+        # Prioritize sacrificing lines whose points are not part of critical structures
+        fortified_point_ids = self._get_fortified_point_ids()
+        bastion_point_ids = self._get_bastion_point_ids()
+        monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m.get('point_ids', [])}
+        nexus_point_ids = {pid for nexus_list in self.state.get('nexuses', {}).values() for nexus in nexus_list for pid in nexus.get('point_ids', [])}
+        
+        critical_point_ids = fortified_point_ids.union(
+            bastion_point_ids['cores'],
+            bastion_point_ids['prongs'],
+            monolith_point_ids,
+            nexus_point_ids
+        )
+
+        eligible_lines = [
+            line for line in team_lines 
+            if line['p1_id'] not in critical_point_ids and line['p2_id'] not in critical_point_ids
+        ]
+
+        # As a fallback, allow any line if no "safe" lines are available, but only if the team has more than 2 points to avoid self-destruction
+        if not eligible_lines:
+            if len(self.get_team_point_ids(teamId)) > 2:
+                eligible_lines = team_lines
+            else:
+                return {'success': False, 'reason': 'no non-critical lines to sacrifice for phase shift'}
+
+        line_to_sac = random.choice(eligible_lines)
+        
+        # Choose one of the two endpoints to move
+        p_to_move_id, _ = random.choice([
+            (line_to_sac['p1_id'], line_to_sac['p2_id']),
+            (line_to_sac['p2_id'], line_to_sac['p1_id'])
+        ])
+
+        point_to_move = self.state['points'][p_to_move_id]
+        original_coords = {'x': point_to_move['x'], 'y': point_to_move['y']}
+
+        # Find a new valid location
+        new_coords = None
+        grid_size = self.state['grid_size']
+        for _ in range(25): # Try several times to find a random spot
+            candidate_coords = {
+                'x': random.randint(0, grid_size - 1),
+                'y': random.randint(0, grid_size - 1)
+            }
+            is_valid, _ = self._is_spawn_location_valid(candidate_coords, teamId, min_dist_sq=1.0)
+            if is_valid:
+                new_coords = candidate_coords
+                break
+        
+        if not new_coords:
+            return {'success': False, 'reason': 'could not find a valid location to phase shift to'}
+
+        # Apply the move
+        point_to_move['x'] = new_coords['x']
+        point_to_move['y'] = new_coords['y']
+
+        # Sacrifice the line
+        self.state['lines'].remove(line_to_sac)
+        self.state['shields'].pop(line_to_sac.get('id'), None)
+
+        return {
+            'success': True,
+            'type': 'phase_shift',
+            'moved_point_id': p_to_move_id,
+            'original_coords': original_coords,
+            'new_coords': new_coords,
+            'sacrificed_line': line_to_sac
+        }
+
     def expand_action_spawn_point(self, teamId):
         """[EXPAND ACTION]: Creates a new point near an existing one. A last resort action."""
         team_point_ids = self.get_team_point_ids(teamId)
@@ -2190,6 +2265,7 @@ class Game:
             'fortify_build_wonder': self.fortify_action_build_chronos_spire,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
+            'sacrifice_phase_shift': self.sacrifice_action_phase_shift,
             'defend_shield': self.shield_action_protect_line,
             'rune_shoot_bisector': self.rune_action_shoot_bisector,
             'fight_sentry_zap': self.fight_action_sentry_zap,
@@ -2222,6 +2298,7 @@ class Game:
             'fortify_build_wonder': len(team_point_ids) >= 6 and not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()),
             'sacrifice_nova': len(team_point_ids) > 2,
             'sacrifice_whirlpool': len(team_point_ids) > 1,
+            'sacrifice_phase_shift': bool(team_lines),
             'rune_shoot_bisector': bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])),
         }
 
@@ -2575,7 +2652,8 @@ class Game:
             ),
             'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[PINCER!]"),
             'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET!]"),
-            'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]")
+            'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
+            'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]")
         }
 
         if action_type in log_generators:

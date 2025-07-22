@@ -31,6 +31,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range.
 *   **[SACRIFICE] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
 *   **[SACRIFICE] Create Whirlpool:** Sacrifices one of its own points to create a chaotic vortex on the battlefield for a few turns. The whirlpool slowly pulls all nearby points (friendly and enemy) towards its center, disrupting formations.
+*   **[SACRIFICE] Phase Shift:** Sacrifices one of its lines to instantly "teleport" one of the line's endpoints to a new random location on the grid. This is a chaotic and powerful repositioning tool that leaves stretched lines in its wake.
 *   **[FIGHT] Bastion Pulse:** _(Requires an active Bastion)_ Sacrifices one of the bastion's outer "prong" points to unleash a shockwave. The shockwave destroys all enemy lines that cross the bastion's perimeter.
 *   **[FIGHT] Sentry Zap:** _(Requires an active Sentry)_ Fires a short, high-energy beam from the Sentry's "eye" along its perpendicular axis. Destroys the first enemy **point** it hits within range. This is a powerful, precision attack capable of removing fortified points.
 *   **[FIGHT] Chain Lightning:** _(Requires a Conduit with internal points)_ Sacrifice one of the Conduit's internal points. A bolt of energy travels along the Conduit and then jumps to the nearest enemy point, destroying it.
