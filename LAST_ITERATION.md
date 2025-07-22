@@ -1,23 +1,23 @@
-This iteration focuses on improving the action system, enhancing visual feedback, and synchronizing documentation with game mechanics.
+This iteration focuses on deepening the strategic variety of the game by implementing new runes, adding "never useless" fallbacks to several actions, and ensuring the codebase is clean and consistent.
 
-### 1. "Never Useless" Action Enhancements
-Several actions were redesigned to include fallback effects, ensuring they are always useful and making the simulation more dynamic and less prone to "wasted" turns.
+### 1. New Rune: The Plus-Rune (+)
+A new high-level rune has been implemented, as requested.
+-   **Formation (`+`):** Requires five points in a plus-shape, with a central point connected to four arms that form two perpendicular lines.
+-   **Detection:** Added the `_check_plus_rune` method to robustly detect this formation.
+-   **Action:** The existing `rune_cardinal_pulse` action is now correctly tied to this rune. When activated, the rune is consumed in a powerful attack, firing four destructive beams from its center. This provides a strong incentive for players to build complex geometric structures.
 
--   **`Shield Line`**: If all friendly lines are already shielded, this action now **overcharges** a random existing shield, increasing its duration.
--   **`Grow Line`**: If it fails to find a valid spot to grow a new "vine", it now reinforces the line it was attempting to grow from.
--   **`Create Orbital`**: If a valid orbital structure cannot be formed, the action now reinforces all lines connected to the chosen center point, strengthening a core area.
--   **`Focus Beam` (Star-Rune)**: If no enemy targets are available, the beam now fires at the heart of the largest enemy cluster, creating a small, temporary **fissure** to disrupt their territory.
+### 2. New Rune: The Parallel-Rune
+To introduce more geometric concepts, a new rune based on parallelograms has been added.
+-   **Formation:** Requires four points forming a parallelogram, with all four outer edge lines connected.
+-   **Action (`Parallel Discharge`):** The rune can be activated to discharge energy across its area, destroying any enemy lines that cross between its parallel sides.
+-   **Fallback:** If the discharge hits no targets, it creates two new points and a connecting line in the center of the formation, reinforcing the team's structure.
 
-### 2. I-Rune Integration and Visualization
-The `I-Rune` (a straight line of 3+ points) was not fully implemented. This has been corrected:
--   A robust method for detecting `I-Rune` formations (`_check_i_rune`) has been implemented.
--   The frontend now visually distinguishes the parts of an `I-Rune`, rendering the internal points as "eyes" and endpoints as "posts", which provides clearer visual cues for the `Sentry Zap` and `Chain Lightning` actions.
-
-### 3. Documentation and Rule Clarity
--   The `rules.md` file was significantly updated to match the new action fallbacks.
--   The **Star-Rune** and its associated actions (`Starlight Cascade`, `Focus Beam`) were formally documented, clarifying their mechanics and role in the game, including their function as a prerequisite for the Chronos Spire wonder.
+### 3. "Never Useless" Action Enhancements
+Several actions that could previously fail and result in a wasted turn now have strategic fallbacks.
+-   **`Form Bastion`:** If no valid formation is found, the action now reinforces the lines connected to the most promising "core" candidate point, strengthening a key defensive position.
+-   **`Starlight Cascade` (Star-Rune):** If there are no enemy lines in range to damage, the sacrificed point now explodes in a chaotic shockwave, pushing *all* nearby points (friend and foe) away, creating disruption instead of targeted damage.
 
 ### 4. Code Health and Bug Fixes
--   Fixed a bug where the application would crash when trying to calculate action probabilities due to calls to non-existent methods (`_update_sentries_for_team`, `_update_conduits_for_team`).
--   Corrected a visual rendering bug where a point with multiple special properties (e.g., being a bastion core and also fortified) would not display its most important form. A priority system for rendering point styles was implemented.
--   Cleaned up visual effect triggers in the Javascript to use correct data keys from the backend.
+-   **Cleaned `game_logic.py`:** Removed several duplicated methods and a redundant `__init__` constructor that were present in the `Game` class, improving code clarity and correctness.
+-   **Updated Documentation:** The `rules.md` file has been updated to include the new runes and the new action fallbacks, ensuring the documentation accurately reflects the game's mechanics.
+-   **Expanded Game State:** The core game state dictionary was updated to track the new `parallel` rune type.
