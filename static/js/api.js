@@ -19,27 +19,36 @@ const api = {
             // game_logic.py only uses standard libraries, so we don't need to load any packages.
             
             // To ensure the Pyodide environment is as close to the server environment as possible,
-            // we will reconstruct the package structure in the virtual filesystem and import the game logic as a module.
-            console.log('Fetching Python game logic...');
-            const gameLogicCode = await (await fetch('game_app/game_logic.py')).text();
-
-            // Create a package structure in pyodide's virtual filesystem
+            // we will reconstruct the package structure in the virtual filesystem by fetching all python files.
+            console.log('Fetching Python source files...');
+            const pyFiles = ['__init__.py', 'game_logic.py', 'routes.py', 'utils.py'];
             this._pyodide.FS.mkdir('/game_app');
-            this._pyodide.FS.writeFile('/game_app/__init__.py', '', { encoding: 'utf8' }); // empty __init__.py for pyodide
-            this._pyodide.FS.writeFile('/game_app/game_logic.py', gameLogicCode, { encoding: 'utf8' });
+
+            for (const file of pyFiles) {
+                const response = await fetch(`game_app/${file}`);
+                const code = await response.text();
+                this._pyodide.FS.writeFile(`/game_app/${file}`, code, { encoding: 'utf8' });
+            }
+
+            // In Pyodide mode, we don't run the full Flask app from __init__.py.
+            // We just need to import game_logic to instantiate the 'game' object.
+            // The __init__.py we loaded has Flask imports which we can't satisfy without loading more packages.
+            // So we will overwrite it with a simple one that just imports game_logic.
+            // This ensures the singleton 'game' instance is created, mimicking the server behavior.
+            console.log('Creating Pyodide-specific package initializer...');
+            this._pyodide.FS.writeFile('/game_app/__init__.py', 'from . import game_logic', { encoding: 'utf8' });
 
             console.log('Importing Python game logic as a module...');
-            // Add root to path and import the module. This will execute game_logic.py and create the `game` instance.
+            // Add root to path and import the package. This will execute our custom __init__.py,
+            // which in turn imports game_logic.py and creates the `game` instance.
             this._pyodide.runPython(`
 import sys
 sys.path.append('/')
-from game_app import game_logic
+import game_app
             `);
 
-            // Get a reference to the 'game' instance from the game_logic module
-            const game_logic_module = this._pyodide.pyimport('game_app.game_logic');
-            this._game = game_logic_module.game;
-            game_logic_module.destroy(); // clean up proxy
+            // Get a reference to the 'game' instance from the game_logic module within the package
+            this._game = this._pyodide.pyimport('game_app.game_logic.game');
             console.log('Pyodide backend ready.');
         } else {
             this._mode = 'http';
