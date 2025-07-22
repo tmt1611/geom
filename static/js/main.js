@@ -1523,7 +1523,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     
             const saveBtn = document.createElement('button');
-            saveBtn.textContent = 'Save';
+            saveBtn.innerHTML = '&#10003;'; // Checkmark
+            saveBtn.title = 'Save changes';
+            saveBtn.className = 'save-team-btn';
             saveBtn.onclick = () => {
                 const newName = editNameInput.value.trim();
                 if (newName) {
@@ -1536,7 +1538,9 @@ document.addEventListener('DOMContentLoaded', () => {
             };
     
             const cancelBtn = document.createElement('button');
-            cancelBtn.textContent = 'Cancel';
+            cancelBtn.innerHTML = '&times;'; // Cross
+            cancelBtn.title = 'Cancel edit';
+            cancelBtn.className = 'cancel-team-btn';
             cancelBtn.onclick = () => {
                 localTeams[teamId].isEditing = false;
                 renderTeamsList();
@@ -1571,13 +1575,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
             // --- Set visibility based on state ---
             if (inSetupPhase && team.isEditing) {
-                teamInfo.style.display = 'flex'; // Keep it visible
-                actionsDiv.style.display = 'none'; // Hide the normal actions (edit/delete buttons)
-                editControls.style.display = 'flex'; // Show the edit controls
+                colorBox.style.display = 'none';
+                teamInfo.style.display = 'none';
+                actionsDiv.style.display = 'none';
+                editControls.style.display = 'flex';
             } else {
+                colorBox.style.display = 'block';
                 teamInfo.style.display = 'flex';
-                actionsDiv.style.display = 'flex'; // Show normal actions
-                editControls.style.display = 'none'; // Hide edit controls
+                actionsDiv.style.display = 'flex';
+                editControls.style.display = 'none';
             }
     
             teamsList.appendChild(li);

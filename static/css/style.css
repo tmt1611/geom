@@ -98,6 +98,38 @@ legend {
     margin-bottom: 5px;
 }
 
+.add-team-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    align-items: center;
+}
+.add-team-form input[type="text"] {
+    flex-grow: 1;
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.add-team-form input[type="color"] {
+    padding: 0;
+    border: 1px solid #ccc;
+    min-width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.add-team-form select, .add-team-form button {
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    background-color: #f8f8f8;
+    border-radius: 4px;
+    cursor: pointer;
+    height: 32px; /* Align with inputs */
+}
+.add-team-form button:hover {
+    background-color: #eee;
+}
+
 #teams-list {
     list-style: none;
     padding: 0;
@@ -154,7 +186,7 @@ legend {
 }
 .team-edit-controls button {
     padding: 4px 8px;
-    font-size: 1.1em;
+    font-size: 1.2em; /* Made slightly larger to match edit icon */
     background: none;
     border: none;
     cursor: pointer;

@@ -16,16 +16,18 @@
                     <legend>Create Teams</legend>
                     <div class="teams-section">
                         <ul id="teams-list"></ul>
-                        <input type="text" id="new-team-name" placeholder="New Team Name" style="width: calc(100% - 10px);">
-                        <input type="color" id="new-team-color" value="#ff0000">
-                        <select id="new-team-trait" style="padding: 2px;">
-                            <option value="Random" selected>Random</option>
-                            <option value="Balanced">Balanced</option>
-                            <option value="Aggressive">Aggressive</option>
-                            <option value="Expansive">Expansive</option>
-                            <option value="Defensive">Defensive</option>
-                        </select>
-                        <button id="add-team-btn" style="width: 100%;">Add Team</button>
+                        <div class="add-team-form">
+                            <input type="text" id="new-team-name" placeholder="New Team Name">
+                            <input type="color" id="new-team-color" value="#ff0000" title="Team Color">
+                            <select id="new-team-trait" title="Team Trait">
+                                <option value="Random" selected>Random</option>
+                                <option value="Balanced">Balanced</option>
+                                <option value="Aggressive">Aggressive</option>
+                                <option value="Expansive">Expansive</option>
+                                <option value="Defensive">Defensive</option>
+                            </select>
+                            <button id="add-team-btn">Add</button>
+                        </div>
                     </div>
                 </fieldset>
                 <fieldset>
