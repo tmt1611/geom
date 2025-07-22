@@ -393,10 +393,13 @@ legend {
     overflow-y: auto;
 }
 .action-category h6 {
-    margin: 8px 0 4px 0;
-    font-size: 0.9em;
-    color: #555;
-    text-transform: uppercase;
+    margin: 12px 0 4px 0;
+    padding: 4px 6px;
+    font-size: 1em;
+    font-weight: 500;
+    color: #34495e;
+    background-color: #ecf0f1;
+    border-radius: 3px;
     letter-spacing: 0.5px;
 }
 .action-prob-list li {

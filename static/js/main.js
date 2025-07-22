@@ -2464,15 +2464,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function getActionCategory(actionName) {
-        if (actionName.startsWith('rune_')) return 'Rune';
-        if (actionName.startsWith('expand_')) return 'Expand';
-        if (actionName.startsWith('fight_')) return 'Fight';
-        if (actionName.startsWith('fortify_') || actionName.startsWith('defend_') || actionName.startsWith('terraform_')) return 'Fortify / Defend';
-        if (actionName.startsWith('sacrifice_')) return 'Sacrifice';
-        return 'Other';
-    }
-
     function updateActionPreview(gameState) {
         const panel = document.getElementById('action-preview-panel');
         const content = document.getElementById('action-preview-content');
@@ -2523,58 +2514,48 @@ document.addEventListener('DOMContentLoaded', () => {
     
                 let html = `<h5 style="border-color:${data.color};">${titlePrefix} ${data.team_name}'s Turn</h5>`;
     
-                const actionGroups = {
-                    'Fight': { valid: [], invalid: [] },
-                    'Expand': { valid: [], invalid: [] },
-                    'Fortify / Defend': { valid: [], invalid: [] },
-                    'Sacrifice': { valid: [], invalid: [] },
-                    'Rune': { valid: [], invalid: [] },
-                };
-    
-                if (data.valid) {
-                    data.valid.forEach(action => {
-                        const category = getActionCategory(action.name);
-                        if (actionGroups[category]) actionGroups[category].valid.push(action);
-                    });
-                }
-                if (data.invalid) {
-                     data.invalid.forEach(action => {
-                        const category = getActionCategory(action.name);
-                        if (actionGroups[category]) actionGroups[category].invalid.push(action);
-                    });
-                }
-    
-                let hasAnyActions = (data.valid && data.valid.length > 0) || (data.invalid && data.invalid.length > 0);
+                const groupOrder = ['Fight', 'Expand', 'Fortify', 'Sacrifice', 'Rune'];
+                let hasValidActions = false;
 
-                if (hasAnyActions) {
-                     for (const categoryName in actionGroups) {
-                        const group = actionGroups[categoryName];
-                        if (group.valid.length > 0 || group.invalid.length > 0) {
-                            html += `<div class="action-category"><h6>${categoryName}</h6><ul class="action-prob-list">`;
-                            group.valid.forEach(action => {
-                                html += `
-                                    <li>
-                                        <span>${action.display_name}</span>
-                                        <div class="action-prob-bar-container">
-                                            <div class="action-prob-bar" style="width: ${action.probability}%; background-color:${data.color};"></div>
-                                        </div>
-                                        <span class="action-prob-percent">${action.probability}%</span>
-                                    </li>
-                                `;
-                            });
-                            group.invalid.forEach(action => {
-                                html += `
-                                    <li class="invalid-action" title="${action.reason}">
-                                        <span>${action.display_name}</span>
-                                        <div class="action-prob-bar-container"></div>
-                                    </li>
-                                `;
-                            });
-                            html += '</ul></div>';
-                        }
-                     }
-                } else {
+                for (const groupName of groupOrder) {
+                    const group = data.groups[groupName];
+                    if (group && group.actions.length > 0) {
+                        hasValidActions = true;
+                        html += `
+                            <div class="action-category">
+                                <h6>${groupName} (${group.group_probability}%)</h6>
+                                <ul class="action-prob-list">`;
+                        
+                        group.actions.forEach(action => {
+                            html += `
+                                <li>
+                                    <span>${action.display_name}</span>
+                                    <div class="action-prob-bar-container">
+                                        <div class="action-prob-bar" style="width: ${action.probability}%; background-color:${data.color};"></div>
+                                    </div>
+                                    <span class="action-prob-percent">${action.probability}%</span>
+                                </li>
+                            `;
+                        });
+                        html += '</ul></div>';
+                    }
+                }
+                
+                if (!hasValidActions) {
                      html += '<p>No valid actions found. Passing turn.</p>';
+                }
+
+                if (showInvalid && data.invalid.length > 0) {
+                    html += `<div class="action-category"><h6>Invalid Actions</h6><ul class="action-prob-list">`;
+                    data.invalid.forEach(action => {
+                        html += `
+                            <li class="invalid-action" title="${action.reason} (${action.group})">
+                                <span>${action.display_name}</span>
+                                <div class="action-prob-bar-container"></div>
+                            </li>
+                        `;
+                    });
+                    html += '</ul></div>';
                 }
     
                 content.innerHTML = html;

@@ -220,22 +220,28 @@ def is_regular_pentagon(p1, p2, p3, p4, p5):
 class Game:
     """Encapsulates the entire game state and logic."""
 
-    ACTION_BASE_WEIGHTS = {
-        # All actions have a base weight of 1. Team traits provide the only multipliers.
-        # This makes all valid actions equally likely for a 'Balanced' team.
-        'expand_add': 1, 'expand_extend': 1, 'expand_grow': 1, 'expand_fracture': 1, 'expand_spawn': 1,
-        'expand_orbital': 1,
-        'fight_attack': 1, 'fight_convert': 1, 'fight_pincer_attack': 1, 'fight_territory_strike': 1, 'fight_bastion_pulse': 1, 'fight_sentry_zap': 1, 'fight_chain_lightning': 1, 'fight_refraction_beam': 1, 'fight_launch_payload': 1, 'fight_purify_territory': 1,
-        'fortify_claim': 1, 'fortify_anchor': 1, 'fortify_mirror': 1, 'fortify_form_bastion': 1, 'fortify_form_monolith': 1, 'fortify_form_purifier': 1, 'fortify_cultivate_heartwood': 1, 'fortify_form_rift_spire': 1, 'terraform_create_fissure': 1, 'terraform_raise_barricade': 1, 'fortify_build_wonder': 1,
-        'sacrifice_nova': 1, 'sacrifice_whirlpool': 1, 'sacrifice_phase_shift': 1, 'sacrifice_rift_trap': 1, 'defend_shield': 1,
-        'rune_shoot_bisector': 1, 'rune_area_shield': 1, 'rune_shield_pulse': 1, 'rune_impale': 1, 'rune_hourglass_stasis': 1, 'rune_t_hammer_slam': 1,
-        'rune_starlight_cascade': 1, 'rune_focus_beam': 1, 'rune_cardinal_pulse': 1, 'rune_parallel_discharge': 1
+    ACTION_GROUPS = {
+        'Expand': ['expand_add', 'expand_extend', 'expand_grow', 'expand_fracture', 'expand_spawn', 'expand_orbital'],
+        'Fight': ['fight_attack', 'fight_convert', 'fight_pincer_attack', 'fight_territory_strike', 'fight_bastion_pulse', 'fight_sentry_zap', 'fight_chain_lightning', 'fight_refraction_beam', 'fight_launch_payload', 'fight_purify_territory'],
+        'Fortify': ['fortify_claim', 'fortify_anchor', 'fortify_mirror', 'fortify_form_bastion', 'fortify_form_monolith', 'fortify_form_purifier', 'fortify_cultivate_heartwood', 'fortify_form_rift_spire', 'terraform_create_fissure', 'terraform_raise_barricade', 'fortify_build_wonder', 'defend_shield'],
+        'Sacrifice': ['sacrifice_nova', 'sacrifice_whirlpool', 'sacrifice_phase_shift', 'sacrifice_rift_trap'],
+        'Rune': ['rune_shoot_bisector', 'rune_area_shield', 'rune_shield_pulse', 'rune_impale', 'rune_hourglass_stasis', 'rune_t_hammer_slam', 'rune_starlight_cascade', 'rune_focus_beam', 'rune_cardinal_pulse', 'rune_parallel_discharge']
     }
-    TRAIT_MULTIPLIERS = {
-        'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0, 'rune_hourglass_stasis': 0.5, 'rune_shield_pulse': 0.5, 'rune_t_hammer_slam': 1.8, 'rune_cardinal_pulse': 3.0},
-        'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5, 'sacrifice_phase_shift': 2.0, 'rune_parallel_discharge': 1.5},
-        'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'terraform_raise_barricade': 2.0, 'rune_area_shield': 3.0, 'rune_hourglass_stasis': 2.0, 'rune_shield_pulse': 2.5, 'rune_parallel_discharge': 1.8},
-        'Balanced':   {}
+    # Reverse mapping for quick category lookup
+    ACTION_NAME_TO_GROUP = {action: group for group, actions in ACTION_GROUPS.items() for action in actions}
+
+    GROUP_BASE_WEIGHTS = {
+        'Expand': 30,
+        'Fight': 30,
+        'Fortify': 20,
+        'Sacrifice': 10,
+        'Rune': 10
+    }
+    TRAIT_GROUP_MULTIPLIERS = {
+        'Aggressive': {'Fight': 2.0, 'Sacrifice': 1.5, 'Fortify': 0.5, 'Expand': 0.8},
+        'Expansive':  {'Expand': 2.0, 'Fight': 0.6, 'Fortify': 0.7},
+        'Defensive':  {'Fortify': 2.5, 'Fight': 0.5, 'Sacrifice': 0.5},
+        'Balanced':   {} # Uses base weights
     }
     ACTION_DESCRIPTIONS = {
         'expand_add': "Add Line", 'expand_extend': "Extend Line", 'expand_grow': "Grow Vine", 'expand_fracture': "Fracture Line", 'expand_spawn': "Spawn Point",
@@ -243,7 +249,7 @@ class Game:
         'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
         'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder",
         'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'sacrifice_rift_trap': "Create Rift Trap", 'defend_shield': "Shield Line / Overcharge",
-        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam", 'rune_cardinal_pulse': "Rune: Cardinal Pulse", 'rune_parallel_discharge': "Rune: Parallel Discharge",
+        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam", 'rune_cardinal_pulse': "Rune: Cardinal Pulse", 'rune_parallel_discharge': "Rune: Parallel Discharge", 'rune_t_hammer_slam': "Rune: T-Hammer Slam",
         'terraform_raise_barricade': "Raise Barricade"
     }
 
@@ -3500,7 +3506,7 @@ class Game:
 
         status = {}
         # Ensure all actions have a precondition check
-        all_actions = self.ACTION_BASE_WEIGHTS.keys()
+        all_actions = self.ACTION_NAME_TO_GROUP.keys()
         for name in all_actions:
             if name in preconditions:
                 is_possible_func, reason = preconditions[name]
@@ -3549,12 +3555,12 @@ class Game:
     def get_action_probabilities(self, teamId, include_invalid=False):
         """
         Calculates the probability of each possible action for a team,
-        based on their trait and the current game state.
+        based on their trait and the current game state, organized by group.
         Optionally includes invalid actions and their reasons.
         """
         if teamId not in self.state['teams']:
             return {"error": "Team not found"}
-            
+
         # Update structures for the team to get the most accurate list of possible actions
         self._update_runes_for_team(teamId)
         self._update_prisms_for_team(teamId)
@@ -3562,118 +3568,132 @@ class Game:
         self._update_nexuses_for_team(teamId)
 
         all_action_statuses = self._get_all_actions_status(teamId)
-        possible_actions = [name for name, status in all_action_statuses.items() if status['valid']]
         
+        # Group valid actions by category
+        valid_actions_by_group = {group: [] for group in self.ACTION_GROUPS.keys()}
+        for action_name, status in all_action_statuses.items():
+            if status['valid']:
+                group = self.ACTION_NAME_TO_GROUP.get(action_name)
+                if group:
+                    valid_actions_by_group[group].append(action_name)
+        
+        # Determine group weights based on trait and valid actions
+        team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
+        group_multipliers = self.TRAIT_GROUP_MULTIPLIERS.get(team_trait, {})
+        
+        final_group_weights = {}
+        for group_name, actions in valid_actions_by_group.items():
+            if actions: # Only consider groups that have at least one valid action
+                base_weight = self.GROUP_BASE_WEIGHTS.get(group_name, 0)
+                multiplier = group_multipliers.get(group_name, 1.0)
+                final_group_weights[group_name] = base_weight * multiplier
+
+        total_group_weight = sum(final_group_weights.values())
+
+        # Build response structure
         response = {
             'team_name': self.state['teams'][teamId]['name'], 
             'color': self.state['teams'][teamId]['color'], 
-            'valid': [],
+            'groups': {},
             'invalid': []
         }
 
-        if not possible_actions:
-            # If no actions are valid, we might still want to show all invalid ones
-            if include_invalid:
-                 for name, status in all_action_statuses.items():
-                    if not status['valid']:
-                        response['invalid'].append({
-                            'name': name,
-                            'display_name': self.ACTION_DESCRIPTIONS.get(name, name),
-                            'reason': status['reason']
+        if total_group_weight > 0:
+            for group_name, group_weight in final_group_weights.items():
+                group_prob = (group_weight / total_group_weight) * 100
+                valid_actions = valid_actions_by_group[group_name]
+                num_valid_actions = len(valid_actions)
+                
+                action_list = []
+                if num_valid_actions > 0:
+                    action_prob = group_prob / num_valid_actions
+                    for action_name in valid_actions:
+                        action_list.append({
+                            'name': action_name,
+                            'display_name': self.ACTION_DESCRIPTIONS.get(action_name, action_name),
+                            'probability': round(action_prob, 1)
                         })
-            return response
 
-        action_weights = self._get_action_weights(teamId, possible_actions)
-        total_weight = sum(action_weights.values())
-        
-        if total_weight > 0:
-            for action_name, weight in action_weights.items():
-                response['valid'].append({
-                    'name': action_name,
-                    'display_name': self.ACTION_DESCRIPTIONS.get(action_name, action_name),
-                    'probability': round((weight / total_weight) * 100, 1)
-                })
-        
-        response['valid'].sort(key=lambda x: x['probability'], reverse=True)
+                if action_list:
+                     response['groups'][group_name] = {
+                        'group_probability': round(group_prob, 1),
+                        'actions': sorted(action_list, key=lambda x: x['display_name'])
+                     }
 
         if include_invalid:
-            invalid_actions = [name for name, status in all_action_statuses.items() if not status['valid']]
-            for action_name in invalid_actions:
-                response['invalid'].append({
-                    'name': action_name,
-                    'display_name': self.ACTION_DESCRIPTIONS.get(action_name, action_name),
-                    'reason': all_action_statuses[action_name]['reason']
-                })
-            response['invalid'].sort(key=lambda x: x['display_name'])
-
+            for name, status in all_action_statuses.items():
+                if not status['valid']:
+                    response['invalid'].append({
+                        'name': name,
+                        'display_name': self.ACTION_DESCRIPTIONS.get(name, name),
+                        'reason': status['reason'],
+                        'group': self.ACTION_NAME_TO_GROUP.get(name, 'Other')
+                    })
+            response['invalid'].sort(key=lambda x: (x['group'], x['display_name']))
 
         return response
 
     def _choose_action_for_team(self, teamId, exclude_actions=None):
-        """Intelligently chooses an action for a team, excluding any that have already failed this turn."""
-        if exclude_actions is None:
-            exclude_actions = []
-        
-        action_map = {
-            'expand_add': self.expand_action_add_line,
-            'expand_extend': self.expand_action_extend_line,
-            'expand_grow': self.expand_action_grow_line,
-            'expand_fracture': self.expand_action_fracture_line,
-            'expand_spawn': self.expand_action_spawn_point,
-            'expand_orbital': self.expand_action_create_orbital,
-            'fight_attack': self.fight_action_attack_line,
-            'fight_convert': self.fight_action_convert_point,
-            'fight_pincer_attack': self.fight_action_pincer_attack,
-            'fight_territory_strike': self.fight_action_territory_strike,
-            'fight_bastion_pulse': self.fight_action_bastion_pulse,
-            'fight_chain_lightning': self.fight_action_chain_lightning,
-            'fight_refraction_beam': self.fight_action_refraction_beam,
-            'fight_launch_payload': self.fight_action_launch_payload,
-            'fight_sentry_zap': self.fight_action_sentry_zap,
-            'fight_purify_territory': self.fight_action_purify_territory,
-            'fortify_claim': self.fortify_action_claim_territory,
-            'fortify_anchor': self.fortify_action_create_anchor,
-            'fortify_mirror': self.fortify_action_mirror_structure,
-            'fortify_form_bastion': self.fortify_action_form_bastion,
-            'fortify_form_monolith': self.fortify_action_form_monolith,
-            'fortify_form_purifier': self.fortify_action_form_purifier,
-            'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood,
-            'fortify_form_rift_spire': self.fortify_action_form_rift_spire,
-            'terraform_create_fissure': self.terraform_action_create_fissure,
-            'terraform_raise_barricade': self.terraform_action_raise_barricade,
-            'fortify_build_wonder': self.fortify_action_build_chronos_spire,
-            'sacrifice_nova': self.sacrifice_action_nova_burst,
-            'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
-            'sacrifice_phase_shift': self.sacrifice_action_phase_shift,
-            'sacrifice_rift_trap': self.sacrifice_action_rift_trap,
-            'defend_shield': self.shield_action_protect_line,
-            'rune_shoot_bisector': self.rune_action_shoot_bisector,
-            'rune_area_shield': self.rune_action_area_shield,
-            'rune_shield_pulse': self.rune_action_shield_pulse,
-            'rune_impale': self.rune_action_impale,
-            'rune_hourglass_stasis': self.rune_action_hourglass_stasis,
-            'rune_starlight_cascade': self.rune_action_starlight_cascade,
-            'rune_focus_beam': self.rune_action_focus_beam,
-            'rune_t_hammer_slam': self.rune_action_t_hammer_slam,
-            'rune_cardinal_pulse': self.rune_action_cardinal_pulse,
-            'rune_parallel_discharge': self.rune_action_parallel_discharge
-        }
+        """Chooses an action for a team based on group probabilities, excluding any that have already failed this turn."""
+        if exclude_actions is None: exclude_actions = []
 
-        # --- Evaluate possible actions based on game state and exclusion list ---
+        # --- 1. Get all valid actions, excluding ones that have already failed ---
         possible_actions = self._get_possible_actions(teamId, exclude_actions)
-        
-        if not possible_actions:
-            return None, None
+        if not possible_actions: return None, None
 
-        # --- Apply trait-based weights to the *possible* actions ---
-        action_weights = self._get_action_weights(teamId, possible_actions)
+        # --- 2. Group these valid actions by category ---
+        valid_actions_by_group = {group: [] for group in self.ACTION_GROUPS.keys()}
+        for action_name in possible_actions:
+            group = self.ACTION_NAME_TO_GROUP.get(action_name)
+            if group:
+                valid_actions_by_group[group].append(action_name)
+
+        # --- 3. Determine final group weights based on trait and which groups are actually possible ---
+        team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
+        group_multipliers = self.TRAIT_GROUP_MULTIPLIERS.get(team_trait, {})
         
-        # Use random.choices to pick an action based on the calculated weights
-        p_actions = list(action_weights.keys())
-        p_weights = list(action_weights.values())
+        final_group_weights = {}
+        for group_name, actions in valid_actions_by_group.items():
+            if actions: # Only consider groups that have at least one valid action
+                base_weight = self.GROUP_BASE_WEIGHTS.get(group_name, 0)
+                multiplier = group_multipliers.get(group_name, 1.0)
+                final_group_weights[group_name] = base_weight * multiplier
         
-        chosen_action_name = random.choices(p_actions, weights=p_weights, k=1)[0]
-        return chosen_action_name, action_map[chosen_action_name]
+        if not final_group_weights: return None, None # No valid groups to choose from
+
+        # --- 4. Choose a group, then choose an action from that group ---
+        group_names = list(final_group_weights.keys())
+        group_weights = list(final_group_weights.values())
+        
+        chosen_group = random.choices(group_names, weights=group_weights, k=1)[0]
+        chosen_action_name = random.choice(valid_actions_by_group[chosen_group])
+        
+        # --- 5. Return the chosen action name and its function ---
+        action_map = {
+            'expand_add': self.expand_action_add_line, 'expand_extend': self.expand_action_extend_line,
+            'expand_grow': self.expand_action_grow_line, 'expand_fracture': self.expand_action_fracture_line,
+            'expand_spawn': self.expand_action_spawn_point, 'expand_orbital': self.expand_action_create_orbital,
+            'fight_attack': self.fight_action_attack_line, 'fight_convert': self.fight_action_convert_point,
+            'fight_pincer_attack': self.fight_action_pincer_attack, 'fight_territory_strike': self.fight_action_territory_strike,
+            'fight_bastion_pulse': self.fight_action_bastion_pulse, 'fight_chain_lightning': self.fight_action_chain_lightning,
+            'fight_refraction_beam': self.fight_action_refraction_beam, 'fight_launch_payload': self.fight_action_launch_payload,
+            'fight_sentry_zap': self.fight_action_sentry_zap, 'fight_purify_territory': self.fight_action_purify_territory,
+            'fortify_claim': self.fortify_action_claim_territory, 'fortify_anchor': self.fortify_action_create_anchor,
+            'fortify_mirror': self.fortify_action_mirror_structure, 'fortify_form_bastion': self.fortify_action_form_bastion,
+            'fortify_form_monolith': self.fortify_action_form_monolith, 'fortify_form_purifier': self.fortify_action_form_purifier,
+            'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood, 'fortify_form_rift_spire': self.fortify_action_form_rift_spire,
+            'terraform_create_fissure': self.terraform_action_create_fissure, 'terraform_raise_barricade': self.terraform_action_raise_barricade,
+            'fortify_build_wonder': self.fortify_action_build_chronos_spire,
+            'sacrifice_nova': self.sacrifice_action_nova_burst, 'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
+            'sacrifice_phase_shift': self.sacrifice_action_phase_shift, 'sacrifice_rift_trap': self.sacrifice_action_rift_trap,
+            'defend_shield': self.shield_action_protect_line,
+            'rune_shoot_bisector': self.rune_action_shoot_bisector, 'rune_area_shield': self.rune_action_area_shield,
+            'rune_shield_pulse': self.rune_action_shield_pulse, 'rune_impale': self.rune_action_impale,
+            'rune_hourglass_stasis': self.rune_action_hourglass_stasis, 'rune_starlight_cascade': self.rune_action_starlight_cascade,
+            'rune_focus_beam': self.rune_action_focus_beam, 'rune_t_hammer_slam': self.rune_action_t_hammer_slam,
+            'rune_cardinal_pulse': self.rune_action_cardinal_pulse, 'rune_parallel_discharge': self.rune_action_parallel_discharge
+        }
+        return chosen_action_name, action_map.get(chosen_action_name)
 
 
     def restart_game(self):
