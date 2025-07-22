@@ -4142,16 +4142,20 @@ class Game:
 
         self.state['action_events'] = [] # Clear events from the previous action
 
-        # Check if we need to start a new turn
+        # If the turn is over, start a new one. This might end the game (e.g., via Wonder victory).
         if not self.state.get('actions_queue_this_turn') or self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
             self._start_new_turn()
-            
-            # Check for immediate extinction after new turn setup (no teams left to act)
-            if not self.state['actions_queue_this_turn']:
-                self.state['game_phase'] = 'FINISHED'
-                self.state['victory_condition'] = "Extinction"
-                self.state['game_log'].append({'message': "All teams have been eliminated. Game over.", 'short_message': '[EXTINCTION]'})
-                return
+
+        # If the game ended during the start-of-turn phase, stop immediately.
+        if self.state['game_phase'] != 'RUNNING':
+            return
+        
+        # If there are no actions for the new turn (extinction), end the game.
+        if not self.state['actions_queue_this_turn']:
+            self.state['game_phase'] = 'FINISHED'
+            self.state['victory_condition'] = "Extinction"
+            self.state['game_log'].append({'message': "All teams have been eliminated. Game over.", 'short_message': '[EXTINCTION]'})
+            return
 
         # Get the current team to act from the queue
         action_info = self.state['actions_queue_this_turn'][self.state['action_in_turn']]
