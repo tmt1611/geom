@@ -14,7 +14,8 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
     *   **Bonus:** Unlocks the **[RUNE] Shoot Bisector** action, a powerful, long-range attack fired from the 'V's vertex.
 *   **Shield-Rune:**
     *   **Formation:** Three points connected by lines to form a triangle, with a fourth friendly point located inside the triangle.
-    *   **Bonus:** Unlocks the **[RUNE] Area Shield** action.
+    *   **Bonus 1:** Unlocks the **[RUNE] Area Shield** action.
+    *   **Bonus 2:** Unlocks the **[RUNE] Shield Pulse** action.
 *   **Cross-Rune:**
     *   **Formation:** Four points that form a rectangle, with both internal diagonals existing as lines for that team.
     *   **Bonus:** Grants the `Piercing Attacks` passive. The team's standard `Attack Line` action can now bypass one enemy shield.
@@ -50,6 +51,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits.
 *   **[RUNE] Impale:** _(Requires an active Trident-Rune)_ Fires a devastating, long-range beam that pierces through all enemy lines in its path, ignoring shields.
 *   **[RUNE] Area Shield:** _(Requires an active Shield-Rune)_ Creates a temporary shield on all friendly lines contained within the rune's triangular boundary, protecting a key area of a team's structure.
+*   **[RUNE] Shield Pulse:** _(Requires an active Shield-Rune)_ Emits a defensive shockwave from the rune's center, pushing all nearby enemy points outwards. A great tool for breaking up formations and creating space.
 *   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field for several turns. A point in stasis cannot be targeted by most actions and is effectively removed from play until the effect wears off.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Form Sentry:** A passive formation. When three of a team's points are collinear and connected by lines (forming Post-Eye-Post), they become a Sentry.

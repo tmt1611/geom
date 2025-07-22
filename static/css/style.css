@@ -381,9 +381,18 @@ legend {
 .action-prob-list {
     list-style: none;
     padding: 0;
-    margin: 0;
-    max-height: 200px;
+    margin: 0 0 10px 0;
+}
+#action-preview-content {
+    max-height: 350px;
     overflow-y: auto;
+}
+.action-category h6 {
+    margin: 8px 0 4px 0;
+    font-size: 0.9em;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 .action-prob-list li {
     display: flex;

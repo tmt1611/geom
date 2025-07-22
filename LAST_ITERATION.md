@@ -1,29 +1,29 @@
-This iteration introduces a new strategic element—the Hourglass Rune—and significantly enhancing the game's visual feedback to make actions more distinct and satisfying. Key structures and actions now have unique, thematic animations, improving the overall aesthetic and clarity of the auto-battle.
+This is a substantial update focusing on enhancing strategic depth, improving user interface clarity, and enriching the visual experience.
 
-### 1. New Rune and Mechanic: The Hourglass Rune & Stasis
+### 1. New Rune Power & Improved Action Logic
 
--   **Files**: `game_app/game_logic.py`, `rules.md`, `static/js/main.js`
--   **Change**: A new strategic rune, the **Hourglass Rune**, has been introduced.
-    -   **Formation**: It forms from five points creating two triangles that share a single common vertex.
-    -   **New Mechanic**: The rune unlocks the **[RUNE] Time Stasis** action. This ability targets a nearby vulnerable enemy point and "freezes" it for several turns.
-    -   **Stasis Effect**: Points in stasis cannot be targeted by most actions (e.g., `Pincer Attack`, `Convert Point`, `Sentry Zap`), effectively removing them from play temporarily.
-    -   **Frontend**: Hourglass runes are highlighted with a distinct double-triangle shape. Points in stasis are rendered with a pulsating "cage" effect, clearly indicating their status. The action itself is visualized by a beam of energy traveling from the rune's vertex to the target.
--   **Benefit**: The Stasis mechanic adds a new layer of control and counter-play. It allows teams to neutralize high-value enemy assets without destroying them, creating opportunities for strategic maneuvers and disrupting enemy formations.
+-   **Files**: `game_app/game_logic.py`, `rules.md`
+-   **Change**: A new action has been added to an existing rune, and a key strategic action has been made smarter.
+    -   **New Action**: The **Shield Rune** was previously only for the `Area Shield` action. It now also unlocks **`[RUNE] Shield Pulse`**, a defensive shockwave that forcefully pushes all nearby enemy points away from the rune's center, allowing for tactical repositioning and breaking up enemy formations.
+    -   **Smarter Sacrifices**: The `[SACRIFICE] Phase Shift` action logic has been significantly improved. It now intelligently avoids sacrificing lines that would leave a point isolated (a "bridge" line), preserving the team's structural integrity. This makes the AI's use of this powerful repositioning tool less self-destructive and more strategic.
 
-### 2. Systematically Redesigned Visual Effects
+### 2. Enhanced Action Preview Panel
+
+-   **File**: `static/js/main.js`
+-   **Change**: The "Action Preview" panel, which details the upcoming team's turn, has been redesigned for clarity. Actions are now grouped into logical categories: **Fight, Expand, Fortify / Defend, Sacrifice,** and **Rune**.
+-   **Benefit**: This organization makes the long list of potential actions much easier to parse. Players can now quickly assess a team's strategic posture—whether it's leaning towards offense, defense, or expansion—by seeing which categories have the most available actions and highest probabilities.
+
+### 3. Diverse and Thematic Visual Effects
 
 -   **Files**: `static/js/main.js`, `game_app/game_logic.py`
--   **Change**: Several core actions now have unique and more thematic visual effects, replacing generic animations.
-    -   **Bastion Formation**: Instead of a simple pulse, forming a bastion now triggers a "shield-up" animation where growing energy shields appear along the bastion's lines.
-    -   **Monolith Formation**: A monolith's creation is now heralded by a beam of light descending from the sky, visually "erecting" the structure.
-    -   **Convert Point**: This action now shows a swirling spiral of energy transferring from the sacrificed line's midpoint to the converted point, providing a clear visual narrative for the action.
--   **Benefit**: These distinct, high-impact visuals make the game more engaging to watch. Each major event is now instantly recognizable, making the flow of the battle easier to follow and more aesthetically pleasing.
+-   **Change**: Several key actions have received unique, thematic visual effects to make them more distinct and visually impressive, moving away from generic highlights.
+    -   **`Form Bastion`**: Triggers a "shield-up" animation where growing, semi-transparent energy shields materialize along the bastion's perimeter lines.
+    -   **`Form Monolith`**: A dramatic beam of light now descends from the top of the screen to the monolith's center, visually "erecting" the structure.
+    -   **`Convert Point`**: Now shows a swirling stream of energy particles flowing from the sacrificed line's midpoint to the newly converted point, clearly illustrating the transfer of allegiance.
+    -   **`Shield Pulse`**: The new rune action is visualized with a powerful radial shockwave expanding from the rune's center, visually matching its push effect.
+-   **Benefit**: These new visuals make the game more exciting to watch and provide immediate, intuitive feedback for major game events. Each significant action now has a unique visual signature.
 
-### 3. Codebase Refinements for New Mechanics
+### 4. Codebase & Rule Documentation
 
--   **File**: `game_app/game_logic.py`
--   **Change**:
-    -   The game state now properly tracks the new `stasis_points` status, including a turn-based countdown managed in the `_start_new_turn` phase.
-    -   Point-targeting actions (`fight_pincer_attack`, `fight_convert_point`, etc.) have been updated to recognize and respect the stasis effect, preventing them from targeting frozen points.
-    -   The `_check_hourglass_rune` function was added to the rune detection system, and the new action was integrated into the action selection logic (`_get_all_actions_status`, weights, etc.).
--   **Benefit**: The codebase has been cleanly extended to support the new Stasis mechanic, ensuring it integrates smoothly with existing game rules and logic. This maintains the robustness and extensibility of the game engine.
+-   **Files**: `game_logic.py`, `rules.md`
+-   **Change**: The codebase was updated to integrate the new `Shield Pulse` action, including its weight, trait multipliers, and preconditions. The `rules.md` file has been updated to document the new action, ensuring the game's mechanics remain transparent and understandable.

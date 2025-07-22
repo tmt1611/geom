@@ -1013,16 +1013,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.lineWidth = 4;
                 ctx.stroke();
                 ctx.globalAlpha = 1.0;
-            } else if (effect.type === 'monolith_wave') {
+            } else if (effect.type === 'monolith_wave' || effect.type === 'shield_pulse') {
                 const progress = age / effect.duration;
                 ctx.beginPath();
                 ctx.arc(
-                    (effect.center_coords.x + 0.5) * cellSize,
-                    (effect.center_coords.y + 0.5) * cellSize,
+                    (effect.center.x + 0.5) * cellSize,
+                    (effect.center.y + 0.5) * cellSize,
                     Math.sqrt(effect.radius_sq) * cellSize * progress,
                     0, 2 * Math.PI
                 );
-                ctx.strokeStyle = `rgba(220, 220, 255, ${0.8 * (1 - progress)})`; // White-blue wave
+                ctx.strokeStyle = effect.color || `rgba(220, 220, 255, ${0.8 * (1 - progress)})`; // White-blue wave
                 ctx.lineWidth = 4 * (1 - progress);
                 ctx.stroke();
             } else if (effect.type === 'nova_burst') {
@@ -1175,30 +1175,80 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.fillStyle = `rgba(150, 255, 150, ${1 - progress})`;
                     ctx.fill();
                 });
-            } else if (effect.type === 'structure_formation') {
+            } else if (effect.type === 'bastion_formation') {
                 const progress = age / effect.duration;
-                // Use a curve that goes 0 -> 1 -> 0
-                const pulse = Math.sin(progress * Math.PI);
-                
-                ctx.globalAlpha = pulse * 0.8;
-                ctx.lineWidth = 4 + pulse * 4;
-                ctx.strokeStyle = effect.color;
-                
-                // Pulse lines
+                const pulse = Math.sin(progress * Math.PI); // Curve from 0 -> 1 -> 0
+                ctx.globalAlpha = pulse * 0.9;
+                ctx.lineWidth = 2 + pulse * 8; // Shield widens
+                ctx.strokeStyle = `rgba(173, 216, 230, ${pulse * 0.8})`; // Shield blue color
+                ctx.lineCap = 'round';
                 effect.line_ids.forEach(line_id => {
-                    const line = gameState.lines.find(l => l.id === line_id);
-                    if (line && gameState.points[line.p1_id] && gameState.points[line.p2_id]) {
-                        const p1 = gameState.points[line.p1_id];
-                        const p2 = gameState.points[line.p2_id];
+                    const line = currentGameState.lines.find(l => l.id === line_id);
+                    if (line && currentGameState.points[line.p1_id] && currentGameState.points[line.p2_id]) {
+                        const p1 = currentGameState.points[line.p1_id];
+                        const p2 = currentGameState.points[line.p2_id];
                         ctx.beginPath();
                         ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
                         ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
                         ctx.stroke();
                     }
                 });
-                
                 ctx.globalAlpha = 1.0;
+                ctx.lineCap = 'butt';
+            } else if (effect.type === 'monolith_formation') {
+                const progress = age / effect.duration;
+                const cx = (effect.center.x + 0.5) * cellSize;
+                const top_y = -20;
+                const ground_y = (effect.center.y + 0.5) * cellSize;
+                const beam_height = ground_y - top_y;
                 
+                // Animate beam descending
+                const current_bottom_y = top_y + beam_height * progress;
+
+                const gradient = ctx.createLinearGradient(cx, top_y, cx, current_bottom_y);
+                gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+                gradient.addColorStop(0.8, `rgba(255, 255, 255, ${1 - progress})`);
+                gradient.addColorStop(1, effect.color);
+
+                ctx.fillStyle = gradient;
+                ctx.fillRect(cx - 10, top_y, 20, current_bottom_y - top_y); // The beam
+                
+                // Impact ring on the ground
+                if (progress > 0.5) {
+                    const impact_progress = (progress - 0.5) * 2;
+                    ctx.beginPath();
+                    ctx.arc(cx, ground_y, 30 * impact_progress, 0, 2 * Math.PI);
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${1 - impact_progress})`;
+                    ctx.lineWidth = 3 * (1 - impact_progress);
+                    ctx.stroke();
+                }
+
+            } else if (effect.type === 'energy_spiral') {
+                const ease_progress = Math.sin(progress * Math.PI / 2); // Ease-out curve
+                const start_x = (effect.start.x + 0.5) * cellSize;
+                const start_y = (effect.start.y + 0.5) * cellSize;
+                const end_x = (effect.end.x + 0.5) * cellSize;
+                const end_y = (effect.end.y + 0.5) * cellSize;
+
+                const num_particles = 15;
+                for (let i = 0; i < num_particles; i++) {
+                    const particle_progress = (ease_progress + i / num_particles / 5) % 1.0;
+                    const current_x = start_x + (end_x - start_x) * particle_progress;
+                    const current_y = start_y + (end_y - start_y) * particle_progress;
+
+                    // Add swirl
+                    const swirl_angle = particle_progress * Math.PI * 4 + (i / num_particles * Math.PI * 2);
+                    const swirl_radius = Math.sin(particle_progress * Math.PI) * 20;
+                    
+                    const final_x = current_x + Math.cos(swirl_angle) * swirl_radius;
+                    const final_y = current_y + Math.sin(swirl_angle) * swirl_radius;
+
+                    ctx.beginPath();
+                    ctx.arc(final_x, final_y, 2, 0, 2 * Math.PI);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${1 - particle_progress})`;
+                    ctx.fill();
+                }
+
             } else if (effect.type === 'portal_link') {
                 const progress = age / effect.duration;
                 const p1_x = (effect.p1.x + 0.5) * cellSize;
@@ -1435,6 +1485,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: 1000
                 });
             }
+        },
+        'rune_shield_pulse': (details, gameState) => {
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'shield_pulse',
+                center: details.pulse_center,
+                radius_sq: details.pulse_radius_sq,
+                color: `rgba(173, 216, 230, 0.9)`,
+                startTime: Date.now(),
+                duration: 800,
+            });
         },
         'extend_line': (details, gameState) => {
             lastActionHighlights.points.add(details.new_point.id);
@@ -2053,6 +2114,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function getActionCategory(actionName) {
+        if (actionName.startsWith('rune_')) return 'Rune';
+        if (actionName.startsWith('expand_')) return 'Expand';
+        if (actionName.startsWith('fight_')) return 'Fight';
+        if (actionName.startsWith('fortify_') || actionName.startsWith('defend_') || actionName.startsWith('terraform_')) return 'Fortify / Defend';
+        if (actionName.startsWith('sacrifice_')) return 'Sacrifice';
+        return 'Other';
+    }
+
     function updateActionPreview(gameState) {
         const panel = document.getElementById('action-preview-panel');
         const content = document.getElementById('action-preview-content');
@@ -2076,7 +2146,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
         const fetchUrl = `/api/game/action_probabilities?teamId=${teamId}&include_invalid=${showInvalid}`;
     
-        // Fetch probabilities for the current team
         fetch(fetchUrl)
             .then(response => response.json())
             .then(data => {
@@ -2086,37 +2155,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
     
                 let html = `<h5 style="border-color:${data.color};">Now: ${data.team_name}'s Turn</h5>`;
-                if ((data.valid && data.valid.length > 0) || (data.invalid && data.invalid.length > 0)) {
-                    html += '<ul class="action-prob-list">';
-                    // Valid actions
-                    if (data.valid) {
-                        data.valid.forEach(action => {
-                            html += `
-                                <li>
-                                    <span>${action.display_name}</span>
-                                    <div class="action-prob-bar-container">
-                                        <div class="action-prob-bar" style="width: ${action.probability}%; background-color:${data.color};"></div>
-                                    </div>
-                                    <span class="action-prob-percent">${action.probability}%</span>
-                                </li>
-                            `;
-                        });
-                    }
-                    // Invalid actions
-                    if (data.invalid) {
-                        data.invalid.forEach(action => {
-                             html += `
-                                <li class="invalid-action" title="${action.reason}">
-                                    <span>${action.display_name}</span>
-                                    <div class="action-prob-bar-container"></div>
-                                </li>
-                            `;
-                        });
-                    }
-                    html += '</ul>';
-                } else {
-                    html += '<p>No valid actions found. Passing turn.</p>';
+    
+                const actionGroups = {
+                    'Fight': { valid: [], invalid: [] },
+                    'Expand': { valid: [], invalid: [] },
+                    'Fortify / Defend': { valid: [], invalid: [] },
+                    'Sacrifice': { valid: [], invalid: [] },
+                    'Rune': { valid: [], invalid: [] },
+                };
+    
+                if (data.valid) {
+                    data.valid.forEach(action => {
+                        const category = getActionCategory(action.name);
+                        if (actionGroups[category]) actionGroups[category].valid.push(action);
+                    });
                 }
+                if (data.invalid) {
+                     data.invalid.forEach(action => {
+                        const category = getActionCategory(action.name);
+                        if (actionGroups[category]) actionGroups[category].invalid.push(action);
+                    });
+                }
+    
+                let hasAnyActions = (data.valid && data.valid.length > 0) || (data.invalid && data.invalid.length > 0);
+
+                if (hasAnyActions) {
+                     for (const categoryName in actionGroups) {
+                        const group = actionGroups[categoryName];
+                        if (group.valid.length > 0 || group.invalid.length > 0) {
+                            html += `<div class="action-category"><h6>${categoryName}</h6><ul class="action-prob-list">`;
+                            group.valid.forEach(action => {
+                                html += `
+                                    <li>
+                                        <span>${action.display_name}</span>
+                                        <div class="action-prob-bar-container">
+                                            <div class="action-prob-bar" style="width: ${action.probability}%; background-color:${data.color};"></div>
+                                        </div>
+                                        <span class="action-prob-percent">${action.probability}%</span>
+                                    </li>
+                                `;
+                            });
+                            group.invalid.forEach(action => {
+                                html += `
+                                    <li class="invalid-action" title="${action.reason}">
+                                        <span>${action.display_name}</span>
+                                        <div class="action-prob-bar-container"></div>
+                                    </li>
+                                `;
+                            });
+                            html += '</ul></div>';
+                        }
+                     }
+                } else {
+                     html += '<p>No valid actions found. Passing turn.</p>';
+                }
+    
                 content.innerHTML = html;
             })
             .catch(err => {

@@ -199,12 +199,12 @@ class Game:
         'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25, 'fight_purify_territory': 28,
         'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_form_purifier': 18, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'fortify_build_wonder': 100,
         'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'sacrifice_phase_shift': 5, 'defend_shield': 8,
-        'rune_shoot_bisector': 25, 'rune_area_shield': 20, 'rune_impale': 30, 'rune_hourglass_stasis': 20
+        'rune_shoot_bisector': 25, 'rune_area_shield': 20, 'rune_shield_pulse': 22, 'rune_impale': 30, 'rune_hourglass_stasis': 20
     }
     TRAIT_MULTIPLIERS = {
-        'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0, 'rune_hourglass_stasis': 0.5},
+        'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0, 'rune_hourglass_stasis': 0.5, 'rune_shield_pulse': 0.5},
         'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5, 'sacrifice_phase_shift': 2.0},
-        'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'rune_area_shield': 3.0, 'rune_hourglass_stasis': 2.0},
+        'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'rune_area_shield': 3.0, 'rune_hourglass_stasis': 2.0, 'rune_shield_pulse': 2.5},
         'Balanced':   {}
     }
     ACTION_DESCRIPTIONS = {
@@ -213,7 +213,7 @@ class Game:
         'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
         'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder",
         'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'defend_shield': "Shield Line",
-        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam"
+        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam"
     }
 
 
@@ -1024,33 +1024,48 @@ class Game:
         if not team_lines:
             return {'success': False, 'reason': 'no lines to sacrifice'}
 
-        # Prioritize sacrificing lines whose points are not part of critical structures
+        # --- Enhanced eligibility check for line sacrifice ---
+        team_point_ids = self.get_team_point_ids(teamId)
+        adj_degree = {pid: 0 for pid in team_point_ids}
+        for line in team_lines:
+            if line['p1_id'] in adj_degree: adj_degree[line['p1_id']] += 1
+            if line['p2_id'] in adj_degree: adj_degree[line['p2_id']] += 1
+
+        # Get IDs of points in critical structures
         fortified_point_ids = self._get_fortified_point_ids()
         bastion_point_ids = self._get_bastion_point_ids()
         monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m.get('point_ids', [])}
         nexus_point_ids = {pid for nexus_list in self.state.get('nexuses', {}).values() for nexus in nexus_list for pid in nexus.get('point_ids', [])}
-        
         critical_point_ids = fortified_point_ids.union(
-            bastion_point_ids['cores'],
-            bastion_point_ids['prongs'],
-            monolith_point_ids,
-            nexus_point_ids
+            bastion_point_ids['cores'], bastion_point_ids['prongs'],
+            monolith_point_ids, nexus_point_ids
         )
 
+        # 1. Prefer lines that are not part of critical structures AND are not "bridges"
         eligible_lines = [
-            line for line in team_lines 
-            if line['p1_id'] not in critical_point_ids and line['p2_id'] not in critical_point_ids
+            line for line in team_lines
+            if adj_degree.get(line['p1_id'], 0) > 1 and \
+               adj_degree.get(line['p2_id'], 0) > 1 and \
+               line['p1_id'] not in critical_point_ids and \
+               line['p2_id'] not in critical_point_ids
         ]
 
-        # As a fallback, allow any line if no "safe" lines are available, but only if the team has more than 2 points to avoid self-destruction
+        # 2. Fallback to any non-critical line (could be a bridge)
         if not eligible_lines:
-            if len(self.get_team_point_ids(teamId)) > 2:
+            eligible_lines = [
+                line for line in team_lines
+                if line['p1_id'] not in critical_point_ids and line['p2_id'] not in critical_point_ids
+            ]
+
+        # 3. Final fallback to any line if the team is robust enough
+        if not eligible_lines:
+            if len(team_point_ids) > 3: # Higher threshold for this risky move
                 eligible_lines = team_lines
             else:
-                return {'success': False, 'reason': 'no non-critical lines to sacrifice for phase shift'}
+                return {'success': False, 'reason': 'no non-critical/safe lines to sacrifice'}
 
         line_to_sac = random.choice(eligible_lines)
-        
+
         # Choose one of the two endpoints to move
         p_to_move_id, _ = random.choice([
             (line_to_sac['p1_id'], line_to_sac['p2_id']),
@@ -2690,6 +2705,68 @@ class Game:
             'rune_triangle_ids': rune['triangle_ids']
         }
 
+    def rune_action_shield_pulse(self, teamId):
+        """[RUNE ACTION]: Uses a Shield Rune to push nearby enemies away."""
+        active_shield_runes = self.state.get('runes', {}).get(teamId, {}).get('shield', [])
+        if not active_shield_runes:
+            return {'success': False, 'reason': 'no active Shield Runes'}
+
+        rune = random.choice(active_shield_runes)
+        points = self.state['points']
+        
+        all_rune_pids = rune['triangle_ids'] + [rune['core_id']]
+        if not all(pid in points for pid in all_rune_pids):
+            return {'success': False, 'reason': 'rune point no longer exists'}
+            
+        tri_points = [points[pid] for pid in rune['triangle_ids']]
+        if len(tri_points) != 3:
+            return {'success': False, 'reason': 'invalid Shield Rune geometry'}
+        
+        rune_center = self._points_centroid(tri_points)
+        if not rune_center:
+            return {'success': False, 'reason': 'could not calculate rune center'}
+
+        pulse_radius_sq = (self.state['grid_size'] * 0.3)**2
+        push_distance = 3.0
+        grid_size = self.state['grid_size']
+
+        enemy_points_in_range = [
+            p for p in self.state['points'].values() 
+            if p['teamId'] != teamId and distance_sq(rune_center, p) < pulse_radius_sq
+        ]
+
+        if not enemy_points_in_range:
+            return {'success': False, 'reason': 'no enemy points in pulse range'}
+
+        pushed_points = []
+        for point in enemy_points_in_range:
+            dx = point['x'] - rune_center['x']
+            dy = point['y'] - rune_center['y']
+            dist = math.sqrt(dx**2 + dy**2)
+            
+            if dist < 0.1: continue # Don't move points already at the center
+
+            # Normalized push vector
+            push_vx = dx / dist
+            push_vy = dy / dist
+
+            new_x = point['x'] + push_vx * push_distance
+            new_y = point['y'] + push_vy * push_distance
+            
+            # Update point position, clamping to grid
+            point['x'] = round(max(0, min(grid_size - 1, new_x)))
+            point['y'] = round(max(0, min(grid_size - 1, new_y)))
+            pushed_points.append(point.copy())
+
+        return {
+            'success': True,
+            'type': 'rune_shield_pulse',
+            'pushed_points_count': len(pushed_points),
+            'rune_points': all_rune_pids,
+            'pulse_center': rune_center,
+            'pulse_radius_sq': pulse_radius_sq
+        }
+
     def rune_action_impale(self, teamId):
         """[RUNE ACTION]: Fires a powerful, shield-piercing beam from a Trident Rune, hitting multiple lines."""
         active_trident_runes = self.state.get('runes', {}).get(teamId, {}).get('trident', [])
@@ -2798,6 +2875,7 @@ class Game:
             'sacrifice_phase_shift': (lambda: num_team_lines > 0, "Requires a line to sacrifice."),
             'rune_shoot_bisector': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])), "Requires an active V-Rune."),
             'rune_area_shield': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('shield', [])), "Requires an active Shield Rune."),
+            'rune_shield_pulse': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('shield', [])), "Requires an active Shield Rune."),
             'rune_impale': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('trident', [])), "Requires an active Trident Rune."),
             'rune_hourglass_stasis': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('hourglass', [])), "Requires an active Hourglass Rune."),
             'rune_starlight_cascade': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('star', [])), "Requires an active Star Rune."),
@@ -2955,6 +3033,7 @@ class Game:
             'defend_shield': self.shield_action_protect_line,
             'rune_shoot_bisector': self.rune_action_shoot_bisector,
             'rune_area_shield': self.rune_action_area_shield,
+            'rune_shield_pulse': self.rune_action_shield_pulse,
             'rune_impale': self.rune_action_impale,
             'rune_hourglass_stasis': self.rune_action_hourglass_stasis,
             'rune_starlight_cascade': self.rune_action_starlight_cascade,
@@ -3307,6 +3386,7 @@ class Game:
             'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
             'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
             'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
+            'rune_shield_pulse': lambda r: (f"unleashed a shockwave from a Shield Rune, pushing back {r['pushed_points_count']} enemy points.", "[PULSE!]"),
             'rune_impale': lambda r: (f"fired a piercing blast from a Trident Rune, destroying {len(r['destroyed_lines'])} lines.", "[IMPALE!]"),
             'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from Team {self.state['teams'][r['target_point']['teamId']]['name']} in time.", "[STASIS!]"),
             'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),
