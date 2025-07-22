@@ -10,11 +10,10 @@ main_routes = Blueprint('main', __name__)
 
 @main_routes.route('/')
 def index():
-    # The game is reset when a new game is started via the API,
-    # so we don't need to reset it here anymore.
-    # This allows refreshing the page without losing state, which can be useful.
-    # A hard reset button is provided on the frontend.
-    return render_template('index.html')
+    """Serves the main index.html file from the project root."""
+    # current_app.root_path is the 'game_app' directory. We go one level up.
+    project_root = os.path.abspath(os.path.join(current_app.root_path, '..'))
+    return send_from_directory(project_root, 'index.html')
 
 @main_routes.route('/api/check_updates', methods=['GET'])
 def check_updates():
