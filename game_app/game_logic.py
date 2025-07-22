@@ -164,6 +164,7 @@ class Game:
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
             "runes": {}, # {teamId: {'cross': [], 'v_shape': []}}
+            "sentries": {}, # {teamId: [sentry1, sentry2, ...]}
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
             "prisms": {}, # {teamId: [prism1, prism2, ...]}
@@ -182,7 +183,8 @@ class Game:
             "initial_state": None, # Store the setup config for restarts
             "new_turn_events": [], # For visualizing things that happen at turn start
             "action_in_turn": 0, # Which action index in the current turn's queue
-            "actions_queue_this_turn": [] # List of action dicts {teamId, is_bonus} for the current turn
+            "actions_queue_this_turn": [], # List of action dicts {teamId, is_bonus} for the current turn
+            "action_events": [] # For visualizing secondary effects of an action
         }
 
     def get_state(self):
@@ -356,15 +358,76 @@ class Game:
                     bastion_lines.add(all_lines_by_points[line_key])
         return bastion_lines
 
-    def _delete_point_and_connections(self, point_id):
+    def _trigger_nexus_detonation(self, nexus, aggressor_team_id):
+        """Handles the logic for a Nexus exploding when one of its points is destroyed."""
+        center = nexus['center']
+        radius_sq = (self.state['grid_size'] * 0.2)**2
+        nexus_owner_teamId = nexus['teamId']
+        nexus_owner_name = self.state['teams'][nexus_owner_teamId]['name']
+        aggressor_name = self.state['teams'][aggressor_team_id]['name'] if aggressor_team_id and aggressor_team_id in self.state['teams'] else "an unknown force"
+
+        log_msg = f"The destruction of a Nexus from Team {nexus_owner_name} by Team {aggressor_name} caused a violent energy discharge!"
+        self.state['game_log'].append({'message': log_msg, 'short_message': '[NEXUS BOOM!]', 'teamId': nexus_owner_teamId})
+        self.state['action_events'].append({
+            'type': 'nexus_detonation',
+            'center': center,
+            'radius_sq': radius_sq,
+            'color': self.state['teams'][nexus_owner_teamId]['color']
+        })
+
+        points_to_destroy_ids = []
+        lines_to_destroy = []
+        # Target enemies of the nexus owner
+        for pid, p in list(self.state['points'].items()):
+            if p['teamId'] != nexus_owner_teamId and distance_sq(center, p) < radius_sq:
+                points_to_destroy_ids.append(pid)
+
+        for line in list(self.state['lines']):
+            if line['teamId'] != nexus_owner_teamId:
+                p1 = self.state['points'].get(line['p1_id'])
+                p2 = self.state['points'].get(line['p2_id'])
+                if p1 and p2 and (distance_sq(center, p1) < radius_sq or distance_sq(center, p2) < radius_sq):
+                    lines_to_destroy.append(line)
+        
+        destroyed_points_count = 0
+        for pid in points_to_destroy_ids:
+            if pid in self.state['points']:
+                self._delete_point_and_connections(pid, aggressor_team_id)
+                destroyed_points_count += 1
+        
+        destroyed_lines_count = 0
+        for line in lines_to_destroy:
+            if line in self.state['lines']:
+                self.state['lines'].remove(line)
+                self.state['shields'].pop(line.get('id'), None)
+                destroyed_lines_count += 1
+
+        if destroyed_points_count > 0 or destroyed_lines_count > 0:
+            log_msg = f"The blast destroyed {destroyed_points_count} points and {destroyed_lines_count} lines."
+            self.state['game_log'].append({'message': log_msg, 'short_message': '[CASCADE]', 'teamId': nexus_owner_teamId})
+
+    def _delete_point_and_connections(self, point_id, aggressor_team_id=None):
         """A robust helper to delete a point and handle all cascading effects."""
         if point_id not in self.state['points']:
             return None # Point already gone
 
-        # 1. Delete the point object itself, returning its data
+        # 1. Pre-deletion checks for cascades
+        # Check for Nexus destruction. A point can only belong to one nexus.
+        nexus_to_detonate = None
+        all_nexuses = [n for team_nexuses in self.state.get('nexuses', {}).values() for n in team_nexuses]
+        for nexus in all_nexuses:
+            if point_id in nexus.get('point_ids', []):
+                nexus_to_detonate = nexus
+                break
+        
+        # 2. Delete the point object itself, returning its data
         deleted_point_data = self.state['points'].pop(point_id)
 
-        # 2. Remove connected lines (and their shields)
+        # 3. Trigger cascade effects AFTER the point is deleted
+        if nexus_to_detonate and aggressor_team_id:
+            self._trigger_nexus_detonation(nexus_to_detonate, aggressor_team_id)
+
+        # 4. Remove connected lines (and their shields)
         lines_before = self.state['lines'][:]
         self.state['lines'] = []
         for l in lines_before:
@@ -373,13 +436,13 @@ class Game:
             else:
                 self.state['lines'].append(l)
 
-        # 3. Remove territories that used this point
+        # 5. Remove territories that used this point
         self.state['territories'] = [t for t in self.state['territories'] if point_id not in t['point_ids']]
 
-        # 4. Handle anchors
+        # 6. Handle anchors
         self.state['anchors'].pop(point_id, None)
 
-        # 5. Handle bastions
+        # 7. Handle bastions
         bastions_to_dissolve = []
         for bastion_id, bastion in list(self.state['bastions'].items()):
             if bastion['core_id'] == point_id:
@@ -698,7 +761,7 @@ class Game:
         connected_lines_before = [l for l in self.state['lines'] if sac_point_id in (l['p1_id'], l['p2_id'])]
         
         # 1. Sacrifice the point and its direct connections/structures
-        self._delete_point_and_connections(sac_point_id)
+        self._delete_point_and_connections(sac_point_id, aggressor_team_id=teamId)
         
         # 2. Find and remove nearby enemy lines that still exist
         lines_to_remove_by_proximity = []
@@ -757,7 +820,7 @@ class Game:
         sac_point_coords = self.state['points'][p_to_sac_id].copy()
         
         # Sacrifice the point
-        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id)
+        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
         if not sacrificed_point_data:
              return {'success': False, 'reason': 'failed to sacrifice point'}
 
@@ -1167,7 +1230,7 @@ class Game:
         for pid in all_points_to_sac_ids:
             # Note: _delete_point_and_connections also removes connected lines,
             # so we don't need to worry about them separately.
-            sac_data = self._delete_point_and_connections(pid)
+            sac_data = self._delete_point_and_connections(pid, aggressor_team_id=teamId)
             if sac_data:
                 sacrificed_points_data.append(sac_data)
 
@@ -1297,7 +1360,7 @@ class Game:
         p_to_sac_id, p_to_anchor_id = random.sample(team_point_ids, 2)
         
         # 1. Sacrifice the first point using the robust helper
-        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id)
+        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
         if not sacrificed_point_data:
              return {'success': False, 'reason': 'failed to sacrifice point'}
 
@@ -1381,7 +1444,7 @@ class Game:
         # 1. Sacrifice a prong point using the robust helper.
         # This also updates the bastion state (removes prong, may dissolve bastion).
         prong_to_sac_id = random.choice(bastion_to_pulse['prong_ids'])
-        sacrificed_prong_data = self._delete_point_and_connections(prong_to_sac_id)
+        sacrificed_prong_data = self._delete_point_and_connections(prong_to_sac_id, aggressor_team_id=teamId)
 
         if not sacrificed_prong_data: # Should not happen, but defensive
             return {'success': False, 'reason': 'selected prong point does not exist'}
@@ -1502,7 +1565,7 @@ class Game:
         target_point = min(possible_targets, key=lambda p: distance_sq(p_eye, p))
 
         # Destroy the point and all its connections
-        destroyed_point_data = self._delete_point_and_connections(target_point['id'])
+        destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
         if not destroyed_point_data:
             return {'success': False, 'reason': 'failed to destroy target point'}
 
@@ -1534,7 +1597,7 @@ class Game:
         p_to_sac_id = random.choice(chosen_conduit['internal_point_ids'])
 
         # 2. Sacrifice the point. Its data is returned.
-        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id)
+        sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
         if not sacrificed_point_data:
              return {'success': False, 'reason': 'failed to sacrifice conduit point'}
 
@@ -1569,7 +1632,7 @@ class Game:
         )
         
         # 4. Destroy the target
-        destroyed_point_data = self._delete_point_and_connections(closest_enemy['id'])
+        destroyed_point_data = self._delete_point_and_connections(closest_enemy['id'], aggressor_team_id=teamId)
         if not destroyed_point_data:
             return {'success': False, 'reason': 'failed to destroy target point'}
             
@@ -1639,7 +1702,7 @@ class Game:
         chosen_pincer = random.choice(possible_pincers)
         target_point = chosen_pincer['target_point']
 
-        destroyed_point_data = self._delete_point_and_connections(target_point['id'])
+        destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
         if not destroyed_point_data:
             return {'success': False, 'reason': 'failed to destroy target point'}
         
@@ -2262,6 +2325,8 @@ class Game:
         if self.state['game_phase'] != 'RUNNING':
             return
 
+        self.state['action_events'] = [] # Clear events from the previous action
+
         # Check if we need to start a new turn
         if not self.state.get('actions_queue_this_turn') or self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
             self._start_new_turn()
@@ -2315,7 +2380,12 @@ class Game:
             # This 'else' belongs to the 'for' loop, running if it finishes without a 'break'
             result = {'success': False, 'reason': 'all attempted actions failed'}
             
-        self.state['last_action_details'] = result if result.get('success') else {}
+        if result.get('success'):
+            if self.state['action_events']:
+                result['action_events'] = self.state['action_events'][:]
+            self.state['last_action_details'] = result
+        else:
+            self.state['last_action_details'] = {}
         
         # --- Log the final result using the new helper method ---
         log_message = f"Team {team_name} "

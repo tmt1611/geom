@@ -677,7 +677,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const progress = age / effect.duration;
 
-            if (effect.type === 'monolith_wave') {
+            if (effect.type === 'nexus_detonation') {
+                ctx.beginPath();
+                ctx.arc(
+                    (effect.center.x + 0.5) * cellSize,
+                    (effect.center.y + 0.5) * cellSize,
+                    Math.sqrt(effect.radius_sq) * cellSize * progress, // Radius grows
+                    0, 2 * Math.PI
+                );
+                ctx.strokeStyle = effect.color;
+                ctx.globalAlpha = (1 - progress);
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+            } else if (effect.type === 'monolith_wave') {
                 const progress = age / effect.duration;
                 ctx.beginPath();
                 ctx.arc(
@@ -874,6 +887,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function processActionVisuals(gameState) {
         const details = gameState.last_action_details;
         if (!details || !details.type) return;
+
+        // Process secondary visual events first
+        if (details.action_events) {
+            details.action_events.forEach(event => {
+                if (event.type === 'nexus_detonation') {
+                    visualEffects.push({
+                        type: 'nexus_detonation',
+                        center: event.center,
+                        radius_sq: event.radius_sq,
+                        color: event.color,
+                        startTime: Date.now(),
+                        duration: 900 // ms
+                    });
+                }
+            });
+        }
 
         // Clear previous highlights
         clearTimeout(lastActionHighlights.clearTimeout);

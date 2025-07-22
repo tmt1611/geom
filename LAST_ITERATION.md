@@ -1,24 +1,22 @@
-This iteration focuses on expanding the strategic depth of the game by introducing a new defensive structure, the Monolith, and improving underlying code quality.
+This iteration introduces a significant new strategic and visual element: **Nexus Detonations**. This feature enhances the "auto-battle sandbox" aspect of the game by creating opportunities for spectacular chain reactions, making the battlefield more dynamic and visually engaging.
 
-### 1. New Structure: The Monolith
+### 1. New Mechanic: Nexus Detonation
 
--   **Files**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
--   **Change**: A new defensive structure, the **Monolith**, has been added.
-    -   **Formation**: Teams can now perform the `[FORTIFY] Form Monolith` action, which converts four of their points into a Monolith if they form a tall, thin rectangle with connected perimeter lines.
-    -   **Effect**: Every few turns, the Monolith emits a "Resonance Wave". This wave **empowers** all friendly lines within its radius, allowing them to absorb one or more attacks before being destroyed. This introduces a new layer of defense and encourages strategic positioning.
-    -   **Visuals**: Monoliths, their points, empowered lines, and the resonance wave all have unique visual representations on the canvas, enhancing the visual feedback and spectacle of the game.
+-   **Files**: `game_app/game_logic.py`, `static/js/main.js`
+-   **Change**: Nexuses, the economic powerhouses of a team, are now volatile. When a point that is part of a Nexus is destroyed, the Nexus detonates in a violent energy discharge.
+-   **Effect**: The detonation creates a shockwave centered on the former Nexus. This shockwave destroys any nearby enemy points and lines, potentially triggering further cascades if another structure is hit. This turns Nexuses into high-risk, high-reward structures and key strategic targets.
+-   **Visuals**: A new visual effect has been added for the detonation—an expanding shockwave of the Nexus owner's color—clearly signaling the cause of the secondary destruction on the battlefield.
 
-### 2. Code Quality: Refactoring Geometry Helpers
-
--   **File**: `game_app/game_logic.py`
--   **Change**: The `is_square()` helper function has been replaced with a more versatile `is_rectangle()` function. This new function not only checks if four points form a rectangle but also returns their aspect ratio.
--   **Benefit**: This refactoring simplifies the codebase. The `is_rectangle()` function is now used for multiple checks:
-    -   Detecting squares for **Nexus** formations (aspect ratio ≈ 1).
-    -   Detecting tall rectangles for the new **Monolith** formation (aspect ratio > 3).
-    -   This makes the geometric detection logic more robust, reusable, and easier to extend in the future.
-
-### 3. Gameplay Tuning: Attack Logic
+### 2. Code Refactoring & Quality Improvement
 
 -   **File**: `game_app/game_logic.py`
--   **Change**: The `fight_action_attack_line` logic was updated to account for the new "Empowered" line status from Monoliths.
--   **Benefit**: Instead of being destroyed, an empowered line now absorbs the hit, reducing its empowerment level. This creates more interesting tactical interactions where players must decide whether to focus fire on empowered lines or attack weaker targets. The action result and game log now reflect this new outcome ("damaged" vs. "destroyed").
+-   **Change**: The core point destruction function, `_delete_point_and_connections`, was refactored to handle the new cascade logic cleanly. It now accepts an `aggressor_team_id` to correctly attribute the destruction and its side effects.
+-   **Benefit**: This change centralizes the logic for secondary effects. Instead of adding checks to every single attack action, the cascade logic is handled in one place, making the code more robust and easier to maintain. All actions that destroy points were updated to use this improved function.
+
+### 3. State Management and Event Handling
+
+-   **File**: `game_app/game_logic.py`
+-   **Change**: A new `action_events` list was added to the game state. This list is used to communicate secondary visual effects (like the Nexus Detonation) from the backend to the frontend for a single action.
+-   **Benefit**: This provides a structured way to handle complex visual sequences that result from a single game action, ensuring the UI can accurately represent everything that happened in the correct order. The state is cleared after each action, keeping it clean and preventing bleed-over between turns.
+
+These changes directly address the user's request to make the final picture "more interesting or visually stunning" by introducing dramatic, geometry-based chain reactions that can drastically alter the state of the game in a single, explosive moment.
