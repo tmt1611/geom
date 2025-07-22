@@ -1,37 +1,16 @@
-This iteration focuses on a significant code cleanup by refactoring the monolithic `game_logic.py` file, and continues the expansion of the Action Guide with new illustrations and animations.
+This iteration focuses on a significant refactoring and cleanup of `game_logic.py` to improve its structure, readability, and efficiency, and to fix a critical bug.
 
-### 1. Code Refactoring and Organization
+### 1. Code Cleanup & Refactoring in `game_logic.py`
 
-To improve maintainability and readability, the game's logic has been broken down into more specialized modules.
+The main `Game` class has been substantially improved through the following changes:
 
-- **`game_app/geometry.py` Integration:**
-  - The generic, stateless geometric helper functions (like `distance_sq`, `is_rectangle`) were previously duplicated in both `game_logic.py` and `geometry.py`. This duplication has been removed.
-  - `game_logic.py` now imports these functions directly from `geometry.py`, making the geometry module the single source of truth for these utilities.
+- **Fixed Bug:** A critical bug was fixed where the `FormationManager` was being used without ever being initialized in the `Game` class. An instance is now correctly created in the `__init__` method, restoring the functionality of all rune and structure detection.
+- **Removed Dead Code:** Over 400 lines of redundant and unused `_check_*_rune` methods were deleted from the `Game` class. This logic was correctly delegated to the `FormationManager` in a previous iteration, but the old methods had been left behind. Their removal greatly simplifies the file.
+- **Refactored Action Dispatching:** The large `action_map` dictionary, which was previously created on every call to the `_choose_action_for_team` method, has been moved to a class-level constant `ACTION_MAP`. The method now uses this constant and `getattr` for a cleaner and more efficient implementation.
+- **Refactored Log Generation:** The even larger `log_generators` dictionary inside the `_get_action_log_messages` method was refactored:
+    - It was moved to a class-level constant `ACTION_LOG_GENERATORS`, decluttering the method body.
+    - Lambdas inside the dictionary that required access to the `Game` instance (`self`) were made stateless. This was achieved by modifying the action methods themselves to include necessary data (like team names) in their result dictionaries.
+    - This change simplifies the `_get_action_log_messages` method to a simple dictionary lookup and makes the log generation system more modular.
+- **Improved Action Results:** To support the log generation refactoring, several action methods were updated to return more context in their results (e.g., the name of an affected enemy team).
 
-- **`game_app/formations.py` (New File):**
-  - A new `FormationManager` class has been created in this file.
-  - Its responsibility is to detect all complex geometric structures on the board, such as Runes (V-Rune, Shield-Rune, etc.), Prisms, Nexuses, and Trebuchets.
-  - Over 15 methods related to structure detection were moved from the main `Game` class into this manager, significantly reducing the size and complexity of `game_logic.py`.
-  - The `Game` class now holds an instance of `FormationManager` and delegates all formation-checking tasks to it, resulting in cleaner, more organized code.
-
-- **`game_logic.py` (Refactored):**
-  - The file is now much shorter and more focused on the core game loop and action execution.
-  - It now imports from the new `geometry` and `formations` modules.
-
-- **Supporting Files (`utils.py`, `api.js`):**
-  - Both files were updated to recognize the new Python modules (`geometry.py`, `formations.py`). This ensures that the live-update checker and the Pyodide (in-browser) version of the game continue to function correctly.
-
-### 2. New Action Illustrations and Animations
-
-The "Action Guide" continues to be a priority. Five new illustrations and their corresponding animations have been added to provide better visual feedback to the user.
-
-- **`static/js/main.js`**:
-  - The `illustrationDrawers` object, which powers the Action Guide, now includes drawings for:
-    - `fortify_cultivate_heartwood`: Shows the sacrifice of a star-like formation to create a central Heartwood.
-    - `fortify_form_purifier`: Illustrates the formation of a perfect pentagon structure.
-    - `fight_launch_payload`: Depicts a kite-shaped Trebuchet firing an arcing projectile.
-    - `rune_hourglass_stasis`: Visualizes an hourglass rune freezing an enemy point in a cage of light.
-    - `sacrifice_rift_trap`: Shows a point imploding to leave behind a latent, shimmering trap.
-  - The `actionVisualsMap` object has been updated with new animation handlers for these actions, reusing and extending the existing animation system for effects like projectile arcs, implosions, and flashes.
-
-This refactoring makes the project's structure more scalable for future development, while the new visuals continue to enrich the user's understanding of the game's complex mechanics.
+These changes make `game_logic.py` shorter, cleaner, more efficient, and easier to maintain, while also fixing a significant bug related to formation detection.

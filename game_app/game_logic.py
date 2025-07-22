@@ -90,8 +90,138 @@ class Game:
         'rune_t_hammer_slam': "A T-Rune sacrifices its 'head' point to create a shockwave along its 'stem', pushing all nearby points away perpendicularly. If no points are hit, it reinforces its own stem lines."
     }
 
+    ACTION_MAP = {
+        'expand_add': 'expand_action_add_line',
+        'expand_extend': 'expand_action_extend_line',
+        'expand_grow': 'expand_action_grow_line',
+        'expand_fracture': 'expand_action_fracture_line',
+        'expand_spawn': 'expand_action_spawn_point',
+        'expand_orbital': 'expand_action_create_orbital',
+        'fight_attack': 'fight_action_attack_line',
+        'fight_convert': 'fight_action_convert_point',
+        'fight_pincer_attack': 'fight_action_pincer_attack',
+        'fight_territory_strike': 'fight_action_territory_strike',
+        'fight_bastion_pulse': 'fight_action_bastion_pulse',
+        'fight_chain_lightning': 'fight_action_chain_lightning',
+        'fight_refraction_beam': 'fight_action_refraction_beam',
+        'fight_launch_payload': 'fight_action_launch_payload',
+        'fight_sentry_zap': 'fight_action_sentry_zap',
+        'fight_purify_territory': 'fight_action_purify_territory',
+        'fortify_claim': 'fortify_action_claim_territory',
+        'fortify_anchor': 'fortify_action_create_anchor',
+        'fortify_mirror': 'fortify_action_mirror_structure',
+        'fortify_form_bastion': 'fortify_action_form_bastion',
+        'fortify_form_monolith': 'fortify_action_form_monolith',
+        'fortify_form_purifier': 'fortify_action_form_purifier',
+        'fortify_cultivate_heartwood': 'fortify_action_cultivate_heartwood',
+        'fortify_form_rift_spire': 'fortify_action_form_rift_spire',
+        'terraform_create_fissure': 'terraform_action_create_fissure',
+        'terraform_raise_barricade': 'terraform_action_raise_barricade',
+        'fortify_build_wonder': 'fortify_action_build_chronos_spire',
+        'sacrifice_nova': 'sacrifice_action_nova_burst',
+        'sacrifice_whirlpool': 'sacrifice_action_create_whirlpool',
+        'sacrifice_phase_shift': 'sacrifice_action_phase_shift',
+        'sacrifice_rift_trap': 'sacrifice_action_rift_trap',
+        'defend_shield': 'shield_action_protect_line',
+        'rune_shoot_bisector': 'rune_action_shoot_bisector',
+        'rune_area_shield': 'rune_action_area_shield',
+        'rune_shield_pulse': 'rune_action_shield_pulse',
+        'rune_impale': 'rune_action_impale',
+        'rune_hourglass_stasis': 'rune_action_hourglass_stasis',
+        'rune_starlight_cascade': 'rune_action_starlight_cascade',
+        'rune_focus_beam': 'rune_action_focus_beam',
+        'rune_t_hammer_slam': 'rune_action_t_hammer_slam',
+        'rune_cardinal_pulse': 'rune_action_cardinal_pulse',
+        'rune_parallel_discharge': 'rune_action_parallel_discharge'
+    }
+
+    ACTION_LOG_GENERATORS = {
+        'add_line_fizzle_strengthen': lambda r: ("could not add a new line, and instead reinforced an existing one.", "[ADD->REINFORCE]"),
+        'extend_fizzle_strengthen': lambda r: ("tried to extend a line but couldn't, so it reinforced an existing line instead.", "[EXTEND->REINFORCE]"),
+        'fracture_fizzle_strengthen': lambda r: ("could not find a line to fracture, and instead reinforced one.", "[FRACTURE->REINFORCE]"),
+        'add_line': lambda r: ("connected two points.", "[+LINE]"),
+        'extend_line': lambda r: (
+            f"extended a line to the border, creating a new point{' with an empowered Conduit extension!' if r.get('is_empowered') else '.'}",
+            "[RAY!]" if r.get('is_empowered') else "[EXTEND]"
+        ),
+        'grow_line': lambda r: ("grew a new branch, creating a new point.", "[GROW]"),
+        'fracture_line': lambda r: ("fractured a line, creating a new point.", "[FRACTURE]"),
+        'spawn_point': lambda r: ("spawned a new point from an existing one.", "[SPAWN]"),
+        'create_orbital': lambda r: (f"created an orbital structure with {len(r['new_points'])} new points.", "[ORBITAL]"),
+        'orbital_fizzle_strengthen': lambda r: (f"failed to form an orbital and instead reinforced {len(r['strengthened_lines'])} lines around a central point.", "[ORBITAL->REINFORCE]"),
+        'attack_line': lambda r: (
+            f"attacked and destroyed a line from Team {r['destroyed_team']}{', bypassing its shield with a Cross Rune!' if r.get('bypassed_shield') else '.'}",
+            "[PIERCE!]" if r.get('bypassed_shield') else "[ATTACK]"
+        ),
+        'attack_miss_spawn': lambda r: ("launched an attack that missed, but the energy coalesced into a new point on the border.", "[ATTACK->SPAWN]"),
+        'attack_line_strengthened': lambda r: ("attacked a strengthened line, weakening its defenses.", "[DAMAGE]"),
+        'convert_point': lambda r: (f"sacrificed a line to convert a point from Team {r['original_team_name']}.", "[CONVERT]"),
+        'convert_fizzle_push': lambda r: (f"attempted to convert a point but found no targets, instead unleashing a pulse that pushed back {r['pushed_points_count']} enemies.", "[CONVERT->PUSH]"),
+        'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
+        'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION!]"),
+        'monolith_fizzle_reinforce': lambda r: (f"failed to form a Monolith and instead reinforced the {len(r['strengthened_lines'])} lines of a potential structure.", "[MONOLITH->REINFORCE]"),
+        'form_monolith': lambda r: ("erected a resonant Monolith from a pillar of light.", "[MONOLITH]"),
+        'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
+        'purify_territory': lambda r: (f"unleashed its Purifier, cleansing a territory from Team {r['cleansed_team_name']}.", "[PURIFY!]"),
+        'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
+        'build_chronos_spire': lambda r: (f"sacrificed {r['sacrificed_points_count']} points to construct the Chronos Spire, a path to victory!", "[WONDER!]"),
+        'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
+        'bastion_pulse_fizzle_shockwave': lambda r: (f"attempted a bastion pulse that fizzled, instead creating a shockwave that pushed {r['pushed_points_count']} points.", "[PULSE->FIZZLE]"),
+        'bastion_fizzle_reinforce': lambda r: (f"failed to form a Bastion and instead reinforced {len(r['strengthened_lines'])} lines around a key defensive point.", "[BASTION->REINFORCE]"),
+        'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
+        'mirror_fizzle_strengthen': lambda r: (f"attempted to mirror its structure, but instead reinforced {len(r['strengthened_lines'])} connected lines.", "[MIRROR->REINFORCE]"),
+        'create_anchor': lambda r: ("sacrificed a point to create a gravitational anchor.", "[ANCHOR]"),
+        'nova_burst': lambda r: (f"sacrificed a point in a nova burst, destroying {r['lines_destroyed']} lines.", "[NOVA]"),
+        'nova_shockwave': lambda r: (f"sacrificed a point in a shockwave, pushing back {r['pushed_points_count']} nearby points.", "[SHOCKWAVE]"),
+        'spawn_fizzle_strengthen': lambda r: ("could not find a place to spawn a new point, and instead reinforced an existing line.", "[SPAWN->REINFORCE]"),
+        'whirlpool_fizzle_fissure': lambda r: ("sacrificed a point to open a whirlpool, but with no targets in range, it collapsed into a temporary fissure.", "[WHIRLPOOL->FIZZLE]"),
+        'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
+        'shield_overcharge': lambda r: (f"could not shield a new line, and instead overcharged an existing shield to last for {r['new_duration']} turns.", "[OVERCHARGE]"),
+        'grow_fizzle_strengthen': lambda r: ("failed to grow a new branch and instead reinforced an existing line.", "[GROW->REINFORCE]"),
+        'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
+        'vbeam_miss_fissure': lambda r: ("unleashed a V-Rune beam that missed, scarring the earth with a temporary fissure.", "[V-BEAM->FISSURE]"),
+        'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
+        'area_shield_fizzle_push': lambda r: (f"activated a Shield Rune with no lines to protect, instead pushing {r['pushed_points_count']} friendly points to de-clutter.", "[AEGIS->PUSH]"),
+        'rune_shield_pulse': lambda r: (f"unleashed a shockwave from a Shield Rune, pushing back {r['pushed_points_count']} enemy points.", "[PULSE!]"),
+        'shield_pulse_fizzle_pull': lambda r: (f"unleashed a shockwave from a Shield Rune with no enemies in range, instead pulling in {r['pulled_points_count']} friendly points to consolidate.", "[PULSE->PULL]"),
+        'rune_impale': lambda r: (f"fired a piercing blast from a Trident Rune, destroying {len(r['destroyed_lines'])} lines.", "[IMPALE!]"),
+        'impale_fizzle_barricade': lambda r: ("fired a Trident blast that missed all targets, creating a temporary barricade in its wake.", "[IMPALE->WALL]"),
+        'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from Team {r['target_team_name']} in time.", "[STASIS!]"),
+        'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),
+        'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from Team {r['destroyed_team_name']}.", "[FOCUS BEAM!]"),
+        'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from Team {r['destroyed_team_name']}.", "[ZAP!]"),
+        'sentry_zap_miss_spawn': lambda r: ("a Sentry fired a beam that missed all targets, creating a new point on the border.", "[ZAP->SPAWN]"),
+        'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
+        'refraction_miss_spawn': lambda r: ("fired a refracted beam from a Prism that missed, creating a new point on the border.", "[REFRACT->SPAWN]"),
+        'chain_lightning': lambda r: (f"unleashed Chain Lightning from a Conduit, destroying a point from Team {r['destroyed_team_name']}.", "[LIGHTNING!]"),
+        'chain_lightning_fizzle_nova': lambda r: (f"attempted to use Chain Lightning which fizzled, instead unleashing a mini-nova that destroyed {r['lines_destroyed_count']} lines.", "[LIGHTNING->NOVA]"),
+        'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from Team {r['destroyed_team_name']}.", "[PINCER!]"),
+        'pincer_fizzle_barricade': lambda r: ("failed to find a pincer target and instead formed a temporary defensive barricade.", "[PINCER->WALL]"),
+        'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from Team {r['destroyed_team_name']}.", "[TERRITORY!]"),
+        'territory_fizzle_reinforce': lambda r: ("could not find a target for a territory strike, and instead reinforced its own boundaries.", "[TERRITORY->REINFORCE]"),
+        'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {r['destroyed_team_name']}.", "[TREBUCHET!]"),
+        'launch_payload_fallback_hit': lambda r: (f"found no high-value targets and instead launched a payload from a Trebuchet at a standard point from Team {r['destroyed_team_name']}.", "[TREBUCHET]"),
+        'launch_payload_fizzle_fissure': lambda r: ("found no enemy targets and instead launched a payload from a Trebuchet that impacted the battlefield, creating a temporary fissure.", "[TREBUCHET->FIZZLE]"),
+        'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
+        'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),
+        'phase_shift_fizzle_anchor': lambda r: (f"attempted to phase shift a point but failed, instead causing the residual energy to form a temporary gravitational anchor.", "[PHASE->ANCHOR]"),
+        'create_rift_trap': lambda r: ("sacrificed a point to lay a latent Rift Trap.", "[TRAP SET]"),
+        'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]"),
+        'claim_fizzle_reinforce': lambda r: ("could not find a new territory to claim, and instead reinforced an existing one.", "[CLAIM->REINFORCE]"),
+        'purify_fizzle_push': lambda r: (f"found no territories to cleanse, and instead emitted a pulse that pushed back {r['pushed_points_count']} enemies.", "[PURIFY->PUSH]"),
+        'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead sacrificed a rune point to create a temporary anchor.", "[STASIS->ANCHOR]"),
+        'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from Team {r['destroyed_team_name']}.", "[FOCUS BEAM]"),
+        'focus_beam_fizzle_fissure': lambda r: ("found no targets for its Focus Beam and instead scarred the enemy's heartland with a temporary fissure.", "[FOCUS->FIZZLE]"),
+        'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
+        't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
+        'rune_cardinal_pulse': lambda r: (f"consumed a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points with four beams of energy.", "[CARDINAL PULSE!]"),
+        'parallel_discharge': lambda r: (f"unleashed a Parallel Discharge, cleansing its interior of {len(r['lines_destroyed'])} enemy lines.", "[DISCHARGE!]"),
+        'parallel_discharge_fizzle_spawn': lambda r: ("unleashed a Parallel Discharge that found no targets, and instead created a new structure at its center.", "[DISCHARGE->SPAWN]"),
+    }
+
 
     def __init__(self):
+        self.formation_manager = FormationManager()
         self.reset()
 
     def reset(self):
@@ -2704,11 +2834,14 @@ class Game:
             if not destroyed_point_data:
                  return {'success': False, 'reason': 'failed to destroy target point'}
             
+            destroyed_team_name = self.state['teams'][destroyed_point_data['teamId']]['name']
+
             return {
                 'success': True, 'type': 'territory_strike',
                 'destroyed_point': destroyed_point_data,
                 'territory_point_ids': territory['point_ids'],
-                'attack_ray': {'p1': centroid, 'p2': target_point}
+                'attack_ray': {'p1': centroid, 'p2': target_point},
+                'destroyed_team_name': destroyed_team_name
             }
         
         # --- Fallback: Reinforce Territory ---
@@ -2883,10 +3016,12 @@ class Game:
             
             if best_target:
                 territory_to_cleanse = best_target['territory_to_cleanse']
+                cleansed_team_name = self.state['teams'][territory_to_cleanse['teamId']]['name']
                 self.state['territories'].remove(territory_to_cleanse)
                 return {
                     'success': True, 'type': 'purify_territory',
-                    'cleansed_territory': territory_to_cleanse, 'purifier_point_ids': best_target['purifier_point_ids']
+                    'cleansed_territory': territory_to_cleanse, 'purifier_point_ids': best_target['purifier_point_ids'],
+                    'cleansed_team_name': cleansed_team_name
                 }
 
         # --- Fallback Effect: Repulsive Pulse ---
@@ -3423,31 +3558,9 @@ class Game:
         chosen_action_name = random.choice(valid_actions_by_group[chosen_group])
         
         # --- 5. Return the chosen action name and its function ---
-        action_map = {
-            'expand_add': self.expand_action_add_line, 'expand_extend': self.expand_action_extend_line,
-            'expand_grow': self.expand_action_grow_line, 'expand_fracture': self.expand_action_fracture_line,
-            'expand_spawn': self.expand_action_spawn_point, 'expand_orbital': self.expand_action_create_orbital,
-            'fight_attack': self.fight_action_attack_line, 'fight_convert': self.fight_action_convert_point,
-            'fight_pincer_attack': self.fight_action_pincer_attack, 'fight_territory_strike': self.fight_action_territory_strike,
-            'fight_bastion_pulse': self.fight_action_bastion_pulse, 'fight_chain_lightning': self.fight_action_chain_lightning,
-            'fight_refraction_beam': self.fight_action_refraction_beam, 'fight_launch_payload': self.fight_action_launch_payload,
-            'fight_sentry_zap': self.fight_action_sentry_zap, 'fight_purify_territory': self.fight_action_purify_territory,
-            'fortify_claim': self.fortify_action_claim_territory, 'fortify_anchor': self.fortify_action_create_anchor,
-            'fortify_mirror': self.fortify_action_mirror_structure, 'fortify_form_bastion': self.fortify_action_form_bastion,
-            'fortify_form_monolith': self.fortify_action_form_monolith, 'fortify_form_purifier': self.fortify_action_form_purifier,
-            'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood, 'fortify_form_rift_spire': self.fortify_action_form_rift_spire,
-            'terraform_create_fissure': self.terraform_action_create_fissure, 'terraform_raise_barricade': self.terraform_action_raise_barricade,
-            'fortify_build_wonder': self.fortify_action_build_chronos_spire,
-            'sacrifice_nova': self.sacrifice_action_nova_burst, 'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
-            'sacrifice_phase_shift': self.sacrifice_action_phase_shift, 'sacrifice_rift_trap': self.sacrifice_action_rift_trap,
-            'defend_shield': self.shield_action_protect_line,
-            'rune_shoot_bisector': self.rune_action_shoot_bisector, 'rune_area_shield': self.rune_action_area_shield,
-            'rune_shield_pulse': self.rune_action_shield_pulse, 'rune_impale': self.rune_action_impale,
-            'rune_hourglass_stasis': self.rune_action_hourglass_stasis, 'rune_starlight_cascade': self.rune_action_starlight_cascade,
-            'rune_focus_beam': self.rune_action_focus_beam, 'rune_t_hammer_slam': self.rune_action_t_hammer_slam,
-            'rune_cardinal_pulse': self.rune_action_cardinal_pulse, 'rune_parallel_discharge': self.rune_action_parallel_discharge
-        }
-        return chosen_action_name, action_map.get(chosen_action_name)
+        action_func_name = self.ACTION_MAP.get(chosen_action_name)
+        action_func = getattr(self, action_func_name) if action_func_name else None
+        return chosen_action_name, action_func
 
 
     def restart_game(self):
@@ -3799,93 +3912,8 @@ class Game:
         """Generates the long and short log messages for a given action result."""
         action_type = result.get('type')
 
-        # Lambdas are used to defer f-string evaluation until the function is called.
-        log_generators = {
-            'add_line_fizzle_strengthen': lambda r: ("could not add a new line, and instead reinforced an existing one.", "[ADD->REINFORCE]"),
-            'extend_fizzle_strengthen': lambda r: ("tried to extend a line but couldn't, so it reinforced an existing line instead.", "[EXTEND->REINFORCE]"),
-            'fracture_fizzle_strengthen': lambda r: ("could not find a line to fracture, and instead reinforced one.", "[FRACTURE->REINFORCE]"),
-            'add_line': lambda r: ("connected two points.", "[+LINE]"),
-            'extend_line': lambda r: (
-                f"extended a line to the border, creating a new point{' with an empowered Conduit extension!' if r.get('is_empowered') else '.'}",
-                "[RAY!]" if r.get('is_empowered') else "[EXTEND]"
-            ),
-            'grow_line': lambda r: ("grew a new branch, creating a new point.", "[GROW]"),
-            'fracture_line': lambda r: ("fractured a line, creating a new point.", "[FRACTURE]"),
-            'spawn_point': lambda r: ("spawned a new point from an existing one.", "[SPAWN]"),
-            'create_orbital': lambda r: (f"created an orbital structure with {len(r['new_points'])} new points.", "[ORBITAL]"),
-            'orbital_fizzle_strengthen': lambda r: (f"failed to form an orbital and instead reinforced {len(r['strengthened_lines'])} lines around a central point.", "[ORBITAL->REINFORCE]"),
-            'attack_line': lambda r: (
-                f"attacked and destroyed a line from Team {r['destroyed_team']}{', bypassing its shield with a Cross Rune!' if r.get('bypassed_shield') else '.'}",
-                "[PIERCE!]" if r.get('bypassed_shield') else "[ATTACK]"
-            ),
-            'attack_miss_spawn': lambda r: ("launched an attack that missed, but the energy coalesced into a new point on the border.", "[ATTACK->SPAWN]"),
-            'attack_line_strengthened': lambda r: ("attacked a strengthened line, weakening its defenses.", "[DAMAGE]"),
-            'convert_point': lambda r: (f"sacrificed a line to convert a point from Team {r['original_team_name']}.", "[CONVERT]"),
-            'convert_fizzle_push': lambda r: (f"attempted to convert a point but found no targets, instead unleashing a pulse that pushed back {r['pushed_points_count']} enemies.", "[CONVERT->PUSH]"),
-            'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
-            'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION!]"),
-            'monolith_fizzle_reinforce': lambda r: (f"failed to form a Monolith and instead reinforced the {len(r['strengthened_lines'])} lines of a potential structure.", "[MONOLITH->REINFORCE]"),
-            'form_monolith': lambda r: ("erected a resonant Monolith from a pillar of light.", "[MONOLITH]"),
-            'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
-            'purify_territory': lambda r: (f"unleashed its Purifier, cleansing a territory from Team {self.state['teams'][r['cleansed_territory']['teamId']]['name']}.", "[PURIFY!]"),
-            'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
-            'build_chronos_spire': lambda r: (f"sacrificed {r['sacrificed_points_count']} points to construct the Chronos Spire, a path to victory!", "[WONDER!]"),
-            'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
-            'bastion_pulse_fizzle_shockwave': lambda r: (f"attempted a bastion pulse that fizzled, instead creating a shockwave that pushed {r['pushed_points_count']} points.", "[PULSE->FIZZLE]"),
-            'bastion_fizzle_reinforce': lambda r: (f"failed to form a Bastion and instead reinforced {len(r['strengthened_lines'])} lines around a key defensive point.", "[BASTION->REINFORCE]"),
-            'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
-            'mirror_fizzle_strengthen': lambda r: (f"attempted to mirror its structure, but instead reinforced {len(r['strengthened_lines'])} connected lines.", "[MIRROR->REINFORCE]"),
-            'create_anchor': lambda r: ("sacrificed a point to create a gravitational anchor.", "[ANCHOR]"),
-            'nova_burst': lambda r: (f"sacrificed a point in a nova burst, destroying {r['lines_destroyed']} lines.", "[NOVA]"),
-            'nova_shockwave': lambda r: (f"sacrificed a point in a shockwave, pushing back {r['pushed_points_count']} nearby points.", "[SHOCKWAVE]"),
-            'spawn_fizzle_strengthen': lambda r: ("could not find a place to spawn a new point, and instead reinforced an existing line.", "[SPAWN->REINFORCE]"),
-            'whirlpool_fizzle_fissure': lambda r: ("sacrificed a point to open a whirlpool, but with no targets in range, it collapsed into a temporary fissure.", "[WHIRLPOOL->FIZZLE]"),
-            'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
-            'shield_overcharge': lambda r: (f"could not shield a new line, and instead overcharged an existing shield to last for {r['new_duration']} turns.", "[OVERCHARGE]"),
-            'grow_fizzle_strengthen': lambda r: ("failed to grow a new branch and instead reinforced an existing line.", "[GROW->REINFORCE]"),
-            'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
-            'vbeam_miss_fissure': lambda r: ("unleashed a V-Rune beam that missed, scarring the earth with a temporary fissure.", "[V-BEAM->FISSURE]"),
-            'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
-            'area_shield_fizzle_push': lambda r: (f"activated a Shield Rune with no lines to protect, instead pushing {r['pushed_points_count']} friendly points to de-clutter.", "[AEGIS->PUSH]"),
-            'rune_shield_pulse': lambda r: (f"unleashed a shockwave from a Shield Rune, pushing back {r['pushed_points_count']} enemy points.", "[PULSE!]"),
-            'shield_pulse_fizzle_pull': lambda r: (f"unleashed a shockwave from a Shield Rune with no enemies in range, instead pulling in {r['pulled_points_count']} friendly points to consolidate.", "[PULSE->PULL]"),
-            'rune_impale': lambda r: (f"fired a piercing blast from a Trident Rune, destroying {len(r['destroyed_lines'])} lines.", "[IMPALE!]"),
-            'impale_fizzle_barricade': lambda r: ("fired a Trident blast that missed all targets, creating a temporary barricade in its wake.", "[IMPALE->WALL]"),
-            'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from Team {self.state['teams'][r['target_point']['teamId']]['name']} in time.", "[STASIS!]"),
-            'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),
-            'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[FOCUS BEAM!]"),
-            'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[ZAP!]"),
-            'sentry_zap_miss_spawn': lambda r: ("a Sentry fired a beam that missed all targets, creating a new point on the border.", "[ZAP->SPAWN]"),
-            'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
-            'refraction_miss_spawn': lambda r: ("fired a refracted beam from a Prism that missed, creating a new point on the border.", "[REFRACT->SPAWN]"),
-            'chain_lightning': lambda r: (f"unleashed Chain Lightning from a Conduit, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[LIGHTNING!]"),
-            'chain_lightning_fizzle_nova': lambda r: (f"attempted to use Chain Lightning which fizzled, instead unleashing a mini-nova that destroyed {r['lines_destroyed_count']} lines.", "[LIGHTNING->NOVA]"),
-            'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[PINCER!]"),
-            'pincer_fizzle_barricade': lambda r: ("failed to find a pincer target and instead formed a temporary defensive barricade.", "[PINCER->WALL]"),
-            'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TERRITORY!]"),
-            'territory_fizzle_reinforce': lambda r: ("could not find a target for a territory strike, and instead reinforced its own boundaries.", "[TERRITORY->REINFORCE]"),
-            'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET!]"),
-            'launch_payload_fallback_hit': lambda r: (f"found no high-value targets and instead launched a payload from a Trebuchet at a standard point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[TREBUCHET]"),
-            'launch_payload_fizzle_fissure': lambda r: ("found no enemy targets and instead launched a payload from a Trebuchet that impacted the battlefield, creating a temporary fissure.", "[TREBUCHET->FIZZLE]"),
-            'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
-            'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),
-            'phase_shift_fizzle_anchor': lambda r: (f"attempted to phase shift a point but failed, instead causing the residual energy to form a temporary gravitational anchor.", "[PHASE->ANCHOR]"),
-            'create_rift_trap': lambda r: ("sacrificed a point to lay a latent Rift Trap.", "[TRAP SET]"),
-            'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]"),
-            'claim_fizzle_reinforce': lambda r: ("could not find a new territory to claim, and instead reinforced an existing one.", "[CLAIM->REINFORCE]"),
-            'purify_fizzle_push': lambda r: (f"found no territories to cleanse, and instead emitted a pulse that pushed back {r['pushed_points_count']} enemies.", "[PURIFY->PUSH]"),
-            'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead sacrificed a rune point to create a temporary anchor.", "[STASIS->ANCHOR]"),
-            'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[FOCUS BEAM]"),
-            'focus_beam_fizzle_fissure': lambda r: ("found no targets for its Focus Beam and instead scarred the enemy's heartland with a temporary fissure.", "[FOCUS->FIZZLE]"),
-            'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
-            't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
-            'rune_cardinal_pulse': lambda r: (f"consumed a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points with four beams of energy.", "[CARDINAL PULSE!]"),
-            'parallel_discharge': lambda r: (f"unleashed a Parallel Discharge, cleansing its interior of {len(r['lines_destroyed'])} enemy lines.", "[DISCHARGE!]"),
-            'parallel_discharge_fizzle_spawn': lambda r: ("unleashed a Parallel Discharge that found no targets, and instead created a new structure at its center.", "[DISCHARGE->SPAWN]"),
-        }
-
-        if action_type in log_generators:
-            long_msg, short_msg = log_generators[action_type](result)
+        if action_type in self.ACTION_LOG_GENERATORS:
+            long_msg, short_msg = self.ACTION_LOG_GENERATORS[action_type](result)
             return long_msg, short_msg
         
         # Fallback for any action that might not have a custom message
@@ -4138,78 +4166,6 @@ class Game:
             perimeter += math.sqrt(distance_sq(p1, p2))
         return perimeter
 
-    def _check_i_rune(self, teamId):
-        """
-        Finds I-Runes: a line of 3 or more collinear points, connected by lines.
-        Returns [{'point_ids': [p1,p2,p3,...], 'internal_points': [p2,...], 'endpoints': [p1,p_last]}]
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 3:
-            return []
-
-        points = self.state['points']
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-        
-        i_runes = []
-        
-        # We need to find simple paths (no branches)
-        # Start from points with degree 1 (endpoints of a chain)
-        endpoints = {pid for pid, neighbors in adj.items() if len(neighbors) == 1}
-        
-        visited_in_a_path = set()
-
-        for start_pid in endpoints:
-            if start_pid in visited_in_a_path:
-                continue
-            
-            path = [start_pid]
-            visited_in_a_path.add(start_pid)
-            
-            curr_pid = start_pid
-            prev_pid = None
-
-            while True:
-                neighbors = adj.get(curr_pid, set())
-                # On a simple path, internal nodes must have degree 2, endpoints degree 1.
-                # Find the next neighbor that isn't the one we just came from.
-                next_candidates = [nid for nid in neighbors if nid != prev_pid]
-                
-                if len(next_candidates) != 1:
-                    break # End of simple path (either dead-end or a fork)
-                
-                next_pid = next_candidates[0]
-
-                # Check for collinearity. We need at least 3 points.
-                if len(path) >= 2:
-                    p1 = points.get(path[-2])
-                    p2 = points.get(path[-1])
-                    p3 = points.get(next_pid)
-                    if not p1 or not p2 or not p3 or orientation(p1, p2, p3) != 0:
-                        break # Path is not straight
-                
-                if next_pid in visited_in_a_path:
-                    break # Loop detected, not a simple path
-
-                path.append(next_pid)
-                visited_in_a_path.add(next_pid)
-                prev_pid = curr_pid
-                curr_pid = next_pid
-
-            if len(path) >= 3:
-                # We have a straight path of 3 or more points. This is an I-Rune.
-                i_runes.append({
-                    'point_ids': path,
-                    'endpoints': [path[0], path[-1]],
-                    'internal_points': path[1:-1]
-                })
-
-        return i_runes
-
-
     # --- Rune System ---
     
     def _update_runes_for_team(self, teamId):
@@ -4235,542 +4191,6 @@ class Game:
             'i_shape': fm.check_i_rune(team_point_ids, team_lines, all_points),
             'parallel': fm.check_parallel_rune(team_point_ids, team_lines, all_points),
         }
-
-    def _check_barricade_rune(self, teamId):
-        """
-        Finds Barricade Runes: a rectangle with all four sides present as lines.
-        Returns a list of lists, each containing the 4 point IDs of a barricade rune.
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 4:
-            return []
-
-        points = self.state['points']
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
-        
-        barricade_runes = []
-        used_points = set()
-
-        for p_ids_tuple in combinations(team_point_ids, 4):
-            if any(pid in used_points for pid in p_ids_tuple):
-                continue
-
-            if not all(pid in points for pid in p_ids_tuple):
-                continue
-            p_list = [points[pid] for pid in p_ids_tuple]
-            is_rect, _ = is_rectangle(*p_list)
-
-            if is_rect:
-                # We found a rectangle. Now check for the 4 side lines.
-                all_pairs = list(combinations(p_ids_tuple, 2))
-                all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
-                
-                # For a rectangle, the 4 shortest distances are the sides.
-                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-                side_pairs = sorted_pairs[0:4]
-                
-                # Check if all 4 side lines exist
-                num_side_lines = sum(1 for p1_id, p2_id in side_pairs if tuple(sorted((p1_id, p2_id))) in existing_lines)
-                
-                if num_side_lines == 4:
-                    # This is a valid Barricade Rune.
-                    barricade_runes.append(list(p_ids_tuple))
-                    used_points.update(p_ids_tuple)
-        
-        return barricade_runes
-
-
-
-    def _check_v_rune(self, teamId):
-        """Finds all 'V' shapes for a team.
-        A V-shape is two connected lines of similar length.
-        Returns a list of dictionaries, each identifying a V-rune.
-        e.g., [{'vertex_id': B, 'leg1_id': A, 'leg2_id': C}]
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        points = self.state['points']
-        lines = self.get_team_lines(teamId)
-        
-        adj_lines = {pid: [] for pid in team_point_ids}
-        for line in lines:
-            if line['p1_id'] in adj_lines and line['p2_id'] in adj_lines:
-                adj_lines[line['p1_id']].append(line)
-                adj_lines[line['p2_id']].append(line)
-
-        v_runes = []
-        for vertex_id, connected_lines in adj_lines.items():
-            if len(connected_lines) < 2: continue
-
-            for i in range(len(connected_lines)):
-                for j in range(i + 1, len(connected_lines)):
-                    line1, line2 = connected_lines[i], connected_lines[j]
-                    
-                    p_vertex = points[vertex_id]
-                    p_leg1 = points[line1['p1_id'] if line1['p2_id'] == vertex_id else line1['p2_id']]
-                    p_leg2 = points[line2['p1_id'] if line2['p2_id'] == vertex_id else line2['p2_id']]
-
-                    len1_sq = distance_sq(p_vertex, p_leg1)
-                    len2_sq = distance_sq(p_vertex, p_leg2)
-
-                    # Check for similar length (e.g., within 20% of each other)
-                    if len1_sq > 0 and len2_sq > 0 and 0.8 < (len1_sq / len2_sq) < 1.2:
-                        v_runes.append({
-                            'vertex_id': vertex_id,
-                            'leg1_id': p_leg1['id'],
-                            'leg2_id': p_leg2['id'],
-                        })
-        return v_runes
-
-    def _check_shield_rune(self, teamId):
-        """
-        Finds Shield Runes: a triangle of points with another friendly point inside.
-        Returns a list of dicts: [{'triangle_ids': [p1,p2,p3], 'core_id': p_core}]
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 4:
-            return []
-
-        points = self.state['points']
-        
-        # To avoid re-checking, let's keep track of points used in a rune.
-        used_points = set()
-        shield_runes = []
-
-        # Find all triangles first
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-
-        all_triangles_pids = set()
-        sorted_point_ids = sorted(list(team_point_ids)) 
-        for i in sorted_point_ids:
-            for j in adj.get(i, set()):
-                if j > i:
-                    for k in adj.get(j, set()):
-                        if k > j and k in adj.get(i, set()):
-                            all_triangles_pids.add(tuple(sorted((i, j, k))))
-
-        for tri_ids in all_triangles_pids:
-            if any(pid in used_points for pid in tri_ids):
-                continue
-
-            p1, p2, p3 = points[tri_ids[0]], points[tri_ids[1]], points[tri_ids[2]]
-            
-            # Now find a point inside this triangle that isn't part of the triangle itself
-            other_point_ids = [pid for pid in team_point_ids if pid not in tri_ids and pid not in used_points]
-            
-            for core_id in other_point_ids:
-                core_point = points[core_id]
-                if self._is_point_inside_triangle(core_point, p1, p2, p3):
-                    # Found a shield rune
-                    rune_points = set(tri_ids) | {core_id}
-                    shield_runes.append({
-                        'triangle_ids': list(tri_ids),
-                        'core_id': core_id
-                    })
-                    used_points.update(rune_points)
-                    # A point can only be the core of one shield rune at a time.
-                    # Once a core is found, it can't be a core for another rune this turn.
-                    # We can break from the inner loop to check the next triangle.
-                    break 
-                    
-        return shield_runes
-
-    def _check_star_rune(self, teamId):
-        """Finds all 'Star' runes for a team, which are used for wonders and other actions."""
-        return self._find_star_formations(teamId, min_cycle=5, max_cycle=6)
-
-    def _check_trident_rune(self, teamId):
-        """
-        Finds Trident Runes: an isosceles triangle with a 'handle' point on its axis of symmetry.
-        Formation: A-B-C form an isosceles triangle with B as apex. D is collinear with B and the midpoint of AC,
-        and is on the opposite side of B from AC. Lines AB, BC, BD must exist.
-        Returns [{'apex_id': B, 'prong_ids': [A, C], 'handle_id': D}]
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 4:
-            return []
-
-        points = self.state['points']
-        adj = {pid: set() for pid in team_point_ids}
-        existing_lines_set = set()
-        for line in self.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-                existing_lines_set.add(tuple(sorted((line['p1_id'], line['p2_id']))))
-
-        trident_runes = []
-        used_points = set()
-
-        for p_ids_tuple in combinations(team_point_ids, 3):
-            # Check for isosceles triangle
-            p1, p2, p3 = points[p_ids_tuple[0]], points[p_ids_tuple[1]], points[p_ids_tuple[2]]
-            iso_info = get_isosceles_triangle_info(p1, p2, p3)
-            
-            if not iso_info:
-                continue
-                
-            p_apex = iso_info['apex']
-            p_base = iso_info['base']
-            
-            # The two "leg" lines of the V must exist
-            if not (tuple(sorted((p_apex['id'], p_base[0]['id']))) in existing_lines_set and \
-                    tuple(sorted((p_apex['id'], p_base[1]['id']))) in existing_lines_set):
-                continue
-            
-            # Now, find a 'handle' point.
-            # It must be connected to the apex.
-            for handle_candidate_id in adj.get(p_apex['id'], set()):
-                # Exclude the two base points of the triangle
-                if handle_candidate_id in (p_base[0]['id'], p_base[1]['id']):
-                    continue
-                
-                p_handle = points[handle_candidate_id]
-                
-                # Check for collinearity with apex and base midpoint
-                base_midpoint_x = (p_base[0]['x'] + p_base[1]['x']) / 2
-                base_midpoint_y = (p_base[0]['y'] + p_base[1]['y']) / 2
-                
-                # Using orientation check for collinearity: orientation(handle, apex, midpoint) == 0
-                val = (p_apex['y'] - p_handle['y']) * (base_midpoint_x - p_apex['x']) - \
-                      (p_apex['x'] - p_handle['x']) * (base_midpoint_y - p_apex['y'])
-                
-                if abs(val) > 0.1: # Allow small tolerance for float issues
-                    continue
-
-                # Check that handle is "behind" the apex, not between apex and base
-                # Dot product of (apex -> handle) and (apex -> midpoint) should be negative
-                v_apex_handle = (p_handle['x'] - p_apex['x'], p_handle['y'] - p_apex['y'])
-                v_apex_mid = (base_midpoint_x - p_apex['x'], base_midpoint_y - p_apex['y'])
-                dot_product = v_apex_handle[0] * v_apex_mid[0] + v_apex_handle[1] * v_apex_mid[1]
-                
-                if dot_product < 0:
-                    # Found a valid trident
-                    rune_points = {p_apex['id'], p_base[0]['id'], p_base[1]['id'], p_handle['id']}
-                    if not used_points.intersection(rune_points):
-                        trident_runes.append({
-                            'apex_id': p_apex['id'],
-                            'prong_ids': [p_base[0]['id'], p_base[1]['id']],
-                            'handle_id': p_handle['id']
-                        })
-                        used_points.update(rune_points)
-                        # A point can only be part of one trident. Break from inner loop.
-                        break
-            
-        return trident_runes
-
-    def _check_cross_rune(self, teamId):
-        """Finds all 'Cross' runes.
-        A Cross rune is a rectangle of 4 points with both diagonals drawn.
-        Returns a list of lists, each containing the 4 point IDs of a cross rune.
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 4:
-            return []
-        
-        points = self.state['points']
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
-        
-        cross_runes = []
-        used_points = set()
-
-        for p_ids_tuple in combinations(team_point_ids, 4):
-            if any(pid in used_points for pid in p_ids_tuple):
-                continue
-            
-            if not all(pid in points for pid in p_ids_tuple): continue
-            p_list = [points[pid] for pid in p_ids_tuple]
-            
-            is_rect, _ = is_rectangle(*p_list)
-            if not is_rect:
-                continue
-            
-            # Find the two pairs of points with the largest distance. These are the diagonals.
-            all_pairs = list(combinations(p_ids_tuple, 2))
-            all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
-            sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-            
-            diag1_pair = sorted_pairs[-1]
-            diag2_pair = sorted_pairs[-2]
-
-            # Check if both diagonals exist as lines
-            if tuple(sorted(diag1_pair)) in existing_lines and tuple(sorted(diag2_pair)) in existing_lines:
-                cross_runes.append(list(p_ids_tuple))
-                used_points.update(p_ids_tuple)
-        
-        return cross_runes
-
-    def _check_t_rune(self, teamId):
-        """
-        Finds T-Runes: A point `mid` connected to 3 other points, where two (`stem1`, `stem2`)
-        form a straight line through `mid`, and the third (`head`) is perpendicular to that line.
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 4:
-            return []
-
-        points = self.state['points']
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-        
-        t_runes = []
-        used_points = set()
-
-        for mid_id, neighbors_set in adj.items():
-            if len(neighbors_set) < 3 or mid_id in used_points:
-                continue
-            
-            neighbors = list(neighbors_set)
-            p_mid = points[mid_id]
-
-            # Iterate through pairs of neighbors to find a stem
-            for i in range(len(neighbors)):
-                for j in range(i + 1, len(neighbors)):
-                    p_stem1_id, p_stem2_id = neighbors[i], neighbors[j]
-                    p_stem1, p_stem2 = points[p_stem1_id], points[p_stem2_id]
-
-                    # 1. Check for collinearity (p_stem1, p_mid, p_stem2)
-                    if orientation(p_stem1, p_mid, p_stem2) != 0:
-                        continue
-
-                    # 2. Check that p_mid is roughly between them (not an endpoint of the stem line)
-                    v_mid_s1 = {'x': p_stem1['x'] - p_mid['x'], 'y': p_stem1['y'] - p_mid['y']}
-                    v_mid_s2 = {'x': p_stem2['x'] - p_mid['x'], 'y': p_stem2['y'] - p_mid['y']}
-                    if v_mid_s1['x'] * v_mid_s2['x'] + v_mid_s1['y'] * v_mid_s2['y'] >= 0:
-                        continue # Dot product must be negative for opposing vectors
-                    
-                    # Found a stem. Look for a perpendicular head.
-                    other_neighbors = [nid for nid in neighbors if nid not in (p_stem1_id, p_stem2_id)]
-                    for p_head_id in other_neighbors:
-                        p_head = points[p_head_id]
-
-                        # Check for perpendicularity of (p_mid -> p_head) to (p_stem1 -> p_stem2)
-                        v_stem_x, v_stem_y = p_stem2['x'] - p_stem1['x'], p_stem2['y'] - p_stem1['y']
-                        v_head_x, v_head_y = p_head['x'] - p_mid['x'], p_head['y'] - p_mid['y']
-                        
-                        mag_stem_sq = v_stem_x**2 + v_stem_y**2
-                        mag_head_sq = v_head_x**2 + v_head_y**2
-                        if mag_stem_sq < 0.1 or mag_head_sq < 0.1: continue
-
-                        dot_product = v_stem_x * v_head_x + v_stem_y * v_head_y
-                        cos_theta_sq = dot_product**2 / (mag_stem_sq * mag_head_sq)
-                        
-                        if cos_theta_sq < 0.05: # Allow deviation from 90 degrees
-                            rune_points = {mid_id, p_stem1_id, p_stem2_id, p_head_id}
-                            if not used_points.intersection(rune_points):
-                                t_runes.append({
-                                    'mid_id': mid_id,
-                                    'stem1_id': p_stem1_id,
-                                    'stem2_id': p_stem2_id,
-                                    'head_id': p_head_id,
-                                    'all_points': list(rune_points)
-                                })
-                                used_points.update(rune_points)
-                                break # Found a head for this stem, move to next stem
-                    # After finding a valid stem, no need to check other pairs with p_stem1_id
-                    break
-                if mid_id in used_points: break
-            if mid_id in used_points: continue
-        
-        return t_runes
-
-    def _check_plus_rune(self, teamId):
-        """
-        Finds Plus-Runes: A central point connected to 4 other points, where the arms
-        form two perpendicular, straight lines through the center.
-        e.g., A-C-B and D-C-E are straight, and AB is perpendicular to DE.
-        All 4 lines from center (C) to arms (A,B,D,E) must exist.
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 5:
-            return []
-
-        points = self.state['points']
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-
-        plus_runes = []
-        used_points = set()
-
-        # Find points with at least 4 connections (potential centers)
-        for center_id in team_point_ids:
-            if center_id in used_points:
-                continue
-            
-            neighbors = list(adj.get(center_id, set()))
-            if len(neighbors) < 4:
-                continue
-
-            p_center = points[center_id]
-
-            # Iterate through combinations of 4 neighbors
-            for arm_candidates_ids in combinations(neighbors, 4):
-                # We need to pair them up into two straight lines
-                
-                # Try pairing the first arm with each of the others
-                p_arm1_id = arm_candidates_ids[0]
-                p_arm1 = points[p_arm1_id]
-
-                for i in range(1, 4):
-                    p_arm2_id = arm_candidates_ids[i]
-                    p_arm2 = points[p_arm2_id]
-
-                    # Check if p_arm1, p_center, p_arm2 form a line
-                    if orientation(p_arm1, p_center, p_arm2) != 0:
-                        continue
-                    
-                    # Check that p_center is between them
-                    v_center_a1 = {'x': p_arm1['x'] - p_center['x'], 'y': p_arm1['y'] - p_center['y']}
-                    v_center_a2 = {'x': p_arm2['x'] - p_center['x'], 'y': p_arm2['y'] - p_center['y']}
-                    if v_center_a1['x'] * v_center_a2['x'] + v_center_a1['y'] * v_center_a2['y'] >= 0:
-                        continue
-
-                    # Found one valid line. Check the other two arms for a perpendicular line.
-                    other_arms_ids = [pid for pid in arm_candidates_ids if pid not in (p_arm1_id, p_arm2_id)]
-                    p_arm3_id, p_arm4_id = other_arms_ids[0], other_arms_ids[1]
-                    p_arm3, p_arm4 = points[p_arm3_id], points[p_arm4_id]
-
-                    # Check if p_arm3, p_center, p_arm4 form a line
-                    if orientation(p_arm3, p_center, p_arm4) != 0:
-                        continue
-                    
-                    v_center_a3 = {'x': p_arm3['x'] - p_center['x'], 'y': p_arm3['y'] - p_center['y']}
-                    v_center_a4 = {'x': p_arm4['x'] - p_center['x'], 'y': p_arm4['y'] - p_center['y']}
-                    if v_center_a3['x'] * v_center_a4['x'] + v_center_a3['y'] * v_center_a4['y'] >= 0:
-                        continue
-                    
-                    # Check for perpendicularity between the two lines
-                    # Using dot product of the line vectors (e.g., arm1->arm2 and arm3->arm4)
-                    v_line1_x, v_line1_y = p_arm2['x'] - p_arm1['x'], p_arm2['y'] - p_arm1['y']
-                    v_line2_x, v_line2_y = p_arm4['x'] - p_arm3['x'], p_arm4['y'] - p_arm3['y']
-                    
-                    mag1_sq = v_line1_x**2 + v_line1_y**2
-                    mag2_sq = v_line2_x**2 + v_line2_y**2
-                    if mag1_sq < 0.1 or mag2_sq < 0.1: continue
-
-                    dot_product = v_line1_x * v_line2_x + v_line1_y * v_line2_y
-                    cos_theta_sq = dot_product**2 / (mag1_sq * mag2_sq)
-
-                    if cos_theta_sq < 0.05: # Perpendicular (cos(90)^2 = 0), allow some tolerance
-                        rune_points = {center_id, p_arm1_id, p_arm2_id, p_arm3_id, p_arm4_id}
-                        if not used_points.intersection(rune_points):
-                            plus_runes.append({
-                                'center_id': center_id,
-                                'arm_ids': list(arm_candidates_ids),
-                                'all_points': list(rune_points)
-                            })
-                            used_points.update(rune_points)
-                            # Break out of inner loops since we found a valid rune for this center
-                            break
-                if center_id in used_points:
-                    break
-        return plus_runes
-
-    def _check_parallel_rune(self, teamId):
-        """
-        Finds Parallel Runes: a non-rectangular parallelogram with all four sides present as lines.
-        Returns a list of lists, each containing the 4 point IDs of a parallel rune.
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 4:
-            return []
-
-        points = self.state['points']
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.get_team_lines(teamId)}
-        
-        parallel_runes = []
-        used_points = set()
-
-        for p_ids_tuple in combinations(team_point_ids, 4):
-            if any(pid in used_points for pid in p_ids_tuple):
-                continue
-
-            if not all(pid in points for pid in p_ids_tuple):
-                continue
-            p_list = [points[pid] for pid in p_ids_tuple]
-            is_para, is_rect = is_parallelogram(*p_list)
-
-            if is_para and not is_rect:
-                # We found a parallelogram. Check for 4 side lines.
-                all_pairs = list(combinations(p_ids_tuple, 2))
-                all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
-                
-                # For a parallelogram, the 4 shortest distances are the sides.
-                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-                side_pairs = sorted_pairs[0:4]
-                
-                # Check if all 4 side lines exist
-                if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
-                    parallel_runes.append(list(p_ids_tuple))
-                    used_points.update(p_ids_tuple)
-        
-        return parallel_runes
-
-    def _check_hourglass_rune(self, teamId):
-        """
-        Finds Hourglass Runes: two triangles sharing a single vertex, where all 6 lines exist.
-        e.g., (A,B,V) and (C,D,V) are triangles.
-        Returns a list of dicts: [{'vertex_id': V, 'all_points': [V,A,B,C,D]}]
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) < 5:
-            return []
-
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-
-        hourglass_runes = []
-        used_points = set()
-
-        for vertex_id in team_point_ids:
-            if vertex_id in used_points:
-                continue
-            
-            neighbors = list(adj.get(vertex_id, []))
-            if len(neighbors) < 4:
-                continue
-
-            # Find all triangles connected to this vertex
-            triangles_from_vertex = []
-            for p1_id, p2_id in combinations(neighbors, 2):
-                if p2_id in adj.get(p1_id, set()):
-                    # (vertex_id, p1_id, p2_id) form a triangle
-                    triangles_from_vertex.append(set([p1_id, p2_id]))
-
-            if len(triangles_from_vertex) < 2:
-                continue
-
-            # We have at least two triangles, form an hourglass
-            # Using combinations to form pairs of these triangles
-            for tri1_others, tri2_others in combinations(triangles_from_vertex, 2):
-                # Ensure the two triangles don't share points other than the vertex
-                if not tri1_others.intersection(tri2_others):
-                    all_rune_points = {vertex_id}.union(tri1_others).union(tri2_others)
-                    
-                    if not used_points.intersection(all_rune_points):
-                        hourglass_runes.append({
-                            'vertex_id': vertex_id,
-                            'all_points': list(all_rune_points)
-                        })
-                        used_points.update(all_rune_points)
-                        # Break to not form more hourglasses with this vertex and these triangles
-                        break
-            if vertex_id in used_points:
-                continue
-        
-        return hourglass_runes
 
     def rune_action_parallel_discharge(self, teamId):
         """[RUNE ACTION]: Uses a Parallel Rune to destroy crossing enemy lines. If none, creates a central structure."""
