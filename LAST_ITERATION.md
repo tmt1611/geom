@@ -1,11 +1,11 @@
-### Action System Redesign (Part 6): Completing "Never Useless" Actions
+### Action System Redesign (Part 6): Completing "Never Useless" Actions & Cleanup
 
-This iteration finalizes the core goal of making every action meaningful by adding fallbacks to the remaining actions that could previously fizzle or fail after being chosen. This ensures that a team's turn is never truly wasted and adds more layers of dynamic behavior to the simulation. Several code cleanup tasks were also performed.
+This iteration finalizes the core goal of making every action meaningful by adding fallbacks to the remaining actions that could previously fizzle or fail after being chosen. This ensures that a team's turn is never truly wasted and adds more layers of dynamic behavior to the simulation. Several significant code cleanup tasks were also performed.
 
--   **Files Modified**: `game_app/game_logic.py`, `rules.md`
+-   **Files Modified**: `game_app/game_logic.py`, `rules.md`, `LAST_ITERATION.md`
 
 -   **Core Changes**:
-    -   **Code Cleanup**: Refactored `game_logic.py` to remove several duplicated or erroneous function definitions (`fight_action_territory_strike`, `fight_action_chain_lightning`), simplifying the codebase and improving clarity.
+    -   **Code Cleanup**: Refactored `game_app/game_logic.py` to remove several duplicated or erroneous function definitions (`fight_action_territory_strike`, `fight_action_launch_payload`, `fight_action_chain_lightning`), simplifying the codebase and improving clarity. A helper function `_get_eligible_phase_shift_lines` was also created to reduce code duplication.
 
     -   **`fight_action_bastion_pulse`**:
         -   **Primary Effect**: A bastion sacrifices a prong to destroy crossing enemy lines.
@@ -13,7 +13,7 @@ This iteration finalizes the core goal of making every action meaningful by addi
 
     -   **`sacrifice_action_phase_shift`**:
         -   **Primary Effect**: Sacrifices a line to teleport one of its points to a new location.
-        -   **New Fallback**: If a valid new location cannot be found, the sacrificed line's energy now implodes into the *other* endpoint, turning it into a temporary **gravitational anchor** that pulls in nearby enemies.
+        -   **New Fallback**: The action now pays its cost (sacrificing the line) upfront. If a valid new location cannot be found, the sacrificed line's energy now implodes into the *other* endpoint, turning it into a temporary **gravitational anchor** that pulls in nearby enemies.
 
     -   **`fight_action_chain_lightning`**:
         -   **Primary Effect**: A Conduit sacrifices an internal point to fire a lightning bolt at a nearby enemy point.
