@@ -3264,8 +3264,32 @@ document.addEventListener('DOMContentLoaded', () => {
         setNewTeamDefaults();
         setupErrorHandling();
 
+        // Auto-detect whether to use the Flask backend or Pyodide.
+        // This makes it easy to test the static/Pyodide version locally
+        // by simply running a static file server instead of the Flask app.
+        let apiMode = 'http';
         const isGhPages = window.location.hostname.endsWith('github.io');
-        const apiMode = isGhPages ? 'pyodide' : 'http';
+        const isFile = window.location.protocol === 'file:';
+
+        if (isGhPages || isFile) {
+            apiMode = 'pyodide';
+        } else {
+            try {
+                // Use a HEAD request to a server-only endpoint. If it fails, we're on a static host.
+                const response = await fetch('/api/check_updates', { method: 'HEAD', cache: 'no-cache' });
+                if (response.ok) {
+                    console.log('Flask API detected. Using HTTP mode.');
+                    apiMode = 'http';
+                } else {
+                    console.log('API check failed (response not OK), falling back to Pyodide.');
+                    apiMode = 'pyodide';
+                }
+            } catch (error) {
+                // A network error means no server is listening.
+                console.log('API check failed with network error, falling back to Pyodide.');
+                apiMode = 'pyodide';
+            }
+        }
 
         // Show a loading message for Pyodide
         if (apiMode === 'pyodide') {
@@ -3313,9 +3337,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Setup resize observer
         const gridContainer = document.querySelector('.grid-container');
         const resizeObserver = new ResizeObserver(() => {
-            if(currentGameState && currentGameState.grid_size) {
-                resizeCanvas();
-            }
+            // Decouple the resize logic from the observer's notification loop
+            // to prevent the "ResizeObserver loop limit exceeded" error.
+            requestAnimationFrame(() => {
+                if(currentGameState && currentGameState.grid_size) {
+                    resizeCanvas();
+                }
+            });
         });
         resizeObserver.observe(gridContainer);
 

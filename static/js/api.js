@@ -18,16 +18,28 @@ const api = {
             
             // game_logic.py only uses standard libraries, so we don't need to load any packages.
             
-            // Fetch and run the python game logic file.
-            // The path is relative to the root of the web server.
+            // To ensure the Pyodide environment is as close to the server environment as possible,
+            // we will reconstruct the package structure in the virtual filesystem and import the game logic as a module.
             console.log('Fetching Python game logic...');
             const gameLogicCode = await (await fetch('game_app/game_logic.py')).text();
-            
-            console.log('Executing Python game logic...');
-            this._pyodide.runPython(gameLogicCode);
 
-            // Get a reference to the global 'game' instance in python
-            this._game = this._pyodide.globals.get('game');
+            // Create a package structure in pyodide's virtual filesystem
+            this._pyodide.FS.mkdir('/game_app');
+            this._pyodide.FS.writeFile('/game_app/__init__.py', '', { encoding: 'utf8' }); // empty __init__.py for pyodide
+            this._pyodide.FS.writeFile('/game_app/game_logic.py', gameLogicCode, { encoding: 'utf8' });
+
+            console.log('Importing Python game logic as a module...');
+            // Add root to path and import the module. This will execute game_logic.py and create the `game` instance.
+            this._pyodide.runPython(`
+import sys
+sys.path.append('/')
+from game_app import game_logic
+            `);
+
+            // Get a reference to the 'game' instance from the game_logic module
+            const game_logic_module = this._pyodide.pyimport('game_app.game_logic');
+            this._game = game_logic_module.game;
+            game_logic_module.destroy(); // clean up proxy
             console.log('Pyodide backend ready.');
         } else {
             this._mode = 'http';
