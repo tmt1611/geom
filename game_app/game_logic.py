@@ -3432,22 +3432,25 @@ class Game:
 
         self.state['action_events'] = [] # Clear events from the previous action
 
-        # If the turn is over, start a new one. This might end the game (e.g., via Wonder victory).
-        if not self.state.get('actions_queue_this_turn') or self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
+        # Check if we need to start a new turn.
+        is_turn_over = not self.state.get('actions_queue_this_turn') or \
+                       self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn'])
+
+        if is_turn_over:
             self._start_new_turn()
+            
+            # After starting a new turn, the game might have ended (e.g., Wonder victory)
+            if self.state['game_phase'] != 'RUNNING':
+                return
 
-        # If the game ended during the start-of-turn phase, stop immediately.
-        if self.state['game_phase'] != 'RUNNING':
-            return
-        
-        # If there are no actions for the new turn (extinction), end the game.
-        if not self.state['actions_queue_this_turn']:
-            self.state['game_phase'] = 'FINISHED'
-            self.state['victory_condition'] = "Extinction"
-            self.state['game_log'].append({'message': "All teams have been eliminated. Game over.", 'short_message': '[EXTINCTION]'})
-            return
+            # Or, the new turn might have no actions (extinction)
+            if not self.state['actions_queue_this_turn']:
+                self.state['game_phase'] = 'FINISHED'
+                self.state['victory_condition'] = "Extinction"
+                self.state['game_log'].append({'message': "All teams have been eliminated. Game over.", 'short_message': '[EXTINCTION]'})
+                return
 
-        # Get the current team to act from the queue
+        # If we reach here, we are guaranteed to be in a turn with a valid action to perform.
         action_info = self.state['actions_queue_this_turn'][self.state['action_in_turn']]
         teamId = action_info['teamId']
         is_bonus_action = action_info['is_bonus']
