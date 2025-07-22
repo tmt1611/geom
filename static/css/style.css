@@ -591,3 +591,29 @@ details[open] > summary::before {
     gap: 10px;
     justify-content: flex-end;
 }
+
+#dev-corner-buttons {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 1001;
+}
+
+.dev-btn {
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
+    line-height: 30px;
+    text-align: center;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transition: background-color 0.2s;
+}
+
+.dev-btn:hover {
+    background-color: #c0392b;
+}

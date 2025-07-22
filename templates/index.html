@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <div id="dev-corner-buttons">
+        <button id="restart-server-btn" class="dev-btn" title="Restart Server (Dev)">&#8635;</button>
+    </div>
     <div class="container">
         <div class="controls">
             <h1>Geometric Divination Game</h1>
@@ -39,17 +42,7 @@
                         <button id="randomize-points-btn">Randomize Points</button>
                     </div>
                 </fieldset>
-                <fieldset>
-                    <legend>Game Settings</legend>
-                     <div class="start-section">
-                        <label for="grid-size">Grid Size:</label>
-                        <input type="number" id="grid-size" value="10" min="5" max="50" style="width: 60px;">
-                        <br><br>
-                        <label for="max-turns">Max Turns:</label>
-                        <input type="number" id="max-turns" value="100" style="width: 60px;">
-                     </div>
-                </fieldset>
-                <button id="start-game-btn" style="width:100%; padding: 10px; font-size: 1.1em; margin-top: 10px;">Start Game</button>
+
             </div>
             <div id="simulation-controls" style="display: none;">
                 <h2>2. Simulation</h2>
@@ -71,47 +64,61 @@
             <div id="status-bar">Waiting for game to start...</div>
         </div>
         <div class="interpretation-panel">
-            <button id="reset-btn" style="width: 100%; margin-bottom: 15px; padding: 10px; font-size: 1.0em;">Reset Game (Back to Setup)</button>
-            <h2>Analysis</h2>
-            <div id="turn-counter">Turn: 0 / 100</div>
-            <div id="stats"></div>
-            <div id="action-preview-panel" style="display: none;">
-                <div class="action-preview-header">
-                    <h4>Action Preview</h4>
-                    <label title="Show actions that cannot be performed and why.">
-                        <input type="checkbox" id="show-invalid-actions"> Show Invalid
-                    </label>
-                </div>
-                <div id="action-preview-content"></div>
+            <div id="setup-actions" style="display: none;">
+                <button id="start-game-btn" style="width:100%; padding: 10px; font-size: 1.1em; margin-bottom: 15px;">Start Game</button>
+                <fieldset>
+                    <legend>Game Settings</legend>
+                     <div class="start-section">
+                        <label for="grid-size">Grid Size:</label>
+                        <input type="number" id="grid-size" value="10" min="5" max="50" style="width: 60px;">
+                        <br><br>
+                        <label for="max-turns">Max Turns:</label>
+                        <input type="number" id="max-turns" value="100" style="width: 60px;">
+                     </div>
+                </fieldset>
             </div>
-            <details class="debug-fieldset">
-                <summary>Developer Tools</summary>
-                <div class="debug-options">
-                    <label><input type="checkbox" id="debug-point-ids"> Show Point IDs</label>
-                    <label><input type="checkbox" id="debug-line-ids"> Show Line IDs</label>
-                    <label><input type="checkbox" id="debug-last-action"> Highlight Last Action</label>
-                    <button id="copy-state-btn">Copy Game State to Clipboard</button>
-                    <button id="restart-server-btn" class="btn-danger">Restart Server</button>
-                </div>
-            </details>
-            <div id="final-interpretation" style="display: none;">
-                <div class="final-analysis-header">
-                    <h4>Final Analysis</h4>
-                    <div class="debug-options" id="final-analysis-options" style="display: none;">
-                        <label><input type="checkbox" id="show-hulls-toggle"> Show Convex Hulls</label>
+            <div id="running-analysis">
+                <button id="reset-btn" style="width: 100%; margin-bottom: 15px; padding: 10px; font-size: 1.0em;">Reset Game (Back to Setup)</button>
+                <h2>Analysis</h2>
+                <div id="turn-counter">Turn: 0 / 100</div>
+                <div id="stats"></div>
+                <div id="action-preview-panel" style="display: none;">
+                    <div class="action-preview-header">
+                        <h4>Action Preview</h4>
+                        <label title="Show actions that cannot be performed and why.">
+                            <input type="checkbox" id="show-invalid-actions"> Show Invalid
+                        </label>
                     </div>
+                    <div id="action-preview-content"></div>
                 </div>
-                <div id="final-stats-content"></div>
-            </div>
-            <div class="log-container">
-                <div class="log-header">
-                    <h3>Game Log</h3>
-                    <div>
-                        <button id="copy-log-btn" style="font-size: 0.8em; padding: 2px 5px;" title="Copy Log">Copy</button>
-                        <label title="Use short-form action log"><input type="checkbox" id="compact-log-toggle"> Compact</label>
+                <details class="debug-fieldset">
+                    <summary>Developer Tools</summary>
+                    <div class="debug-options">
+                        <label><input type="checkbox" id="debug-point-ids"> Show Point IDs</label>
+                        <label><input type="checkbox" id="debug-line-ids"> Show Line IDs</label>
+                        <label><input type="checkbox" id="debug-last-action"> Highlight Last Action</label>
+                        <button id="copy-state-btn">Copy Game State to Clipboard</button>
                     </div>
+                </details>
+                <div id="final-interpretation" style="display: none;">
+                    <div class="final-analysis-header">
+                        <h4>Final Analysis</h4>
+                        <div class="debug-options" id="final-analysis-options" style="display: none;">
+                            <label><input type="checkbox" id="show-hulls-toggle"> Show Convex Hulls</label>
+                        </div>
+                    </div>
+                    <div id="final-stats-content"></div>
                 </div>
-                <div id="log" class="log-box">Awaiting game start...</div>
+                <div class="log-container">
+                    <div class="log-header">
+                        <h3>Game Log</h3>
+                        <div>
+                            <button id="copy-log-btn" style="font-size: 0.8em; padding: 2px 5px;" title="Copy Log">Copy</button>
+                            <label title="Use short-form action log"><input type="checkbox" id="compact-log-toggle"> Compact</label>
+                        </div>
+                    </div>
+                    <div id="log" class="log-box">Awaiting game start...</div>
+                </div>
             </div>
         </div>
     </div>

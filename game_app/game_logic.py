@@ -912,13 +912,45 @@ class Game:
             'bypassed_shield': chosen_attack['bypassed_shield']
         }
 
-    def sacrifice_action_nova_burst(self, teamId):
-        """[SACRIFICE ACTION]: A point is destroyed, removing nearby enemy lines."""
+    def _find_possible_nova_bursts(self, teamId):
         team_point_ids = self.get_team_point_ids(teamId)
         if len(team_point_ids) <= 2:
-            return {'success': False, 'reason': 'not enough points to sacrifice safely'}
+            return []
 
-        sac_point_id = random.choice(team_point_ids)
+        blast_radius_sq = (self.state['grid_size'] * 0.25)**2
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        if not enemy_lines:
+            return []
+
+        points = self.state['points']
+        bastion_line_ids = self._get_bastion_line_ids()
+        
+        potential_sac_points = []
+        for pid in team_point_ids:
+            sac_point_coords = points[pid]
+            has_target = False
+            for line in enemy_lines:
+                if line.get('id') in bastion_line_ids: continue
+                if not (line['p1_id'] in points and line['p2_id'] in points): continue
+                
+                p1 = points[line['p1_id']]
+                p2 = points[line['p2_id']]
+
+                if distance_sq(sac_point_coords, p1) < blast_radius_sq or distance_sq(sac_point_coords, p2) < blast_radius_sq:
+                    potential_sac_points.append(pid)
+                    has_target = True
+                    break
+            if has_target:
+                continue
+        return potential_sac_points
+
+    def sacrifice_action_nova_burst(self, teamId):
+        """[SACRIFICE ACTION]: A point is destroyed, removing nearby enemy lines."""
+        potential_sac_points = self._find_possible_nova_bursts(teamId)
+        if not potential_sac_points:
+            return {'success': False, 'reason': 'no valid targets for nova burst'}
+
+        sac_point_id = random.choice(potential_sac_points)
         # We must copy the point's data before it's deleted by the helper function.
         sac_point_coords = self.state['points'][sac_point_id].copy()
         
@@ -2040,19 +2072,49 @@ class Game:
             'original_team_name': original_team_name
         }
 
+    def _find_possible_bastion_pulses(self, teamId):
+        team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId and len(b['prong_ids']) > 0]
+        if not team_bastions: return []
+
+        points_map = self.state['points']
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        if not enemy_lines: return []
+
+        possible_pulses = []
+        for bastion in team_bastions:
+            prong_points = [points_map[pid] for pid in bastion['prong_ids'] if pid in points_map]
+            if len(prong_points) < 2: continue
+
+            centroid = self._points_centroid(prong_points)
+            prong_points.sort(key=lambda p: math.atan2(p['y'] - centroid['y'], p['x'] - centroid['x']))
+            
+            has_crossing_line = False
+            for enemy_line in enemy_lines:
+                if enemy_line['p1_id'] not in points_map or enemy_line['p2_id'] not in points_map: continue
+                ep1 = points_map[enemy_line['p1_id']]
+                ep2 = points_map[enemy_line['p2_id']]
+                for i in range(len(prong_points)):
+                    perimeter_p1 = prong_points[i]
+                    perimeter_p2 = prong_points[(i + 1) % len(prong_points)]
+                    if segments_intersect(ep1, ep2, perimeter_p1, perimeter_p2):
+                        possible_pulses.append(bastion)
+                        has_crossing_line = True
+                        break
+                if has_crossing_line:
+                    break
+        return possible_pulses
+
     def fight_action_bastion_pulse(self, teamId):
         """[FIGHT ACTION]: A bastion sacrifices a prong to destroy crossing enemy lines."""
-        team_bastions = [b for b in self.state['bastions'].values() if b['teamId'] == teamId]
-        if not team_bastions:
-            return {'success': False, 'reason': 'no active bastions'}
+        possible_bastions = self._find_possible_bastion_pulses(teamId)
+        if not possible_bastions:
+            return {'success': False, 'reason': 'no active bastions with crossing enemy lines'}
 
-        # Choose a bastion that has at least one prong to sacrifice
-        bastion_to_pulse = random.choice(team_bastions)
-        if len(bastion_to_pulse['prong_ids']) == 0:
-             return {'success': False, 'reason': 'bastion has no prongs to sacrifice'}
+        bastion_to_pulse = random.choice(possible_bastions)
 
         # 1. Sacrifice a prong point using the robust helper.
         # This also updates the bastion state (removes prong, may dissolve bastion).
+        # We know from the check above that there is at least one prong.
         prong_to_sac_id = random.choice(bastion_to_pulse['prong_ids'])
         sacrificed_prong_data = self._delete_point_and_connections(prong_to_sac_id, aggressor_team_id=teamId)
 
@@ -2909,7 +2971,7 @@ class Game:
             'fight_convert': (lambda: len(self._find_possible_conversions(teamId)) > 0, "No vulnerable enemy points in range."),
             'fight_pincer_attack': (lambda: len(self._find_possible_pincers(teamId)) > 0, "No valid pincer attack formations found."),
             'fight_territory_strike': (lambda: self._find_possible_territory_strikes(teamId) is not None, "No large territories or no valid targets."),
-            'fight_bastion_pulse': (lambda: any(b['teamId'] == teamId and len(b['prong_ids']) > 0 for b in self.state.get('bastions', {}).values()), "Requires a Bastion with prongs to sacrifice."),
+            'fight_bastion_pulse': (lambda: len(self._find_possible_bastion_pulses(teamId)) > 0, "No bastion has crossing enemy lines to pulse."),
             'fight_sentry_zap': (lambda: bool(self.state.get('sentries', {}).get(teamId, [])), "Requires an active Sentry."),
             'fight_chain_lightning': (lambda: any(c.get('internal_point_ids') for c in self.state.get('conduits', {}).get(teamId, [])), "Requires a Conduit with internal points."),
             'fight_refraction_beam': (lambda: bool(self.state.get('prisms', {}).get(teamId, [])) and num_enemy_lines > 0, "Requires a Prism and enemy lines."),
@@ -2927,7 +2989,7 @@ class Game:
             'terraform_create_fissure': (lambda: any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in self.state.get('rift_spires', {}).values()), "Requires a charged Rift Spire."),
             'terraform_raise_barricade': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('barricade', [])), "Requires an active Barricade Rune."),
             'fortify_build_wonder': (lambda: num_team_points >= 6 and not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()), "Requires >= 6 points and no existing Wonder."),
-            'sacrifice_nova': (lambda: num_team_points > 2, "Requires more than 2 points to sacrifice one."),
+            'sacrifice_nova': (lambda: len(self._find_possible_nova_bursts(teamId)) > 0, "Requires >2 points & an enemy line in range."),
             'sacrifice_whirlpool': (lambda: num_team_points > 1, "Requires more than 1 point to sacrifice one."),
             'sacrifice_phase_shift': (lambda: num_team_lines > 0, "Requires a line to sacrifice."),
             'rune_shoot_bisector': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])), "Requires an active V-Rune."),
@@ -2935,7 +2997,7 @@ class Game:
             'rune_shield_pulse': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('shield', [])), "Requires an active Shield Rune."),
             'rune_impale': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('trident', [])), "Requires an active Trident Rune."),
             'rune_hourglass_stasis': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('hourglass', [])), "Requires an active Hourglass Rune."),
-            'rune_starlight_cascade': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('star', [])), "Requires an active Star Rune."),
+            'rune_starlight_cascade': (lambda: len(self._find_possible_starlight_cascades(teamId)) > 0, "No Star Rune has a valid target in range."),
             'rune_focus_beam': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('star', [])), "Requires an active Star Rune."),
         }
 
@@ -4149,21 +4211,53 @@ class Game:
             'rune_vertex_id': rune['vertex_id']
         }
 
+    def _find_possible_starlight_cascades(self, teamId):
+        active_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
+        if not active_star_runes: return []
+
+        damage_radius_sq = (self.state['grid_size'] * 0.3)**2
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        bastion_line_ids = self._get_bastion_line_ids()
+        points_map = self.state['points']
+
+        potential_cascades = []
+        # A bit complex: we want to return a list of valid {rune, sac_point_id} dicts
+        for rune in active_star_runes:
+            if not rune.get('cycle_ids'): continue
+            
+            for p_to_sac_id in rune['cycle_ids']:
+                if p_to_sac_id not in points_map: continue
+                sac_point_coords = points_map[p_to_sac_id]
+                
+                has_target = False
+                for line in enemy_lines:
+                    # Starlight cascade damages, it doesn't destroy shields/bastions, so skip them
+                    if line.get('id') in bastion_line_ids or line.get('id') in self.state['shields']: continue
+                    if line['p1_id'] not in points_map or line['p2_id'] not in points_map: continue
+                    p1 = points_map[line['p1_id']]
+                    p2 = points_map[line['p2_id']]
+                    midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
+
+                    if distance_sq(sac_point_coords, midpoint) < damage_radius_sq:
+                        potential_cascades.append({'rune': rune, 'sac_point_id': p_to_sac_id})
+                        has_target = True
+                        break # Found a target for this point, move to next sac candidate
+                if has_target:
+                    # Since we only need one valid sacrificial point per rune to make the rune "activatable"
+                    # we could break here. But for the action to be effective, we want to pick from *any*
+                    # valid sacrificial point. So we continue checking all sac points.
+                    pass
+        return potential_cascades
+
     def rune_action_starlight_cascade(self, teamId):
         """[RUNE ACTION]: A Star Rune sacrifices a point to damage nearby enemy lines."""
-        active_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
-        if not active_star_runes:
-            return {'success': False, 'reason': 'no active Star Runes'}
+        possible_cascades = self._find_possible_starlight_cascades(teamId)
+        if not possible_cascades:
+            return {'success': False, 'reason': 'no valid targets for starlight cascade'}
 
-        # Find runes that have cycle points to sacrifice
-        valid_runes = [r for r in active_star_runes if r.get('cycle_ids')]
-        if not valid_runes:
-            return {'success': False, 'reason': 'no points in rune to sacrifice'}
-
-        rune = random.choice(valid_runes)
-        
-        # Sacrifice a random point from the outer cycle
-        p_to_sac_id = random.choice(rune['cycle_ids'])
+        chosen_cascade = random.choice(possible_cascades)
+        rune = chosen_cascade['rune']
+        p_to_sac_id = chosen_cascade['sac_point_id']
         sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
         
         if not sacrificed_point_data:

@@ -2265,23 +2265,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const content = document.getElementById('action-preview-content');
         const showInvalid = document.getElementById('show-invalid-actions').checked;
     
-        if (gameState.game_phase !== 'RUNNING' || !gameState.actions_queue_this_turn || gameState.actions_queue_this_turn.length === 0) {
+        if (gameState.game_phase !== 'RUNNING' || !gameState.actions_queue_this_turn) {
             panel.style.display = 'none';
             return;
         }
         
         panel.style.display = 'block';
         
+        let teamIdForPreview;
+        let titlePrefix;
         const actionIndex = gameState.action_in_turn;
+
         if (actionIndex >= gameState.actions_queue_this_turn.length) {
-            content.innerHTML = '<h5>Turn Over</h5><p>Click "Next Action" to start the new turn.</p>';
-            return;
+            // End of turn, show preview for the next turn.
+            titlePrefix = "Next Turn Preview";
+            const activeTeamIds = Object.keys(gameState.teams).filter(id => {
+                const stats = gameState.live_stats[id];
+                return stats && stats.point_count > 0;
+            });
+            
+            if (activeTeamIds.length > 0) {
+                // Can't know who is next due to shuffling, so just pick the first active team as a representative.
+                teamIdForPreview = activeTeamIds[0];
+            } else {
+                content.innerHTML = '<h5>Turn Over</h5><p>No active teams remain.</p>';
+                return;
+            }
+        } else {
+            // Mid-turn, show preview for the current team.
+            titlePrefix = "Now:";
+            const currentActionInfo = gameState.actions_queue_this_turn[actionIndex];
+            teamIdForPreview = currentActionInfo.teamId;
         }
     
-        const currentActionInfo = gameState.actions_queue_this_turn[actionIndex];
-        const teamId = currentActionInfo.teamId;
-    
-        const fetchUrl = `/api/game/action_probabilities?teamId=${teamId}&include_invalid=${showInvalid}`;
+        const fetchUrl = `/api/game/action_probabilities?teamId=${teamIdForPreview}&include_invalid=${showInvalid}`;
     
         fetch(fetchUrl)
             .then(response => response.json())
@@ -2291,7 +2308,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
     
-                let html = `<h5 style="border-color:${data.color};">Now: ${data.team_name}'s Turn</h5>`;
+                let html = `<h5 style="border-color:${data.color};">${titlePrefix} ${data.team_name}'s Turn</h5>`;
     
                 const actionGroups = {
                     'Fight': { valid: [], invalid: [] },
@@ -2361,14 +2378,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const isRunning = gamePhase === 'RUNNING';
         const isFinished = gamePhase === 'FINISHED';
 
+        // Left Panel
         document.getElementById('setup-phase').style.display = inSetup ? 'block' : 'none';
         document.getElementById('simulation-controls').style.display = inSetup ? 'none' : 'block';
         
-        // Only show live controls (next, auto-play) when the simulation is actually running
+        // Right Panel
+        document.getElementById('setup-actions').style.display = inSetup ? 'block' : 'none';
+        document.getElementById('running-analysis').style.display = inSetup ? 'none' : 'block';
+
+        // Live controls in left panel
         const liveControls = document.getElementById('live-controls');
         liveControls.style.display = isRunning ? 'block' : 'none';
 
-        // Restart button is available when running or finished
+        // Restart button in left panel
         restartSimulationBtn.style.display = isRunning || isFinished ? 'block' : 'none';
 
         if (isFinished) {
