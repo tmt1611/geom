@@ -3468,7 +3468,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const p3 = {x: w*0.8, y: h*0.8};
 
             illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1, p2}, {p2, p3}, {p3, p1}], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1: p1, p2: p2}, {p1: p2, p2: p3}, {p1: p3, p2: p1}], team1_color);
 
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
