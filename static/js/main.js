@@ -1244,7 +1244,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             } else if (effect.type === 'bastion_formation') {
                 const progress = age / effect.duration;
-                const pulse = Math.sin(progress * Math.PI); // Curve from 0 -> 1 -> 0
+                const pulse = Math.abs(Math.sin(progress * Math.PI)); // Curve from 0 -> 1 -> 0. Abs to prevent negative line width.
                 ctx.globalAlpha = pulse * 0.9;
                 ctx.lineWidth = 2 + pulse * 8; // Shield widens
                 ctx.strokeStyle = `rgba(173, 216, 230, ${pulse * 0.8})`; // Shield blue color
@@ -1324,7 +1324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const p2_y = (effect.p2.y + 0.5) * cellSize;
 
                 // Draw two swirling portals
-                const portal_radius = 15 * Math.sin(progress * Math.PI); // Grow and shrink
+                const portal_radius = 15 * Math.abs(Math.sin(progress * Math.PI)); // Grow and shrink. Abs to prevent negative radius if progress > 1
                 [ {x: p1_x, y: p1_y}, {x: p2_x, y: p2_y} ].forEach(p => {
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, portal_radius, 0, 2 * Math.PI);
