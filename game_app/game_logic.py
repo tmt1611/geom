@@ -439,13 +439,19 @@ class Game:
             team_data['id'] = team_id # Ensure team object contains its own ID
 
         self.state['teams'] = teams
-        # Convert points list to a dictionary with unique IDs
-        for p in points:
-            point_id = f"p_{uuid.uuid4().hex[:6]}"
-            self.state['points'][point_id] = {**p, 'id': point_id}
         self.state['max_turns'] = max_turns
         self.state['grid_size'] = grid_size
-        self.state['game_phase'] = "RUNNING" if len(points) > 0 else "SETUP"
+        
+        # Validate and convert points list to a dictionary with unique IDs
+        valid_points = [p for p in points if 
+                        isinstance(p.get('x'), int) and isinstance(p.get('y'), int) and
+                        0 <= p['x'] < grid_size and 0 <= p['y'] < grid_size]
+
+        for p in valid_points:
+            point_id = f"p_{uuid.uuid4().hex[:6]}"
+            self.state['points'][point_id] = {**p, 'id': point_id}
+        
+        self.state['game_phase'] = "RUNNING" if len(self.state['points']) > 0 else "SETUP"
         self.state['game_log'].append({'message': "Game initialized.", 'short_message': '[INIT]'})
         self.state['action_in_turn'] = 0
         self.state['actions_queue_this_turn'] = []
