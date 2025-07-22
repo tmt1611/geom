@@ -224,10 +224,6 @@ class Game:
     def __init__(self):
         self.reset()
 
-
-    def __init__(self):
-        self.reset()
-
     def reset(self):
         """Initializes or resets the game state with default teams."""
         # Using fixed IDs for default teams ensures they can be referenced consistently.
@@ -4735,6 +4731,101 @@ class Game:
         
         return t_runes
 
+    def _check_plus_rune(self, teamId):
+        """
+        Finds Plus-Runes: A central point connected to 4 other points, where the arms
+        form two perpendicular, straight lines through the center.
+        e.g., A-C-B and D-C-E are straight, and AB is perpendicular to DE.
+        All 4 lines from center (C) to arms (A,B,D,E) must exist.
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 5:
+            return []
+
+        points = self.state['points']
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+
+        plus_runes = []
+        used_points = set()
+
+        # Find points with at least 4 connections (potential centers)
+        for center_id in team_point_ids:
+            if center_id in used_points:
+                continue
+            
+            neighbors = list(adj.get(center_id, set()))
+            if len(neighbors) < 4:
+                continue
+
+            p_center = points[center_id]
+
+            # Iterate through combinations of 4 neighbors
+            for arm_candidates_ids in combinations(neighbors, 4):
+                # We need to pair them up into two straight lines
+                
+                # Try pairing the first arm with each of the others
+                p_arm1_id = arm_candidates_ids[0]
+                p_arm1 = points[p_arm1_id]
+
+                for i in range(1, 4):
+                    p_arm2_id = arm_candidates_ids[i]
+                    p_arm2 = points[p_arm2_id]
+
+                    # Check if p_arm1, p_center, p_arm2 form a line
+                    if orientation(p_arm1, p_center, p_arm2) != 0:
+                        continue
+                    
+                    # Check that p_center is between them
+                    v_center_a1 = {'x': p_arm1['x'] - p_center['x'], 'y': p_arm1['y'] - p_center['y']}
+                    v_center_a2 = {'x': p_arm2['x'] - p_center['x'], 'y': p_arm2['y'] - p_center['y']}
+                    if v_center_a1['x'] * v_center_a2['x'] + v_center_a1['y'] * v_center_a2['y'] >= 0:
+                        continue
+
+                    # Found one valid line. Check the other two arms for a perpendicular line.
+                    other_arms_ids = [pid for pid in arm_candidates_ids if pid not in (p_arm1_id, p_arm2_id)]
+                    p_arm3_id, p_arm4_id = other_arms_ids[0], other_arms_ids[1]
+                    p_arm3, p_arm4 = points[p_arm3_id], points[p_arm4_id]
+
+                    # Check if p_arm3, p_center, p_arm4 form a line
+                    if orientation(p_arm3, p_center, p_arm4) != 0:
+                        continue
+                    
+                    v_center_a3 = {'x': p_arm3['x'] - p_center['x'], 'y': p_arm3['y'] - p_center['y']}
+                    v_center_a4 = {'x': p_arm4['x'] - p_center['x'], 'y': p_arm4['y'] - p_center['y']}
+                    if v_center_a3['x'] * v_center_a4['x'] + v_center_a3['y'] * v_center_a4['y'] >= 0:
+                        continue
+                    
+                    # Check for perpendicularity between the two lines
+                    # Using dot product of the line vectors (e.g., arm1->arm2 and arm3->arm4)
+                    v_line1_x, v_line1_y = p_arm2['x'] - p_arm1['x'], p_arm2['y'] - p_arm1['y']
+                    v_line2_x, v_line2_y = p_arm4['x'] - p_arm3['x'], p_arm4['y'] - p_arm3['y']
+                    
+                    mag1_sq = v_line1_x**2 + v_line1_y**2
+                    mag2_sq = v_line2_x**2 + v_line2_y**2
+                    if mag1_sq < 0.1 or mag2_sq < 0.1: continue
+
+                    dot_product = v_line1_x * v_line2_x + v_line1_y * v_line2_y
+                    cos_theta_sq = dot_product**2 / (mag1_sq * mag2_sq)
+
+                    if cos_theta_sq < 0.05: # Perpendicular (cos(90)^2 = 0), allow some tolerance
+                        rune_points = {center_id, p_arm1_id, p_arm2_id, p_arm3_id, p_arm4_id}
+                        if not used_points.intersection(rune_points):
+                            plus_runes.append({
+                                'center_id': center_id,
+                                'arm_ids': list(arm_candidates_ids),
+                                'all_points': list(rune_points)
+                            })
+                            used_points.update(rune_points)
+                            # Break out of inner loops since we found a valid rune for this center
+                            break
+                if center_id in used_points:
+                    break
+        return plus_runes
+
     def _check_hourglass_rune(self, teamId):
         """
         Finds Hourglass Runes: two triangles sharing a single vertex, where all 6 lines exist.
@@ -5074,93 +5165,6 @@ class Game:
                         'shared_p2_id': edge[1],
                         'all_point_ids': list(all_points)
                     })
-
-    def rune_action_cardinal_pulse(self, teamId):
-        """[RUNE ACTION]: A Plus-Rune is consumed to fire four beams from its center. Beams destroy the first enemy line hit, or create a point on the border if they miss."""
-        active_plus_runes = self.state.get('runes', {}).get(teamId, {}).get('plus_shape', [])
-        if not active_plus_runes:
-            return {'success': False, 'reason': 'no active Plus-Runes'}
-        
-        rune = random.choice(active_plus_runes)
-        points_map = self.state['points']
-        center_point = points_map.get(rune['center_id'])
-
-        if not center_point or not all(pid in points_map for pid in rune['arm_ids']):
-             return {'success': False, 'reason': 'rune points no longer exist'}
-        
-        # --- Consume the rune ---
-        sacrificed_points_data = []
-        for pid in rune['all_points']:
-            sac_data = self._delete_point_and_connections(pid, aggressor_team_id=teamId)
-            if sac_data:
-                sacrificed_points_data.append(sac_data)
-
-        if not sacrificed_points_data:
-            return {'success': False, 'reason': 'failed to sacrifice points for cardinal pulse'}
-            
-        # --- Fire 4 beams ---
-        lines_destroyed = []
-        points_created = []
-        attack_rays = []
-        
-        for arm_pid in rune['arm_ids']:
-            # The arm point itself was sacrificed, so we use its last known coordinates from the sacrifice data.
-            arm_point_data = next((p for p in sacrificed_points_data if p['id'] == arm_pid), None)
-            if not arm_point_data: continue
-
-            border_point = self._get_extended_border_point(center_point, arm_point_data)
-            if not border_point: continue
-
-            attack_ray = {'p1': center_point, 'p2': border_point}
-            attack_rays.append(attack_ray)
-            
-            # This is complex because points/lines are being removed as we iterate.
-            # We need to check against the current state of the board for each beam.
-            enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-            hits = []
-            for enemy_line in enemy_lines:
-                 # Cardinal Pulse is powerful, it bypasses shields but not bastions.
-                if enemy_line.get('id') in self._get_bastion_line_ids(): continue
-                if enemy_line['p1_id'] not in self.state['points'] or enemy_line['p2_id'] not in self.state['points']: continue
-                
-                ep1 = self.state['points'][enemy_line['p1_id']]
-                ep2 = self.state['points'][enemy_line['p2_id']]
-
-                intersection_point = get_segment_intersection_point(attack_ray['p1'], attack_ray['p2'], ep1, ep2)
-                if intersection_point:
-                    dist_sq = distance_sq(attack_ray['p1'], intersection_point)
-                    hits.append({'line': enemy_line, 'dist_sq': dist_sq})
-            
-            if hits:
-                # Destroy the closest line hit by this beam
-                closest_hit = min(hits, key=lambda h: h['dist_sq'])
-                line_to_destroy = closest_hit['line']
-                
-                if line_to_destroy in self.state['lines']: # Check it hasn't been destroyed by another beam
-                    self.state['lines'].remove(line_to_destroy)
-                    self.state['shields'].pop(line_to_destroy.get('id'), None)
-                    self.state['line_strengths'].pop(line_to_destroy.get('id'), None)
-                    lines_destroyed.append(line_to_destroy)
-            else:
-                # Miss: create point on border
-                is_valid, _ = self._is_spawn_location_valid(border_point, teamId)
-                if is_valid:
-                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
-                    new_point = {**border_point, "teamId": teamId, "id": new_point_id}
-                    self.state['points'][new_point_id] = new_point
-                    points_created.append(new_point)
-
-        if not lines_destroyed and not points_created:
-            return {'success': False, 'reason': 'cardinal pulse had no effect'}
-
-        return {
-            'success': True,
-            'type': 'rune_cardinal_pulse',
-            'sacrificed_points': sacrificed_points_data,
-            'lines_destroyed': lines_destroyed,
-            'points_created': points_created,
-            'attack_rays': attack_rays
-        }
 
     def rune_action_cardinal_pulse(self, teamId):
         """[RUNE ACTION]: A Plus-Rune is consumed to fire four beams from its center. Beams destroy the first enemy line hit, or create a point on the border if they miss."""
