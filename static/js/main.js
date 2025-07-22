@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusBar = document.getElementById('status-bar');
     const finalInterpDiv = document.getElementById('final-interpretation');
     const finalInterpContent = document.getElementById('final-stats-content');
+    const actionPreviewPanel = document.getElementById('action-preview-panel');
     const compactLogToggle = document.getElementById('compact-log-toggle');
     const copyLogBtn = document.getElementById('copy-log-btn');
 
@@ -631,6 +632,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.globalAlpha = 1.0;
                 });
             }
+
+            // Draw Shield Runes
+            if (teamRunes.shield) {
+                teamRunes.shield.forEach(rune => {
+                    const tri_points = rune.triangle_ids.map(pid => gameState.points[pid]).filter(p => p);
+                    const core_point = gameState.points[rune.core_id];
+                    if (tri_points.length !== 3 || !core_point) return;
+
+                    // Draw the filled triangle
+                    ctx.beginPath();
+                    ctx.moveTo((tri_points[0].x + 0.5) * cellSize, (tri_points[0].y + 0.5) * cellSize);
+                    ctx.lineTo((tri_points[1].x + 0.5) * cellSize, (tri_points[1].y + 0.5) * cellSize);
+                    ctx.lineTo((tri_points[2].x + 0.5) * cellSize, (tri_points[2].y + 0.5) * cellSize);
+                    ctx.closePath();
+                    
+                    ctx.fillStyle = team.color;
+                    ctx.globalAlpha = 0.25;
+                    ctx.fill();
+
+                    // Draw an outline pulse
+                    const pulse = Math.abs(Math.sin(Date.now() / 500));
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1 + pulse * 2;
+                    ctx.globalAlpha = 0.3 + pulse * 0.4;
+                    ctx.stroke();
+
+                    ctx.globalAlpha = 1.0;
+                });
+            }
         }
     }
 
@@ -919,16 +949,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.lineWidth = 4 * (1 - progress);
                 ctx.stroke();
             } else if (effect.type === 'nova_burst') {
+                const num_particles = 20;
+                const radius = effect.radius * progress;
+                // Expanding shockwave
                 ctx.beginPath();
-                ctx.arc(
-                    (effect.x + 0.5) * cellSize,
-                    (effect.y + 0.5) * cellSize,
-                    effect.radius * progress, // Radius grows
-                    0, 2 * Math.PI
-                );
-                ctx.strokeStyle = `rgba(255, 100, 100, ${1 - progress})`; // Fade out
+                ctx.arc((effect.x + 0.5) * cellSize, (effect.y + 0.5) * cellSize, radius, 0, 2 * Math.PI);
+                ctx.strokeStyle = `rgba(255, 100, 100, ${1 - progress})`;
                 ctx.lineWidth = 3;
                 ctx.stroke();
+                // Particles
+                for(let i=0; i < num_particles; i++) {
+                    const angle = effect.particles[i].angle;
+                    const speed = effect.particles[i].speed;
+                    const dist = speed * age / 1000;
+                    ctx.beginPath();
+                    ctx.arc(
+                        (effect.x + 0.5) * cellSize + Math.cos(angle) * dist,
+                        (effect.y + 0.5) * cellSize + Math.sin(angle) * dist,
+                        2 * (1-progress), 0, 2*Math.PI
+                    );
+                    ctx.fillStyle = `rgba(255, 150, 100, ${1 - progress})`;
+                    ctx.fill();
+                }
             } else if (effect.type === 'new_line') {
                 const p1 = currentGameState.points[effect.line.p1_id];
                 const p2 = currentGameState.points[effect.line.p2_id];
@@ -940,6 +982,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.lineWidth = 5;
                     ctx.stroke();
                 }
+            } else if (effect.type === 'animated_ray') {
+                const start_x = (effect.p1.x + 0.5) * cellSize;
+                const start_y = (effect.p1.y + 0.5) * cellSize;
+                const end_x = (effect.p2.x + 0.5) * cellSize;
+                const end_y = (effect.p2.y + 0.5) * cellSize;
+
+                const current_x = start_x + (end_x - start_x) * progress;
+                const current_y = start_y + (end_y - start_y) * progress;
+
+                // Draw a fading tail
+                const tail_length = 40;
+                const dx = end_x - start_x;
+                const dy = end_y - start_y;
+                const len = Math.sqrt(dx*dx + dy*dy);
+                const tail_x = current_x - (dx/len) * tail_length;
+                const tail_y = current_y - (dy/len) * tail_length;
+
+                const gradient = ctx.createLinearGradient(current_x, current_y, tail_x, tail_y);
+                gradient.addColorStop(0, effect.color);
+                gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+                
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = effect.lineWidth || 3;
+                ctx.beginPath();
+                ctx.moveTo(tail_x, tail_y);
+                ctx.lineTo(current_x, current_y);
+                ctx.stroke();
+
             } else if (effect.type === 'attack_ray') {
                 const x1 = (effect.p1.x + 0.5) * cellSize;
                 const y1 = (effect.p1.y + 0.5) * cellSize;
@@ -964,6 +1034,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.setLineDash([5, 5]);
                     ctx.stroke();
                     ctx.restore();
+                }
+            } else if (effect.type === 'polygon_flash') {
+                const progress = age / effect.duration;
+                if (effect.points && effect.points.length >= 3) {
+                    ctx.beginPath();
+                    ctx.moveTo((effect.points[0].x + 0.5) * cellSize, (effect.points[0].y + 0.5) * cellSize);
+                    for (let i = 1; i < effect.points.length; i++) {
+                        ctx.lineTo((effect.points[i].x + 0.5) * cellSize, (effect.points[i].y + 0.5) * cellSize);
+                    }
+                    ctx.closePath();
+                    ctx.fillStyle = effect.color;
+                    ctx.globalAlpha = 0.7 * (1 - progress); // Fade out
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
                 }
             } else if (effect.type === 'chain_lightning') {
                 const points = effect.point_ids.map(pid => currentGameState.points[pid]).filter(p => p);
@@ -1138,6 +1222,256 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(animationLoop);
     }
     
+    const actionVisualsMap = {
+        'nova_burst': (details, gameState) => {
+            lastActionHighlights.points.add(details.sacrificed_point.id);
+            // Pre-calculate particle directions for the effect
+            let particles = [];
+            for(let i=0; i<20; i++) {
+                particles.push({angle: Math.random() * 2 * Math.PI, speed: (150 + Math.random() * 50) * (cellSize/10)});
+            }
+            visualEffects.push({
+                type: 'nova_burst',
+                x: details.sacrificed_point.x,
+                y: details.sacrificed_point.y,
+                radius: (gameState.grid_size * 0.25) * cellSize,
+                particles: particles,
+                startTime: Date.now(),
+                duration: 750
+            });
+        },
+        'add_line': (details, gameState) => {
+            lastActionHighlights.lines.add(details.line.id);
+            lastActionHighlights.points.add(details.line.p1_id);
+            lastActionHighlights.points.add(details.line.p2_id);
+            visualEffects.push({
+                type: 'new_line', line: details.line, startTime: Date.now(), duration: 500
+            });
+        },
+        'fracture_line': (details, gameState) => {
+            lastActionHighlights.points.add(details.new_point.id);
+            lastActionHighlights.lines.add(details.new_line1.id);
+            lastActionHighlights.lines.add(details.new_line2.id);
+        },
+        'convert_point': (details, gameState) => {
+            lastActionHighlights.points.add(details.converted_point.id);
+        },
+        'attack_line': (details, gameState) => {
+            lastActionHighlights.lines.add(details.attacker_line.id);
+            visualEffects.push({
+                type: 'animated_ray',
+                p1: details.attack_ray.p1,
+                p2: details.attack_ray.p2,
+                startTime: Date.now(),
+                duration: 600,
+                color: details.bypassed_shield ? 'rgba(255, 100, 255, 1.0)' : 'rgba(255, 0, 0, 1.0)'
+            });
+        },
+        'rune_shoot_bisector': (details, gameState) => {
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'animated_ray',
+                p1: details.attack_ray.p1,
+                p2: details.attack_ray.p2,
+                startTime: Date.now(),
+                duration: 800,
+                color: 'rgba(100, 255, 255, 1.0)',
+                lineWidth: 4,
+            });
+        },
+        'rune_area_shield': (details, gameState) => {
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            const tri_points = details.rune_triangle_ids.map(pid => gameState.points[pid]).filter(p=>p);
+            if(tri_points.length === 3) {
+                visualEffects.push({
+                    type: 'polygon_flash',
+                    points: tri_points,
+                    color: 'rgba(173, 216, 230, 0.9)', // Light blue shield color
+                    startTime: Date.now(),
+                    duration: 1000
+                });
+            }
+        },
+        'extend_line': (details, gameState) => {
+            lastActionHighlights.points.add(details.new_point.id);
+            if (details.is_empowered && details.new_line) {
+                lastActionHighlights.lines.add(details.new_line.id);
+            }
+        },
+        'shield_line': (details, gameState) => {
+            lastActionHighlights.lines.add(details.shielded_line.id);
+        },
+        'claim_territory': (details, gameState) => {
+            details.territory.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+        },
+        'create_anchor': (details, gameState) => {
+            lastActionHighlights.points.add(details.anchor_point.id);
+            if(details.sacrificed_point) {
+                 visualEffects.push({
+                    type: 'point_implosion',
+                    x: details.sacrificed_point.x,
+                    y: details.sacrificed_point.y,
+                    startTime: Date.now(),
+                    duration: 800,
+                    color: currentGameState.teams[details.sacrificed_point.teamId]?.color
+                });
+            }
+        },
+        'create_whirlpool': (details, gameState) => {
+            visualEffects.push({
+                type: 'point_implosion',
+                x: details.sacrificed_point.x,
+                y: details.sacrificed_point.y,
+                startTime: Date.now(),
+                duration: 1200,
+                color: currentGameState.teams[details.sacrificed_point.teamId]?.color || `rgba(150, 220, 255, ${1-0})` // Blueish for water
+            });
+        },
+        'mirror_structure': (details, gameState) => {
+            details.new_points.forEach(p => lastActionHighlights.points.add(p.id));
+            lastActionHighlights.points.add(details.axis_p1_id);
+            lastActionHighlights.points.add(details.axis_p2_id);
+            visualEffects.push({
+                type: 'mirror_axis',
+                p1_id: details.axis_p1_id,
+                p2_id: details.axis_p2_id,
+                startTime: Date.now(),
+                duration: 1500 // ms
+            });
+        },
+        'create_orbital': (details, gameState) => {
+            lastActionHighlights.points.add(details.center_point_id);
+            details.new_points.forEach(p => lastActionHighlights.points.add(p.id));
+            details.new_lines.forEach(l => lastActionHighlights.lines.add(l.id));
+        },
+        'form_bastion': (details, gameState) => {
+            lastActionHighlights.points.add(details.bastion.core_id);
+            details.bastion.prong_ids.forEach(pid => lastActionHighlights.points.add(pid));
+        },
+        'chain_lightning': (details, gameState) => {
+            details.conduit_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'chain_lightning',
+                point_ids: details.conduit_point_ids,
+                destroyed_point: details.destroyed_point,
+                startTime: Date.now(),
+                duration: 1000 // ms
+            });
+            if (details.destroyed_point) {
+                visualEffects.push({
+                    type: 'point_explosion',
+                    x: details.destroyed_point.x,
+                    y: details.destroyed_point.y,
+                    startTime: Date.now() + 400, // delayed explosion
+                    duration: 500
+                });
+            }
+        },
+        'refraction_beam': (details, gameState) => {
+            details.prism_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'attack_ray', p1: details.source_ray.p1, p2: details.source_ray.p2, startTime: Date.now(), duration: 1200, color: `rgba(255, 255, 150, ${1-0})`, lineWidth: 2
+            });
+            visualEffects.push({
+                type: 'attack_ray', p1: details.refracted_ray.p1, p2: details.refracted_ray.p2, startTime: Date.now() + 200, duration: 1000, color: `rgba(255, 100, 100, ${1-0})`, lineWidth: 4
+            });
+        },
+        'bastion_pulse': (details, gameState) => {
+            const bastion = gameState.bastions[details.bastion_id];
+            if(bastion) {
+                lastActionHighlights.points.add(bastion.core_id);
+                bastion.prong_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            }
+            visualEffects.push({
+                type: 'point_implosion', x: details.sacrificed_prong.x, y: details.sacrificed_prong.y, startTime: Date.now(), duration: 800, color: currentGameState.teams[details.sacrificed_prong.teamId]?.color
+            });
+        },
+        'sentry_zap': (details, gameState) => {
+            details.sentry_points.forEach(pid => lastActionHighlights.points.add(pid));
+             visualEffects.push({
+                type: 'attack_ray', p1: details.attack_ray.p1, p2: details.attack_ray.p2, startTime: Date.now(), duration: 400, color: `rgba(255, 100, 100, ${1-0})`, lineWidth: 2
+            });
+            visualEffects.push({
+                type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now(), duration: 600
+            });
+        },
+        'cultivate_heartwood': (details, gameState) => {
+            details.sacrificed_points.forEach(p => lastActionHighlights.points.add(p.id));
+            visualEffects.push({
+                type: 'heartwood_creation', sacrificed_points: details.sacrificed_points, center_coords: details.heartwood.center_coords, startTime: Date.now(), duration: 1500
+            });
+        },
+        'phase_shift': (details, gameState) => {
+            if (details.original_coords) {
+                visualEffects.push({
+                    type: 'point_implosion', x: details.original_coords.x, y: details.original_coords.y, startTime: Date.now(), duration: 800, color: currentGameState.teams[details.sacrificed_line.teamId]?.color
+                });
+            }
+            if (details.new_coords) {
+                 visualEffects.push({
+                    type: 'point_explosion', x: details.new_coords.x, y: details.new_coords.y, startTime: Date.now() + 200, duration: 600
+                });
+            }
+            lastActionHighlights.points.add(details.moved_point_id);
+        },
+        'pincer_attack': (details, gameState) => {
+            lastActionHighlights.points.add(details.attacker_p1_id);
+            lastActionHighlights.points.add(details.attacker_p2_id);
+            const p1 = gameState.points[details.attacker_p1_id];
+            const p2 = gameState.points[details.attacker_p2_id];
+            const target = details.destroyed_point;
+
+            if (p1 && target) {
+                 visualEffects.push({ type: 'animated_ray', p1: p1, p2: target, startTime: Date.now(), duration: 500, color: 'rgba(255,0,0,1.0)' });
+            }
+            if (p2 && target) {
+                visualEffects.push({ type: 'animated_ray', p1: p2, p2: target, startTime: Date.now(), duration: 500, color: 'rgba(255,0,0,1.0)' });
+            }
+            visualEffects.push({ type: 'point_explosion', x: target.x, y: target.y, startTime: Date.now(), duration: 600 });
+        },
+        'territory_strike': (details, gameState) => {
+            details.territory_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'attack_ray', p1: details.attack_ray.p1, p2: details.attack_ray.p2, startTime: Date.now(), duration: 900, color: 'rgba(100, 255, 100, 1.0)', lineWidth: 3
+            });
+            visualEffects.push({
+                type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now() + 500, duration: 600
+            });
+        },
+        'launch_payload': (details, gameState) => {
+            details.trebuchet_points.forEach(pid => lastActionHighlights.points.add(pid));
+            const launch_point = gameState.points[details.launch_point_id];
+            if (launch_point) {
+                visualEffects.push({
+                    type: 'arc_projectile', start: launch_point, end: details.destroyed_point, startTime: Date.now(), duration: 1200
+                });
+            }
+            visualEffects.push({
+                type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now() + 1200, duration: 800
+            });
+        },
+        'form_purifier': (details, gameState) => {
+            details.purifier.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+        },
+        'purify_territory': (details, gameState) => {
+            details.purifier_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'territory_fade', territory: details.cleansed_territory, startTime: Date.now(), duration: 1500
+            });
+        },
+        'build_chronos_spire': (details, gameState) => {
+            visualEffects.push({
+                type: 'point_implosion', x: details.wonder.coords.x, y: details.wonder.coords.y, startTime: Date.now(), duration: 2000, color: `rgba(255, 255, 150, ${1-0})`
+            });
+        },
+        'form_rift_spire': (details, gameState) => {
+            visualEffects.push({
+                type: 'point_implosion', x: details.sacrificed_point.x, y: details.sacrificed_point.y, startTime: Date.now(), duration: 1500, color: `rgba(200, 100, 255, ${1-0})`
+            });
+        }
+        // 'create_fissure' has no special effect beyond the fissure appearing.
+    };
+    
     function processActionVisuals(gameState) {
         const details = gameState.last_action_details;
         if (!details || !details.type) return;
@@ -1163,336 +1497,9 @@ document.addEventListener('DOMContentLoaded', () => {
         lastActionHighlights.points.clear();
         lastActionHighlights.lines.clear();
 
-        if (details.type === 'nova_burst' && details.sacrificed_point) {
-            lastActionHighlights.points.add(details.sacrificed_point.id);
-            visualEffects.push({
-                type: 'nova_burst',
-                x: details.sacrificed_point.x,
-                y: details.sacrificed_point.y,
-                radius: (gameState.grid_size * 0.25) * cellSize,
-                startTime: Date.now(),
-                duration: 750 // ms
-            });
-        }
-        if (details.type === 'add_line' && details.line) {
-            lastActionHighlights.lines.add(details.line.id);
-            lastActionHighlights.points.add(details.line.p1_id);
-            lastActionHighlights.points.add(details.line.p2_id);
-            visualEffects.push({
-                type: 'new_line',
-                line: details.line,
-                startTime: Date.now(),
-                duration: 500 // ms
-            });
-        }
-        if (details.type === 'fracture_line' && details.new_point) {
-            lastActionHighlights.points.add(details.new_point.id);
-            lastActionHighlights.lines.add(details.new_line1.id);
-            lastActionHighlights.lines.add(details.new_line2.id);
-        }
-        if (details.type === 'convert_point' && details.converted_point) {
-            lastActionHighlights.points.add(details.converted_point.id);
-        }
-        if (details.type === 'attack_line' && details.attack_ray) {
-            lastActionHighlights.lines.add(details.attacker_line.id);
-            // Highlight the line that *was* destroyed, even though it's gone from state
-            // We can't do this easily as it's already removed. Highlighting the attacker is enough.
-            visualEffects.push({
-                type: 'attack_ray',
-                p1: details.attack_ray.p1,
-                p2: details.attack_ray.p2,
-                startTime: Date.now(),
-                duration: 600, // ms
-                color: details.bypassed_shield ? `rgba(255, 100, 255, ${1 - 0})` : `rgba(255, 0, 0, ${1 - 0})` // Magenta if shield bypass
-            });
-        }
-        if (details.type === 'rune_shoot_bisector' && details.attack_ray) {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
-                type: 'attack_ray',
-                p1: details.attack_ray.p1,
-                p2: details.attack_ray.p2,
-                startTime: Date.now(),
-                duration: 800,
-                color: `rgba(100, 255, 255, ${1-0})`, // Cyan for rune attack
-                lineWidth: 4,
-            });
-        }
-        if (details.type === 'extend_line' && details.new_point) {
-            lastActionHighlights.points.add(details.new_point.id);
-            if (details.is_empowered && details.new_line) {
-                lastActionHighlights.lines.add(details.new_line.id);
-            }
-        }
-        if (details.type === 'shield_line' && details.shielded_line) {
-            lastActionHighlights.lines.add(details.shielded_line.id);
-        }
-        if (details.type === 'claim_territory' && details.territory) {
-            details.territory.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-        }
-        if (details.type === 'create_anchor' && details.anchor_point) {
-            lastActionHighlights.points.add(details.anchor_point.id);
-            if(details.sacrificed_point) {
-                 visualEffects.push({
-                    type: 'point_implosion',
-                    x: details.sacrificed_point.x,
-                    y: details.sacrificed_point.y,
-                    startTime: Date.now(),
-                    duration: 800,
-                    color: currentGameState.teams[details.sacrificed_point.teamId]?.color
-                });
-            }
-        }
-        if (details.type === 'create_whirlpool' && details.sacrificed_point) {
-            visualEffects.push({
-                type: 'point_implosion',
-                x: details.sacrificed_point.x,
-                y: details.sacrificed_point.y,
-                startTime: Date.now(),
-                duration: 1200,
-                color: currentGameState.teams[details.sacrificed_point.teamId]?.color || `rgba(150, 220, 255, ${1-0})` // Blueish for water
-            });
-        }
-        if (details.type === 'mirror_structure' && details.new_points) {
-            details.new_points.forEach(p => lastActionHighlights.points.add(p.id));
-            lastActionHighlights.points.add(details.axis_p1_id);
-            lastActionHighlights.points.add(details.axis_p2_id);
-            visualEffects.push({
-                type: 'mirror_axis',
-                p1_id: details.axis_p1_id,
-                p2_id: details.axis_p2_id,
-                startTime: Date.now(),
-                duration: 1500 // ms
-            });
-        }
-        if (details.type === 'create_orbital' && details.new_points) {
-            lastActionHighlights.points.add(details.center_point_id);
-            details.new_points.forEach(p => lastActionHighlights.points.add(p.id));
-            details.new_lines.forEach(l => lastActionHighlights.lines.add(l.id));
-        }
-        if (details.type === 'form_bastion' && details.bastion) {
-            lastActionHighlights.points.add(details.bastion.core_id);
-            details.bastion.prong_ids.forEach(pid => lastActionHighlights.points.add(pid));
-        }
-        if (details.type === 'chain_lightning') {
-            details.conduit_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
-                type: 'chain_lightning',
-                point_ids: details.conduit_point_ids,
-                destroyed_point: details.destroyed_point,
-                startTime: Date.now(),
-                duration: 1000 // ms
-            });
-            if (details.destroyed_point) {
-                visualEffects.push({
-                    type: 'point_explosion',
-                    x: details.destroyed_point.x,
-                    y: details.destroyed_point.y,
-                    startTime: Date.now() + 400, // delayed explosion
-                    duration: 500
-                });
-            }
-        }
-        if (details.type === 'refraction_beam') {
-            // Highlight the prism points
-            details.prism_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-
-            // Visualize source ray
-            visualEffects.push({
-                type: 'attack_ray',
-                p1: details.source_ray.p1,
-                p2: details.source_ray.p2,
-                startTime: Date.now(),
-                duration: 1200,
-                color: `rgba(255, 255, 150, ${1-0})`, // Yellow
-                lineWidth: 2
-            });
-            // Visualize refracted ray, slightly delayed
-            visualEffects.push({
-                type: 'attack_ray',
-                p1: details.refracted_ray.p1,
-                p2: details.refracted_ray.p2,
-                startTime: Date.now() + 200, // Delay start
-                duration: 1000,
-                color: `rgba(255, 100, 100, ${1-0})`, // Red
-                lineWidth: 4
-            });
-        }
-        if (details.type === 'bastion_pulse' && details.sacrificed_prong) {
-            // Highlight the whole bastion that pulsed
-            const bastion = gameState.bastions[details.bastion_id];
-            if(bastion) {
-                lastActionHighlights.points.add(bastion.core_id);
-                // The sacrificed prong is already gone, so we highlight the remaining ones
-                bastion.prong_ids.forEach(pid => lastActionHighlights.points.add(pid));
-            }
-            visualEffects.push({
-                type: 'point_implosion',
-                x: details.sacrificed_prong.x,
-                y: details.sacrificed_prong.y,
-                startTime: Date.now(),
-                duration: 800,
-                color: currentGameState.teams[details.sacrificed_prong.teamId]?.color
-            });
-        }
-        if (details.type === 'sentry_zap' && details.destroyed_point) {
-            details.sentry_points.forEach(pid => lastActionHighlights.points.add(pid));
-             visualEffects.push({
-                type: 'attack_ray',
-                p1: details.attack_ray.p1,
-                p2: details.attack_ray.p2,
-                startTime: Date.now(),
-                duration: 400,
-                color: `rgba(255, 100, 100, ${1-0})`,
-                lineWidth: 2
-            });
-            visualEffects.push({
-                type: 'point_explosion',
-                x: details.destroyed_point.x,
-                y: details.destroyed_point.y,
-                startTime: Date.now(),
-                duration: 600
-            });
-        }
-        if (details.type === 'cultivate_heartwood' && details.heartwood) {
-            // Highlight sacrificed points
-            details.sacrificed_points.forEach(p => lastActionHighlights.points.add(p.id));
-            visualEffects.push({
-                type: 'heartwood_creation',
-                sacrificed_points: details.sacrificed_points,
-                center_coords: details.heartwood.center_coords,
-                startTime: Date.now(),
-                duration: 1500
-            });
-        }
-        if (details.type === 'phase_shift') {
-            if (details.original_coords) {
-                visualEffects.push({
-                    type: 'point_implosion',
-                    x: details.original_coords.x,
-                    y: details.original_coords.y,
-                    startTime: Date.now(),
-                    duration: 800,
-                    color: currentGameState.teams[details.sacrificed_line.teamId]?.color
-                });
-            }
-            if (details.new_coords) {
-                 visualEffects.push({
-                    type: 'point_explosion',
-                    x: details.new_coords.x,
-                    y: details.new_coords.y,
-                    startTime: Date.now() + 200, // delayed appearance
-                    duration: 600
-                });
-            }
-            lastActionHighlights.points.add(details.moved_point_id);
-        }
-        if (details.type === 'pincer_attack' && details.destroyed_point) {
-            lastActionHighlights.points.add(details.attacker_p1_id);
-            lastActionHighlights.points.add(details.attacker_p2_id);
-            
-            const p1 = gameState.points[details.attacker_p1_id];
-            const target = details.destroyed_point;
-            if (p1 && target) {
-                visualEffects.push({
-                    type: 'attack_ray', p1: p1, p2: target, startTime: Date.now(), duration: 500
-                });
-            }
-        
-            const p2 = gameState.points[details.attacker_p2_id];
-            if (p2 && target) {
-                visualEffects.push({
-                    type: 'attack_ray', p1: p2, p2: target, startTime: Date.now(), duration: 500
-                });
-            }
-        
-            visualEffects.push({
-                type: 'point_explosion', x: target.x, y: target.y, startTime: Date.now(), duration: 600
-            });
-        }
-        if (details.type === 'territory_strike' && details.destroyed_point) {
-            details.territory_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
-                type: 'attack_ray',
-                p1: details.attack_ray.p1,
-                p2: details.attack_ray.p2,
-                startTime: Date.now(),
-                duration: 900,
-                color: 'rgba(100, 255, 100, 1.0)', // Green for territory
-                lineWidth: 3
-            });
-            visualEffects.push({
-                type: 'point_explosion',
-                x: details.destroyed_point.x,
-                y: details.destroyed_point.y,
-                startTime: Date.now() + 500, // delayed explosion
-                duration: 600
-            });
-        }
-        if (details.type === 'launch_payload' && details.destroyed_point) {
-            details.trebuchet_points.forEach(pid => lastActionHighlights.points.add(pid));
-            
-            const launch_point = gameState.points[details.launch_point_id];
-            if (launch_point) {
-                visualEffects.push({
-                    type: 'arc_projectile',
-                    start: launch_point,
-                    end: details.destroyed_point,
-                    startTime: Date.now(),
-                    duration: 1200
-                });
-            }
-
-            visualEffects.push({
-                type: 'point_explosion',
-                x: details.destroyed_point.x,
-                y: details.destroyed_point.y,
-                startTime: Date.now() + 1200, // Explode on impact
-                duration: 800
-            });
-        }
-        if (details.type === 'form_purifier' && details.purifier) {
-            details.purifier.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-        }
-        if (details.type === 'purify_territory' && details.cleansed_territory) {
-            details.purifier_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-            // Effect: territory fades out
-            visualEffects.push({
-                type: 'territory_fade',
-                territory: details.cleansed_territory,
-                startTime: Date.now(),
-                duration: 1500
-            });
-        }
-        if (details.type === 'build_chronos_spire') {
-            // The wonder itself will be drawn, which is a big visual cue.
-            // Add a creation effect for extra emphasis.
-            visualEffects.push({
-                type: 'point_implosion', // Reuse implosion for dramatic effect
-                x: details.wonder.coords.x,
-                y: details.wonder.coords.y,
-                startTime: Date.now(),
-                duration: 2000,
-                color: `rgba(255, 255, 150, ${1-0})` // Golden
-            });
-        }
-        if (details.type === 'form_rift_spire' && details.sacrificed_point) {
-            visualEffects.push({
-                type: 'point_implosion',
-                x: details.sacrificed_point.x,
-                y: details.sacrificed_point.y,
-                startTime: Date.now(),
-                duration: 1500,
-                color: `rgba(200, 100, 255, ${1-0})` // Purple
-            });
-        }
-        if (details.type === 'create_fissure' && details.fissure) {
-            // Highlight the spire that did it.
-            const spire = gameState.rift_spires[details.spire_id];
-            if(spire) {
-                // We can't highlight it easily as it's not a point.
-                // The new fissure itself is the visual feedback.
-            }
+        const visualizer = actionVisualsMap[details.type];
+        if (visualizer) {
+            visualizer(details, gameState);
         }
 
         // Set a timer to clear the highlights
@@ -1541,6 +1548,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // UI update functions (don't need to be in every frame)
         updateLog(gameState.game_log, gameState.teams);
         updateInterpretationPanel(gameState);
+        updateActionPreview(gameState);
         updateControls(gameState);
         // The animation loop will handle the drawing
     }
@@ -1862,6 +1870,61 @@ document.addEventListener('DOMContentLoaded', () => {
             finalInterpDiv.style.display = 'none';
             finalAnalysisOptions.style.display = 'none';
         }
+    }
+
+    function updateActionPreview(gameState) {
+        const panel = document.getElementById('action-preview-panel');
+        const content = document.getElementById('action-preview-content');
+    
+        if (gameState.game_phase !== 'RUNNING' || !gameState.actions_queue_this_turn || gameState.actions_queue_this_turn.length === 0) {
+            panel.style.display = 'none';
+            return;
+        }
+        
+        panel.style.display = 'block';
+        
+        const actionIndex = gameState.action_in_turn;
+        if (actionIndex >= gameState.actions_queue_this_turn.length) {
+            content.innerHTML = '<h5>Turn Over</h5><p>Click "Next Action" to start the new turn.</p>';
+            return;
+        }
+    
+        const currentActionInfo = gameState.actions_queue_this_turn[actionIndex];
+        const teamId = currentActionInfo.teamId;
+    
+        // Fetch probabilities for the current team
+        fetch(`/api/game/action_probabilities?teamId=${teamId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error || !data.actions) {
+                    content.innerHTML = `<p>Error loading actions for ${data.team_name || 'team'}.</p>`;
+                    return;
+                }
+    
+                let html = `<h5 style="border-color:${data.color};">Now: ${data.team_name}'s Turn</h5>`;
+                if (data.actions.length > 0) {
+                    html += '<ul class="action-prob-list">';
+                    data.actions.forEach(action => {
+                        html += `
+                            <li>
+                                <span>${action.display_name}</span>
+                                <div class="action-prob-bar-container">
+                                    <div class="action-prob-bar" style="width: ${action.probability}%; background-color:${data.color};"></div>
+                                </div>
+                                <span class="action-prob-percent">${action.probability}%</span>
+                            </li>
+                        `;
+                    });
+                    html += '</ul>';
+                } else {
+                    html += '<p>No valid actions found. Passing turn.</p>';
+                }
+                content.innerHTML = html;
+            })
+            .catch(err => {
+                console.error("Failed to fetch action probabilities:", err);
+                content.innerHTML = `<p>Could not load action preview.</p>`;
+            });
     }
 
     function updateControls(gameState) {

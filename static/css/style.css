@@ -343,6 +343,55 @@ legend {
     font-size: 0.95em;
 }
 
+#action-preview-panel {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border: 1px solid #dfe4ea;
+    border-radius: 5px;
+}
+#action-preview-content h5 {
+    margin: 0 0 8px 0;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #ccc;
+    font-size: 1.1em;
+}
+.action-prob-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 150px;
+    overflow-y: auto;
+}
+.action-prob-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9em;
+    padding: 4px 2px;
+}
+.action-prob-bar-container {
+    flex-grow: 1;
+    background-color: #e9ecef;
+    border-radius: 3px;
+    margin: 0 8px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+}
+.action-prob-bar {
+    height: 100%;
+    background-color: #5dade2;
+    border-radius: 3px;
+    transition: width 0.3s ease-in-out;
+}
+.action-prob-percent {
+    font-weight: bold;
+    min-width: 45px;
+    text-align: right;
+    font-size: 0.95em;
+}
+
 .log-container {
     display: flex;
     flex-direction: column;

@@ -192,6 +192,31 @@ def is_regular_pentagon(p1, p2, p3, p4, p5):
 # --- Game Class ---
 class Game:
     """Encapsulates the entire game state and logic."""
+
+    ACTION_BASE_WEIGHTS = {
+        'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
+        'expand_orbital': 7,
+        'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25, 'fight_purify_territory': 28,
+        'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_form_purifier': 18, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'fortify_build_wonder': 100,
+        'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'sacrifice_phase_shift': 5, 'defend_shield': 8,
+        'rune_shoot_bisector': 25, 'rune_area_shield': 20
+    }
+    TRAIT_MULTIPLIERS = {
+        'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0},
+        'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5, 'sacrifice_phase_shift': 2.0},
+        'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'rune_area_shield': 3.0},
+        'Balanced':   {}
+    }
+    ACTION_DESCRIPTIONS = {
+        'expand_add': "Add Line", 'expand_extend': "Extend Line", 'expand_grow': "Grow Vine", 'expand_fracture': "Fracture Line", 'expand_spawn': "Spawn Point",
+        'expand_orbital': "Create Orbital",
+        'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
+        'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder",
+        'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'defend_shield': "Shield Line",
+        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield"
+    }
+
+
     def __init__(self):
         self.reset()
 
@@ -211,11 +236,12 @@ class Game:
             "anchors": {}, # {point_id: {teamId: teamId, turns_left: N}}
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
-            "runes": {}, # {teamId: {'cross': [], 'v_shape': []}}
+            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': []}}
             "sentries": {}, # {teamId: [sentry1, sentry2, ...]}
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
             "prisms": {}, # {teamId: [prism1, prism2, ...]}
+            "barricades": [], # {id, teamId, p1, p2, turns_left}
             "heartwoods": {}, # {teamId: {id, center_coords, growth_counter}}
             "whirlpools": [], # {id, teamId, coords, turns_left, strength, radius_sq}
             "monoliths": {}, # {monolith_id: {teamId, point_ids, ...}}
@@ -2567,6 +2593,58 @@ class Game:
             'rune_points': [rune['vertex_id'], rune['leg1_id'], rune['leg2_id']]
         }
 
+    def rune_action_area_shield(self, teamId):
+        """[RUNE ACTION]: Uses a Shield Rune to protect all friendly assets inside the rune's triangle."""
+        active_shield_runes = self.state.get('runes', {}).get(teamId, {}).get('shield', [])
+        if not active_shield_runes:
+            return {'success': False, 'reason': 'no active Shield Runes'}
+
+        rune = random.choice(active_shield_runes)
+        points = self.state['points']
+        
+        # Ensure all points for the rune exist
+        all_rune_pids = rune['triangle_ids'] + [rune['core_id']]
+        if not all(pid in points for pid in all_rune_pids):
+            return {'success': False, 'reason': 'rune point no longer exists'}
+            
+        tri_points = [points[pid] for pid in rune['triangle_ids']]
+        if len(tri_points) != 3:
+            return {'success': False, 'reason': 'invalid Shield Rune geometry'}
+        
+        p1, p2, p3 = tri_points[0], tri_points[1], tri_points[2]
+        
+        shielded_lines = []
+        # Shield all friendly lines fully inside the triangle
+        for line in self.get_team_lines(teamId):
+            # A line is inside if both its endpoints are inside.
+            line_p1 = points.get(line['p1_id'])
+            line_p2 = points.get(line['p2_id'])
+
+            if line_p1 and line_p2:
+                # The line's endpoints must not be part of the rune's outer triangle
+                # to avoid shielding the rune's own boundary lines.
+                if line_p1['id'] in rune['triangle_ids'] or line_p2['id'] in rune['triangle_ids']:
+                    continue
+
+                if self._is_point_inside_triangle(line_p1, p1, p2, p3) and \
+                   self._is_point_inside_triangle(line_p2, p1, p2, p3):
+                    
+                    # Shield the line if it's not already shielded
+                    if line.get('id') not in self.state['shields']:
+                        self.state['shields'][line['id']] = 3 # Shield for 3 turns
+                        shielded_lines.append(line)
+        
+        if not shielded_lines:
+            return {'success': False, 'reason': 'no unshielded lines found inside the rune'}
+            
+        return {
+            'success': True,
+            'type': 'rune_area_shield',
+            'shielded_lines_count': len(shielded_lines),
+            'rune_points': all_rune_pids,
+            'rune_triangle_ids': rune['triangle_ids']
+        }
+
     def _get_possible_actions(self, teamId, exclude_actions=None):
         """
         Checks all available actions and returns a list of names of actions
@@ -2612,6 +2690,7 @@ class Game:
             'sacrifice_whirlpool': lambda: len(team_point_ids) > 1,
             'sacrifice_phase_shift': lambda: bool(team_lines),
             'rune_shoot_bisector': lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])),
+            'rune_area_shield': lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('shield', [])),
         }
 
         possible_actions = []
@@ -2621,15 +2700,61 @@ class Game:
         
         return possible_actions
 
+    def _get_action_weights(self, teamId, possible_actions):
+        """Calculates the final weights for a list of possible actions based on team trait."""
+        team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
+        multipliers = self.TRAIT_MULTIPLIERS.get(team_trait, {})
+        
+        action_weights = {}
+        for action_name in possible_actions:
+            weight = self.ACTION_BASE_WEIGHTS.get(action_name, 1)
+            multiplier = multipliers.get(action_name, 1.0)
+            action_weights[action_name] = weight * multiplier
+        return action_weights
+
+    def get_action_probabilities(self, teamId):
+        """
+        Calculates the probability of each possible action for a team,
+        based on their trait and the current game state.
+        """
+        if teamId not in self.state['teams']:
+            return {"error": "Team not found"}
+            
+        # We need to update structures for the team to get the most accurate list of possible actions
+        self._update_runes_for_team(teamId)
+        self._update_sentries_for_team(teamId)
+        self._update_conduits_for_team(teamId)
+        self._update_prisms_for_team(teamId)
+        self._update_trebuchets_for_team(teamId)
+        self._update_nexuses_for_team(teamId)
+        
+        possible_actions = self._get_possible_actions(teamId)
+        
+        if not possible_actions:
+            return {'team_name': self.state['teams'][teamId]['name'], 'color': self.state['teams'][teamId]['color'], 'actions': []}
+
+        action_weights = self._get_action_weights(teamId, possible_actions)
+        total_weight = sum(action_weights.values())
+        
+        probabilities = []
+        if total_weight > 0:
+            for action_name, weight in action_weights.items():
+                probabilities.append({
+                    'name': action_name,
+                    'display_name': self.ACTION_DESCRIPTIONS.get(action_name, action_name),
+                    'probability': round((weight / total_weight) * 100, 1)
+                })
+        
+        # Sort by probability descending
+        probabilities.sort(key=lambda x: x['probability'], reverse=True)
+
+        return {'team_name': self.state['teams'][teamId]['name'], 'color': self.state['teams'][teamId]['color'], 'actions': probabilities}
+
     def _choose_action_for_team(self, teamId, exclude_actions=None):
         """Intelligently chooses an action for a team, excluding any that have already failed this turn."""
         if exclude_actions is None:
             exclude_actions = []
-
-        team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
         
-        # This is the single source of truth for all available actions in the game.
-        # It maps an action's unique name to its execution function.
         action_map = {
             'expand_add': self.expand_action_add_line,
             'expand_extend': self.expand_action_extend_line,
@@ -2661,7 +2786,8 @@ class Game:
             'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
             'sacrifice_phase_shift': self.sacrifice_action_phase_shift,
             'defend_shield': self.shield_action_protect_line,
-            'rune_shoot_bisector': self.rune_action_shoot_bisector
+            'rune_shoot_bisector': self.rune_action_shoot_bisector,
+            'rune_area_shield': self.rune_action_area_shield
         }
 
         # --- Evaluate possible actions based on game state and exclusion list ---
@@ -2671,30 +2797,13 @@ class Game:
             return None, None
 
         # --- Apply trait-based weights to the *possible* actions ---
-        base_weights = {
-            'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
-            'expand_orbital': 7,
-            'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25, 'fight_purify_territory': 28,
-            'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_form_purifier': 18, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'fortify_build_wonder': 100,
-            'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'defend_shield': 8,
-            'rune_shoot_bisector': 25, # High value special action
-        }
-        trait_multipliers = {
-            'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0},
-            'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5},
-            'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0},
-            'Balanced':   {}
-        }
-        multipliers = trait_multipliers.get(team_trait, {})
+        action_weights = self._get_action_weights(teamId, possible_actions)
         
-        action_weights = []
-        for action_name in possible_actions:
-            weight = base_weights.get(action_name, 1)
-            multiplier = multipliers.get(action_name, 1.0)
-            action_weights.append(weight * multiplier)
-            
         # Use random.choices to pick an action based on the calculated weights
-        chosen_action_name = random.choices(possible_actions, weights=action_weights, k=1)[0]
+        p_actions = list(action_weights.keys())
+        p_weights = list(action_weights.values())
+        
+        chosen_action_name = random.choices(p_actions, weights=p_weights, k=1)[0]
         return chosen_action_name, action_map[chosen_action_name]
 
 
@@ -3020,6 +3129,7 @@ class Game:
             'nova_burst': lambda r: (f"sacrificed a point in a nova burst, destroying {r['lines_destroyed']} lines.", "[NOVA]"),
             'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
             'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
+            'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
             'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[ZAP!]"),
             'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
             'chain_lightning': lambda r: (
@@ -3253,6 +3363,19 @@ class Game:
             
         return hull
 
+    def _is_point_inside_triangle(self, point, tri_p1, tri_p2, tri_p3):
+        """Checks if a point is inside a triangle defined by three other points."""
+        main_area = self._polygon_area([tri_p1, tri_p2, tri_p3])
+        if main_area < 0.01: # Degenerate triangle
+            return False
+
+        area1 = self._polygon_area([point, tri_p2, tri_p3])
+        area2 = self._polygon_area([tri_p1, point, tri_p3])
+        area3 = self._polygon_area([tri_p1, tri_p2, point])
+        
+        # Check if sum of sub-triangle areas equals the main triangle area (with tolerance)
+        return abs((area1 + area2 + area3) - main_area) < 0.01
+
     def _polygon_area(self, points):
         """Calculates area of a polygon using Shoelace formula."""
         area = 0.0
@@ -3282,6 +3405,7 @@ class Game:
         
         self.state['runes'][teamId]['cross'] = self._check_cross_rune(teamId)
         self.state['runes'][teamId]['v_shape'] = self._check_v_rune(teamId)
+        self.state['runes'][teamId]['shield'] = self._check_shield_rune(teamId)
 
     def _update_sentries_for_team(self, teamId):
         """Checks for Sentry formations (3 collinear points with lines)."""
@@ -3358,6 +3482,63 @@ class Game:
                             'leg2_id': p_leg2['id'],
                         })
         return v_runes
+
+    def _check_shield_rune(self, teamId):
+        """
+        Finds Shield Runes: a triangle of points with another friendly point inside.
+        Returns a list of dicts: [{'triangle_ids': [p1,p2,p3], 'core_id': p_core}]
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 4:
+            return []
+
+        points = self.state['points']
+        
+        # To avoid re-checking, let's keep track of points used in a rune.
+        used_points = set()
+        shield_runes = []
+
+        # Find all triangles first
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+
+        all_triangles_pids = set()
+        sorted_point_ids = sorted(list(team_point_ids)) 
+        for i in sorted_point_ids:
+            for j in adj.get(i, set()):
+                if j > i:
+                    for k in adj.get(j, set()):
+                        if k > j and k in adj.get(i, set()):
+                            all_triangles_pids.add(tuple(sorted((i, j, k))))
+
+        for tri_ids in all_triangles_pids:
+            if any(pid in used_points for pid in tri_ids):
+                continue
+
+            p1, p2, p3 = points[tri_ids[0]], points[tri_ids[1]], points[tri_ids[2]]
+            
+            # Now find a point inside this triangle that isn't part of the triangle itself
+            other_point_ids = [pid for pid in team_point_ids if pid not in tri_ids and pid not in used_points]
+            
+            for core_id in other_point_ids:
+                core_point = points[core_id]
+                if self._is_point_inside_triangle(core_point, p1, p2, p3):
+                    # Found a shield rune
+                    rune_points = set(tri_ids) | {core_id}
+                    shield_runes.append({
+                        'triangle_ids': list(tri_ids),
+                        'core_id': core_id
+                    })
+                    used_points.update(rune_points)
+                    # A point can only be the core of one shield rune at a time.
+                    # Once a core is found, it can't be a core for another rune this turn.
+                    # We can break from the inner loop to check the next triangle.
+                    break 
+                    
+        return shield_runes
 
     def _check_cross_rune(self, teamId):
         """Finds all 'Cross' runes.

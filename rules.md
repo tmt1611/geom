@@ -12,7 +12,9 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
 *   **V-Rune:**
     *   **Formation:** Three points forming a 'V' shape, where two connected lines originating from the same point are of similar length.
     *   **Bonus:** Unlocks the **[RUNE] Shoot Bisector** action, a powerful, long-range attack fired from the 'V's vertex.
-
+*   **Shield-Rune:**
+    *   **Formation:** Three points connected by lines to form a triangle, with a fourth friendly point located inside the triangle.
+    *   **Bonus:** Unlocks the **[RUNE] Area Shield** action.
 *   **Cross-Rune:**
     *   **Formation:** Four points that form a rectangle, with both internal diagonals existing as lines for that team.
     *   **Bonus:** Grants the `Piercing Attacks` passive. The team's standard `Attack Line` action can now bypass one enemy shield.
@@ -40,6 +42,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Launch Payload:** _(Requires an active Trebuchet)_ Fires an arcing projectile at a random enemy high-value point (e.g., a fortified point, bastion core, or monolith point), destroying it. This is a powerful siege attack for breaking down entrenched defenses.
 *   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. The territory's color fades, and its three corner points lose their **Fortified** status, making them vulnerable again.
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits.
+*   **[RUNE] Area Shield:** _(Requires an active Shield-Rune)_ Creates a temporary shield on all friendly lines contained within the rune's triangular boundary, protecting a key area of a team's structure.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Form Sentry:** A passive formation. When three of a team's points are collinear and connected by lines (forming Post-Eye-Post), they become a Sentry.
     *   **Bonus:** Unlocks the **[FIGHT] Sentry Zap** action.

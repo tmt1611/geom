@@ -1,27 +1,34 @@
-This iteration introduces a major refactoring of the game's action selection logic for better maintainability, adds a new high-level "Purifier" structure to expand strategic options, and polishes the control panel UI for a more intuitive user experience.
+This iteration focuses on making the game's logic more transparent to the user, enhancing strategic depth with a new rune, and improving the visual flair of actions.
 
-### 1. Code Refactoring: Action Selection System
+### 1. New Feature: Action Preview Panel
 
--   **File**: `game_app/game_logic.py`
--   **Change**: The core action selection method, `_choose_action_for_team`, has been significantly refactored. The monolithic `action_preconditions` dictionary was replaced with a new helper method, `_get_possible_actions`. This new method contains a registry of lambda functions, each responsible for checking if a single action is currently possible for a given team.
--   **Benefit**: This change dramatically improves code readability and maintainability. The logic for determining if an action is possible is now cleanly separated from the logic of weighting and selecting an action. This makes it much easier to add, remove, or debug individual actions in the future without altering the core selection loop.
+-   **Files**: `game_app/game_logic.py`, `game_app/routes.py`, `static/js/main.js`, `templates/index.html`, `static/css/style.css`
+-   **Change**: A new "Action Preview" panel has been added to the UI. At the start of each team's turn, this panel now displays:
+    -   The name of the team whose turn it is.
+    -   A list of all possible actions they can take.
+    -   The percentage chance for each action to be selected, visualized with a bar graph.
+-   **Benefit**: This makes the AI's decision-making process transparent and engaging. Users can now see why a team performs a certain action based on its available options and trait-influenced probabilities, adding a layer of analytical depth to the viewing experience.
 
-### 2. New Feature: The Purifier
+### 2. New Rune and Action: The Shield Rune
 
 -   **Files**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
--   **Change**: A new strategic structure, the **Purifier**, has been added to the game.
-    -   **Formation**: It is formed via the new `[FORTIFY] Form Purifier` action, which requires a team to create a geometrically-perfect regular pentagon with five of its points and all five connecting perimeter lines. A new helper function, `is_regular_pentagon`, was added to detect this complex shape.
-    -   **Ability**: A team with a Purifier unlocks the `[FIGHT] Purify Territory` action. This powerful ability allows the Purifier to "cleanse" the nearest enemy-claimed territory, neutralizing it and making its corner points vulnerable again.
-    -   **Frontend**: The Purifier points are rendered as a distinct star shape for easy identification. The live stats panel now tracks the number of active Purifiers for each team. Visual effects were added for its formation and for the territory cleansing action.
--   **Benefit**: The Purifier introduces a high-investment, high-reward counter-strategy to teams focusing on area control (`Fortify Territory`). This adds a new layer of strategic depth and encourages more diverse geometric constructions on the battlefield.
+-   **Change**: A new defensive rune, the **Shield Rune**, has been introduced.
+    -   **Formation**: It forms when three of a team's points, connected by lines to form a triangle, enclose another friendly point (the "core").
+    -   **Ability**: The rune unlocks the **[RUNE] Area Shield** action. When used, it applies a temporary shield to all friendly lines located inside the rune's triangular boundary, offering a powerful way to protect a core part of a team's structure.
+    -   **Frontend**: Shield Runes are now visualized as a pulsating, translucent triangle, and the Area Shield action triggers a distinct visual effect.
+-   **Benefit**: The Shield Rune provides a strong defensive and area-denial option, encouraging players to build dense, layered formations and offering a new strategic counter to area-of-effect attacks.
 
-### 3. UI/UX Improvements
-
--   **File**: `templates/index.html`
--   **Change**: The "Restart Simulation" and "Reset Game" buttons have been moved from their disparate locations and grouped together into a new "Game Management" fieldset in the control panel.
--   **Benefit**: This provides a more logical and intuitive layout for the user. It clarifies the distinction between restarting the current simulation and resetting the entire game back to the setup phase, preventing potential confusion.
-
-### 4. General Code Cleanup
+### 3. Code Refactoring and Cleanup
 
 -   **File**: `game_app/game_logic.py`
--   **Change**: The internal method `_triangle_centroid` was renamed to the more general `_points_centroid` and is now used for calculating the center of any set of points, including for the new Purifier and existing territory strikes. This removes redundant code and improves clarity.
+-   **Change**: The action selection logic in `_choose_action_for_team` has been significantly refactored. The large dictionaries for action weights and multipliers were moved to class-level constants (`ACTION_BASE_WEIGHTS`, `TRAIT_MULTIPLIERS`). A new helper method, `_get_action_weights`, now centralizes the logic for calculating weighted probabilities.
+-   **Benefit**: This refactoring reduces code duplication, as the new `get_action_probabilities` method and the `_choose_action_for_team` method now share the same core logic. This makes the system more maintainable and easier to expand with new actions or traits in the future.
+
+### 4. Enhanced Visual Effects
+
+-   **File**: `static/js/main.js`
+-   **Change**: The system for handling action visuals has been refactored from a large `if/else if` block into a more organized, dispatch-map pattern. Several key visual effects were enhanced to be more dynamic and "stunning":
+    -   **Attack Line**: Now an animated, streaking "comet" that travels from the attacker to the target's line.
+    -   **Pincer Attack**: Visualized as two converging animated rays.
+    -   **Nova Burst**: Now features energetic particles bursting outwards from the explosion's center.
+-   **Benefit**: These improvements make the game more visually exciting and provide clearer, more impactful feedback for game events, fulfilling one of the core design goals.

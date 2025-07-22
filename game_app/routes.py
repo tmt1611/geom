@@ -65,6 +65,19 @@ def next_action():
     game_logic.game.run_next_action()
     return jsonify(game_logic.game.get_state())
 
+@main_routes.route('/api/game/action_probabilities', methods=['GET'])
+def get_action_probabilities():
+    """Returns a list of possible actions and their probabilities for a given team."""
+    teamId = request.args.get('teamId')
+    if not teamId:
+        return jsonify({"error": "teamId parameter is required"}), 400
+    
+    probabilities = game_logic.game.get_action_probabilities(teamId)
+    if "error" in probabilities:
+        return jsonify(probabilities), 404
+        
+    return jsonify(probabilities)
+
 @main_routes.route('/api/dev/restart', methods=['POST'])
 def restart_server():
     """(Dev only) Restarts the Flask development server by touching a watched file."""
