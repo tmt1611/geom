@@ -7,9 +7,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <h1>Geometric Divination Game</h1>
     <div class="container">
         <div class="controls">
+            <h1>Geometric Divination Game</h1>
             <div id="setup-phase">
                 <h2>1. Setup</h2>
                 <fieldset>
@@ -65,14 +65,13 @@
                 </fieldset>
                 <button id="restart-simulation-btn" style="width:100%; margin-top: 10px; display:none;">Restart Simulation</button>
             </div>
-            <hr style="width: 100%; border-color: #dfe4ea; border-style: solid; margin: 15px 0;">
-            <button id="reset-btn">Reset Game (Back to Setup)</button>
         </div>
         <div class="grid-container">
             <canvas id="grid" width="600" height="600"></canvas>
             <div id="status-bar">Waiting for game to start...</div>
         </div>
         <div class="interpretation-panel">
+            <button id="reset-btn" style="width: 100%; margin-bottom: 15px; padding: 10px; font-size: 1.0em;">Reset Game (Back to Setup)</button>
             <h2>Analysis</h2>
             <div id="turn-counter">Turn: 0 / 100</div>
             <div id="stats"></div>

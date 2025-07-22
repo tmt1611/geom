@@ -1368,7 +1368,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.arc(
                     (effect.x + 0.5) * cellSize,
                     (effect.y + 0.5) * cellSize,
-                    currentRadius,
+                    Math.max(0, currentRadius), // Prevent negative radius
                     0, 2 * Math.PI
                 );
                 ctx.fillStyle = `rgba(255, 180, 50, ${1 - progress})`; // Orange-ish fade out
