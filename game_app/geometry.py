@@ -75,6 +75,30 @@ def get_segment_intersection_point(p1, q1, p2, q2):
     return None  # Intersection point is not on both segments
 
 
+def reflect_point(point, p1_axis, p2_axis):
+    """Reflects a point across the line defined by p1_axis and p2_axis."""
+    px, py = point['x'], point['y']
+    x1, y1 = p1_axis['x'], p1_axis['y']
+    x2, y2 = p2_axis['x'], p2_axis['y']
+
+    # Line equation ax + by + c = 0
+    a = y2 - y1
+    b = x1 - x2
+    
+    if a == 0 and b == 0: # The axis points are the same, no line.
+        return None
+
+    c = -a * x1 - b * y1
+    
+    den = a**2 + b**2
+    if den == 0: return None
+    
+    val = -2 * (a * px + b * py + c) / den
+    
+    rx = px + val * a
+    ry = py + val * b
+    
+    return {'x': rx, 'y': ry}
 
 def is_rectangle(p1, p2, p3, p4):
     """Checks if four points form a rectangle. Returns (is_rect, aspect_ratio).
