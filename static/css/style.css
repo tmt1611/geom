@@ -632,11 +632,10 @@ body.game-running .container {
     width: 100%;
     height: 100%;
     gap: 15px;
-    grid-template-columns: 1fr 380px; /* Main area and a fixed-width info panel */
-    grid-template-rows: 1fr auto; /* A flexible main row and a fixed-height control bar */
+    grid-template-columns: 1fr 400px;
+    grid-template-rows: 100%;
     grid-template-areas:
-        "main info"
-        "controls controls";
+        "main info";
     align-items: stretch;
 }
 
@@ -653,47 +652,39 @@ body.game-running .grid-container {
     min-height: 0; /* Important for flex/grid items to shrink */
 }
 
+body.game-running .controls {
+    display: none;
+}
+
 body.game-running .interpretation-panel {
     grid-area: info;
     flex: none;
     max-width: none;
-    padding: 0; /* remove padding, children will have it */
-    background: none;
-    border: none;
-    box-shadow: none;
+    padding: 15px;
+    background: #fff;
+    border-left: 1px solid #dfe4ea;
+    box-shadow: -2px 0 5px rgba(0,0,0,0.05);
     min-width: 0;
-}
-
-body.game-running .controls {
-    grid-area: controls;
-    flex: none;
-    max-width: none;
-    padding: 10px 15px;
-    background-color: #fff;
-    border: 1px solid #dfe4ea;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 /* --- Info Panel (Right Column) --- */
-body.game-running #running-panel-content {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    height: 100%;
-    overflow: hidden; /* Parent prevents scrolling */
-}
-
+body.game-running #running-panel-content,
 body.game-running #running-analysis {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    height: 100%;
+    gap: 15px;
+    flex-grow: 1;
     min-height: 0;
 }
 
 body.game-running #running-analysis h2 {
-    display: none; /* Hide the "Analysis" header */
+    font-size: 1.3em;
+    margin: 0;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #eee;
 }
 
 body.game-running #running-analysis > #stats,
@@ -710,6 +701,7 @@ body.game-running #running-analysis > #stats {
 body.game-running #action-preview-panel {
     flex-shrink: 0;
     margin-top: 0;
+    padding: 15px;
 }
 body.game-running #action-preview-content {
     max-height: 25vh; /* Give it a max height relative to screen */
@@ -726,29 +718,27 @@ body.game-running .log-box {
     height: 100%;
 }
 
-/* --- Control Bar (Bottom) --- */
+/* --- Control Panel (Right Side) --- */
 body.game-running #running-controls-content {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-body.game-running #simulation-controls {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-shrink: 0;
 }
 
 body.game-running #live-controls {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
 }
 
-body.game-running #simulation-controls button {
-    padding: 12px 20px;
-    font-size: 1.1em;
+.control-buttons-row {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+.control-buttons-row button {
+    flex-grow: 1;
+    padding: 10px;
+    font-size: 1em;
     font-weight: 500;
     border-radius: 5px;
     border: 1px solid #bdc3c7;
@@ -757,22 +747,22 @@ body.game-running #simulation-controls button {
     transition: background-color 0.2s;
 }
 
-body.game-running #simulation-controls button:hover:not(:disabled) {
+.control-buttons-row button:hover:not(:disabled) {
     background-color: #dfe4ea;
 }
-body.game-running #simulation-controls button:disabled {
+.control-buttons-row button:disabled {
     background-color: #f4f7f9;
     color: #95a5a6;
     cursor: not-allowed;
 }
 
-body.game-running #reset-btn {
+#reset-btn {
     background-color: #f2dede;
     border-color: #ebccd1;
     color: #a94442;
 }
 
-body.game-running #reset-btn:hover:not(:disabled) {
+#reset-btn:hover:not(:disabled) {
     background-color: #ebccd1;
 }
 
@@ -781,18 +771,17 @@ body.game-running #turn-counter {
     font-weight: 500;
     color: #2c3e50;
     text-align: center;
-    min-width: 180px;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 5px;
+    border: 1px solid #dfe4ea;
 }
 
-body.game-running #restart-simulation-btn {
-    margin-top: 0;
+body.game-running #final-interpretation {
+    order: 10; /* Move to the bottom when it appears */
 }
 
-body.game-running .debug-fieldset {
-    margin-top: 0;
-}
-
-/* Old big reset button, now inside a wrapper that gets hidden */
+/* Old big reset button is now part of the control box */
 #running-analysis > button#reset-btn {
     display: none;
 }

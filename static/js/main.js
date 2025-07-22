@@ -2380,12 +2380,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         document.body.classList.toggle('game-running', !inSetup);
 
-        document.getElementById('setup-controls-content').style.display = inSetup ? 'block' : 'none';
-        document.getElementById('running-controls-content').style.display = inSetup ? 'none' : 'flex';
+        // In setup, show setup controls. In running, hide them.
+        document.querySelector('.controls').style.display = inSetup ? 'flex' : 'none';
 
-        document.getElementById('setup-panel-content').style.display = inSetup ? 'block' : 'none';
+        // In setup, show setup panel. In running, show running panel.
+        document.getElementById('setup-panel-content').style.display = inSetup ? 'flex' : 'none';
         document.getElementById('running-panel-content').style.display = inSetup ? 'none' : 'flex';
 
+        // These controls are now inside the running panel, so they are toggled by its parent.
+        // We only need to handle their disabled state.
         if (isFinished) {
             if (autoPlayInterval) stopAutoPlay();
             autoPlayBtn.textContent = 'Auto-Play';

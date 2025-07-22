@@ -46,22 +46,7 @@
 
                 </div>
             </div>
-            <div id="running-controls-content">
-                <div id="simulation-controls">
-                <h2>2. Simulation</h2>
-                 <fieldset id="live-controls" style="display: none;">
-                    <legend>Live Controls</legend>
-                    <button id="next-action-btn">Next Action</button>
-                    <button id="auto-play-btn">Auto-Play</button>
-                    <div class="speed-control">
-                        <label for="auto-play-speed">Speed:</label>
-                        <input type="range" id="auto-play-speed" min="10" max="1000" value="500" step="10">
-                        <span id="speed-value">500ms</span>
-                    </div>
-                </fieldset>
-                <button id="restart-simulation-btn" style="width:100%; margin-top: 10px; display:none;">Restart Simulation</button>
-                </div>
-            </div>
+            <!-- This div is hidden during game running phase -->
         </div>
         <div class="grid-container">
             <canvas id="grid" width="600" height="600"></canvas>
@@ -85,11 +70,28 @@
             </div>
             <div id="running-panel-content">
                 <div id="running-analysis">
-                <button id="reset-btn" style="width: 100%; margin-bottom: 15px; padding: 10px; font-size: 1.0em;">Reset Game (Back to Setup)</button>
+                <div id="running-controls-content">
+                    <fieldset id="live-controls">
+                        <legend>Game Controls</legend>
+                        <div class="control-buttons-row">
+                            <button id="next-action-btn">Next Action</button>
+                            <button id="auto-play-btn">Auto-Play</button>
+                        </div>
+                        <div class="speed-control">
+                            <label for="auto-play-speed">Speed:</label>
+                            <input type="range" id="auto-play-speed" min="10" max="1000" value="500" step="10">
+                            <span id="speed-value">500ms</span>
+                        </div>
+                         <div class="control-buttons-row">
+                            <button id="restart-simulation-btn">Restart Sim</button>
+                            <button id="reset-btn" title="End the current game and return to the setup screen.">End Game</button>
+                        </div>
+                    </fieldset>
+                </div>
                 <h2>Analysis</h2>
                 <div id="turn-counter">Turn: 0 / 100</div>
                 <div id="stats"></div>
-                <div id="action-preview-panel" style="display: none;">
+                <div id="action-preview-panel">
                     <div class="action-preview-header">
                         <h4>Action Preview</h4>
                         <label title="Show actions that cannot be performed and why.">

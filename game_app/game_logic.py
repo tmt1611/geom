@@ -616,6 +616,16 @@ class Game:
         
         return True, 'valid'
 
+    def _get_vulnerable_enemy_points(self, teamId):
+        """Returns a list of enemy points that are not immune to standard attacks."""
+        fortified_point_ids = self._get_fortified_point_ids()
+        bastion_point_ids = self._get_bastion_point_ids()
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        immune_point_ids = fortified_point_ids.union(
+            bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
+        )
+        return [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
+
     # --- Game Actions ---
 
     def expand_action_add_line(self, teamId):
@@ -2015,11 +2025,7 @@ class Game:
     def _find_possible_conversions(self, teamId):
         """Finds all possible point conversions by sacrificing a line."""
         team_lines = self.get_team_lines(teamId)
-        fortified_point_ids = self._get_fortified_point_ids()
-        bastion_point_ids = self._get_bastion_point_ids()
-        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
-        immune_point_ids = fortified_point_ids.union(bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids)
-        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
+        enemy_points = self._get_vulnerable_enemy_points(teamId)
         points_map = self.state['points']
 
         if not team_lines or not enemy_points:
@@ -2334,13 +2340,7 @@ class Game:
         if len(team_point_ids) < 2:
             return []
 
-        fortified_point_ids = self._get_fortified_point_ids()
-        bastion_point_ids = self._get_bastion_point_ids()
-        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
-        immune_point_ids = fortified_point_ids.union(
-            bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
-        )
-        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
+        enemy_points = self._get_vulnerable_enemy_points(teamId)
         if not enemy_points:
             return []
 
@@ -2410,13 +2410,7 @@ class Game:
         if not large_territories:
             return None
 
-        fortified_point_ids = self._get_fortified_point_ids()
-        bastion_point_ids = self._get_bastion_point_ids()
-        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
-        immune_point_ids = fortified_point_ids.union(
-            bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
-        )
-        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
+        enemy_points = self._get_vulnerable_enemy_points(teamId)
         if not enemy_points:
             return None
 
@@ -4180,13 +4174,7 @@ class Game:
         p_vertex = points_map[rune['vertex_id']]
         stasis_range_sq = (self.state['grid_size'] * 0.3)**2
         
-        # Get a list of immune point IDs to exclude from targeting
-        fortified_point_ids = self._get_fortified_point_ids()
-        bastion_point_ids = self._get_bastion_point_ids()
-        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
-        immune_point_ids = fortified_point_ids.union(bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids)
-        
-        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
+        enemy_points = self._get_vulnerable_enemy_points(teamId)
         
         possible_targets = []
         for ep in enemy_points:
