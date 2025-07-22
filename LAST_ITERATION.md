@@ -1,17 +1,18 @@
-This iteration resolves a frontend rendering bug and a critical backend crash.
+This iteration addresses two main issues: a critical backend crash during gameplay and a major refactoring of the `game_logic.py` file to improve code organization and maintainability.
 
-**1. Fixed Disappearing Grid on Tab Switch (Issue #1)**
-- **Problem:** The canvas grid and points would disappear when switching to another tab and back during the setup phase.
-- **Analysis:** This was caused by the canvas's parent container being set to `display: none`, which collapses the canvas's client dimensions to zero. When the tab became visible again, the `resizeCanvas` function was sometimes called before the layout was fully recalculated, causing the canvas's drawing surface to be incorrectly sized to 0x0. The `ResizeObserver` was the correct tool, but it could also be triggered when the canvas was hidden, setting its size to 0.
-- **Solution:** Two changes were made in `static/js/main.js`:
-    1.  A guard condition was added to `resizeCanvas()` to prevent it from executing if the canvas's `clientWidth` is 0. This stops the drawing buffer from being destroyed when the tab is hidden.
-    2.  The manual `setTimeout(resizeCanvas, 0)` call in the tab-switching logic was removed. This simplifies the code and makes the `ResizeObserver` the single source of truth for handling resizes, which is more robust and prevents potential race conditions.
+### Issue 1: `KeyError` Crash during Action Logging
 
-**2. Fixed `AttributeError` Crash during Sacrifice Actions (Issue #2)**
-- **Problem:** The game server would crash with an `AttributeError: 'Game' object has no attribute '_find_non_critical_sacrificial_point'` when certain sacrifice actions (like `sacrifice_whirlpool`) were attempted.
-- **Analysis:** The error was straightforward: the `_find_non_critical_sacrificial_point` method was called by several actions but was never defined in the `Game` class in `game_app/game_logic.py`.
-- **Solution:**
-    1.  A new private method, `_find_non_critical_sacrificial_point`, was implemented and added to the `Game` class.
-    2.  This method provides crucial game logic to prevent teams from crippling themselves. It identifies a "safe" point to sacrifice by first excluding points that are part of important structures (Runes, Bastions, Monoliths, etc.).
-    3.  It then performs a graph analysis to ensure the chosen point is not an "articulation point" (i.e., its removal won't split the team's formation into separate, disconnected pieces).
-    4.  This fix not only resolves the crash but also significantly improves the game's AI by making sacrifice actions smarter and less self-destructive.
+-   **Problem:** The server would crash with a `KeyError: 'destroyed_team_name'` when certain actions, like `pincer_attack`, were performed. The action's result dictionary, used to generate a log message, was missing the required key for the destroyed point's team name.
+-   **Analysis:** A review of the `ACTION_LOG_GENERATORS` dictionary showed that several log messages relied on a `destroyed_team_name` or `target_team_name` key. However, the corresponding action methods in `game_logic.py` were not always adding this key to their return value.
+-   **Solution:** I have systematically identified all action methods (`pincer_attack`, `sentry_zap`, `chain_lightning`, `launch_payload`, `hourglass_stasis`, and `focus_beam`) that could cause this error. Each method has been updated to include the necessary team name in its result dictionary upon successfully destroying or targeting an enemy point. This ensures that the log generation step will always have the data it needs, preventing the crash.
+
+### Issue 2: Refactoring `game_logic.py`
+
+-   **Problem:** The `game_logic.py` file was over 4,000 lines long, with a significant portion dedicated to large, static dictionaries containing game data (action descriptions, weights, log messages, etc.). This made the file difficult to navigate and maintain.
+-   **Solution:**
+    1.  A new file, `game_app/game_data.py`, has been created to act as a centralized repository for this static game data.
+    2.  All large data dictionaries (`ACTION_GROUPS`, `ACTION_DESCRIPTIONS`, `ACTION_VERBOSE_DESCRIPTIONS`, `ACTION_MAP`, `ACTION_LOG_GENERATORS`, etc.) have been moved from the `Game` class into `game_app/game_data.py`.
+    3.  The `Game` class in `game_logic.py` now imports this data from the new module. This separation of concerns drastically reduces the size of `game_logic.py` by nearly 300 lines, making the core game logic much cleaner and easier to read.
+    4.  During the refactoring, an unused and incorrect method, `_get_action_weights`, was identified and removed, further cleaning up the codebase.
+
+These changes resolve the critical bug and significantly improve the project's structure according to best practices, making future development more efficient.
