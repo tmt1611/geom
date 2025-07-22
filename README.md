@@ -91,4 +91,6 @@ When accessed via the `github.io` URL, the application will automatically detect
 
 The server runs in debug mode by default (see `run.py`). This means it will automatically reload when you save changes to a Python file. For changes in frontend files (JavaScript, CSS), the application will detect the changes and prompt you to restart the server and refresh your browser to see the updates.
 
-When running locally, the application uses the Flask backend. To test the Pyodide version locally, you can serve the project root directory with any simple static file server (e.g., `python -m http.server`). Note that you would need to adjust the logic in `static/js/main.js` that detects GitHub Pages if you want to test Pyodide locally without using the `github.io` domain.
+When running locally with `python run.py`, the application uses the Flask backend.
+
+To test the Pyodide/static version locally, you can stop the Flask server and instead serve the project root directory with any simple static file server (e.g., `python -m http.server`). The application will automatically detect that the Flask API is unavailable and will fall back to using Pyodide.
