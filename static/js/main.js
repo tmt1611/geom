@@ -1284,7 +1284,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (progress > 0.5) {
                     const impact_progress = (progress - 0.5) * 2;
                     ctx.beginPath();
-                    ctx.arc(cx, ground_y, 30 * impact_progress, 0, 2 * Math.PI);
+                    ctx.arc(cx, ground_y, Math.max(0, 30 * impact_progress), 0, 2 * Math.PI);
                     ctx.strokeStyle = `rgba(255, 255, 255, ${1 - impact_progress})`;
                     ctx.lineWidth = 3 * (1 - impact_progress);
                     ctx.stroke();
