@@ -1,27 +1,24 @@
-This iteration focused on improving the user interface for team management and introducing a new strategic, map-altering gameplay mechanic.
+This iteration introduces a new powerful structure and attack, the Railgun, and improves the user experience during the setup phase.
 
-### UI/UX Improvement: Smoother Team Editing
+### 1. New Structure & Action: The Railgun
 
--   **Files**: `static/js/main.js`, `static/css/style.css`
--   **Change**: The team management UI during the setup phase has been completely overhauled. Previously, clicking "edit" would replace the team display with a somewhat disruptive block of input fields.
--   **New Behavior**: The new implementation provides a much smoother inline editing experience. When a user clicks the edit icon:
-    -   The team name and trait become editable fields directly within the list item.
-    -   The color picker is seamlessly integrated.
-    -   Save and Cancel icons replace the standard action buttons.
--   **Benefit**: This makes the process of creating and modifying teams more intuitive and visually appealing, reducing layout shifts and improving the overall user workflow during setup.
+-   **Files**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
+-   **Change**: A new passive formation, the **Railgun**, has been introduced.
+    -   **Formation**: Two friendly lines that are parallel, of similar length, and reasonably close to each other form a Railgun.
+    -   **Action**: This structure unlocks the new **`[FIGHT] Fire Railgun`** action. It fires a high-velocity projectile that destroys the first two enemy lines in its path, piercing through shields.
+    -   **Strategy**: This provides teams with a powerful tool for breaking through heavily defended areas or clusters of enemy lines, rewarding strategic placement of parallel lines.
+    -   **Visuals**: Active railguns are visualized by a translucent field between the two lines with energy particles flowing along them. The firing action has a distinct, fast-moving projectile effect.
 
-### New Feature: Rift Spires & Fissures
+### 2. UI/UX Improvements
 
-A new "Terraforming" strategic layer has been added to the game, allowing teams to directly manipulate the battlefield.
+-   **File**: `static/js/main.js`
+-   **Change**: Improved feedback during the setup phase.
+    -   **Functionality**: When the user hovers the mouse over the grid during setup, the status bar at the bottom now displays the current grid coordinates `(x, y)`.
+    -   **Benefit**: This makes it easier for users to place points precisely without having to guess or count grid squares. The display disappears when the mouse leaves the canvas or when the game starts.
 
--   **Files**: `game_logic.py`, `static/js/main.js`, `rules.md`
--   **New Structure: Rift Spire**
-    -   **Formation:** A team can sacrifice a highly valuable point—one that serves as a vertex for at least three of its claimed territories—to create a **Rift Spire**.
-    -   **Function:** The Spire is a permanent structure that passively charges over several turns.
--   **New Action: Create Fissure**
-    -   **Mechanic:** Once fully charged, a Rift Spire can execute the `Create Fissure` action. This creates a long, jagged crack across the battlefield that lasts for a set number of turns.
-    -   **Strategic Impact:** Fissures are impassable barriers. They block line-of-sight for attacks, prevent line extensions, and no new points can be created near them. This introduces a powerful map control element, allowing a team to create defensive walls, block off enemy expansion, or isolate parts of the grid.
--   **Visuals**:
-    -   Rift Spires are rendered with a unique, spiky, pulsing visual that includes a charge indicator.
-    -   Fissures are drawn as thick, jagged, decaying cracks on the grid, providing clear and immediate visual feedback about the altered terrain.
--   **System Integration**: The core game logic (`_is_spawn_location_valid`, `fight_action_attack_line`, etc.) has been updated to respect the blocking nature of these new fissures.
+### 3. State & Rendering
+
+-   **Files**: `game_app/game_logic.py`, `static/js/main.js`
+-   **Change**: The backend and frontend have been updated to handle the new Railgun state.
+    -   The game state now tracks railgun formations for each team.
+    -   The live stats panel now displays the number of active railguns for each team.
