@@ -2571,18 +2571,19 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateControls(gameState) {
         const gamePhase = gameState.game_phase;
         const inSetup = gamePhase === 'SETUP';
+        const isRunning = gamePhase === 'RUNNING';
         const isFinished = gamePhase === 'FINISHED';
         
-        document.body.classList.toggle('game-running', !inSetup);
+        document.body.classList.toggle('game-running', isRunning || isFinished);
+        document.body.classList.toggle('game-finished', isFinished);
 
-        // The new layout is controlled entirely by the 'game-running' class on the body.
-        // We only need to manage the enabled/disabled state of buttons here.
+        // Manage the enabled/disabled state of buttons
         if (isFinished) {
             if (autoPlayInterval) stopAutoPlay();
             autoPlayBtn.textContent = 'Auto-Play';
             document.getElementById('next-action-btn').disabled = true;
             document.getElementById('auto-play-btn').disabled = true;
-        } else if (gamePhase === 'RUNNING') {
+        } else if (isRunning) {
              document.getElementById('next-action-btn').disabled = false;
              document.getElementById('auto-play-btn').disabled = false;
         }

@@ -1,23 +1,19 @@
-This iteration focuses on improving code quality and ensuring the robustness of the "Expand" actions, aligning with the core design principle that actions should never be useless.
+This iteration focuses on a significant overhaul of the user interface and layout to address several usability issues and better align with the game's phases.
 
-### 1. Code Refactoring for "Strengthen Line" Fallback
+### 1. Unified Layout for All Game Phases
 
-Several "Expand" actions (`Add Line`, `Extend Line`, `Fracture Line`, `Grow Line`) shared a common fallback behavior: if the primary action was not possible, they would strengthen an existing friendly line. This logic was duplicated across four different methods.
+The game now uses a consistent CSS grid layout from the moment it loads, instead of switching from flexbox to grid. This resolves an issue where the game grid was incorrectly sized (often too large for the screen) during the initial setup phase. The main container is now a four-column grid, providing a stable structure for all panels and content.
 
-- **Introduced Helper Functions:** Two new internal helper methods, `_strengthen_line` and `_fallback_strengthen_random_line`, were created in `game_logic.py`. These centralize the logic for strengthening a line and generating the standard fallback action result.
-- **Simplified Action Methods:** The four "Expand" actions mentioned above were refactored to remove the duplicated code and now call the new `_fallback_strengthen_random_line` helper. This makes the action methods shorter, cleaner, and easier to maintain.
-- **Improved Code Readability:** The `expand_action_add_line` method was also slightly optimized to use a more Pythonic list comprehension with `itertools.combinations` for finding possible new lines, improving both readability and performance.
+### 2. Improved Setup Phase Ergonomics
 
-### 2. Enhanced Action Logging and Consistency
+The setup controls, previously consolidated into a single left-hand panel, have been logically split. The "Create Teams" panel now resides in a new column to the left of the grid. The "Place Points" and "Game Settings" controls have been moved to a new column to the right of the grid. This provides a more balanced and intuitive workflow: create teams on the left, place points on the right, with the grid central.
 
-To improve clarity in the game log, the naming convention for "fizzled" actions that result in a fallback has been standardized.
+### 3. Redesigned "Game Finished" State
 
-- **Consistent Naming:** The fallback type for the "Add Line" action was changed from `add_line_fallback_strengthen` to `add_line_fizzle_strengthen`, matching the pattern used by other similar actions.
-- **More Descriptive Logs:** The short log message for this fallback was updated from the generic `[REINFORCE]` to the more descriptive `[ADD->REINFORCE]`, making it clearer to the player what action was attempted and what the result was.
+When a game concludes, the "Action Preview" column (which becomes empty) is now repurposed to display the final game statistics and interpretation. The end-game analysis panel has been moved from the far-left column to this more prominent central-right position, making the results easier to view and analyze. A new `body.game-finished` CSS class manages this transition seamlessly.
 
-### 3. Documentation and Rule Cleanup
+### 4. Optimized Action Preview Panel
 
-- **`rules.md`:** A minor text duplication in the description for the "Create Whirlpool" action was identified and corrected, improving the clarity of the rules documentation.
-- **`game_logic.py`:** Corrected a misleading docstring for the `expand_action_grow_line` method to accurately reflect that its fallback strengthens a *random* line, not necessarily the source line.
+The list of possible actions in the "Action Preview" panel has been made more vertically compact. The font size and spacing for action categories and individual actions have been reduced. This change aims to display all valid actions for a team at once, eliminating the need for vertical scrolling and providing a better at-a-glance overview of a team's potential moves.
 
-Overall, these changes contribute to a cleaner, more maintainable codebase and a more consistent and understandable experience for the player, reinforcing the "never useless action" design philosophy.
+These changes collectively create a cleaner, more professional, and user-friendly experience across all three phases of the game.
