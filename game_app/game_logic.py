@@ -199,10 +199,10 @@ class Game:
         'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25, 'fight_purify_territory': 28,
         'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_form_purifier': 18, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'terraform_raise_barricade': 15, 'fortify_build_wonder': 100,
         'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'sacrifice_phase_shift': 5, 'defend_shield': 8,
-        'rune_shoot_bisector': 25, 'rune_area_shield': 20, 'rune_shield_pulse': 22, 'rune_impale': 30, 'rune_hourglass_stasis': 20
+        'rune_shoot_bisector': 25, 'rune_area_shield': 20, 'rune_shield_pulse': 22, 'rune_impale': 30, 'rune_hourglass_stasis': 20, 'rune_t_hammer_slam': 25
     }
     TRAIT_MULTIPLIERS = {
-        'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0, 'rune_hourglass_stasis': 0.5, 'rune_shield_pulse': 0.5},
+        'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0, 'rune_hourglass_stasis': 0.5, 'rune_shield_pulse': 0.5, 'rune_t_hammer_slam': 1.8},
         'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5, 'sacrifice_phase_shift': 2.0},
         'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'terraform_raise_barricade': 2.0, 'rune_area_shield': 3.0, 'rune_hourglass_stasis': 2.0, 'rune_shield_pulse': 2.5},
         'Balanced':   {}
@@ -242,7 +242,7 @@ class Game:
             "stasis_points": {}, # {point_id: turns_left}
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
-            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': [], 'barricade': []}}
+            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': [], 'barricade': [], 't_shape': []}}
             "sentries": {}, # {teamId: [sentry1, sentry2, ...]}
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
@@ -1474,20 +1474,47 @@ class Game:
         return list(all_triangles - claimed_triangles)
 
     def fortify_action_claim_territory(self, teamId):
-        """[FORTIFY ACTION]: Find a triangle and claim it as territory."""
+        """[FORTIFY ACTION]: Find a triangle and claim it. If not possible, reinforces an existing territory."""
         newly_claimable_triangles = self._find_claimable_triangles(teamId)
 
-        if not newly_claimable_triangles:
-            return {'success': False, 'reason': 'all triangles already claimed'}
-        
-        triangle_to_claim = random.choice(newly_claimable_triangles)
-        new_territory = {
-            'teamId': teamId,
-            'point_ids': list(triangle_to_claim)
-        }
-        self.state['territories'].append(new_territory)
-        
-        return {'success': True, 'type': 'claim_territory', 'territory': new_territory}
+        if newly_claimable_triangles:
+            # --- Primary Effect: Claim Territory ---
+            triangle_to_claim = random.choice(newly_claimable_triangles)
+            new_territory = {
+                'teamId': teamId,
+                'point_ids': list(triangle_to_claim)
+            }
+            self.state['territories'].append(new_territory)
+            return {'success': True, 'type': 'claim_territory', 'territory': new_territory}
+        else:
+            # --- Fallback Effect: Reinforce an existing territory ---
+            team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+            if not team_territories:
+                return {'success': False, 'reason': 'no new triangles to claim and no existing territories to reinforce'}
+            
+            territory_to_reinforce = random.choice(team_territories)
+            p_ids = territory_to_reinforce['point_ids']
+            boundary_lines_keys = [tuple(sorted((p_ids[0], p_ids[1]))), tuple(sorted((p_ids[1], p_ids[2]))), tuple(sorted((p_ids[2], p_ids[0])))]
+            
+            strengthened_lines = []
+            max_strength = 3
+            all_team_lines = self.get_team_lines(teamId)
+            
+            for line in all_team_lines:
+                if tuple(sorted((line['p1_id'], line['p2_id']))) in boundary_lines_keys:
+                    line_id = line.get('id')
+                    if line_id:
+                        current_strength = self.state['line_strengths'].get(line_id, 0)
+                        if current_strength < max_strength:
+                            self.state['line_strengths'][line_id] = current_strength + 1
+                            strengthened_lines.append(line)
+            
+            # The action is 'successful' even if no lines were strengthened (they might be maxed out)
+            # The log message will reflect if lines were strengthened or not.
+            return {
+                'success': True, 'type': 'claim_fizzle_reinforce',
+                'territory_point_ids': p_ids, 'strengthened_lines': strengthened_lines
+            }
 
     def _find_possible_bastions(self, teamId):
         """Finds all valid formations for creating a new bastion."""
@@ -2848,56 +2875,74 @@ class Game:
         return {'success': False, 'reason': 'no valid spawn location for refracted beam miss'}
 
     def fight_action_purify_territory(self, teamId):
-        """[FIGHT ACTION]: A Purifier cleanses a nearby enemy territory."""
+        """[FIGHT ACTION]: A Purifier cleanses an enemy territory. If none, it pushes enemy points."""
         team_purifiers = self.state.get('purifiers', {}).get(teamId, [])
         if not team_purifiers:
             return {'success': False, 'reason': 'no purifiers available'}
-
-        enemy_territories = [t for t in self.state.get('territories', []) if t['teamId'] != teamId]
-        if not enemy_territories:
-            return {'success': False, 'reason': 'no enemy territories to purify'}
-
+        
         points_map = self.state['points']
-        best_target = None
-        min_dist_sq = float('inf')
+        enemy_territories = [t for t in self.state.get('territories', []) if t['teamId'] != teamId]
 
-        # Find the closest enemy territory to any of the team's purifiers
-        for purifier in team_purifiers:
-            if not all(pid in points_map for pid in purifier['point_ids']): continue
-            purifier_points = [points_map[pid] for pid in purifier['point_ids']]
-            purifier_center = self._points_centroid(purifier_points)
-            if not purifier_center: continue
+        if enemy_territories:
+            # --- Primary Effect: Cleanse Territory ---
+            best_target = None
+            min_dist_sq = float('inf')
+            for purifier in team_purifiers:
+                if not all(pid in points_map for pid in purifier['point_ids']): continue
+                purifier_points = [points_map[pid] for pid in purifier['point_ids']]
+                purifier_center = self._points_centroid(purifier_points)
+                if not purifier_center: continue
+                
+                for territory in enemy_territories:
+                    if not all(pid in points_map for pid in territory['point_ids']): continue
+                    territory_points = [points_map[pid] for pid in territory['point_ids']]
+                    if len(territory_points) != 3: continue
+                    territory_center = self._points_centroid(territory_points)
+
+                    dist_sq = distance_sq(purifier_center, territory_center)
+                    if dist_sq < min_dist_sq:
+                        min_dist_sq = dist_sq
+                        best_target = {'purifier_point_ids': purifier['point_ids'], 'territory_to_cleanse': territory}
             
-            for territory in enemy_territories:
-                if not all(pid in points_map for pid in territory['point_ids']): continue
-                territory_points = [points_map[pid] for pid in territory['point_ids']]
-                if len(territory_points) != 3: continue
-                territory_center = self._points_centroid(territory_points)
+            if best_target:
+                territory_to_cleanse = best_target['territory_to_cleanse']
+                self.state['territories'].remove(territory_to_cleanse)
+                return {
+                    'success': True, 'type': 'purify_territory',
+                    'cleansed_territory': territory_to_cleanse, 'purifier_point_ids': best_target['purifier_point_ids']
+                }
 
-                dist_sq = distance_sq(purifier_center, territory_center)
-                if dist_sq < min_dist_sq:
-                    min_dist_sq = dist_sq
-                    best_target = {
-                        'purifier_point_ids': purifier['point_ids'],
-                        'territory_to_cleanse': territory
-                    }
+        # --- Fallback Effect: Repulsive Pulse ---
+        # This triggers if no enemy territories exist, or if they did but were invalid for some reason.
+        purifier_to_pulse_from = random.choice(team_purifiers)
+        if not all(pid in points_map for pid in purifier_to_pulse_from['point_ids']):
+            return {'success': False, 'reason': 'purifier points for fallback no longer exist'}
         
-        if not best_target:
-            return {'success': False, 'reason': 'no valid targets found'}
+        purifier_points = [points_map[pid] for pid in purifier_to_pulse_from['point_ids']]
+        pulse_center = self._points_centroid(purifier_points)
+        pulse_radius_sq = (self.state['grid_size'] * 0.25)**2
+        
+        pushed_points = []
+        push_distance = 2.5
+        grid_size = self.state['grid_size']
 
-        territory_to_cleanse = best_target['territory_to_cleanse']
-        
-        # The actual cleansing action
-        self.state['territories'].remove(territory_to_cleanse)
-        
-        # The points that formed the territory are no longer "fortified"
-        # The frontend will update this automatically because the territory is gone.
+        for point in [p for p in self.state['points'].values() if p['teamId'] != teamId]:
+            if distance_sq(pulse_center, point) < pulse_radius_sq:
+                dx = point['x'] - pulse_center['x']
+                dy = point['y'] - pulse_center['y']
+                dist = math.sqrt(dx**2 + dy**2)
+                if dist < 0.1: continue
+
+                new_x = point['x'] + (dx / dist) * push_distance
+                new_y = point['y'] + (dy / dist) * push_distance
+                point['x'] = round(max(0, min(grid_size - 1, new_x)))
+                point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                pushed_points.append(point.copy())
         
         return {
-            'success': True,
-            'type': 'purify_territory',
-            'cleansed_territory': territory_to_cleanse,
-            'purifier_point_ids': best_target['purifier_point_ids']
+            'success': True, 'type': 'purify_fizzle_push',
+            'purifier_point_ids': purifier_to_pulse_from['point_ids'], 'pulse_center': pulse_center,
+            'pushed_points_count': len(pushed_points)
         }
 
     def _update_nexuses_for_team(self, teamId):
@@ -3269,7 +3314,8 @@ class Game:
             'rune_impale': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('trident', [])), "Requires an active Trident Rune."),
             'rune_hourglass_stasis': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('hourglass', [])), "Requires an active Hourglass Rune."),
             'rune_starlight_cascade': (lambda: len(self._find_possible_starlight_cascades(teamId)) > 0, "No Star Rune has a valid target in range."),
-            'rune_focus_beam': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('star', [])), "Requires an active Star Rune."),
+            'rune_focus_beam': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('star', [])) and num_enemy_points > 0, "Requires a Star Rune and an enemy point."),
+            'rune_t_hammer_slam': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('t_shape', [])), "Requires an active T-Rune."),
         }
 
         status = {}
@@ -3428,7 +3474,8 @@ class Game:
             'rune_impale': self.rune_action_impale,
             'rune_hourglass_stasis': self.rune_action_hourglass_stasis,
             'rune_starlight_cascade': self.rune_action_starlight_cascade,
-            'rune_focus_beam': self.rune_action_focus_beam
+            'rune_focus_beam': self.rune_action_focus_beam,
+            'rune_t_hammer_slam': self.rune_action_t_hammer_slam
         }
 
         # --- Evaluate possible actions based on game state and exclusion list ---
@@ -3817,7 +3864,13 @@ class Game:
             'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
             'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),
             'phase_shift_fizzle_anchor': lambda r: (f"attempted to phase shift a point but failed, instead causing the residual energy to form a temporary gravitational anchor.", "[PHASE->ANCHOR]"),
-            'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]")
+            'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]"),
+            'claim_fizzle_reinforce': lambda r: ("could not find a new territory to claim, and instead reinforced an existing one.", "[CLAIM->REINFORCE]"),
+            'purify_fizzle_push': lambda r: (f"found no territories to cleanse, and instead emitted a pulse that pushed back {r['pushed_points_count']} enemies.", "[PURIFY->PUSH]"),
+            'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead sacrificed a rune point to create a temporary anchor.", "[STASIS->ANCHOR]"),
+            'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from Team {self.state['teams'][r['destroyed_point']['teamId']]['name']}.", "[FOCUS BEAM]"),
+            'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
+            't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
         }
 
         if action_type in log_generators:
@@ -4086,6 +4139,7 @@ class Game:
         self.state['runes'][teamId]['hourglass'] = self._check_hourglass_rune(teamId)
         self.state['runes'][teamId]['star'] = self._check_star_rune(teamId)
         self.state['runes'][teamId]['barricade'] = self._check_barricade_rune(teamId)
+        self.state['runes'][teamId]['t_shape'] = self._check_t_rune(teamId)
 
     def _check_barricade_rune(self, teamId):
         """
@@ -4391,6 +4445,83 @@ class Game:
         
         return cross_runes
 
+    def _check_t_rune(self, teamId):
+        """
+        Finds T-Runes: A point `mid` connected to 3 other points, where two (`stem1`, `stem2`)
+        form a straight line through `mid`, and the third (`head`) is perpendicular to that line.
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 4:
+            return []
+
+        points = self.state['points']
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+        
+        t_runes = []
+        used_points = set()
+
+        for mid_id, neighbors_set in adj.items():
+            if len(neighbors_set) < 3 or mid_id in used_points:
+                continue
+            
+            neighbors = list(neighbors_set)
+            p_mid = points[mid_id]
+
+            # Iterate through pairs of neighbors to find a stem
+            for i in range(len(neighbors)):
+                for j in range(i + 1, len(neighbors)):
+                    p_stem1_id, p_stem2_id = neighbors[i], neighbors[j]
+                    p_stem1, p_stem2 = points[p_stem1_id], points[p_stem2_id]
+
+                    # 1. Check for collinearity (p_stem1, p_mid, p_stem2)
+                    if orientation(p_stem1, p_mid, p_stem2) != 0:
+                        continue
+
+                    # 2. Check that p_mid is roughly between them (not an endpoint of the stem line)
+                    v_mid_s1 = {'x': p_stem1['x'] - p_mid['x'], 'y': p_stem1['y'] - p_mid['y']}
+                    v_mid_s2 = {'x': p_stem2['x'] - p_mid['x'], 'y': p_stem2['y'] - p_mid['y']}
+                    if v_mid_s1['x'] * v_mid_s2['x'] + v_mid_s1['y'] * v_mid_s2['y'] >= 0:
+                        continue # Dot product must be negative for opposing vectors
+                    
+                    # Found a stem. Look for a perpendicular head.
+                    other_neighbors = [nid for nid in neighbors if nid not in (p_stem1_id, p_stem2_id)]
+                    for p_head_id in other_neighbors:
+                        p_head = points[p_head_id]
+
+                        # Check for perpendicularity of (p_mid -> p_head) to (p_stem1 -> p_stem2)
+                        v_stem_x, v_stem_y = p_stem2['x'] - p_stem1['x'], p_stem2['y'] - p_stem1['y']
+                        v_head_x, v_head_y = p_head['x'] - p_mid['x'], p_head['y'] - p_mid['y']
+                        
+                        mag_stem_sq = v_stem_x**2 + v_stem_y**2
+                        mag_head_sq = v_head_x**2 + v_head_y**2
+                        if mag_stem_sq < 0.1 or mag_head_sq < 0.1: continue
+
+                        dot_product = v_stem_x * v_head_x + v_stem_y * v_head_y
+                        cos_theta_sq = dot_product**2 / (mag_stem_sq * mag_head_sq)
+                        
+                        if cos_theta_sq < 0.05: # Allow deviation from 90 degrees
+                            rune_points = {mid_id, p_stem1_id, p_stem2_id, p_head_id}
+                            if not used_points.intersection(rune_points):
+                                t_runes.append({
+                                    'mid_id': mid_id,
+                                    'stem1_id': p_stem1_id,
+                                    'stem2_id': p_stem2_id,
+                                    'head_id': p_head_id,
+                                    'all_points': list(rune_points)
+                                })
+                                used_points.update(rune_points)
+                                break # Found a head for this stem, move to next stem
+                    # After finding a valid stem, no need to check other pairs with p_stem1_id
+                    break
+                if mid_id in used_points: break
+            if mid_id in used_points: continue
+        
+        return t_runes
+
     def _check_hourglass_rune(self, teamId):
         """
         Finds Hourglass Runes: two triangles sharing a single vertex, where all 6 lines exist.
@@ -4449,7 +4580,7 @@ class Game:
         return hourglass_runes
 
     def rune_action_hourglass_stasis(self, teamId):
-        """[RUNE ACTION]: Uses an Hourglass Rune to freeze an enemy point in time."""
+        """[RUNE ACTION]: Uses an Hourglass Rune to freeze an enemy point. If no target, creates an anchor."""
         active_hourglass_runes = self.state.get('runes', {}).get(teamId, {}).get('hourglass', [])
         if not active_hourglass_runes:
             return {'success': False, 'reason': 'no active Hourglass Runes'}
@@ -4457,39 +4588,48 @@ class Game:
         rune = random.choice(active_hourglass_runes)
         points_map = self.state['points']
         
-        # All points in the rune formation
-        rune_points = [points_map.get(pid) for pid in rune['all_points']]
-        if not all(p for p in rune_points):
+        rune_pids = rune['all_points']
+        if not all(pid in points_map for pid in rune_pids):
             return {'success': False, 'reason': 'rune points no longer exist'}
         
-        # Find vulnerable enemy points near the rune's vertex
         p_vertex = points_map[rune['vertex_id']]
         stasis_range_sq = (self.state['grid_size'] * 0.3)**2
         
         enemy_points = self._get_vulnerable_enemy_points(teamId)
-        
-        possible_targets = []
-        for ep in enemy_points:
-            if distance_sq(p_vertex, ep) < stasis_range_sq:
-                possible_targets.append(ep)
+        possible_targets = [ep for ep in enemy_points if distance_sq(p_vertex, ep) < stasis_range_sq]
 
-        if not possible_targets:
-            return {'success': False, 'reason': 'no vulnerable enemy points in range'}
+        if possible_targets:
+            # --- Primary Effect: Apply Stasis ---
+            target_point = random.choice(possible_targets)
+            self.state['stasis_points'][target_point['id']] = 3 # 3 turns
+            return {
+                'success': True, 'type': 'rune_hourglass_stasis',
+                'target_point': target_point, 'rune_points': rune_pids, 'rune_vertex_id': rune['vertex_id']
+            }
+        else:
+            # --- Fallback Effect: Create Anchor ---
+            if len(rune_pids) < 2:
+                return {'success': False, 'reason': 'not enough rune points for fallback anchor'}
             
-        target_point = random.choice(possible_targets)
-        
-        # Apply stasis
-        stasis_duration = 3 # turns
-        if 'stasis_points' not in self.state: self.state['stasis_points'] = {}
-        self.state['stasis_points'][target_point['id']] = stasis_duration
-        
-        return {
-            'success': True,
-            'type': 'rune_hourglass_stasis',
-            'target_point': target_point,
-            'rune_points': rune['all_points'],
-            'rune_vertex_id': rune['vertex_id']
-        }
+            # Sacrifice one point from the rune to make another an anchor.
+            p_to_sac_id, p_to_anchor_id = random.sample(rune_pids, 2)
+            
+            sacrificed_point_data = self._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
+            if not sacrificed_point_data:
+                return {'success': False, 'reason': 'failed to sacrifice rune point for fallback'}
+            
+            # Check if anchor point still exists after cascade
+            if p_to_anchor_id not in self.state['points']:
+                # The anchor point was destroyed by the sacrifice of its neighbor. The action is just the sacrifice.
+                return {'success': True, 'type': 'hourglass_fizzle_anchor', 'anchor_point': None, 'sacrificed_point': sacrificed_point_data, 'rune_points': rune_pids}
+            
+            self.state['anchors'][p_to_anchor_id] = {'teamId': teamId, 'turns_left': 3}
+            anchor_point = self.state['points'][p_to_anchor_id]
+
+            return {
+                'success': True, 'type': 'hourglass_fizzle_anchor',
+                'anchor_point': anchor_point, 'sacrificed_point': sacrificed_point_data, 'rune_points': rune_pids
+            }
 
     def _find_possible_starlight_cascades(self, teamId):
         active_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
@@ -4585,80 +4725,64 @@ class Game:
         }
 
     def rune_action_focus_beam(self, teamId):
-        """[RUNE ACTION]: A Star Rune channels energy to fire a powerful beam at a high-value target."""
+        """[RUNE ACTION]: A Star Rune fires a beam at a high-value target, or a regular one as fallback."""
         active_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
         if not active_star_runes:
             return {'success': False, 'reason': 'no active Star Runes'}
 
         rune = random.choice(active_star_runes)
         points_map = self.state['points']
-        
-        # Check if rune is still valid
         center_point = points_map.get(rune['center_id'])
-        cycle_points = [points_map.get(pid) for pid in rune['cycle_ids']]
-        if not center_point or any(p is None for p in cycle_points):
+        if not center_point or not all(pid in points_map for pid in rune['cycle_ids']):
             return {'success': False, 'reason': 'rune points no longer exist'}
             
-        # Find high-value enemy targets (bastion cores, monolith points, wonder)
-        all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
-        bastion_cores = self._get_bastion_point_ids()['cores']
-        monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
-        wonder_coords_list = [w['coords'] for w in self.state.get('wonders', {}).values() if w['teamId'] != teamId]
-        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        # --- Target Prioritization ---
+        target_point, target_wonder, target_type = None, None, None
 
-        possible_targets = [
-            p for p in all_enemy_points if p['id'] not in stasis_point_ids and (
-                p['id'] in bastion_cores or p['id'] in monolith_point_ids
-            )
-        ]
-
-        if not possible_targets and not wonder_coords_list:
-             return {'success': False, 'reason': 'no high-value enemy structures to target'}
-
-        # Prioritize Wonders, then other structures
-        target_point = None
-        target_wonder = None
+        # 1. High-value structures
+        wonder_coords_list = [w for w in self.state.get('wonders', {}).values() if w['teamId'] != teamId]
         if wonder_coords_list:
-            # Find closest wonder to the rune's center
-            target_wonder = min(wonder_coords_list, key=lambda wc: distance_sq(center_point, wc))
-            # Find the Wonder object itself
-            for wonder in self.state['wonders'].values():
-                if wonder['coords'] == target_wonder:
-                    target_wonder = wonder
-                    break
-        elif possible_targets:
-            # Find closest structure point to the rune's center
-            target_point = min(possible_targets, key=lambda p: distance_sq(center_point, p))
+            target_wonder = min(wonder_coords_list, key=lambda w: distance_sq(center_point, w['coords']))
+            target_type = 'wonder'
+        else:
+            high_value_points = [
+                p for p in self._get_vulnerable_enemy_points(teamId) if 
+                p['id'] in self._get_bastion_point_ids()['cores'] or 
+                p['id'] in {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
+            ]
+            if high_value_points:
+                target_point = min(high_value_points, key=lambda p: distance_sq(center_point, p))
+                target_type = 'high_value_point'
+        
+        # 2. Fallback to any vulnerable enemy
+        if not target_type:
+            vulnerable_targets = self._get_vulnerable_enemy_points(teamId)
+            if vulnerable_targets:
+                target_point = min(vulnerable_targets, key=lambda p: distance_sq(center_point, p))
+                target_type = 'fallback_point'
 
-        # Destroy the target
-        destroyed_point_data = None
-        destroyed_wonder_data = None
-        if target_wonder:
+        if not target_type:
+            return {'success': False, 'reason': 'no valid targets found'}
+
+        # --- Execute destruction ---
+        destroyed_point_data, destroyed_wonder_data = None, None
+        if target_type == 'wonder':
             destroyed_wonder_data = self.state['wonders'].pop(target_wonder['id'])
             team_name = self.state['teams'][destroyed_wonder_data['teamId']]['name']
-            log_msg = {
-                'teamId': teamId,
-                'message': f"The Focus Beam obliterated the Chronos Spire of Team {team_name}!",
-                'short_message': '[WONDER DESTROYED!]'
-            }
-            self.state['game_log'].append(log_msg)
-
-        elif target_point:
+            self.state['game_log'].append({'teamId': teamId, 'message': f"The Focus Beam obliterated the Chronos Spire of Team {team_name}!", 'short_message': '[WONDER DESTROYED!]'})
+        else:
             destroyed_point_data = self._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
             if not destroyed_point_data:
                 return {'success': False, 'reason': 'failed to destroy target point'}
         
-        else: # Should be unreachable
-            return {'success': False, 'reason': 'no target could be finalized'}
-
         return {
             'success': True,
-            'type': 'rune_focus_beam',
+            'type': 'rune_focus_beam' if target_type != 'fallback_point' else 'focus_beam_fallback_hit',
             'destroyed_point': destroyed_point_data,
             'destroyed_wonder': destroyed_wonder_data,
             'rune_points': rune['all_points'],
             'beam_origin': center_point,
-            'beam_target': target_point or target_wonder.get('coords')
+            'beam_target': (target_point or target_wonder.get('coords'))
         }
 
     def _update_conduits_for_team(self, teamId):
@@ -4755,6 +4879,81 @@ class Game:
                         'shared_p2_id': edge[1],
                         'all_point_ids': list(all_points)
                     })
+
+    def rune_action_t_hammer_slam(self, teamId):
+        """[RUNE ACTION]: A T-Rune sacrifices its head to push points away from its stem."""
+        active_t_runes = self.state.get('runes', {}).get(teamId, {}).get('t_shape', [])
+        if not active_t_runes:
+            return {'success': False, 'reason': 'no active T-Runes'}
+            
+        rune = random.choice(active_t_runes)
+        points = self.state['points']
+        
+        if not all(pid in points for pid in rune['all_points']):
+            return {'success': False, 'reason': 'rune points no longer exist'}
+            
+        # Sacrifice the head point
+        sacrificed_point_data = self._delete_point_and_connections(rune['head_id'], aggressor_team_id=teamId)
+        if not sacrificed_point_data:
+            return {'success': False, 'reason': 'failed to sacrifice rune head point'}
+        
+        # Check if stem points still exist after potential cascade
+        p_stem1 = points.get(rune['stem1_id'])
+        p_stem2 = points.get(rune['stem2_id'])
+        if not p_stem1 or not p_stem2:
+             return {'success': False, 'reason': 'rune stem points were destroyed during sacrifice'}
+             
+        # Find points to push
+        pushed_points = []
+        push_dist = 2.0
+        push_width = 2.0 # How far from the line to check
+        grid_size = self.state['grid_size']
+
+        # Vector for the stem and its perpendicular
+        v_stem_x, v_stem_y = p_stem2['x'] - p_stem1['x'], p_stem2['y'] - p_stem1['y']
+        mag_stem = math.sqrt(v_stem_x**2 + v_stem_y**2)
+        v_perp_x, v_perp_y = -v_stem_y / mag_stem, v_stem_x / mag_stem
+
+        for p_target in list(points.values()):
+            if p_target['id'] in rune['all_points']: continue
+
+            # Check distance from line segment
+            # Project p_target onto the stem line
+            v_s1_t_x, v_s1_t_y = p_target['x'] - p_stem1['x'], p_target['y'] - p_stem1['y']
+            dot = v_s1_t_x * v_stem_x + v_s1_t_y * v_stem_y
+            t = max(0, min(1, dot / (mag_stem**2)))
+            
+            p_closest = {'x': p_stem1['x'] + t * v_stem_x, 'y': p_stem1['y'] + t * v_stem_y}
+            
+            if distance_sq(p_target, p_closest) < push_width**2:
+                # Push the point
+                p_target['x'] = round(max(0, min(grid_size - 1, p_target['x'] + v_perp_x * push_dist)))
+                p_target['y'] = round(max(0, min(grid_size - 1, p_target['y'] + v_perp_y * push_dist)))
+                pushed_points.append(p_target.copy())
+
+        if pushed_points:
+            return {
+                'success': True, 'type': 'rune_t_hammer_slam',
+                'pushed_points_count': len(pushed_points), 'sacrificed_point': sacrificed_point_data,
+                'rune_points': rune['all_points']
+            }
+        else:
+            # Fallback: Strengthen the stem lines
+            strengthened_lines = []
+            max_strength = 3
+            stem_lines_keys = [tuple(sorted((rune['mid_id'], rune['stem1_id']))), tuple(sorted((rune['mid_id'], rune['stem2_id'])))]
+            for line in self.get_team_lines(teamId):
+                if tuple(sorted((line['p1_id'], line['p2_id']))) in stem_lines_keys:
+                    line_id = line.get('id')
+                    if line_id and self.state['line_strengths'].get(line_id, 0) < max_strength:
+                        self.state['line_strengths'][line_id] = self.state['line_strengths'].get(line_id, 0) + 1
+                        strengthened_lines.append(line)
+            
+            return {
+                'success': True, 'type': 't_slam_fizzle_reinforce',
+                'strengthened_lines': strengthened_lines, 'sacrificed_point': sacrificed_point_data,
+                'rune_points': rune['all_points']
+            }
 
     def _update_trebuchets_for_team(self, teamId):
         """Checks for Trebuchet formations (a specific kite shape)."""

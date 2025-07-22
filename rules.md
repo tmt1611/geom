@@ -28,6 +28,9 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
 *   **Barricade-Rune:**
     *   **Formation:** Four points that form a rectangle, with all four of its sides existing as connected lines.
     *   **Bonus:** Unlocks the **[TERRAFORM] Raise Barricade** action.
+*   **T-Rune:**
+    *   **Formation:** Four points in a 'T' shape. It requires a central point connected to three other points, where two of the connections form a straight line (the stem) and the third is perpendicular to it (the head). All three connecting lines must exist.
+    *   **Bonus:** Unlocks the **[RUNE] T-Hammer Slam** action.
 
 ## Actions
 On its turn, a team will perform one of the following actions, with the choice being influenced by its trait.
@@ -41,7 +44,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed.
 *   **[FIGHT] Pincer Attack:** If two of a team's points are flanking a single enemy point (creating a wide angle), they can perform a joint attack to destroy it. This does not work on fortified or bastion points. If no suitable target is found, the points instead form a small, temporary barricade between them.
 *   **[FIGHT] Territory Strike:** _(Requires a large territory)_ Launches a bolt of energy from the center of a large claimed territory, destroying the nearest vulnerable enemy point. This makes controlling large areas of the map an offensive advantage. If no vulnerable enemies exist, the territory's boundary lines are reinforced instead.
-*   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range.
+*   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range. If no target is found, it instead emits a repulsive pulse from the sacrifice location, pushing nearby enemies away.
 *   **[SACRIFICE] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius.
 *   **[SACRIFICE] Create Whirlpool:** Sacrifices a point to create a vortex that pulls nearby points toward its center. If no points are nearby when created, the action instead creates a small, temporary fissure on the map.
 *   **[SACRIFICE] Phase Shift:** Sacrifices a line to instantly "teleport" one of the line's endpoints to a new random location. If a valid new location cannot be found, the energy implodes into the *other* endpoint, turning it into a temporary **gravitational anchor** that pulls in nearby enemies.
@@ -50,12 +53,13 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Chain Lightning:** _(Requires a Conduit with internal points)_ Sacrifices one of the Conduit's internal points to fire a bolt of energy at the nearest enemy point, destroying it. If the attack fizzles (e.g., no target in range), the sacrificed point explodes in a **mini-nova**, destroying any nearby enemy lines.
 *   **[FIGHT] Refraction Beam:** _(Requires an active Prism)_ Fires a beam from one of its lines that refracts off the Prism's shared edge, changing direction to hit an enemy line around obstacles. If the refracted beam misses, it creates a new friendly point where it hits the border.
 *   **[FIGHT] Launch Payload:** _(Requires an active Trebuchet)_ Fires an arcing projectile. It prioritizes destroying a random enemy high-value point (e.g., a fortified point, bastion core, or monolith point). If none exist, it targets any vulnerable enemy point. If there are no targets at all, the payload impacts a random spot on the battlefield, creating a small, temporary fissure.
-*   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. The territory's color fades, and its three corner points lose their **Fortified** status, making them vulnerable again.
-*   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits.
+*   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. If there are no enemy territories to cleanse, it instead emits a defensive pulse that pushes all nearby enemy points away from it.
+*   **[RUNE] T-Hammer Slam:** _(Requires an active T-Rune)_ The rune sacrifices its 'head' point to create a shockwave emanating from its 'stem' line, pushing all nearby points away perpendicularly. If no points are in range, it instead reinforces the two lines that form the stem.
+*   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits. If it misses, it creates a temporary fissure along its path.
 *   **[RUNE] Impale:** _(Requires an active Trident-Rune)_ Fires a devastating, long-range beam that pierces through all enemy lines in its path, ignoring shields. If the beam hits no targets, it instead creates a temporary defensive barricade along its path.
 *   **[RUNE] Area Shield:** _(Requires an active Shield-Rune)_ Creates a temporary shield on all friendly lines contained within the rune's triangular boundary. If no lines are found inside, it instead emits a gentle pulse that pushes friendly points outwards to de-clutter the area.
 *   **[RUNE] Shield Pulse:** _(Requires an active Shield-Rune)_ Emits a defensive shockwave from the rune's center, pushing all nearby enemy points outwards. If no enemies are in range, it instead gently pulls nearby friendly points inwards to consolidate the formation.
-*   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field for several turns. A point in stasis cannot be targeted by most actions and is effectively removed from play until the effect wears off.
+*   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field. If no valid targets are in range, it instead sacrifices one of its own points to turn another of its rune-points into a temporary gravitational **anchor**.
 *   **[DEFEND] Shield Line:** Apply a temporary shield to one of its lines, making it immune to attacks for a few turns.
 *   **[DEFEND] Form Sentry:** A passive formation. When three of a team's points are collinear and connected by lines (forming Post-Eye-Post), they become a Sentry.
     *   **Bonus:** Unlocks the **[FIGHT] Sentry Zap** action.
@@ -67,7 +71,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[DEFEND] Form Nexus:** A passive formation. A Nexus is a powerful economic structure that grants bonus actions.
     *   **Formation:** Four points that form a perfect square, with all four outer edge lines and at least one of the two inner diagonals connected.
     *   **Bonus:** For each Nexus a team controls at the start of a turn, that team gains **one bonus action** to perform during that turn.
-*   **[FORTIFY] Fortify Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory, shading the area in its color.
+*   **[FORTIFY] Claim Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory. If no new triangles can be formed, it will instead reinforce the boundary lines of an existing friendly territory.
     *   **Bonus:** The three points of a claimed territory become **Fortified**, making them immune to conversion. The three boundary lines become **Reinforced** and cannot be fractured by their owner, preserving the structure.
 *   **[FORTIFY] Form Bastion:** Converts a fortified point (a vertex of a claimed territory) and at least three of its connected, non-fortified points into a powerful defensive structure.
     *   **Bonus:** The bastion's core point, prong points, and connecting lines become immune to standard attacks and conversion.
