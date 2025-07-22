@@ -76,37 +76,7 @@ def get_segment_intersection_point(p1, q1, p2, q2):
 
     return None  # Intersection point is not on both segments
 
-def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_sq=1.0):
-    """Checks if a new point can be spawned at the given coordinates."""
-    # Check proximity to existing points
-    for existing_p in self.state['points'].values():
-        if distance_sq(new_point_coords, existing_p) < min_dist_sq:
-            return False, 'too close to an existing point'
-    
-    # Check proximity to fissures (a simple bounding box check for performance)
-    for fissure in self.state.get('fissures', []):
-        p1 = fissure['p1']
-        p2 = fissure['p2']
-        # Bounding box of the fissure segment
-        box_x_min = min(p1['x'], p2['x']) - 1
-        box_x_max = max(p1['x'], p2['x']) + 1
-        box_y_min = min(p1['y'], p2['y']) - 1
-        box_y_max = max(p1['y'], p2['y']) + 1
-        
-        if (new_point_coords['x'] >= box_x_min and new_point_coords['x'] <= box_x_max and
-            new_point_coords['y'] >= box_y_min and new_point_coords['y'] <= box_y_max):
-            # A more precise check can be done here if needed, but this is a good first pass
-            return False, 'too close to a fissure'
 
-    # Check against enemy Heartwood defensive aura
-    if self.state.get('heartwoods'):
-        for teamId, heartwood in self.state['heartwoods'].items():
-            if teamId != new_point_teamId:
-                aura_radius_sq = (self.state['grid_size'] * 0.2)**2
-                if distance_sq(new_point_coords, heartwood['center_coords']) < aura_radius_sq:
-                    return False, 'blocked by an enemy Heartwood aura'
-    
-    return True, 'valid'
 
 def is_rectangle(p1, p2, p3, p4):
     """Checks if four points form a rectangle. Returns (is_rect, aspect_ratio).
@@ -580,6 +550,38 @@ class Game:
         x_sum = sum(p['x'] for p in points)
         y_sum = sum(p['y'] for p in points)
         return {'x': x_sum / num_points, 'y': y_sum / num_points}
+
+    def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_sq=1.0):
+        """Checks if a new point can be spawned at the given coordinates."""
+        # Check proximity to existing points
+        for existing_p in self.state['points'].values():
+            if distance_sq(new_point_coords, existing_p) < min_dist_sq:
+                return False, 'too close to an existing point'
+        
+        # Check proximity to fissures (a simple bounding box check for performance)
+        for fissure in self.state.get('fissures', []):
+            p1 = fissure['p1']
+            p2 = fissure['p2']
+            # Bounding box of the fissure segment
+            box_x_min = min(p1['x'], p2['x']) - 1
+            box_x_max = max(p1['x'], p2['x']) + 1
+            box_y_min = min(p1['y'], p2['y']) - 1
+            box_y_max = max(p1['y'], p2['y']) + 1
+            
+            if (new_point_coords['x'] >= box_x_min and new_point_coords['x'] <= box_x_max and
+                new_point_coords['y'] >= box_y_min and new_point_coords['y'] <= box_y_max):
+                # A more precise check can be done here if needed, but this is a good first pass
+                return False, 'too close to a fissure'
+
+        # Check against enemy Heartwood defensive aura
+        if self.state.get('heartwoods'):
+            for teamId, heartwood in self.state['heartwoods'].items():
+                if teamId != new_point_teamId:
+                    aura_radius_sq = (self.state['grid_size'] * 0.2)**2
+                    if distance_sq(new_point_coords, heartwood['center_coords']) < aura_radius_sq:
+                        return False, 'blocked by an enemy Heartwood aura'
+        
+        return True, 'valid'
 
     # --- Game Actions ---
 
