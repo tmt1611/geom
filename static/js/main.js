@@ -450,20 +450,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             ctx.restore();
-            ctx.globalAlpha *= 0.3 + flicker * 0.4;
-            ctx.strokeStyle = team.color;
-            ctx.lineWidth = 1.5;
-
-            // Draw a simple broken circle rune
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0.2, Math.PI - 0.2);
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, Math.PI + 0.2, 2 * Math.PI - 0.2);
-            ctx.stroke();
-
-            ctx.restore();
         });
     }
 
@@ -514,19 +500,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = '#fff';
             ctx.stroke();
 
-            // Use the current alpha contextually
-            const currentAlpha = ctx.globalAlpha;
-            ctx.globalAlpha = currentAlpha * 0.15;
-            ctx.fill();
-
-            // Add some "energy" effect inside
-            const pulse = Math.abs(Math.sin(Date.now() / 600));
-            ctx.globalAlpha = currentAlpha * (0.1 + pulse * 0.2);
-            ctx.lineWidth = 1 + pulse;
-            ctx.strokeStyle = '#fff';
-            ctx.stroke();
-
-            ctx.restore();
             ctx.restore();
         }
     }
@@ -674,31 +647,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.arc(orb_cx, orb_cy, 4 + pulse * 2, 0, 2 * Math.PI);
                 ctx.fill();
     
-                const currentAlpha = ctx.globalAlpha;
-                ctx.globalAlpha = currentAlpha * 0.25;
-                ctx.fill();
-
-                // Draw the central orb
-                const orb_cx = (nexus.center.x + 0.5) * cellSize;
-                const orb_cy = (nexus.center.y + 0.5) * cellSize;
-                const pulse = Math.abs(Math.sin(Date.now() / 800)); // Faster pulse
-                
-                // Outer glow
-                const gradient = ctx.createRadialGradient(orb_cx, orb_cy, 0, orb_cx, orb_cy, 10 + pulse * 5);
-                gradient.addColorStop(0, `rgba(255, 255, 255, ${0.8 - pulse * 0.3})`);
-                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                ctx.fillStyle = gradient;
-                ctx.globalAlpha = currentAlpha;
-                ctx.beginPath();
-                ctx.arc(orb_cx, orb_cy, 10 + pulse * 5, 0, 2 * Math.PI);
-                ctx.fill();
-    
-                // Inner core
-                ctx.fillStyle = team.color;
-                ctx.beginPath();
-                ctx.arc(orb_cx, orb_cy, 4 + pulse * 2, 0, 2 * Math.PI);
-                ctx.fill();
-
                 ctx.restore();
             });
         }
