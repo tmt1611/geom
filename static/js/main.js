@@ -3430,6 +3430,146 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
         },
+        'expand_orbital': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const center = {x: w*0.5, y: h*0.5};
+            illustrationHelpers.drawPoints(ctx, [center], team1_color);
+
+            const radius = w * 0.3;
+            const num_satellites = 5;
+            const satellites = [];
+            for (let i = 0; i < num_satellites; i++) {
+                const angle = (i / num_satellites) * 2 * Math.PI;
+                const p = {
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y + Math.sin(angle) * radius,
+                };
+                satellites.push(p);
+                illustrationHelpers.drawDashedLine(ctx, center, p, team1_color);
+            }
+            illustrationHelpers.drawPoints(ctx, satellites, team1_color);
+        },
+        'fight_convert': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+
+            const p1 = {x: w*0.2, y: h*0.5};
+            const p2 = {x: w*0.4, y: h*0.5};
+            const ep1 = {x: w*0.7, y: h*0.5};
+
+            // Sacrificed line with 'X'
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1,p2}], team1_color, 1);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(w*0.25, h*0.4); ctx.lineTo(w*0.35, h*0.6);
+            ctx.moveTo(w*0.25, h*0.6); ctx.lineTo(w*0.35, h*0.4);
+            ctx.stroke();
+
+            // Enemy point
+            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+            
+            // Arrow showing conversion
+            illustrationHelpers.drawArrow(ctx, {x: w*0.5, y: h*0.5}, {x: w*0.65, y: h*0.5}, '#f1c40f');
+            
+            // Converted point (draw a halo of new color)
+            ctx.beginPath();
+            ctx.arc(ep1.x, ep1.y, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.5;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        },
+        'fortify_form_bastion': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const core = {x: w*0.5, y: h*0.5};
+            const prongs = [
+                {x: w*0.7, y: h*0.3},
+                {x: w*0.7, y: h*0.7},
+                {x: w*0.3, y: h*0.5},
+            ];
+            
+            // Draw core as fortified
+            ctx.save();
+            ctx.fillStyle = team1_color;
+            const size = 12;
+            ctx.translate(core.x, core.y);
+            ctx.beginPath();
+            ctx.moveTo(0, -size); ctx.lineTo(size, 0); ctx.lineTo(0, size); ctx.lineTo(-size, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Draw prongs and lines
+            illustrationHelpers.drawPoints(ctx, prongs, team1_color);
+            prongs.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: core, p2: p}], team1_color));
+
+            // Draw bastion outline
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(prongs[0].x, prongs[0].y);
+            ctx.lineTo(prongs[1].x, prongs[1].y);
+            ctx.lineTo(prongs[2].x, prongs[2].y);
+            ctx.closePath();
+            ctx.strokeStyle = team1_color;
+            ctx.lineWidth = 4;
+            ctx.globalAlpha = 0.4;
+            ctx.stroke();
+            ctx.restore();
+        },
+        'sacrifice_whirlpool': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const center = {x: w*0.5, y: h*0.5};
+
+            // Sacrificed point
+            illustrationHelpers.drawPoints(ctx, [center], team1_color);
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.fillText('💥', center.x-20, center.y-20);
+
+            const pointsToPull = [
+                {x: w*0.2, y: h*0.2},
+                {x: w*0.8, y: h*0.3},
+                {x: w*0.7, y: h*0.8},
+                {x: w*0.3, y: h*0.7},
+            ];
+
+            illustrationHelpers.drawPoints(ctx, pointsToPull, team2_color);
+
+            // Draw spiral lines
+            pointsToPull.forEach(p => {
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.quadraticCurveTo((p.x+center.x)/2 + (p.y-center.y)*0.3, (p.y+center.y)/2 - (p.x-center.x)*0.3, center.x, center.y);
+                ctx.strokeStyle = '#aaa';
+                ctx.setLineDash([3,3]);
+                ctx.stroke();
+            });
+            ctx.setLineDash([]);
+        },
+        'rune_shoot_bisector': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            
+            // V-Rune
+            const p_v = {x: w*0.2, y: h*0.5};
+            const p_l1 = {x: w*0.4, y: h*0.2};
+            const p_l2 = {x: w*0.4, y: h*0.8};
+            illustrationHelpers.drawPoints(ctx, [p_v, p_l1, p_l2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1: p_v, p2: p_l1}, {p1: p_v, p2: p_l2}], team1_color);
+            
+            // Beam
+            const hit_point = {x: w*0.9, y: h*0.5};
+            illustrationHelpers.drawArrow(ctx, p_v, hit_point, 'rgba(100, 255, 255, 1.0)');
+
+            // Enemy Line
+            const ep1 = {x: w*0.7, y: h*0.3};
+            const ep2 = {x: w*0.7, y: h*0.7};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
+        },
     };
 
     async function initActionGuide() {

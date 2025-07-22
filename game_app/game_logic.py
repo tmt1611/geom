@@ -370,48 +370,8 @@ class Game:
         # Augment points with anchor and fortified status
         fortified_point_ids = self._get_fortified_point_ids()
         bastion_point_ids = self._get_bastion_point_ids()
+        structure_pids = self._get_structure_point_ids_by_type()
         
-        # Get all I-Rune point IDs for quick lookup
-        i_rune_point_ids = set()
-        i_rune_sentry_eyes = set()
-        i_rune_sentry_posts = set()
-        if self.state.get('runes'):
-            for team_runes in self.state['runes'].values():
-                for i_rune in team_runes.get('i_shape', []):
-                    for pid in i_rune.get('point_ids', []):
-                        i_rune_point_ids.add(pid)
-                    for pid in i_rune.get('internal_points', []):
-                        i_rune_sentry_eyes.add(pid)
-                    for pid in i_rune.get('endpoints', []):
-                        i_rune_sentry_posts.add(pid)
-        
-        # Get all Nexus point IDs for quick lookup
-        nexus_point_ids = set()
-        for team_nexuses in self.state.get('nexuses', {}).values():
-            for nexus in team_nexuses:
-                for pid in nexus.get('point_ids', []):
-                    nexus_point_ids.add(pid)
-        
-        # Get all Monolith point IDs for quick lookup
-        monolith_point_ids = set()
-        for monolith in self.state.get('monoliths', {}).values():
-            for pid in monolith.get('point_ids', []):
-                monolith_point_ids.add(pid)
-
-        # Get all Trebuchet point IDs for quick lookup
-        trebuchet_point_ids = set()
-        for team_trebuchets in self.state.get('trebuchets', {}).values():
-            for trebuchet in team_trebuchets:
-                for pid in trebuchet.get('point_ids', []):
-                    trebuchet_point_ids.add(pid)
-
-        # Get all Purifier point IDs for quick lookup
-        purifier_point_ids = set()
-        for team_purifiers in self.state.get('purifiers', {}).values():
-            for purifier in team_purifiers:
-                for pid in purifier.get('point_ids', []):
-                    purifier_point_ids.add(pid)
-
         augmented_points = {}
         for pid, point in self.state['points'].items():
             augmented_point = point.copy()
@@ -419,14 +379,14 @@ class Game:
             augmented_point['is_fortified'] = pid in fortified_point_ids
             augmented_point['is_bastion_core'] = pid in bastion_point_ids['cores']
             augmented_point['is_bastion_prong'] = pid in bastion_point_ids['prongs']
-            augmented_point['is_i_rune_point'] = pid in i_rune_point_ids
-            augmented_point['is_sentry_eye'] = pid in i_rune_sentry_eyes
-            augmented_point['is_sentry_post'] = pid in i_rune_sentry_posts
-            augmented_point['is_conduit_point'] = pid in i_rune_point_ids # I-Runes are also Conduits
-            augmented_point['is_nexus_point'] = pid in nexus_point_ids
-            augmented_point['is_monolith_point'] = pid in monolith_point_ids
-            augmented_point['is_trebuchet_point'] = pid in trebuchet_point_ids
-            augmented_point['is_purifier_point'] = pid in purifier_point_ids
+            augmented_point['is_i_rune_point'] = pid in structure_pids['i_rune']
+            augmented_point['is_sentry_eye'] = pid in structure_pids['i_rune_sentry_eye']
+            augmented_point['is_sentry_post'] = pid in structure_pids['i_rune_sentry_post']
+            augmented_point['is_conduit_point'] = pid in structure_pids['i_rune'] # I-Runes are also Conduits
+            augmented_point['is_nexus_point'] = pid in structure_pids['nexus']
+            augmented_point['is_monolith_point'] = pid in structure_pids['monolith']
+            augmented_point['is_trebuchet_point'] = pid in structure_pids['trebuchet']
+            augmented_point['is_purifier_point'] = pid in structure_pids['purifier']
             augmented_point['is_in_stasis'] = pid in self.state.get('stasis_points', {})
             augmented_points[pid] = augmented_point
         state_copy['points'] = augmented_points
@@ -507,6 +467,37 @@ class Game:
             'max_turns': max_turns,
             'grid_size': grid_size
         }
+
+    def _get_structure_point_ids_by_type(self):
+        """Returns a dictionary mapping structure types to sets of point IDs for frontend augmentation."""
+        ids = {
+            'i_rune': set(), 'i_rune_sentry_eye': set(), 'i_rune_sentry_post': set(),
+            'nexus': set(), 'monolith': set(), 'trebuchet': set(), 'purifier': set()
+        }
+
+        if self.state.get('runes'):
+            for team_runes in self.state['runes'].values():
+                for i_rune in team_runes.get('i_shape', []):
+                    ids['i_rune'].update(i_rune.get('point_ids', []))
+                    ids['i_rune_sentry_eye'].update(i_rune.get('internal_points', []))
+                    ids['i_rune_sentry_post'].update(i_rune.get('endpoints', []))
+        
+        # Structures that are dicts of lists {teamId: [item, ...]}
+        list_structures = {'nexus': 'nexuses', 'trebuchet': 'trebuchets', 'purifier': 'purifiers'}
+        for key, state_key in list_structures.items():
+            if self.state.get(state_key):
+                for team_list in self.state[state_key].values():
+                    for struct in team_list:
+                        ids[key].update(struct.get('point_ids', []))
+
+        # Structures that are dicts of dicts {itemId: {..., point_ids: [...]}}
+        dict_structures = {'monolith': 'monoliths'}
+        for key, state_key in dict_structures.items():
+            if self.state.get(state_key):
+                for struct in self.state[state_key].values():
+                    ids[key].update(struct.get('point_ids', []))
+
+        return ids
 
     def get_team_point_ids(self, teamId):
         """Returns IDs of points belonging to a team."""
@@ -1103,19 +1094,9 @@ class Game:
             sac_point_id = random.choice(ideal_sac_points)
         else:
             # If no ideal point, pick any non-critical point for the fallback effect.
-            bastion_points = self._get_bastion_point_ids()
-            critical_point_ids = self._get_fortified_point_ids().union(
-                bastion_points['cores'], bastion_points['prongs']
-            )
-            fallback_candidates = [pid for pid in team_point_ids if pid not in critical_point_ids]
-            if not fallback_candidates:
-                # If all points are critical, maybe allow sacrificing a simple fortified one as a last resort
-                fortified = self._get_fortified_point_ids().intersection(team_point_ids)
-                fallback_candidates = [pid for pid in fortified if pid not in bastion_points['cores'] and pid not in bastion_points['prongs']]
-            
-            if not fallback_candidates:
+            sac_point_id = self._find_non_critical_sacrificial_point(teamId)
+            if not sac_point_id:
                 return {'success': False, 'reason': 'no non-critical points to sacrifice'}
-            sac_point_id = random.choice(fallback_candidates)
 
         sac_point_coords = self.state['points'][sac_point_id].copy()
         blast_radius_sq = (self.state['grid_size'] * 0.25)**2
@@ -1183,26 +1164,12 @@ class Game:
 
     def sacrifice_action_create_whirlpool(self, teamId):
         """[SACRIFICE ACTION]: A point is destroyed. If points are nearby, it creates a vortex. Otherwise, it creates a small fissure."""
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) <= 1:
+        if len(self.get_team_point_ids(teamId)) <= 1:
             return {'success': False, 'reason': 'not enough points to sacrifice'}
 
-        # Find a non-critical point to sacrifice, with fallbacks
-        bastion_points = self._get_bastion_point_ids()
-        critical_structure_points = self._get_fortified_point_ids().union(
-            bastion_points['cores'], bastion_points['prongs']
-        )
-        sac_candidates = [pid for pid in team_point_ids if pid not in critical_structure_points]
-        
-        if not sac_candidates:
-            # Fallback to any fortified point that isn't a bastion point
-            fortified = self._get_fortified_point_ids().intersection(team_point_ids)
-            sac_candidates = [pid for pid in fortified if pid not in bastion_points['cores'] and pid not in bastion_points['prongs']]
-
-        if not sac_candidates:
+        p_to_sac_id = self._find_non_critical_sacrificial_point(teamId)
+        if not p_to_sac_id:
             return {'success': False, 'reason': 'no non-critical points available to sacrifice'}
-        
-        p_to_sac_id = random.choice(sac_candidates)
         sac_point_coords = self.state['points'][p_to_sac_id].copy()
         
         # Check for nearby points BEFORE sacrificing to decide the outcome
@@ -1347,26 +1314,13 @@ class Game:
 
     def sacrifice_action_rift_trap(self, teamId):
         """[SACRIFICE ACTION]: Sacrifices a point to create a temporary trap. If an enemy enters, it's destroyed. If not, the trap becomes a new point."""
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) <= 1:
+        if len(self.get_team_point_ids(teamId)) <= 1:
             return {'success': False, 'reason': 'not enough points to sacrifice'}
 
         # Find a non-critical point to sacrifice
-        bastion_points = self._get_bastion_point_ids()
-        critical_structure_points = self._get_fortified_point_ids().union(
-            bastion_points['cores'], bastion_points['prongs']
-        )
-        sac_candidates = [pid for pid in team_point_ids if pid not in critical_structure_points]
-        
-        if not sac_candidates:
-            # Fallback to any fortified point that isn't a bastion point
-            fortified = self._get_fortified_point_ids().intersection(team_point_ids)
-            sac_candidates = [pid for pid in fortified if pid not in bastion_points['cores'] and pid not in bastion_points['prongs']]
-
-        if not sac_candidates:
+        p_to_sac_id = self._find_non_critical_sacrificial_point(teamId)
+        if not p_to_sac_id:
             return {'success': False, 'reason': 'no non-critical points available to sacrifice'}
-        
-        p_to_sac_id = random.choice(sac_candidates)
         sac_point_coords = self.state['points'][p_to_sac_id].copy()
         
         # Perform Sacrifice
