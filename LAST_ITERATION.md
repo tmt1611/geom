@@ -1,30 +1,20 @@
-This iteration introduces significant refactoring to `game_logic.py` to improve its structure, readability, and maintainability. A bug related to Monolith line strengthening has also been fixed.
+This iteration focuses on fixing two key frontend issues: one related to UI layout and another to robust error handling.
 
-### 1. Refactored `game_logic.py` for Clarity and Maintainability
+### 1. Fixed Disappearing Grid on Tab Switch (Issue #1)
 
-Several of the largest and most complex methods in the `Game` class have been broken down into smaller, more focused helper methods.
+- **Problem:** When navigating to the "Action Guide" tab and then back to the "Game" tab, the game grid canvas would disappear.
+- **Cause:** This was a layout issue. When the game tab's container was set to `display: none`, the canvas's container lost its dimensions. The `ResizeObserver` was not reliably re-triggering to resize the canvas when the tab became visible again.
+- **Solution:** In `static/js/main.js`, a manual call to `resizeCanvas()` has been added within the tab-switching logic. This call is wrapped in `requestAnimationFrame()` to ensure the browser has completed its layout calculations for the newly visible tab before the canvas is resized, guaranteeing it correctly fits its container.
 
-- **`get_state()` Refactoring:** The `get_state()` method, which prepares the game state for the frontend, was over 100 lines long. Its core responsibilities—augmenting points, augmenting lines, and calculating live stats—have been extracted into separate helper methods (`_augment_points_for_frontend`, `_augment_lines_for_frontend`, `_calculate_live_stats`). This makes the `get_state` method a clean, high-level summary of its function and makes the augmentation logic easier to manage.
+### 2. Implemented Robust API Error Handling (Issue #2)
 
-- **`_start_new_turn()` Refactoring:** This was the largest method in the class, responsible for all start-of-turn maintenance. It has been refactored into a clear orchestrator method that calls a series of new, single-purpose helpers:
-  - `_process_shields_and_stasis()`
-  - `_process_rift_traps()`
-  - `_process_anchors()`
-  - `_process_heartwoods()`
-  - `_process_whirlpools()`
-  - `_process_monoliths()`
-  - `_process_wonders()`
-  - `_process_spires_fissures_barricades()`
-  - `_build_action_queue()`
+- **Problem:** The application would crash with a `JSON.parse` error when the server returned a non-JSON response, such as an HTML error page for a 500 Internal Server Error.
+- **Cause:** The `fetch` calls in `static/js/api.js` did not check if the server response was successful (`response.ok`) before attempting to parse the body as JSON.
+- **Solution:**
+    - A new helper function, `_fetchJson`, was created in `api.js`.
+    - This function wraps the `fetch` call and first checks if `response.ok` is true.
+    - If the response is not OK, it reads the response body as text (to capture any error messages from the server) and throws a descriptive `Error`.
+    - It also handles cases where a successful response might have an empty body, preventing parsing errors in that scenario.
+    - All API calls in `api.js` were refactored to use this new, safer helper function. This prevents the JSON parsing crash and allows the global error handler in `main.js` to display a more informative error message to the user.
 
-This change dramatically improves the readability of the turn-start logic, isolating the complex rules for each game object into its own manageable function.
-
-### 2. Bug Fix: Monolith Line Strengthening
-
-During the refactoring of `_start_new_turn`, a bug was discovered and fixed in the Monolith processing logic. The code was attempting to read from and write to a non-existent `self.state['empowered_lines']` dictionary instead of the correct `self.state['line_strengths']`. The refactored `_process_monoliths` method now correctly calls the `_strengthen_line` helper, ensuring Monoliths function as intended.
-
-### 3. Code Consolidation
-
-- The `expand_action_grow_line` method contained a custom implementation of the "strengthen line" fallback effect. This has been replaced with a call to the existing `_fallback_strengthen_random_line` helper method, reducing code duplication and ensuring consistent behavior for fizzled actions.
-
-These changes result in a cleaner, more organized, and more correct `game_logic.py` file, making future development and debugging significantly easier.
+These changes enhance the stability and user experience of the application, making it more resilient to layout quirks and server-side errors.

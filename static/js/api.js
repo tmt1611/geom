@@ -69,13 +69,32 @@ js_game_instance = game_logic.game
         return pyProxy.toJs({ dict_converter: Object.fromEntries });
     },
 
+    async _fetchJson(url, options) {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API Error Response:', errorText);
+            throw new Error(`Server returned an error: ${response.status} ${response.statusText}`);
+        }
+        // Handle cases where the server returns 200 OK but with an empty body
+        const text = await response.text();
+        if (!text) {
+            return null; // Or {}, depending on what's more convenient for the caller
+        }
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('Failed to parse JSON from server response:', text);
+            throw new Error('Server returned invalid JSON.');
+        }
+    },
+
     // --- MOCKED API calls for dev-only features ---
     async checkUpdates() {
         if (this._mode === 'pyodide') {
             return { updated: false };
         }
-        const response = await fetch('/api/check_updates');
-        return response.json();
+        return this._fetchJson('/api/check_updates');
     },
 
     async restartServer() {
@@ -83,8 +102,7 @@ js_game_instance = game_logic.game
             alert("Server restart is not available in GitHub Pages mode.");
             return { message: "Not available." };
         }
-        const response = await fetch('/api/dev/restart', { method: 'POST' });
-        return response.json();
+        return this._fetchJson('/api/dev/restart', { method: 'POST' });
     },
 
 
@@ -94,8 +112,7 @@ js_game_instance = game_logic.game
             const state = this._game.get_state();
             return this._pyProxyToJs(state);
         }
-        const response = await fetch('/api/game/state');
-        return response.json();
+        return this._fetchJson('/api/game/state');
     },
 
     async startGame(payload) {
@@ -108,12 +125,11 @@ js_game_instance = game_logic.game
             );
             return this.getState();
         }
-        const response = await fetch('/api/game/start', {
+        return this._fetchJson('/api/game/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        return response.json();
     },
 
     async restart() {
@@ -121,8 +137,7 @@ js_game_instance = game_logic.game
             const result = this._game.restart_game();
             return this._pyProxyToJs(result);
         }
-        const response = await fetch('/api/game/restart', { method: 'POST' });
-        return response.json();
+        return this._fetchJson('/api/game/restart', { method: 'POST' });
     },
 
     async reset() {
@@ -130,8 +145,7 @@ js_game_instance = game_logic.game
             this._game.reset();
             return this.getState();
         }
-        const response = await fetch('/api/game/reset', { method: 'POST' });
-        return response.json();
+        return this._fetchJson('/api/game/reset', { method: 'POST' });
     },
 
     async nextAction() {
@@ -139,8 +153,7 @@ js_game_instance = game_logic.game
             this._game.run_next_action();
             return this.getState();
         }
-        const response = await fetch('/api/game/next_action', { method: 'POST' });
-        return response.json();
+        return this._fetchJson('/api/game/next_action', { method: 'POST' });
     },
 
     async getActionProbabilities(teamId, includeInvalid) {
@@ -148,8 +161,7 @@ js_game_instance = game_logic.game
             const probabilities = this._game.get_action_probabilities(teamId, includeInvalid);
             return this._pyProxyToJs(probabilities);
         }
-        const response = await fetch(`/api/game/action_probabilities?teamId=${teamId}&include_invalid=${includeInvalid}`);
-        return response.json();
+        return this._fetchJson(`/api/game/action_probabilities?teamId=${teamId}&include_invalid=${includeInvalid}`);
     },
 
     async getAllActions() {
@@ -183,7 +195,6 @@ js_game_instance = game_logic.game
             });
             return actions_data;
         }
-        const response = await fetch('/api/actions/all');
-        return response.json();
+        return this._fetchJson('/api/actions/all');
     }
 };

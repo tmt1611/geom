@@ -3217,6 +3217,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             link.classList.add('active');
             document.getElementById(tabId).classList.add('active');
+
+            if (tabId === 'game-tab') {
+                // Manually trigger a resize when switching back to the game tab
+                // to ensure the canvas has the correct dimensions after being hidden.
+                // Using requestAnimationFrame ensures the layout has been updated by the browser.
+                requestAnimationFrame(resizeCanvas);
+            }
         });
     });
 
