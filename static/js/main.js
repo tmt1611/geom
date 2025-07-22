@@ -3219,10 +3219,12 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById(tabId).classList.add('active');
 
             if (tabId === 'game-tab') {
-                // Manually trigger a resize when switching back to the game tab
-                // to ensure the canvas has the correct dimensions after being hidden.
-                // Using requestAnimationFrame ensures the layout has been updated by the browser.
-                requestAnimationFrame(resizeCanvas);
+                // When switching back to a tab that was `display: none`, the browser
+                // needs a moment to recalculate the layout. `requestAnimationFrame` can
+                // sometimes fire too early for complex layouts (like this app's grid).
+                // A minimal `setTimeout` pushes the resize call to the end of the event
+                // queue, ensuring layout calculations are complete.
+                setTimeout(resizeCanvas, 0);
             }
         });
     });
@@ -4023,8 +4025,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Also catch promise rejections
         window.addEventListener('unhandledrejection', event => {
             stopAutoPlay();
-            const errorText = `Unhandled Promise Rejection:\nReason: ${event.reason.stack || event.reason}`;
-            errorDetails.textContent = errorText;
+            let errorContent = `Unhandled Promise Rejection:\nReason: ${event.reason.stack || event.reason}`;
+            // If our custom API error was thrown, it might have the server's response text.
+            if (event.reason && event.reason.response_text) {
+                // The response text is often an HTML traceback page. Let's try to extract the useful part.
+                const tracebackMatch = event.reason.response_text.match(/<pre>([\s\S]*)<\/pre>/);
+                const serverTraceback = tracebackMatch ? tracebackMatch[1].trim() : 'Could not extract traceback. See console for full server response.';
+                errorContent += `\n\n--- Server Response ---\n${serverTraceback}`;
+            }
+            errorDetails.textContent = errorContent;
             errorOverlay.style.display = 'flex';
         });
     

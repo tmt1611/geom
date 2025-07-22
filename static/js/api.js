@@ -74,7 +74,11 @@ js_game_instance = game_logic.game
         if (!response.ok) {
             const errorText = await response.text();
             console.error('API Error Response:', errorText);
-            throw new Error(`Server returned an error: ${response.status} ${response.statusText}`);
+            // Throwing an object allows us to pass more structured error information.
+            // The HTML traceback is often in errorText.
+            const error = new Error(`Server returned an error: ${response.status} ${response.statusText}`);
+            error.response_text = errorText;
+            throw error;
         }
         // Handle cases where the server returns 200 OK but with an empty body
         const text = await response.text();
