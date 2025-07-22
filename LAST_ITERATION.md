@@ -1,14 +1,21 @@
-This iteration continues the major refactoring of the `game_logic.py` file to improve code organization and maintainability, focusing on separating action logic from the main game class.
+This iteration focused on fixing a critical bug and continuing the architectural improvements to the codebase.
 
-### Refactoring Action Logic into Handlers
+### Bug Fix: Premature "Extinction" Game Over
 
-- **Problem:** `game_logic.py` was still extremely large, with the bulk of its size coming from the implementations of dozens of game actions directly within the `Game` class. This made the class unwieldy and violated the Single Responsibility Principle.
+-   **Problem:** A bug was reported where the game would end with an "Extinction" message even though teams still had points on the board and the turn limit had not been reached.
+-   **Investigation:** The logic for triggering an "Extinction" event was tied to the creation of an empty action queue at the start of a turn. The check for "Dominance" victory (a single team remaining) was also found to be flawed, as it was based on the turn's action queue rather than the actual state of points on the board at the end of the turn.
+-   **Solution:**
+    1.  The `_check_end_of_turn_victory_conditions` method in `game_logic.py` was significantly improved. It now checks for victory conditions based on which teams currently have points, which is a more accurate reflection of the game state.
+    2.  An explicit "Extinction" check was added to this method, ensuring the game ends immediately at the end of a turn if no teams have any points left. This is more robust than waiting for the next turn to fail to start.
+    3.  The main game loop in `run_next_action` was refactored for better clarity, removing a redundant check and relying on the more robust end-of-turn checks to handle game state transitions correctly.
 
-- **Solution:** I have initiated a structural refactoring to move action implementations into separate, dedicated "handler" classes.
-    1. A new directory, `game_app/actions/`, has been created to house these handlers.
-    2. A new file, `game_app/actions/expand_actions.py`, was created.
-    3. All action methods related to the 'Expand' category (e.g., `expand_action_add_line`, `expand_action_extend_line`) and their private helper methods (`_find_possible_extensions`, `_find_fracturable_lines`) have been moved from the `Game` class into a new `ExpandActionsHandler` class within this file.
-    4. The `Game` class now instantiates `ExpandActionsHandler` and the original `expand_action_*` methods have been converted into simple one-line wrappers that delegate the call to the handler instance.
-    5. Helper methods that are used by multiple action categories (like `_get_extended_border_point`) were correctly identified and left within the main `Game` class to be shared.
+### Refactoring: `FightActionsHandler`
 
-This change successfully extracts over 200 lines of logic from `game_logic.py` into a more focused module. It establishes a clear pattern for refactoring the remaining action categories in future iterations, significantly improving the project's architecture and making the core game logic file cleaner and easier to manage.
+-   **Problem:** The `game_logic.py` file, while improved, still contained a large number of action implementations, making it hard to manage.
+-   **Solution:** Following the pattern established in the previous iteration:
+    1.  A new file, `game_app/actions/fight_actions.py`, was created.
+    2.  A new `FightActionsHandler` class was implemented within this file.
+    3.  All ten action methods related to the 'Fight' category (e.g., `fight_action_attack_line`, `fight_action_convert_point`) and their associated private helper methods were moved from the `Game` class into the new handler.
+    4.  The `Game` class now instantiates `FightActionsHandler` and delegates all fight action calls to it.
+
+This change extracts a significant amount of complex logic out of the main `Game` class, making the code cleaner, more modular, and easier to maintain and debug. The combination of this refactoring and the bug fix greatly improves the stability and quality of the codebase.
