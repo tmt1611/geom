@@ -197,14 +197,14 @@ class Game:
         'expand_add': 10, 'expand_extend': 8, 'expand_grow': 12, 'expand_fracture': 10, 'expand_spawn': 1, # Low weight, last resort
         'expand_orbital': 7,
         'fight_attack': 10, 'fight_convert': 8, 'fight_pincer_attack': 12, 'fight_territory_strike': 15, 'fight_bastion_pulse': 15, 'fight_sentry_zap': 20, 'fight_chain_lightning': 18, 'fight_refraction_beam': 22, 'fight_launch_payload': 25, 'fight_purify_territory': 28,
-        'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_form_purifier': 18, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'fortify_build_wonder': 100,
+        'fortify_claim': 8, 'fortify_anchor': 5, 'fortify_mirror': 6, 'fortify_form_bastion': 7, 'fortify_form_monolith': 14, 'fortify_form_purifier': 18, 'fortify_cultivate_heartwood': 20, 'fortify_form_rift_spire': 18, 'terraform_create_fissure': 25, 'terraform_raise_barricade': 15, 'fortify_build_wonder': 100,
         'sacrifice_nova': 3, 'sacrifice_whirlpool': 6, 'sacrifice_phase_shift': 5, 'defend_shield': 8,
         'rune_shoot_bisector': 25, 'rune_area_shield': 20, 'rune_shield_pulse': 22, 'rune_impale': 30, 'rune_hourglass_stasis': 20
     }
     TRAIT_MULTIPLIERS = {
         'Aggressive': {'fight_attack': 2.5, 'fight_convert': 2.0, 'fight_pincer_attack': 2.5, 'fight_territory_strike': 2.0, 'sacrifice_nova': 1.5, 'defend_shield': 0.5, 'rune_shoot_bisector': 1.5, 'fight_bastion_pulse': 2.0, 'fight_sentry_zap': 2.5, 'fight_chain_lightning': 2.2, 'fight_refraction_beam': 2.5, 'fight_launch_payload': 3.0, 'fight_purify_territory': 2.0, 'rune_impale': 2.0, 'rune_hourglass_stasis': 0.5, 'rune_shield_pulse': 0.5},
         'Expansive':  {'expand_add': 2.0, 'expand_extend': 1.5, 'expand_grow': 2.5, 'expand_fracture': 2.0, 'fortify_claim': 0.5, 'fortify_mirror': 2.0, 'expand_orbital': 2.5, 'fortify_cultivate_heartwood': 1.5, 'sacrifice_phase_shift': 2.0},
-        'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'rune_area_shield': 3.0, 'rune_hourglass_stasis': 2.0, 'rune_shield_pulse': 2.5},
+        'Defensive':  {'defend_shield': 3.0, 'fortify_claim': 2.0, 'fortify_anchor': 1.5, 'fight_attack': 0.5, 'expand_grow': 0.5, 'fortify_form_bastion': 3.0, 'fortify_form_monolith': 2.5, 'fortify_cultivate_heartwood': 2.5, 'fortify_form_purifier': 2.0, 'terraform_raise_barricade': 2.0, 'rune_area_shield': 3.0, 'rune_hourglass_stasis': 2.0, 'rune_shield_pulse': 2.5},
         'Balanced':   {}
     }
     ACTION_DESCRIPTIONS = {
@@ -213,7 +213,8 @@ class Game:
         'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
         'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder",
         'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'defend_shield': "Shield Line",
-        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam"
+        'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam",
+        'terraform_raise_barricade': "Raise Barricade"
     }
 
 
@@ -237,7 +238,7 @@ class Game:
             "stasis_points": {}, # {point_id: turns_left}
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
-            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': []}}
+            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': [], 'barricade': []}}
             "sentries": {}, # {teamId: [sentry1, sentry2, ...]}
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "conduits": {}, # {teamId: [conduit1, conduit2, ...]}
@@ -362,6 +363,7 @@ class Game:
         state_copy['purifiers'] = self.state.get('purifiers', {})
         state_copy['rift_spires'] = self.state.get('rift_spires', {})
         state_copy['fissures'] = self.state.get('fissures', [])
+        state_copy['barricades'] = self.state.get('barricades', [])
         state_copy['wonders'] = self.state.get('wonders', {})
 
         # Add live stats for real-time display, regardless of phase, for consistency
@@ -661,9 +663,8 @@ class Game:
         # Check if extension is blocked by a fissure
         # Create a very long ray for intersection test
         ray_end_point = {'x': p2['x'] + dx * grid_size * 2, 'y': p2['y'] + dy * grid_size * 2}
-        for fissure in self.state.get('fissures', []):
-            if segments_intersect(p2, ray_end_point, fissure['p1'], fissure['p2']):
-                return None # Extension is blocked by a fissure
+        if self._is_ray_blocked(p2, ray_end_point):
+            return None # Extension is blocked
 
         # We are calculating p_new = p1 + t * (p2 - p1) for t > 1
         t_values = []
@@ -684,11 +685,10 @@ class Game:
         iy = round(max(0, min(grid_size - 1, iy)))
         return {"x": ix, "y": iy}
 
-    def expand_action_extend_line(self, teamId):
-        """[EXPAND ACTION]: Extend a line to the border to create a new point."""
+    def _find_possible_extensions(self, teamId):
+        """Finds all possible line extensions to the border."""
         team_lines = self.get_team_lines(teamId)
         points = self.state['points']
-        
         possible_extensions = []
         for line in team_lines:
             if line['p1_id'] not in points or line['p2_id'] not in points:
@@ -696,31 +696,29 @@ class Game:
             p1 = points[line['p1_id']]
             p2 = points[line['p2_id']]
             
-            # Direction 1: extend from p1 through p2
+            # Try extending from p1 through p2
             border_point1 = self._get_extended_border_point(p1, p2)
             if border_point1:
-                possible_extensions.append({'origin_point_id': p2['id'], 'border_point': border_point1})
+                is_valid, _ = self._is_spawn_location_valid(border_point1, teamId)
+                if is_valid:
+                    possible_extensions.append({'origin_point_id': p2['id'], 'border_point': border_point1})
             
-            # Direction 2: extend from p2 through p1
+            # Try extending from p2 through p1
             border_point2 = self._get_extended_border_point(p2, p1)
             if border_point2:
-                possible_extensions.append({'origin_point_id': p1['id'], 'border_point': border_point2})
+                is_valid, _ = self._is_spawn_location_valid(border_point2, teamId)
+                if is_valid:
+                    possible_extensions.append({'origin_point_id': p1['id'], 'border_point': border_point2})
+        return possible_extensions
+
+    def expand_action_extend_line(self, teamId):
+        """[EXPAND ACTION]: Extend a line to the border to create a new point."""
+        possible_extensions = self._find_possible_extensions(teamId)
 
         if not possible_extensions:
-            return {'success': False, 'reason': 'no lines can be extended to the border'}
+            return {'success': False, 'reason': 'no valid lines can be extended to the border'}
 
-        # Let's try a few extensions to find a valid one
-        random.shuffle(possible_extensions)
-        chosen_extension = None
-        for extension in possible_extensions:
-            is_valid, reason = self._is_spawn_location_valid(extension['border_point'], teamId)
-            if is_valid:
-                chosen_extension = extension
-                break
-        
-        if not chosen_extension:
-            return {'success': False, 'reason': 'no valid border position found for extension'}
-
+        chosen_extension = random.choice(possible_extensions)
         border_point = chosen_extension['border_point']
         origin_point_id = chosen_extension['origin_point_id']
         
@@ -748,38 +746,39 @@ class Game:
         
         return result_payload
 
-    def expand_action_fracture_line(self, teamId):
-        """[EXPAND ACTION]: Splits a line into two, creating a new point."""
+    def _find_fracturable_lines(self, teamId):
+        """Finds all lines that are eligible for fracturing."""
         team_lines = self.get_team_lines(teamId)
         points = self.state['points']
-
+        fracturable_lines = []
+        
         # Get territory boundary lines to exclude them from fracturing
         territory_lines = set()
         for t in self.state.get('territories', []):
             if t['teamId'] == teamId:
                 p_ids = t['point_ids']
-                # A territory is a triangle, so it has 3 sides (lines)
                 territory_lines.add(tuple(sorted((p_ids[0], p_ids[1]))))
                 territory_lines.add(tuple(sorted((p_ids[1], p_ids[2]))))
                 territory_lines.add(tuple(sorted((p_ids[2], p_ids[0]))))
 
-        fracturable_lines = []
         for line in team_lines:
-            # Check if line is a territory boundary
             if tuple(sorted((line['p1_id'], line['p2_id']))) in territory_lines:
                 continue
+            if line['p1_id'] in points and line['p2_id'] in points:
+                p1 = points[line['p1_id']]
+                p2 = points[line['p2_id']]
+                if distance_sq(p1, p2) >= 4.0: # min length of 2
+                    fracturable_lines.append(line)
+        return fracturable_lines
 
-            if line['p1_id'] not in points or line['p2_id'] not in points:
-                continue
-            p1 = points[line['p1_id']]
-            p2 = points[line['p2_id']]
-            if distance_sq(p1, p2) >= 4.0: # min length of 2
-                fracturable_lines.append(line)
-
+    def expand_action_fracture_line(self, teamId):
+        """[EXPAND ACTION]: Splits a line into two, creating a new point."""
+        fracturable_lines = self._find_fracturable_lines(teamId)
         if not fracturable_lines:
             return {'success': False, 'reason': 'no non-territory lines long enough to fracture'}
 
         line_to_fracture = random.choice(fracturable_lines)
+        points = self.state['points']
         p1 = points[line_to_fracture['p1_id']]
         p2 = points[line_to_fracture['p2_id']]
 
@@ -814,16 +813,22 @@ class Game:
         }
 
 
-    def fight_action_attack_line(self, teamId):
-        """[FIGHT ACTION]: Extend a line to hit an enemy line, destroying it."""
+    def _is_ray_blocked(self, p_start, p_end):
+        """Checks if a segment is blocked by a fissure or barricade."""
+        for fissure in self.state.get('fissures', []):
+            if get_segment_intersection_point(p_start, p_end, fissure['p1'], fissure['p2']):
+                 return True
+        for barricade in self.state.get('barricades', []):
+            if get_segment_intersection_point(p_start, p_end, barricade['p1'], barricade['p2']):
+                 return True
+        return False
+
+    def _find_possible_line_attacks(self, teamId):
+        """Finds all possible line attack targets."""
         possible_attacks = []
         team_lines = self.get_team_lines(teamId)
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
         points = self.state['points']
-
-        if not team_lines or not enemy_lines:
-            return {'success': False, 'reason': 'not enough lines to perform an attack'}
-
         team_has_cross_rune = len(self.state.get('runes', {}).get(teamId, {}).get('cross', [])) > 0
 
         for line in team_lines:
@@ -838,32 +843,21 @@ class Game:
                 attack_segment_p1 = p_end
                 attack_segment_p2 = border_point
 
+                if self._is_ray_blocked(attack_segment_p1, attack_segment_p2):
+                    continue
+
                 for enemy_line in enemy_lines:
                     is_shielded = enemy_line.get('id') in self.state['shields']
+                    if is_shielded and not team_has_cross_rune:
+                        continue
                     
-                    # Bastion lines are immune to normal attacks
                     bastion_line_ids = self._get_bastion_line_ids()
                     if enemy_line.get('id') in bastion_line_ids:
                         continue
-
-                    if is_shielded and not team_has_cross_rune:
-                        continue # Shield protects if attacker has no Cross Rune
                     
-                    empower_strength = self.state.get('line_strengths', {}).get(enemy_line.get('id'))
-
                     if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
-                    
                     ep1 = points[enemy_line['p1_id']]
                     ep2 = points[enemy_line['p2_id']]
-
-                    # Check if attack ray is blocked by a fissure
-                    is_blocked_by_fissure = False
-                    for fissure in self.state.get('fissures', []):
-                        if get_segment_intersection_point(attack_segment_p1, attack_segment_p2, fissure['p1'], fissure['p2']):
-                             is_blocked_by_fissure = True
-                             break
-                    if is_blocked_by_fissure:
-                        continue
 
                     intersection_point = get_segment_intersection_point(attack_segment_p1, attack_segment_p2, ep1, ep2)
                     if intersection_point:
@@ -872,14 +866,16 @@ class Game:
                             'target_line': enemy_line,
                             'attack_ray': {'p1': attack_segment_p1, 'p2': attack_segment_p2},
                             'bypassed_shield': is_shielded and team_has_cross_rune,
-                            'was_strengthened': bool(empower_strength),
                             'intersection_point': intersection_point
                         })
+        return possible_attacks
 
+    def fight_action_attack_line(self, teamId):
+        """[FIGHT ACTION]: Extend a line to hit an enemy line, destroying it."""
+        possible_attacks = self._find_possible_line_attacks(teamId)
         if not possible_attacks:
             return {'success': False, 'reason': 'no target in range'}
 
-        # Choose one of the possible attacks and execute it.
         chosen_attack = random.choice(possible_attacks)
         enemy_line = chosen_attack['target_line']
         enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
@@ -2834,41 +2830,42 @@ class Game:
         and a reason for invalidity.
         """
         team_point_ids = self.get_team_point_ids(teamId)
-        team_lines = self.get_team_lines(teamId)
         num_team_points = len(team_point_ids)
-        num_team_lines = len(team_lines)
+        num_team_lines = len(self.get_team_lines(teamId))
         num_enemy_points = len(self.state['points']) - num_team_points
         num_enemy_lines = len(self.state['lines']) - num_team_lines
         team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
-
+        
         # A dictionary mapping action names to a tuple of (lambda -> bool, "reason for failure").
+        # These checks are more precise than before, using the find_possible_* helpers.
         preconditions = {
             'expand_add': (lambda: num_team_points >= 2, "Requires at least 2 points."),
-            'expand_extend': (lambda: num_team_lines > 0, "Requires at least 1 line."),
+            'expand_extend': (lambda: len(self._find_possible_extensions(teamId)) > 0, "No lines can be validly extended."),
             'expand_grow': (lambda: num_team_lines > 0, "Requires at least 1 line to grow from."),
-            'expand_fracture': (lambda: any(distance_sq(self.state['points'][l['p1_id']], self.state['points'][l['p2_id']]) >= 4.0 for l in team_lines if l['p1_id'] in self.state['points'] and l['p2_id'] in self.state['points']), "No lines long enough to fracture."),
+            'expand_fracture': (lambda: len(self._find_fracturable_lines(teamId)) > 0, "No non-territory lines long enough to fracture."),
             'expand_spawn': (lambda: num_team_points > 0, "Requires at least 1 point to spawn from."),
             'expand_orbital': (lambda: num_team_points >= 5, "Requires at least 5 points."),
-            'fight_attack': (lambda: num_team_lines > 0 and num_enemy_lines > 0, "Requires own lines and enemy lines."),
-            'fight_convert': (lambda: num_team_lines > 0 and num_enemy_points > 0, "Requires own lines and vulnerable enemy points."),
-            'fight_pincer_attack': (lambda: num_team_points >= 2 and num_enemy_points > 0, "Requires at least 2 points and vulnerable enemy points."),
-            'fight_territory_strike': (lambda: len(team_territories) > 0, "Requires at least one territory."),
-            'fight_bastion_pulse': (lambda: any(b['teamId'] == teamId for b in self.state.get('bastions', {}).values()), "Requires an active Bastion."),
+            'fight_attack': (lambda: len(self._find_possible_line_attacks(teamId)) > 0, "No valid attack targets in range."),
+            'fight_convert': (lambda: len(self._find_possible_conversions(teamId)) > 0, "No vulnerable enemy points in range."),
+            'fight_pincer_attack': (lambda: len(self._find_possible_pincers(teamId)) > 0, "No valid pincer attack formations found."),
+            'fight_territory_strike': (lambda: self._find_possible_territory_strikes(teamId) is not None, "No large territories or no valid targets."),
+            'fight_bastion_pulse': (lambda: any(b['teamId'] == teamId and len(b['prong_ids']) > 0 for b in self.state.get('bastions', {}).values()), "Requires a Bastion with prongs to sacrifice."),
             'fight_sentry_zap': (lambda: bool(self.state.get('sentries', {}).get(teamId, [])), "Requires an active Sentry."),
             'fight_chain_lightning': (lambda: any(c.get('internal_point_ids') for c in self.state.get('conduits', {}).get(teamId, [])), "Requires a Conduit with internal points."),
             'fight_refraction_beam': (lambda: bool(self.state.get('prisms', {}).get(teamId, [])) and num_enemy_lines > 0, "Requires a Prism and enemy lines."),
             'fight_launch_payload': (lambda: bool(self.state.get('trebuchets', {}).get(teamId, [])), "Requires a Trebuchet."),
             'fight_purify_territory': (lambda: bool(self.state.get('purifiers', {}).get(teamId, [])) and any(t['teamId'] != teamId for t in self.state.get('territories', [])), "Requires a Purifier and an enemy territory."),
-            'defend_shield': (lambda: any(l.get('id') not in self.state['shields'] for l in team_lines), "Requires an unshielded line."),
-            'fortify_claim': (lambda: num_team_points >= 3, "Requires at least 3 points to form a triangle."),
+            'defend_shield': (lambda: any(l.get('id') not in self.state['shields'] for l in self.get_team_lines(teamId)), "Requires an unshielded line."),
+            'fortify_claim': (lambda: len(self._find_claimable_triangles(teamId)) > 0, "No new triangles available to claim."),
             'fortify_anchor': (lambda: num_team_points >= 3, "Requires at least 3 points to sacrifice one."),
             'fortify_mirror': (lambda: num_team_points >= 3, "Requires at least 3 points to mirror."),
-            'fortify_form_bastion': (lambda: bool(self._get_fortified_point_ids().intersection(team_point_ids)), "Requires a fortified point to upgrade."),
+            'fortify_form_bastion': (lambda: len(self._find_possible_bastions(teamId)) > 0, "No valid bastion formation found."),
             'fortify_form_monolith': (lambda: num_team_points >= 4, "Requires at least 4 points."),
             'fortify_form_purifier': (lambda: num_team_points >= 5, "Requires at least 5 points."),
             'fortify_cultivate_heartwood': (lambda: num_team_points >= 6 and teamId not in self.state.get('heartwoods', {}), "Requires >= 6 points and no existing Heartwood."),
             'fortify_form_rift_spire': (lambda: len(team_territories) >= 3, "Requires at least 3 territories."),
             'terraform_create_fissure': (lambda: any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in self.state.get('rift_spires', {}).values()), "Requires a charged Rift Spire."),
+            'terraform_raise_barricade': (lambda: bool(self.state.get('runes', {}).get(teamId, {}).get('barricade', [])), "Requires an active Barricade Rune."),
             'fortify_build_wonder': (lambda: num_team_points >= 6 and not any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()), "Requires >= 6 points and no existing Wonder."),
             'sacrifice_nova': (lambda: num_team_points > 2, "Requires more than 2 points to sacrifice one."),
             'sacrifice_whirlpool': (lambda: num_team_points > 1, "Requires more than 1 point to sacrifice one."),
@@ -3026,6 +3023,7 @@ class Game:
             'fortify_cultivate_heartwood': self.fortify_action_cultivate_heartwood,
             'fortify_form_rift_spire': self.fortify_action_form_rift_spire,
             'terraform_create_fissure': self.terraform_action_create_fissure,
+            'terraform_raise_barricade': self.terraform_raise_barricade,
             'fortify_build_wonder': self.fortify_action_build_chronos_spire,
             'sacrifice_nova': self.sacrifice_action_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_action_create_whirlpool,
@@ -3260,7 +3258,7 @@ class Game:
                         self.state['actions_queue_this_turn'] = [] # empty queue
                         return # exit early
         
-        # 7. Process Rift Spires (charging) and Fissures (decay)
+        # 7. Process Rift Spires (charging) and Fissures/Barricades (decay)
         if self.state.get('rift_spires'):
             for spire in self.state['rift_spires'].values():
                 if spire.get('charge', 0) < spire.get('charge_needed', 3):
@@ -3273,6 +3271,14 @@ class Game:
                 if f['turns_left'] > 0:
                     active_fissures.append(f)
             self.state['fissures'] = active_fissures
+        
+        if self.state.get('barricades'):
+            active_barricades = []
+            for b in self.state['barricades']:
+                b['turns_left'] -= 1
+                if b['turns_left'] > 0:
+                    active_barricades.append(b)
+            self.state['barricades'] = active_barricades
         
         # 8. Process Stasis
         if self.state.get('stasis_points'):
@@ -3670,6 +3676,7 @@ class Game:
         self.state['runes'][teamId]['trident'] = self._check_trident_rune(teamId)
         self.state['runes'][teamId]['hourglass'] = self._check_hourglass_rune(teamId)
         self.state['runes'][teamId]['star'] = self._check_star_rune(teamId)
+        self.state['runes'][teamId]['barricade'] = self._check_barricade_rune(teamId)
 
     def _update_sentries_for_team(self, teamId):
         """Checks for Sentry formations (3 collinear points with lines)."""

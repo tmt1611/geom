@@ -1000,7 +1000,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const progress = age / effect.duration;
 
-            if (effect.type === 'nexus_detonation') {
+            if (effect.type === 'growing_wall') {
+                const p1 = {x: effect.barricade.p1.x * cellSize, y: effect.barricade.p1.y * cellSize};
+                const p2 = {x: effect.barricade.p2.x * cellSize, y: effect.barricade.p2.y * cellSize};
+                
+                ctx.strokeStyle = effect.color;
+                ctx.globalAlpha = progress;
+                ctx.lineWidth = 2 + progress * 4;
+                ctx.lineCap = 'round';
+                drawJaggedLine(p1, p2, 10, 4 * progress);
+
+                ctx.lineCap = 'butt';
+                ctx.globalAlpha = 1.0;
+            } else if (effect.type === 'line_crack') {
+                const p1 = currentGameState.points[effect.old_line.p1_id];
+                const p2 = currentGameState.points[effect.old_line.p2_id];
+                if (p1 && p2) {
+                    const p1_coords = {x: (p1.x + 0.5) * cellSize, y: (p1.y + 0.5) * cellSize};
+                    const p2_coords = {x: (p2.x + 0.5) * cellSize, y: (p2.y + 0.5) * cellSize};
+                    const new_p_coords = {x: (effect.new_point.x + 0.5) * cellSize, y: (effect.new_point.y + 0.5) * cellSize};
+                    
+                    // Draw old line fading out
+                    ctx.beginPath();
+                    ctx.moveTo(p1_coords.x, p1_coords.y);
+                    ctx.lineTo(p2_coords.x, p2_coords.y);
+                    ctx.strokeStyle = effect.color;
+                    ctx.globalAlpha = 1 - progress;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // Draw crack effect
+                    if (progress < 0.5) {
+                        const crack_progress = progress * 2;
+                        ctx.beginPath();
+                        ctx.arc(new_p_coords.x, new_p_coords.y, 10 * crack_progress, 0, 2*Math.PI);
+                        ctx.strokeStyle = `rgba(255, 255, 255, ${1 - crack_progress})`;
+                        ctx.lineWidth = 3 * (1 - crack_progress);
+                        ctx.stroke();
+                    }
+                    ctx.globalAlpha = 1.0;
+                }
+            } else if (effect.type === 'territory_fill') {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo((effect.points[0].x + 0.5) * cellSize, (effect.points[0].y + 0.5) * cellSize);
+                ctx.lineTo((effect.points[1].x + 0.5) * cellSize, (effect.points[1].y + 0.5) * cellSize);
+                ctx.lineTo((effect.points[2].x + 0.5) * cellSize, (effect.points[2].y + 0.5) * cellSize);
+                ctx.closePath();
+                
+                // Create a clip path that grows from the center out
+                const center = {
+                    x: (effect.points[0].x + effect.points[1].x + effect.points[2].x) / 3 * cellSize + (0.5*cellSize),
+                    y: (effect.points[0].y + effect.points[1].y + effect.points[2].y) / 3 * cellSize + (0.5*cellSize),
+                };
+                const max_dist = Math.max(...effect.points.map(p => Math.sqrt((p.x*cellSize-center.x)**2 + (p.y*cellSize-center.y)**2)));
+                
+                ctx.clip(); 
+                
+                // Draw a circle that expands to fill the clip
+                ctx.beginPath();
+                ctx.arc(center.x, center.y, max_dist * progress * 1.5, 0, 2*Math.PI);
+                ctx.fillStyle = effect.color;
+                ctx.globalAlpha = 0.3;
+                ctx.fill();
+                
+                ctx.restore();
+                ctx.globalAlpha = 1.0;
+
+            } else if (effect.type === 'nexus_detonation') {
                 ctx.beginPath();
                 ctx.arc(
                     (effect.center.x + 0.5) * cellSize,
@@ -1429,6 +1496,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'fracture_line': (details, gameState) => {
+            visualEffects.push({
+                type: 'line_crack',
+                old_line: details.old_line,
+                new_point: details.new_point,
+                color: gameState.teams[details.new_point.teamId].color,
+                startTime: Date.now(),
+                duration: 800,
+            });
             lastActionHighlights.points.add(details.new_point.id);
             lastActionHighlights.lines.add(details.new_line1.id);
             lastActionHighlights.lines.add(details.new_line2.id);
@@ -1499,15 +1574,44 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         'extend_line': (details, gameState) => {
             lastActionHighlights.points.add(details.new_point.id);
+            const origin_point = gameState.points[details.origin_point_id];
+            if (origin_point) {
+                const teamColor = gameState.teams[details.new_point.teamId].color;
+                visualEffects.push({
+                    type: 'animated_ray',
+                    p1: origin_point,
+                    p2: details.new_point,
+                    startTime: Date.now(),
+                    duration: 700,
+                    color: details.is_empowered ? 'rgba(255, 255, 255, 1.0)' : teamColor,
+                    lineWidth: details.is_empowered ? 5 : 2
+                });
+            }
             if (details.is_empowered && details.new_line) {
                 lastActionHighlights.lines.add(details.new_line.id);
             }
         },
         'shield_line': (details, gameState) => {
             lastActionHighlights.lines.add(details.shielded_line.id);
+             visualEffects.push({
+                type: 'bastion_formation', // Reusing this for a shield-up effect
+                line_ids: [details.shielded_line.id],
+                startTime: Date.now(),
+                duration: 800
+            });
         },
         'claim_territory': (details, gameState) => {
             details.territory.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            const triPoints = details.territory.point_ids.map(id => gameState.points[id]).filter(Boolean);
+            if (triPoints.length === 3) {
+                visualEffects.push({
+                    type: 'territory_fill',
+                    points: triPoints,
+                    color: gameState.teams[details.territory.teamId].color,
+                    startTime: Date.now(),
+                    duration: 1000,
+                });
+            }
         },
         'create_anchor': (details, gameState) => {
             lastActionHighlights.points.add(details.anchor_point.id);
@@ -1546,7 +1650,19 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         'create_orbital': (details, gameState) => {
             lastActionHighlights.points.add(details.center_point_id);
-            details.new_points.forEach(p => lastActionHighlights.points.add(p.id));
+            const center_point = gameState.points[details.center_point_id];
+
+            details.new_points.forEach((p, i) => {
+                lastActionHighlights.points.add(p.id);
+                visualEffects.push({
+                    type: 'energy_spiral',
+                    start: center_point,
+                    end: p,
+                    color: gameState.teams[p.teamId].color,
+                    startTime: Date.now() + i * 50, // Stagger start times
+                    duration: 800
+                });
+            });
             details.new_lines.forEach(l => lastActionHighlights.lines.add(l.id));
         },
         'form_bastion': (details, gameState) => {
@@ -1694,6 +1810,16 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         'form_purifier': (details, gameState) => {
             details.purifier.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            const points = details.purifier.point_ids.map(pid => gameState.points[pid]).filter(Boolean);
+            if(points.length === 5) {
+                visualEffects.push({
+                    type: 'polygon_flash',
+                    points: points,
+                    color: 'rgba(255, 255, 220, 1.0)', // Light yellow
+                    startTime: Date.now(),
+                    duration: 1200
+                });
+            }
         },
         'purify_territory': (details, gameState) => {
             details.purifier_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
@@ -1709,6 +1835,16 @@ document.addEventListener('DOMContentLoaded', () => {
         'form_rift_spire': (details, gameState) => {
             visualEffects.push({
                 type: 'point_implosion', x: details.sacrificed_point.x, y: details.sacrificed_point.y, startTime: Date.now(), duration: 1500, color: `rgba(200, 100, 255, ${1-0})`
+            });
+        },
+        'raise_barricade': (details, gameState) => {
+            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            visualEffects.push({
+                type: 'growing_wall',
+                barricade: details.barricade,
+                color: gameState.teams[details.barricade.teamId].color,
+                startTime: Date.now(),
+                duration: 1000
             });
         }
         // 'create_fissure' has no special effect beyond the fissure appearing.

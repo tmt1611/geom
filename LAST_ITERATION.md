@@ -1,29 +1,34 @@
-This is a substantial update focusing on enhancing strategic depth, improving user interface clarity, and enriching the visual experience.
+This iteration focuses on a deep refactoring of the game's action logic to provide more accurate UI feedback, the introduction of a new strategic "Barricade" rune and terrain-altering mechanics, and a significant overhaul of visual effects to make the game more dynamic and engaging.
 
-### 1. New Rune Power & Improved Action Logic
+### 1. Enhanced Action Pre-computation and UI Feedback
 
--   **Files**: `game_app/game_logic.py`, `rules.md`
--   **Change**: A new action has been added to an existing rune, and a key strategic action has been made smarter.
-    -   **New Action**: The **Shield Rune** was previously only for the `Area Shield` action. It now also unlocks **`[RUNE] Shield Pulse`**, a defensive shockwave that forcefully pushes all nearby enemy points away from the rune's center, allowing for tactical repositioning and breaking up enemy formations.
-    -   **Smarter Sacrifices**: The `[SACRIFICE] Phase Shift` action logic has been significantly improved. It now intelligently avoids sacrificing lines that would leave a point isolated (a "bridge" line), preserving the team's structural integrity. This makes the AI's use of this powerful repositioning tool less self-destructive and more strategic.
+-   **Files**: `game_app/game_logic.py`
+-   **Change**: The core action logic has been refactored. For complex actions like `fight_attack`, `expand_extend`, `pincer_attack`, and `claim_territory`, the logic for finding valid targets has been separated into dedicated helper methods (e.g., `_find_possible_line_attacks`, `_find_claimable_triangles`).
+-   **Benefit**: This refactoring accomplishes two major goals:
+    1.  **Cleaner Code**: Action functions are now shorter and more focused on execution, improving maintainability.
+    2.  **Smarter UI**: The "Action Preview" panel now uses this pre-computation to give users a much more accurate assessment of an action's validity. Instead of just knowing a team *can* attack, the UI now knows if there's an actual, viable target in range, and will correctly show the action as invalid if no such target exists. This fulfills a key feature request for more detailed action analysis.
 
-### 2. Enhanced Action Preview Panel
+### 2. New Rune and Terrain Mechanic: The Barricade
 
--   **File**: `static/js/main.js`
--   **Change**: The "Action Preview" panel, which details the upcoming team's turn, has been redesigned for clarity. Actions are now grouped into logical categories: **Fight, Expand, Fortify / Defend, Sacrifice,** and **Rune**.
--   **Benefit**: This organization makes the long list of potential actions much easier to parse. Players can now quickly assess a team's strategic posture—whether it's leaning towards offense, defense, or expansion—by seeing which categories have the most available actions and highest probabilities.
+-   **Files**: `game_app/game_logic.py`, `static/js/main.js`, `rules.md`
+-   **Change**: A new "Barricade" rune and a corresponding `[TERRAFORM] Raise Barricade` action have been introduced.
+    -   **Formation**: The rune is formed by four points creating a rectangle with all four of its sides connected by lines.
+    -   **Action**: Consumes the rune to create a temporary, impassable **Barricade** on the field. This wall, rendered as a jagged, rocky line, blocks most line-of-sight based actions (like `Attack Line` and `Extend Line`) for several turns, introducing a powerful new element of battlefield control.
+    -   **System Impact**: The game engine now checks for intersections with barricades, and they decay over time. The frontend can now render these new objects.
+-   **Benefit**: This adds a new layer of strategy, allowing defensive teams to create chokepoints and protect key structures, while forcing aggressive teams to navigate or wait out these new obstacles.
 
-### 3. Diverse and Thematic Visual Effects
+### 3. Diverse and Stunning New Visual Effects
 
--   **Files**: `static/js/main.js`, `game_app/game_logic.py`
--   **Change**: Several key actions have received unique, thematic visual effects to make them more distinct and visually impressive, moving away from generic highlights.
-    -   **`Form Bastion`**: Triggers a "shield-up" animation where growing, semi-transparent energy shields materialize along the bastion's perimeter lines.
-    -   **`Form Monolith`**: A dramatic beam of light now descends from the top of the screen to the monolith's center, visually "erecting" the structure.
-    -   **`Convert Point`**: Now shows a swirling stream of energy particles flowing from the sacrificed line's midpoint to the newly converted point, clearly illustrating the transfer of allegiance.
-    -   **`Shield Pulse`**: The new rune action is visualized with a powerful radial shockwave expanding from the rune's center, visually matching its push effect.
--   **Benefit**: These new visuals make the game more exciting to watch and provide immediate, intuitive feedback for major game events. Each significant action now has a unique visual signature.
+-   **Files**: `static/js/main.js`
+-   **Change**: Many actions that previously only highlighted affected elements now have unique, dynamic animations, making the game more visually rich and intuitive.
+    -   **`Extend Line`**: Now visualized with a directed beam of light shooting from the origin point to the new point on the border. Empowered extensions from Conduits are thicker and more impressive.
+    -   **`Fracture Line`**: The original line now visibly "cracks" with a small particle burst at the fracture point before fading out as the two new lines fade in.
+    -   **`Claim Territory`**: The triangular territory now fills with the team's color using an animated "wipe" effect, making the act of claiming land more impactful.
+    -   **`Create Orbital`**: New points now animate, spiraling outwards from the central point to their final positions.
+    -   **`Raise Barricade`**: The new action is accompanied by an animation of a rocky wall growing in size, opacity, and jaggedness from the ground up.
+-   **Benefit**: These new effects make the simulation far more engaging to watch and provide clearer, more immediate visual feedback for what each action accomplishes.
 
-### 4. Codebase & Rule Documentation
+### 4. Codebase Cleanup and Documentation
 
--   **Files**: `game_logic.py`, `rules.md`
--   **Change**: The codebase was updated to integrate the new `Shield Pulse` action, including its weight, trait multipliers, and preconditions. The `rules.md` file has been updated to document the new action, ensuring the game's mechanics remain transparent and understandable.
+-   **Files**: `game_logic.py`, `rules.md`, `LAST_ITERATION.md`
+-   **Change**: Added the new `barricade` object to the game state and ensured it is properly initialized, managed, and sent to the client. Updated the `rules.md` to document the new Barricade Rune and its action. Logged all changes in `LAST_ITERATION.md`.
