@@ -1,7 +1,7 @@
 import random
 import math
 import uuid
-from ..geometry import distance_sq, is_spawn_location_valid
+from ..geometry import distance_sq, is_spawn_location_valid, clamp_and_round_point_coords
 
 class SacrificeActionsHandler:
     def __init__(self, game):
@@ -135,8 +135,8 @@ class SacrificeActionsHandler:
                     new_x = point['x'] + push_vx * push_distance
                     new_y = point['y'] + push_vy * push_distance
                     
-                    point['x'] = round(max(0, min(grid_size - 1, new_x)))
-                    point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                    new_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, grid_size)
+                    point['x'], point['y'] = new_coords['x'], new_coords['y']
                     pushed_points.append(point.copy())
             
             return {
@@ -192,12 +192,10 @@ class SacrificeActionsHandler:
             p2 = {'x': sac_point_coords['x'] + (fissure_len / 2) * math.cos(angle), 'y': sac_point_coords['y'] + (fissure_len / 2) * math.sin(angle)}
 
             grid_size = self.state['grid_size']
-            p1['x'] = round(max(0, min(grid_size - 1, p1['x'])))
-            p1['y'] = round(max(0, min(grid_size - 1, p1['y'])))
-            p2['x'] = round(max(0, min(grid_size - 1, p2['x'])))
-            p2['y'] = round(max(0, min(grid_size - 1, p2['y'])))
+            p1_new = clamp_and_round_point_coords(p1, grid_size)
+            p2_new = clamp_and_round_point_coords(p2, grid_size)
 
-            new_fissure = {'id': fissure_id, 'p1': p1, 'p2': p2, 'turns_left': 3}
+            new_fissure = {'id': fissure_id, 'p1': p1_new, 'p2': p2_new, 'turns_left': 3}
             if 'fissures' not in self.state: self.state['fissures'] = []
             self.state['fissures'].append(new_fissure)
             return {

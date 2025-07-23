@@ -1,26 +1,20 @@
-This iteration focuses on a significant internal refactoring to improve code quality and maintainability, specifically around how game structures are managed. The goal was to reduce repeated code and make it easier for developers to add new structures in the future.
+This iteration focused on a code cleanup and simplification refactoring across all action handler modules. The goal was to reduce code duplication and improve robustness when handling point coordinates.
 
-### 1. Centralized Structure Registry
+### 1. Centralized Coordinate Clamping and Rounding
 
-The core of this refactoring was the introduction of a new data file, `game_app/structure_data.py`. This file acts as a central registry for all complex game objects (like Bastions, Monoliths, Territories, etc.).
+A common pattern was identified across many action functions where new floating-point coordinates were calculated and then manually clamped to the grid boundaries and rounded to integers. This code was repetitive and slightly different in places, leading to potential inconsistencies.
 
-*   **Concept:** Instead of having various parts of the code manually list and handle each structure type, the new `STRUCTURE_DEFINITIONS` dictionary describes the properties of each structure, such as:
-    *   How it's stored in the game state (`storage_type`).
-    *   Which data keys contain point IDs (`point_id_keys`).
-    *   Whether its points should be considered "critical" and protected from sacrifice (`is_critical`).
+*   **Action:** A new helper function, `clamp_and_round_point_coords`, was created in `game_app/geometry.py`. This function takes a coordinate dictionary and a grid size, and reliably performs the clamping and rounding operations.
 
-*   **Benefit:** This data-driven approach means that when a new, simple structure is added to the game, it only needs to be defined once in this registry. The generic logic for handling it will apply automatically, reducing boilerplate and the risk of forgetting to update a function somewhere else.
+*   **Benefit:** This centralizes the logic, ensuring that all new points are created using the exact same robust method.
 
-### 2. Refactored Game Logic and Turn Processing
+### 2. Refactoring Action Handlers
 
-With the new registry in place, several key parts of the codebase were simplified:
+All five action handler files (`expand_actions.py`, `fight_actions.py`, `fortify_actions.py`, `rune_actions.py`, and `sacrifice_actions.py`) were updated to import and use the new `clamp_and_round_point_coords` helper function.
 
-*   **`game_logic.py`:**
-    *   The `_get_critical_structure_point_ids` method now reads from the registry to determine which points are part of important structures, replacing a long, hardcoded function.
-    *   The `_cleanup_structures_for_point` method, which is crucial for handling what happens when a point is destroyed, was rewritten. It now uses a hybrid approach: it handles highly complex structures (like Bastions) with their existing custom logic, but uses the registry to generically and correctly dissolve any other registered structure that contained the destroyed point.
-    *   The hardcoded default teams in the `reset()` method were moved into `game_data.py` for better centralization.
+*   **Examples:**
+    *   In `expand_actions.py`, functions like `fracture_line`, `spawn_point`, and `create_orbital` were simplified.
+    *   In `fight_actions.py` and others, functions that "push" points away from an effect now use the helper for safer coordinate updates.
+    *   In `fortify_actions.py`, the `mirror_structure` action was made more robust. The original code had a check to see if a reflected point was in-bounds, but then rounded it, which could have pushed it out-of-bounds. The new logic uses the helper to safely round and clamp after the check.
 
-*   **`turn_processor.py`:**
-    *   The main `process_turn_start_effects` function, which runs all start-of-turn events like shield decay and Wonder countdowns, is now driven by a `TURN_PROCESSING_ORDER` list in the new structure data file. This makes the sequence of events explicit and easy to modify.
-
-This refactoring does not change any game rules or visuals but significantly improves the internal architecture, making the project more robust and scalable.
+This refactoring reduces the line count, simplifies the logic within each action, and makes the codebase cleaner and easier to maintain.

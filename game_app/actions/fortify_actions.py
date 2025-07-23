@@ -2,7 +2,7 @@ import random
 import math
 import uuid
 from itertools import combinations
-from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, is_spawn_location_valid, points_centroid
+from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, is_spawn_location_valid, points_centroid, clamp_and_round_point_coords
 
 class FortifyActionsHandler:
     def __init__(self, game):
@@ -603,10 +603,7 @@ class FortifyActionsHandler:
             new_y = p_origin['y'] + math.sin(angle) * radius
             
             grid_size = self.state['grid_size']
-            final_x = round(max(0, min(grid_size - 1, new_x)))
-            final_y = round(max(0, min(grid_size - 1, new_y)))
-
-            new_p_coords = {'x': final_x, 'y': final_y}
+            new_p_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, grid_size)
             
             # Temporarily remove the point being moved to validate its new spot
             temp_points = self.state['points'].copy()
@@ -621,8 +618,8 @@ class FortifyActionsHandler:
                 continue
 
             # We found a valid move
-            p_origin['x'] = final_x
-            p_origin['y'] = final_y
+            p_origin['x'] = new_p_coords['x']
+            p_origin['y'] = new_p_coords['y']
 
             return {
                 'success': True, 
@@ -860,7 +857,7 @@ class FortifyActionsHandler:
                 if not reflected_p or not (0 <= reflected_p['x'] < grid_size and 0 <= reflected_p['y'] < grid_size):
                     all_reflections_valid = False; break
                 
-                reflected_p_int = {'x': round(reflected_p['x']), 'y': round(reflected_p['y'])}
+                reflected_p_int = clamp_and_round_point_coords(reflected_p, grid_size)
                 is_valid, _ = is_spawn_location_valid(
                     reflected_p_int, teamId, self.state['grid_size'], self.state['points'],
                     self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', [])

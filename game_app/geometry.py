@@ -364,6 +364,14 @@ def get_convex_hull(points):
     return hull
 
 
+def clamp_and_round_point_coords(coords, grid_size):
+    """Clamps coordinates to grid boundaries and rounds them to integers."""
+    return {
+        'x': round(max(0, min(grid_size - 1, coords.get('x', 0)))),
+        'y': round(max(0, min(grid_size - 1, coords.get('y', 0))))
+    }
+
+
 def is_spawn_location_valid(new_point_coords, new_point_teamId, grid_size, all_points, fissures, heartwoods, scorched_zones=None, min_dist_sq=1.0):
     """Checks if a new point can be spawned at the given coordinates."""
     # Check if point is within grid boundaries

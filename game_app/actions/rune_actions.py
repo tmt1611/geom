@@ -5,7 +5,7 @@ from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
     get_extended_border_point, is_spawn_location_valid, is_point_inside_triangle,
-    points_centroid
+    points_centroid, clamp_and_round_point_coords
 )
 
 class RuneActionsHandler:
@@ -385,14 +385,8 @@ class RuneActionsHandler:
             mid2 = points_centroid([d2_p1, d2_p2])
             
             grid_size = self.state['grid_size']
-            p1_coords = {
-                'x': round(max(0, min(grid_size - 1, mid1['x']))),
-                'y': round(max(0, min(grid_size - 1, mid1['y'])))
-            }
-            p2_coords = {
-                'x': round(max(0, min(grid_size - 1, mid2['x']))),
-                'y': round(max(0, min(grid_size - 1, mid2['y'])))
-            }
+            p1_coords = clamp_and_round_point_coords(mid1, grid_size)
+            p2_coords = clamp_and_round_point_coords(mid2, grid_size)
             
             is_valid1, _ = is_spawn_location_valid(
                 p1_coords, teamId, self.state['grid_size'], self.state['points'],
@@ -815,8 +809,11 @@ class RuneActionsHandler:
             
             if distance_sq(p_target, p_closest) < push_width**2:
                 # Push the point
-                p_target['x'] = round(max(0, min(grid_size - 1, p_target['x'] + v_perp_x * push_dist)))
-                p_target['y'] = round(max(0, min(grid_size - 1, p_target['y'] + v_perp_y * push_dist)))
+                new_coords = clamp_and_round_point_coords({
+                    'x': p_target['x'] + v_perp_x * push_dist,
+                    'y': p_target['y'] + v_perp_y * push_dist
+                }, grid_size)
+                p_target['x'], p_target['y'] = new_coords['x'], new_coords['y']
                 pushed_points.append(p_target.copy())
 
         if pushed_points:

@@ -5,7 +5,7 @@ from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
     get_extended_border_point, is_ray_blocked, is_spawn_location_valid,
-    polygon_area, points_centroid
+    polygon_area, points_centroid, clamp_and_round_point_coords
 )
 
 class FightActionsHandler:
@@ -245,8 +245,8 @@ class FightActionsHandler:
                     if dist < 0.1: continue
                     new_x = point['x'] + (dx / dist) * push_distance
                     new_y = point['y'] + (dy / dist) * push_distance
-                    point['x'] = round(max(0, min(grid_size - 1, new_x)))
-                    point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                    new_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, grid_size)
+                    point['x'], point['y'] = new_coords['x'], new_coords['y']
                     pushed_points.append(point.copy())
             return {
                 'success': True, 'type': 'convert_fizzle_push', 'sacrificed_line': line_to_sac,
@@ -436,8 +436,8 @@ class FightActionsHandler:
                     new_x = point['x'] + push_vx * push_distance
                     new_y = point['y'] + push_vy * push_distance
                     
-                    point['x'] = round(max(0, min(grid_size - 1, new_x)))
-                    point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                    new_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, grid_size)
+                    point['x'], point['y'] = new_coords['x'], new_coords['y']
                     pushed_points.append(point.copy())
             
             return {
@@ -517,10 +517,10 @@ class FightActionsHandler:
             p1 = {'x': center_x - (fissure_len / 2) * math.cos(angle), 'y': center_y - (fissure_len / 2) * math.sin(angle)}
             p2 = {'x': center_x + (fissure_len / 2) * math.cos(angle), 'y': center_y + (fissure_len / 2) * math.sin(angle)}
 
-            p1['x'] = round(max(0, min(grid_size - 1, p1['x'])))
-            p1['y'] = round(max(0, min(grid_size - 1, p1['y'])))
-            p2['x'] = round(max(0, min(grid_size - 1, p2['x'])))
-            p2['y'] = round(max(0, min(grid_size - 1, p2['y'])))
+            p1_new = clamp_and_round_point_coords(p1, grid_size)
+            p1['x'], p1['y'] = p1_new['x'], p1_new['y']
+            p2_new = clamp_and_round_point_coords(p2, grid_size)
+            p2['x'], p2['y'] = p2_new['x'], p2_new['y']
 
             new_fissure = {'id': fissure_id, 'p1': p1, 'p2': p2, 'turns_left': 3}
             if 'fissures' not in self.state: self.state['fissures'] = []
@@ -894,8 +894,8 @@ class FightActionsHandler:
 
                 new_x = point['x'] + (dx / dist) * push_distance
                 new_y = point['y'] + (dy / dist) * push_distance
-                point['x'] = round(max(0, min(grid_size - 1, new_x)))
-                point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                new_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, grid_size)
+                point['x'], point['y'] = new_coords['x'], new_coords['y']
                 pushed_points.append(point.copy())
         
         return {

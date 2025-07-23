@@ -2,7 +2,7 @@ import random
 import math
 import uuid
 from itertools import combinations
-from ..geometry import distance_sq, get_extended_border_point, is_spawn_location_valid
+from ..geometry import distance_sq, get_extended_border_point, is_spawn_location_valid, clamp_and_round_point_coords
 
 class ExpandActionsHandler:
     def __init__(self, game):
@@ -178,12 +178,10 @@ class ExpandActionsHandler:
         new_y = p1['y'] + (p2['y'] - p1['y']) * ratio
 
         # Create new point, ensuring integer coordinates and clamping to grid boundaries
-        grid_size = self.state['grid_size']
-        final_x = round(max(0, min(grid_size - 1, new_x)))
-        final_y = round(max(0, min(grid_size - 1, new_y)))
+        new_point_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
 
         new_point_id = self.game._generate_id('p')
-        new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
+        new_point = {**new_point_coords, "teamId": teamId, "id": new_point_id}
         self.state['points'][new_point_id] = new_point
 
         # Check for Ley Line bonus
@@ -232,11 +230,7 @@ class ExpandActionsHandler:
             new_y = p_origin['y'] + math.sin(angle) * radius
             
             # Clamp to grid and round to integer
-            grid_size = self.state['grid_size']
-            final_x = round(max(0, min(grid_size - 1, new_x)))
-            final_y = round(max(0, min(grid_size - 1, new_y)))
-
-            new_p_coords = {'x': final_x, 'y': final_y}
+            new_p_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
             is_valid, reason = is_spawn_location_valid(
                 new_p_coords, teamId, self.state['grid_size'], self.state['points'],
                 self.state.get('fissures', []), self.state.get('heartwoods', {})
@@ -246,7 +240,7 @@ class ExpandActionsHandler:
 
             # We found a valid spawn, create the new point
             new_point_id = self.game._generate_id('p')
-            new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
+            new_point = {**new_p_coords, "teamId": teamId, "id": new_point_id}
             self.state['points'][new_point_id] = new_point
 
             # Check for Ley Line bonus
@@ -284,11 +278,7 @@ class ExpandActionsHandler:
                 new_x = p_center['x'] + math.cos(angle) * radius
                 new_y = p_center['y'] + math.sin(angle) * radius
                 
-                grid_size = self.state['grid_size']
-                final_x = round(max(0, min(grid_size - 1, new_x)))
-                final_y = round(max(0, min(grid_size - 1, new_y)))
-
-                new_p_coords = {'x': final_x, 'y': final_y}
+                new_p_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
                 is_valid, _ = is_spawn_location_valid(
                     new_p_coords, teamId, self.state['grid_size'], self.state['points'],
                     self.state.get('fissures', []), self.state.get('heartwoods', {}), min_dist_sq=2.0
@@ -301,7 +291,7 @@ class ExpandActionsHandler:
                     valid_orbital = False; break
                 
                 new_point_id = self.game._generate_id('p')
-                new_points_to_create.append({"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id})
+                new_points_to_create.append({**new_p_coords, "teamId": teamId, "id": new_point_id})
             
             if not valid_orbital:
                 continue
