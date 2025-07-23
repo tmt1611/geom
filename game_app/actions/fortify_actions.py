@@ -735,7 +735,7 @@ class FortifyActionsHandler:
 
     def _find_attunable_nexuses(self, teamId):
         """Finds nexuses that can be attuned."""
-        self.game._update_nexuses_for_team(teamId)
+        self.game._update_structures_for_team(teamId)
         team_nexuses = self.state.get('nexuses', {}).get(teamId, [])
         if not team_nexuses:
             return []
