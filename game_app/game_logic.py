@@ -84,6 +84,7 @@ class Game:
             'terraform_create_fissure': self.fortify_handler.can_perform_create_fissure,
             'terraform_raise_barricade': self.fortify_handler.can_perform_raise_barricade,
             'fortify_build_wonder': self.fortify_handler.can_perform_build_chronos_spire,
+            'fortify_reposition_point': self.fortify_handler.can_perform_reposition_point,
             # Sacrifice Actions
             'sacrifice_nova': self.sacrifice_handler.can_perform_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_handler.can_perform_create_whirlpool,

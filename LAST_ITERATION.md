@@ -1,24 +1,16 @@
-This iteration introduces a new strategic action based on warfare concepts and performs a clean code refactoring for better consistency.
+This iteration focuses on code cleanup and the introduction of a new tactical action inspired by warfare principles.
 
-### 1. New Warfare Action: Scorch Territory
+### 1. Code Cleanup and Bug Fixes
 
-Drawing from the concept of "scorched earth" tactics, a new `Sacrifice` action has been added:
+*   **Fixed Duplication:** Removed a duplicated `scorch_territory` method in `game_app/actions/sacrifice_actions.py` which was a remnant of a previous merge.
+*   **Resolved Inconsistency:** The action to shield a line was inconsistently named `defend_shield` and `fortify_shield`. All references in `game_app/game_data.py` have been standardized to `fortify_shield` to match the rest of the codebase and its action group.
+*   **Added Missing Action Data:** The `sacrifice_scorch_territory` action was missing from the `ACTION_GROUPS` and `ACTION_DESCRIPTIONS` dictionaries in `game_data.py`, causing it to not be selected by the AI. This has been corrected.
 
-*   **Action:** `Scorch Territory`
-*   **Effect:** A team can sacrifice one of its claimed territories. The points and lines of the territory are destroyed, and the triangular area becomes a "scorched zone" for several turns.
-*   **Strategic Impact:** Scorched zones are impassable. No points can be created inside them, and line-based actions (like attacks or extensions) cannot cross their boundaries. This provides a powerful area-denial tool, allowing teams to create defensive barriers or choke points at the cost of their own assets.
-*   **Implementation:**
-    *   A new `scorch_territory` method was added to `sacrifice_actions.py`.
-    *   The game state now tracks `scorched_zones`, which decay over time via the `turn_processor.py`.
-    *   Core geometry functions (`is_spawn_location_valid`, `is_ray_blocked`) in `geometry.py` were updated to account for these new zones.
-    *   The frontend in `main.js` now renders scorched zones with a distinct dark, fiery visual effect.
+### 2. New Warfare Action: Reposition Point
 
-### 2. Code Refactoring & Cleanup
+Inspired by Sun Tzu's principle of "subduing the enemy without fighting," a new subtle, strategic action has been added to the `Fortify` group:
 
-To improve code consistency and readability, a minor refactoring was performed on the line-shielding action:
-
-*   The action key `defend_shield` was renamed to `fortify_shield` to align with the standard `group_action` naming convention.
-*   The corresponding method in `fortify_actions.py` was renamed from `protect_line` to `shield_line`.
-*   All references in `game_data.py` and `game_logic.py` were updated accordingly.
-
-This change, while small, makes the action's identity clearer and the codebase easier to navigate.
+*   **Action:** `Reposition Point`
+*   **Effect:** Moves a single "free" point (one not part of a critical structure like a rune or bastion) to a new nearby location.
+*   **Strategic Impact:** This action allows a team to make minor tactical adjustments to its board presence. It can be used to untangle a dense cluster of points, move a point into a more advantageous position for a future formation, or subtly shift the team's center of gravity. It's a preparatory move that emphasizes positioning over direct conflict.
+*   **Fallback:** If a valid new position cannot be found, the action strengthens a random friendly line, ensuring the turn is never wasted.
