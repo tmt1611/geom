@@ -923,9 +923,9 @@ body.game-running .game-column {
 }
 
 .action-guide-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     flex-grow: 1;
     overflow-y: auto;
     padding: 10px;
@@ -935,24 +935,24 @@ body.game-running .game-column {
     border: 1px solid #dfe4ea;
     border-radius: 6px;
     background-color: #fff;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     display: flex;
-    flex-direction: column; /* Illustration on top */
+    flex-direction: row; /* Illustration on the left */
     gap: 0;
     padding: 0;
-    transition: box-shadow 0.2s, transform 0.2s;
+    transition: box-shadow 0.2s;
     overflow: hidden;
+    min-height: 120px; /* Match canvas height */
 }
 .action-card:hover {
-    box-shadow: 0 5px 12px rgba(0,0,0,0.1);
-    transform: translateY(-3px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 .action-card-text {
     display: flex;
     flex-direction: column;
     flex-grow: 1;
     gap: 4px;
-    padding: 10px 12px;
+    padding: 10px 15px; /* More horizontal padding */
 }
 .action-card-header {
     padding: 0;
@@ -964,7 +964,7 @@ body.game-running .game-column {
 }
 .action-card-header h4 {
     margin: 0;
-    font-size: 1.05em;
+    font-size: 1.15em; /* Slightly larger title */
     color: #2c3e50;
     flex-shrink: 0;
 }
@@ -983,17 +983,17 @@ body.game-running .game-column {
 .action-card-header .action-group--sacrifice { background-color: #d35400; }
 .action-card-header .action-group--rune { background-color: #8e44ad; }
 .action-card canvas {
-    width: 100%; /* Full width */
-    height: 150px; /* Fixed height, aspect ratio controlled by canvas attributes */
+    width: 200px; /* Fixed width */
+    height: 120px; /* Fixed height */
     background-color: #fdfdfd;
-    border-bottom: 1px solid #dfe4ea; /* Separator */
+    border-right: 1px solid #dfe4ea; /* Separator */
     border-radius: 0;
     flex-shrink: 0;
 }
 .action-card-description {
     padding: 0;
-    font-size: 0.82em;
-    line-height: 1.4;
+    font-size: 0.85em; /* Slightly larger description */
+    line-height: 1.45;
     color: #34495e;
     flex-grow: 1;
 }
