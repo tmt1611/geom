@@ -2,7 +2,8 @@ import random
 import math
 import uuid
 from ..geometry import (
-    distance_sq, segments_intersect, get_segment_intersection_point
+    distance_sq, segments_intersect, get_segment_intersection_point,
+    get_extended_border_point, is_ray_blocked
 )
 
 class FightActionsHandler:
@@ -148,13 +149,16 @@ class FightActionsHandler:
             p2 = points[line['p2_id']]
             
             p_start, p_end = random.choice([(p1, p2), (p2, p1)])
-            border_point = self.game._get_extended_border_point(p_start, p_end)
+            border_point = get_extended_border_point(
+                p_start, p_end, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', [])
+            )
             if not border_point: continue
 
             attack_segment_p1 = p_end
             attack_segment_p2 = border_point
 
-            if self.game._is_ray_blocked(attack_segment_p1, attack_segment_p2):
+            if is_ray_blocked(attack_segment_p1, attack_segment_p2, self.state.get('fissures', []), self.state.get('barricades', [])):
                 continue
 
             closest_hit = self._find_closest_attack_hit(attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune)
@@ -568,7 +572,10 @@ class FightActionsHandler:
             if not destroyed_point_data:
                 return {'success': False, 'reason': 'failed to destroy target point'}
             
-            zap_ray_end = self.game._get_extended_border_point(p_eye, target_point) or target_point
+            zap_ray_end = get_extended_border_point(
+                p_eye, target_point, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', [])
+            ) or target_point
             destroyed_team_name = self.state['teams'][destroyed_point_data['teamId']]['name']
             
             return {
@@ -582,9 +589,12 @@ class FightActionsHandler:
             # --- Fallback Effect: Spawn Point on Border ---
             # Create a dummy point along the zap vector to find the border intersection
             dummy_end_point = {'x': p_eye['x'] + zap_vx, 'y': p_eye['y'] + zap_vy}
-            border_point = self.game._get_extended_border_point(p_eye, dummy_end_point)
+            border_point = get_extended_border_point(
+                p_eye, dummy_end_point, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', [])
+            )
             
-            if not border_point or self.game._is_ray_blocked(p_eye, border_point):
+            if not border_point or is_ray_blocked(p_eye, border_point, self.state.get('fissures', []), self.state.get('barricades', [])):
                  return {'success': False, 'reason': 'zap path to border was blocked'}
             
             is_valid, _ = self.game._is_spawn_location_valid(border_point, teamId)
@@ -695,7 +705,10 @@ class FightActionsHandler:
             
             ls1, ls2 = random.choice([(points[source_line['p1_id']], points[source_line['p2_id']]), (points[source_line['p2_id']], points[source_line['p1_id']])])
             
-            source_ray_end = self.game._get_extended_border_point(ls1, ls2)
+            source_ray_end = get_extended_border_point(
+                ls1, ls2, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', [])
+            )
             if not source_ray_end: continue
             source_ray = {'p1': ls2, 'p2': source_ray_end}
 
@@ -716,7 +729,10 @@ class FightActionsHandler:
                 if mag == 0: continue
                 
                 refracted_end_dummy = {'x': intersection_point['x'] + pvx/mag, 'y': intersection_point['y'] + pvy/mag}
-                refracted_ray_end = self.game._get_extended_border_point(intersection_point, refracted_end_dummy)
+                refracted_ray_end = get_extended_border_point(
+                    intersection_point, refracted_end_dummy, self.state['grid_size'],
+                    self.state.get('fissures', []), self.state.get('barricades', [])
+                )
                 if not refracted_ray_end: continue
                 
                 refracted_ray = {'p1': intersection_point, 'p2': refracted_ray_end}

@@ -2,7 +2,7 @@ import random
 import math
 import uuid
 from itertools import combinations
-from ..geometry import distance_sq
+from ..geometry import distance_sq, get_extended_border_point
 
 class ExpandActionsHandler:
     def __init__(self, game):
@@ -73,14 +73,20 @@ class ExpandActionsHandler:
             p2 = points[line['p2_id']]
             
             # Try extending from p1 through p2
-            border_point1 = self.game._get_extended_border_point(p1, p2)
+            border_point1 = get_extended_border_point(
+                p1, p2, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', [])
+            )
             if border_point1:
                 is_valid, _ = self.game._is_spawn_location_valid(border_point1, teamId)
                 if is_valid:
                     possible_extensions.append({'origin_point_id': p2['id'], 'border_point': border_point1})
             
             # Try extending from p2 through p1
-            border_point2 = self.game._get_extended_border_point(p2, p1)
+            border_point2 = get_extended_border_point(
+                p2, p1, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', [])
+            )
             if border_point2:
                 is_valid, _ = self.game._is_spawn_location_valid(border_point2, teamId)
                 if is_valid:

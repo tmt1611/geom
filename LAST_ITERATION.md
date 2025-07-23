@@ -1,13 +1,17 @@
-This iteration focuses on improving the "Action Guide" tab by making the layout more compact and refining the illustrations. The action cards are now arranged in a vertical layout (illustration on top of text) which allows for more cards to be visible on screen at once. Additionally, the illustrations themselves have been upscaled and their drawing parameters adjusted to look sharper and better proportioned in the new layout.
+This iteration focuses on two main areas: code quality and user interface enhancement.
 
-### Action Guide Layout Improvements
+### Code Refactoring: Centralized Geometry Logic
 
-1.  **Vertical Card Layout**: The CSS for `.action-card` was changed from `flex-direction: row` to `flex-direction: column`. This stacks the illustration canvas on top of the descriptive text, creating a taller, narrower card.
+1.  **Eliminated Duplication**: The geometry utility functions `_get_extended_border_point` and `_is_ray_blocked` were duplicated in `game_logic.py`. These methods were removed from `game_logic.py` to establish `geometry.py` as the single source of truth for geometric calculations.
 
-2.  **Compact Grid**: The CSS for `.action-guide-grid` was updated to use a smaller minimum width for cards (`minmax(280px, 1fr)` instead of `340px`), allowing more cards to fit horizontally in the available space.
+2.  **Improved Encapsulation**: The functions in `geometry.py` are pure functions that receive all necessary data (like `grid_size`, `fissures`, `barricades`) as arguments. The old methods in `game_logic.py` accessed the game state directly (`self.state`). This refactoring improves encapsulation and makes the geometry functions more modular and easier to test.
 
-3.  **Enhanced Illustrations**:
-    *   The resolution of the illustration canvas elements was increased from `120x100` to `240x150` in `main.js`. This provides a larger drawing surface, resulting in less pixelated and clearer images when scaled by CSS.
-    *   All hardcoded pixel values (e.g., line widths, font sizes, radii) within the JavaScript illustration drawing functions were manually scaled up to match the new, higher-resolution canvas, ensuring all visual elements remain proportional and aesthetically pleasing.
+3.  **Updated Action Handlers**: All action handler modules (`expand_actions.py`, `fight_actions.py`, `rune_actions.py`) were updated to import and use the centralized functions from `geometry.py`, passing the required state information as parameters. This makes the data flow more explicit and the code easier to follow.
 
-These changes collectively result in a cleaner, more organized, and visually appealing Action Guide that better utilizes screen real estate.
+### UI Improvement: Action Guide Enhancements
+
+1.  **Action Counts**: The filter buttons in the "Action Guide" tab now display a count of how many actions belong to each category (e.g., "Fight (10)", "Expand (6)"). This gives users a quick overview of the action distribution in the game.
+
+2.  **Sorted Categories**: The filter buttons are now sorted alphabetically for a more organized and predictable user experience.
+
+These changes result in a cleaner, more maintainable codebase and a slightly more informative user interface.

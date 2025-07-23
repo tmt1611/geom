@@ -4699,10 +4699,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const togglesContainer = document.getElementById('guide-group-toggles');
             actionGuideContent.innerHTML = ''; // Clear content area
 
-            const groups = [...new Set(allActions.map(a => a.group))];
-            togglesContainer.innerHTML = `<button class="active" data-group="All">All</button>`;
+            const groupCounts = allActions.reduce((acc, action) => {
+                acc[action.group] = (acc[action.group] || 0) + 1;
+                return acc;
+            }, {});
+            const groups = Object.keys(groupCounts).sort();
+
+            togglesContainer.innerHTML = `<button class="active" data-group="All">All (${allActions.length})</button>`;
             groups.forEach(group => {
-                togglesContainer.innerHTML += `<button data-group="${group}">${group}</button>`;
+                togglesContainer.innerHTML += `<button data-group="${group}">${group} (${groupCounts[group]})</button>`;
             });
 
             const actionCards = [];

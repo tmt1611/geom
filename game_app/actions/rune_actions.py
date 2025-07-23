@@ -3,7 +3,8 @@ import math
 import uuid
 from itertools import combinations
 from ..geometry import (
-    distance_sq, segments_intersect, get_segment_intersection_point
+    distance_sq, segments_intersect, get_segment_intersection_point,
+    get_extended_border_point
 )
 
 class RuneActionsHandler:
@@ -88,7 +89,10 @@ class RuneActionsHandler:
         if mag_b == 0: return {'success': False, 'reason': 'V-rune legs are opposing'}
 
         p_end = {'x': p_vertex['x'] + bisector_v['x']/mag_b, 'y': p_vertex['y'] + bisector_v['y']/mag_b}
-        border_point = self.game._get_extended_border_point(p_vertex, p_end)
+        border_point = get_extended_border_point(
+            p_vertex, p_end, self.state['grid_size'],
+            self.state.get('fissures', []), self.state.get('barricades', [])
+        )
         if not border_point: return {'success': False, 'reason': 'bisector attack path blocked'}
         
         attack_ray_p1, attack_ray_p2 = p_vertex, border_point
@@ -262,7 +266,10 @@ class RuneActionsHandler:
             return {'success': False, 'reason': 'rune points no longer exist'}
             
         # The attack fires from the apex, directed by the handle
-        border_point = self.game._get_extended_border_point(p_handle, p_apex)
+        border_point = get_extended_border_point(
+            p_handle, p_apex, self.state['grid_size'],
+            self.state.get('fissures', []), self.state.get('barricades', [])
+        )
         if not border_point:
             return {'success': False, 'reason': 'impale attack does not hit border'}
             
