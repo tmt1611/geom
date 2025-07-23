@@ -144,6 +144,20 @@ class Game:
             augmented_points[pid] = augmented_point
         return augmented_points
 
+    def _helper_spawn_on_border(self, teamId, border_point):
+        """Helper to create a new point on the border if the location is valid. Returns the new point or None."""
+        if not border_point:
+            return None
+        is_valid, _ = self.is_spawn_location_valid(border_point, teamId)
+        if is_valid:
+            new_point_id = self._generate_id('p')
+            new_point = {**border_point, "teamId": teamId, "id": new_point_id}
+            self.state['points'][new_point_id] = new_point
+            # Check for ley line bonus on any border spawn
+            self._check_and_apply_ley_line_bonus(new_point)
+            return new_point
+        return None
+
     def _check_and_apply_ley_line_bonus(self, new_point):
         """Checks if a newly created point is near a friendly Ley Line and applies the bonus if so."""
         if not self.state.get('ley_lines'):

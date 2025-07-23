@@ -143,11 +143,8 @@ class FightActionsHandler:
         }
 
     def _handle_attack_miss(self, teamId, border_point, attacker_line, attack_segment_p1):
-        is_valid, _ = self.game.is_spawn_location_valid(border_point, teamId)
-        if is_valid:
-            new_point_id = self.game._generate_id('p')
-            new_point = {**border_point, "teamId": teamId, "id": new_point_id}
-            self.state['points'][new_point_id] = new_point
+        new_point = self.game._helper_spawn_on_border(teamId, border_point)
+        if new_point:
             return {
                 'success': True, 'type': 'attack_miss_spawn', 'new_point': new_point,
                 'attacker_line': attacker_line, 'attack_ray': {'p1': attack_segment_p1, 'p2': border_point}
@@ -414,9 +411,6 @@ class FightActionsHandler:
         # --- Target Prioritization ---
         target_point = None
 
-        # --- Target Prioritization ---
-        target_point = None
-
         # 1. High-value targets
         all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
         stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
@@ -576,14 +570,10 @@ class FightActionsHandler:
             
             if not border_point or is_ray_blocked(p_eye, border_point, self.state.get('fissures', []), self.state.get('barricades', [])):
                  return {'success': False, 'reason': 'zap path to border was blocked'}
-            
-            is_valid, _ = self.game.is_spawn_location_valid(border_point, teamId)
-            if not is_valid:
-                 return {'success': False, 'reason': 'no valid spawn location on border for zap miss'}
 
-            new_point_id = self.game._generate_id('p')
-            new_point = {**border_point, "teamId": teamId, "id": new_point_id}
-            self.state['points'][new_point_id] = new_point
+            new_point = self.game._helper_spawn_on_border(teamId, border_point)
+            if not new_point:
+                return {'success': False, 'reason': 'no valid spawn location on border for zap miss'}
             
             return {
                 'success': True, 'type': 'sentry_zap_miss_spawn',
@@ -760,11 +750,8 @@ class FightActionsHandler:
             # --- Fallback Effect: Spawn a point on the border ---
             chosen_miss = random.choice(potential_outcomes) # All are misses
             border_point = chosen_miss['border_point']
-            is_valid, _ = self.game.is_spawn_location_valid(border_point, teamId)
-            if is_valid:
-                new_point_id = self.game._generate_id('p')
-                new_point = {**border_point, "teamId": teamId, "id": new_point_id}
-                self.state['points'][new_point_id] = new_point
+            new_point = self.game._helper_spawn_on_border(teamId, border_point)
+            if new_point:
                 return {
                     'success': True, 'type': 'refraction_miss_spawn',
                     'new_point': new_point, 'source_ray': chosen_miss['source_ray'],

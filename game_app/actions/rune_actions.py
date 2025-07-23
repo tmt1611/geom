@@ -706,11 +706,8 @@ class RuneActionsHandler:
                     lines_destroyed.append(line_to_destroy)
             else:
                 # Miss: create point on border
-                is_valid, _ = self.game.is_spawn_location_valid(border_point, teamId)
-                if is_valid:
-                    new_point_id = self.game._generate_id('p')
-                    new_point = {**border_point, "teamId": teamId, "id": new_point_id}
-                    self.state['points'][new_point_id] = new_point
+                new_point = self.game._helper_spawn_on_border(teamId, border_point)
+                if new_point:
                     points_created.append(new_point)
 
         if not lines_destroyed and not points_created:
