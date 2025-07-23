@@ -924,7 +924,7 @@ body.game-running .game-column {
 
 .action-guide-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 15px;
     flex-grow: 1;
     overflow-y: auto;
@@ -983,7 +983,7 @@ body.game-running .game-column {
 .action-card-header .action-group--rune { background-color: #8e44ad; }
 .action-card canvas {
     width: 100%; /* Full card width */
-    height: 180px; /* Taller illustrations */
+    height: 160px; /* Slightly smaller illustrations */
     background-color: #fdfdfd;
     border-bottom: 1px solid #dfe4ea; /* Separator on bottom */
     border-radius: 0;

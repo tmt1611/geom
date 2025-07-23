@@ -3438,11 +3438,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color);
             illustrationHelpers.drawArrow(ctx, p2, hit, team1_color);
             
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', hit.x, hit.y);
+            illustrationHelpers.drawExplosion(ctx, hit.x, hit.y);
         },
         'fight_chain_lightning': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
@@ -3476,11 +3472,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.restore();
 
             // Blast on enemy
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', ep1.x, ep1.y);
+            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
         },
         'fight_convert': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
@@ -3577,11 +3569,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawArrow(ctx, p1, ep1, team1_color);
             illustrationHelpers.drawArrow(ctx, p2, ep1, team1_color);
             
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', ep1.x, ep1.y);
+            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
         },
         'fight_sentry_zap': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
@@ -3598,11 +3586,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const beam_end = {x: w*0.4, y: h*0.05};
             illustrationHelpers.drawArrow(ctx, p2, beam_end, 'rgba(255, 100, 100, 1.0)');
 
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', ep1.x, ep1.y);
+            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
         },
         'fight_refraction_beam': (ctx, w, h) => {
             const team1_color = 'hsl(240, 70%, 50%)'; // Blue
@@ -3648,11 +3632,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawArrow(ctx, hit_prism, hit_enemy, 'rgba(255, 100, 100, 1.0)');
 
             // Explosion
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', hit_enemy.x, hit_enemy.y);
+            illustrationHelpers.drawExplosion(ctx, hit_enemy.x, hit_enemy.y);
         },
         'fight_territory_strike': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
@@ -3678,11 +3658,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Draw strike
             illustrationHelpers.drawArrow(ctx, center, ep1, 'rgba(100, 255, 100, 1.0)');
 
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', ep1.x, ep1.y);
+            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
         },
         'fortify_anchor': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
@@ -4134,11 +4110,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Sacrificed point
             illustrationHelpers.drawPoints(ctx, [center], team1_color);
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', center.x-20, center.y-20);
+            illustrationHelpers.drawExplosion(ctx, center.x - 20, center.y - 20);
 
             // Trap symbol
             const radius = 12;
@@ -4405,8 +4377,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
-            ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
+            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
+            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
             ctx.stroke();
 
             // Blast radius
@@ -4428,12 +4400,8 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}, {p1: ep3, p2: ep4}], team2_color, 1);
             
             // Damage effect
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', w*0.8, h*0.5);
-            ctx.fillText('💥', w*0.75, h*0.1);
+            illustrationHelpers.drawExplosion(ctx, w*0.8, h*0.5, 'red', 12);
+            illustrationHelpers.drawExplosion(ctx, w*0.75, h*0.1, 'red', 12);
         },
         'rune_focus_beam': (ctx, w, h) => {
             const team1_color = 'hsl(50, 80%, 60%)'; // Gold for star
@@ -4735,7 +4703,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.dataset.description = action.description;
 
                 card.innerHTML = `
-                    <canvas width="300" height="180"></canvas>
+                    <canvas width="280" height="160"></canvas>
                     <div class="action-card-text">
                          <div class="action-card-header">
                             <h4>${action.display_name}</h4>
@@ -4752,7 +4720,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ctx = canvas.getContext('2d');
                 
                 const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
-                drawer(ctx, 300, 180);
+                drawer(ctx, 280, 160);
             }
 
             function filterActions() {
