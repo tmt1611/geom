@@ -61,6 +61,20 @@ class ExpandActionsHandler:
             # Fallback effect: Strengthen an existing line
             return self.game._fallback_strengthen_random_line(teamId, 'add_line')
 
+    def _check_and_add_extension(self, p_start, p_end, origin_point_id, teamId, extensions_list):
+        """Helper to check if a line extension is valid and add it to a list."""
+        border_point = get_extended_border_point(
+            p_start, p_end, self.state['grid_size'],
+            self.state.get('fissures', []), self.state.get('barricades', [])
+        )
+        if border_point:
+            is_valid, _ = is_spawn_location_valid(
+                border_point, teamId, self.state['grid_size'], self.state['points'],
+                self.state.get('fissures', []), self.state.get('heartwoods', {})
+            )
+            if is_valid:
+                extensions_list.append({'origin_point_id': origin_point_id, 'border_point': border_point})
+
     def _find_possible_extensions(self, teamId):
         """Finds all possible line extensions to the border."""
         team_lines = self.game.get_team_lines(teamId)
@@ -73,30 +87,11 @@ class ExpandActionsHandler:
             p2 = points[line['p2_id']]
             
             # Try extending from p1 through p2
-            border_point1 = get_extended_border_point(
-                p1, p2, self.state['grid_size'],
-                self.state.get('fissures', []), self.state.get('barricades', [])
-            )
-            if border_point1:
-                is_valid, _ = is_spawn_location_valid(
-                    border_point1, teamId, self.state['grid_size'], self.state['points'],
-                    self.state.get('fissures', []), self.state.get('heartwoods', {})
-                )
-                if is_valid:
-                    possible_extensions.append({'origin_point_id': p2['id'], 'border_point': border_point1})
+            self._check_and_add_extension(p1, p2, p2['id'], teamId, possible_extensions)
             
             # Try extending from p2 through p1
-            border_point2 = get_extended_border_point(
-                p2, p1, self.state['grid_size'],
-                self.state.get('fissures', []), self.state.get('barricades', [])
-            )
-            if border_point2:
-                is_valid, _ = is_spawn_location_valid(
-                    border_point2, teamId, self.state['grid_size'], self.state['points'],
-                    self.state.get('fissures', []), self.state.get('heartwoods', {})
-                )
-                if is_valid:
-                    possible_extensions.append({'origin_point_id': p1['id'], 'border_point': border_point2})
+            self._check_and_add_extension(p2, p1, p1['id'], teamId, possible_extensions)
+            
         return possible_extensions
 
     def extend_line(self, teamId):

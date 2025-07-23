@@ -140,17 +140,12 @@ class FortifyActionsHandler:
             boundary_lines_keys = [tuple(sorted((p_ids[0], p_ids[1]))), tuple(sorted((p_ids[1], p_ids[2]))), tuple(sorted((p_ids[2], p_ids[0])))]
             
             strengthened_lines = []
-            max_strength = 3
             all_team_lines = self.game.get_team_lines(teamId)
             
             for line in all_team_lines:
                 if tuple(sorted((line['p1_id'], line['p2_id']))) in boundary_lines_keys:
-                    line_id = line.get('id')
-                    if line_id:
-                        current_strength = self.state['line_strengths'].get(line_id, 0)
-                        if current_strength < max_strength:
-                            self.state['line_strengths'][line_id] = current_strength + 1
-                            strengthened_lines.append(line)
+                    if self.game._strengthen_line(line):
+                        strengthened_lines.append(line)
             
             # The action is 'successful' even if no lines were strengthened (they might be maxed out)
             # The log message will reflect if lines were strengthened or not.

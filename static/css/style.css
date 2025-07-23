@@ -889,11 +889,15 @@ body.game-running .game-column {
 .guide-controls {
     margin-bottom: 15px;
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex-direction: row;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap; /* Allow wrapping on small screens */
 }
 #guide-search {
-    width: 100%;
+    flex-grow: 1;
+    min-width: 250px; /* Ensure it has a minimum size */
+    max-width: 400px;
     padding: 8px 12px;
     font-size: 1em;
     border: 1px solid #ccc;
@@ -924,7 +928,7 @@ body.game-running .game-column {
 
 .action-guide-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
     gap: 15px;
     flex-grow: 1;
     overflow-y: auto;
@@ -942,7 +946,7 @@ body.game-running .game-column {
     padding: 0;
     transition: box-shadow 0.2s;
     overflow: hidden;
-    height: 140px; /* Fixed height for cards */
+    height: 120px; /* Fixed height for cards */
 }
 .action-card:hover {
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
@@ -985,8 +989,8 @@ body.game-running .game-column {
 .action-card-header .action-group--sacrifice { background-color: #d35400; }
 .action-card-header .action-group--rune { background-color: #8e44ad; }
 .action-card canvas {
-    width: 140px;
-    height: 140px;
+    width: 120px;
+    height: 120px;
     background-color: #fdfdfd;
     border-right: 1px solid #dfe4ea;
     border-bottom: none;

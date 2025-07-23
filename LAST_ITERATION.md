@@ -1,15 +1,15 @@
-This iteration focuses on cleaning up a complex piece of game logic in the Python backend and improving the clarity of an illustration in the Action Guide frontend.
-
-### Code Cleanup and Bug Fixes
-
-1.  **Refactored Critical Point Identification**: The logic for finding a "non-critical" point to sacrifice was complex, duplicated logic from other parts of the codebase, and contained a bug.
-    *   In `game_app/game_logic.py`, a new private helper method, `_get_critical_structure_point_ids(teamId)`, was created to consolidate the logic for identifying all points that are part of a specific team's important structures (Runes, Bastions, Monoliths, etc.).
-    *   This new method fixes a bug in the original implementation where structures from *all* teams were being considered critical, not just the acting team's own structures.
-    *   The `_find_non_critical_sacrificial_point` method was refactored to use this new helper, making its code significantly shorter, cleaner, and more correct.
+This iteration focuses on improving the user experience of the Action Guide tab and performing several code cleanup tasks in both the Python backend and JavaScript frontend.
 
 ### UI/UX Improvements: Action Guide
 
-1.  **Improved Illustration Clarity**: The illustration for the `Launch Payload` action in the Action Guide has been improved to better communicate its purpose.
-    *   In `static/js/main.js`, a new drawing helper was created to render a "fortified" point (a diamond shape).
-    *   The `fight_launch_payload` illustration was updated to use this helper, now showing the trebuchet targeting a fortified point, which aligns with the action's description of prioritizing high-value targets.
-    *   An explosion effect was also added to the target point to make the destructive outcome of the action more obvious at a glance.
+1.  **More Compact Layout:** The Action Guide has been made more space-efficient.
+    *   The action cards are now smaller (`120px` height vs `140px`).
+    *   The grid layout has been adjusted to allow more cards to fit on the screen at once (`minmax(350px, 1fr)` vs `380px`).
+    *   This was achieved by modifying `static/css/style.css` and updating the canvas dimensions in `static/js/main.js`.
+2.  **Improved Header Controls:** The search bar and group filter buttons in the Action Guide header are now arranged on a single, responsive row, making better use of horizontal space.
+
+### Code Cleanup and Refactoring
+
+1.  **DRY Principle in `expand_actions.py`:** The `_find_possible_extensions` method contained duplicated logic for checking valid line extensions. This has been refactored into a new helper method, `_check_and_add_extension`, simplifying the original method and improving maintainability.
+2.  **Consistent Logic in `fortify_actions.py`:** The fallback logic in the `claim_territory` action (for reinforcing an existing territory) was reimplementing code that already existed as a helper (`game._strengthen_line`). The code has been updated to use the shared helper, ensuring consistent behavior with other similar actions.
+3.  **JavaScript Cleanup:** A copy-paste error in `static/js/main.js` resulted in several duplicated illustration functions. These duplicates have been removed.

@@ -4695,7 +4695,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.dataset.description = action.description;
 
                 card.innerHTML = `
-                    <canvas width="140" height="140"></canvas>
+                    <canvas width="120" height="120"></canvas>
                     <div class="action-card-text">
                          <div class="action-card-header">
                             <h4>${action.display_name}</h4>
@@ -4712,7 +4712,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ctx = canvas.getContext('2d');
                 
                 const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
-                drawer(ctx, 140, 140);
+                drawer(ctx, 120, 120);
             }
 
             function filterActions() {
