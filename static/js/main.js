@@ -3296,7 +3296,30 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineTo(p2.x, p2.y);
             ctx.stroke();
             ctx.restore();
-        }
+        },
+        drawExplosion: (ctx, x, y, color = 'red', radius = 15) => {
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.strokeStyle = 'rgba(255, 255, 150, 0.8)'; // yellow
+            ctx.lineWidth = 2;
+            const spikes = 8;
+            ctx.beginPath();
+            for (let i = 0; i < spikes; i++) {
+                const angle = (i / spikes) * 2 * Math.PI;
+                const outerX = x + Math.cos(angle) * radius;
+                const outerY = y + Math.sin(angle) * radius;
+                ctx.lineTo(outerX, outerY);
+                const innerAngle = angle + Math.PI / spikes;
+                const innerRadius = radius * 0.5;
+                const innerX = x + Math.cos(innerAngle) * innerRadius;
+                const innerY = y + Math.sin(innerAngle) * innerRadius;
+                ctx.lineTo(innerX, innerY);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        },
     };
     
     const illustrationDrawers = {
@@ -3924,11 +3947,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Sacrificed point
             illustrationHelpers.drawPoints(ctx, [center], team1_color);
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', center.x-20, center.y-20);
+            illustrationHelpers.drawExplosion(ctx, center.x, center.y, 'red', 15);
             
             // Enemy lines being destroyed
             const ep1 = {x: w*0.8, y: h*0.3};
@@ -4454,11 +4473,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawArrow(ctx, center, target, 'rgba(255, 255, 150, 1.0)');
 
             // Explosion
-            ctx.font = '36px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', target.x, target.y);
+            illustrationHelpers.drawExplosion(ctx, target.x, target.y, 'red', 20);
         },
         'rune_cardinal_pulse': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
@@ -4494,8 +4509,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color);
             const hit_point = {x: w*0.9, y: h*0.5};
             illustrationHelpers.drawArrow(ctx, center, hit_point, team1_color);
-            ctx.font = '36px Arial'; ctx.fillStyle = 'red'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText('💥', hit_point.x, hit_point.y);
+            illustrationHelpers.drawExplosion(ctx, hit_point.x, hit_point.y, 'red', 12);
 
             // 2. Top beam misses, creates point
             const new_point = {x: w*0.5, y: h*0.05};

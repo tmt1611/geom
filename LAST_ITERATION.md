@@ -1,13 +1,15 @@
-This iteration focuses on improving the UI of the "Action Guide" tab and cleaning up the illustrations for consistency.
+This iteration focuses on improving the user interface and experience, specifically for the "Action Guide" tab, and on cleaning up the visual presentation of the action illustrations.
 
-### UI Improvement: Action Guide Layout
+### UI/UX Improvements: Action Guide
 
-1.  **Compact Grid Layout:** The Action Guide has been changed from a single vertical list to a responsive grid. This makes the layout more compact and allows users to see more actions at once without excessive scrolling.
-2.  **Improved Card Design:** The action cards within the guide now feature a top-down design. The illustration is placed prominently at the top, occupying the full width of the card, with the title and description below. This gives more space to the visuals and creates a cleaner presentation.
-3.  **Larger Illustrations:** To accommodate the new layout and improve clarity, the canvas size for each illustration has been increased from `200x120` to `300x180`.
+1.  **Compact Layout**: The Action Guide previously displayed all action cards in a single, long column. This was inefficient and required a lot of scrolling.
+    *   I modified the CSS (`static/css/style.css`) to use a responsive grid layout for the `.action-guide-grid`. This now shows multiple cards per row, making the guide more compact and easier to browse.
+    *   To further improve compactness, I reduced the width of the illustration canvas within each action card from 200px to 160px.
 
-### Code Cleanup: Illustration Consistency
+2.  **Cleaner Illustrations**: Many of the action illustrations used a text emoji ('💥') to represent explosions or impacts. This looked inconsistent and unprofessional.
+    *   I created a new helper function, `drawExplosion`, in `static/js/main.js` to render a consistent, stylized starburst graphic.
+    *   I replaced all instances of the explosion emoji across all relevant action illustrators with calls to this new helper function. This results in a cleaner, more visually cohesive, and professional-looking guide.
 
-1.  **Standardized Visuals:** The font size for the "explosion" (💥) and "heart" (❤) symbols used across multiple action illustrations has been standardized. This ensures a more consistent and polished look throughout the guide.
+3.  **Visual Differentiation**: To help distinguish between similar-looking actions, I adjusted the size of the new explosion graphic for different actions. For example, the `rune_focus_beam` action now shows a larger explosion than the `rune_starlight_cascade`, visually communicating its higher impact.
 
-These changes address the user's request to make the Action Guide more compact, better presented, and less cluttered, while also performing minor code cleanup for visual consistency.
+These changes make the Action Guide more user-friendly, visually appealing, and easier to understand at a glance.
