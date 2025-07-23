@@ -285,3 +285,39 @@ def is_regular_pentagon(p1, p2, p3, p4, p5):
         return False
         
     return True
+
+def is_spawn_location_valid(new_point_coords, new_point_teamId, grid_size, all_points, fissures, heartwoods, min_dist_sq=1.0):
+    """Checks if a new point can be spawned at the given coordinates."""
+    # Check if point is within grid boundaries
+    if not (0 <= new_point_coords['x'] < grid_size and 0 <= new_point_coords['y'] < grid_size):
+        return False, 'outside of grid boundaries'
+
+    # Check proximity to existing points
+    for existing_p in all_points.values():
+        if distance_sq(new_point_coords, existing_p) < min_dist_sq:
+            return False, 'too close to an existing point'
+    
+    # Check proximity to fissures (a simple bounding box check for performance)
+    for fissure in fissures:
+        p1 = fissure['p1']
+        p2 = fissure['p2']
+        # Bounding box of the fissure segment
+        box_x_min = min(p1['x'], p2['x']) - 1
+        box_x_max = max(p1['x'], p2['x']) + 1
+        box_y_min = min(p1['y'], p2['y']) - 1
+        box_y_max = max(p1['y'], p2['y']) + 1
+        
+        if (new_point_coords['x'] >= box_x_min and new_point_coords['x'] <= box_x_max and
+            new_point_coords['y'] >= box_y_min and new_point_coords['y'] <= box_y_max):
+            # A more precise check can be done here if needed, but this is a good first pass
+            return False, 'too close to a fissure'
+
+    # Check against enemy Heartwood defensive aura
+    if heartwoods:
+        for teamId, heartwood in heartwoods.items():
+            if teamId != new_point_teamId:
+                aura_radius_sq = (grid_size * 0.2)**2
+                if distance_sq(new_point_coords, heartwood['center_coords']) < aura_radius_sq:
+                    return False, 'blocked by an enemy Heartwood aura'
+    
+    return True, 'valid'

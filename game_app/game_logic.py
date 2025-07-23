@@ -444,43 +444,6 @@ class Game:
         y_sum = sum(p['y'] for p in points)
         return {'x': x_sum / num_points, 'y': y_sum / num_points}
 
-    def _is_spawn_location_valid(self, new_point_coords, new_point_teamId, min_dist_sq=1.0):
-        """Checks if a new point can be spawned at the given coordinates."""
-        # Check if point is within grid boundaries
-        grid_size = self.state['grid_size']
-        if not (0 <= new_point_coords['x'] < grid_size and 0 <= new_point_coords['y'] < grid_size):
-            return False, 'outside of grid boundaries'
-
-        # Check proximity to existing points
-        for existing_p in self.state['points'].values():
-            if distance_sq(new_point_coords, existing_p) < min_dist_sq:
-                return False, 'too close to an existing point'
-        
-        # Check proximity to fissures (a simple bounding box check for performance)
-        for fissure in self.state.get('fissures', []):
-            p1 = fissure['p1']
-            p2 = fissure['p2']
-            # Bounding box of the fissure segment
-            box_x_min = min(p1['x'], p2['x']) - 1
-            box_x_max = max(p1['x'], p2['x']) + 1
-            box_y_min = min(p1['y'], p2['y']) - 1
-            box_y_max = max(p1['y'], p2['y']) + 1
-            
-            if (new_point_coords['x'] >= box_x_min and new_point_coords['x'] <= box_x_max and
-                new_point_coords['y'] >= box_y_min and new_point_coords['y'] <= box_y_max):
-                # A more precise check can be done here if needed, but this is a good first pass
-                return False, 'too close to a fissure'
-
-        # Check against enemy Heartwood defensive aura
-        if self.state.get('heartwoods'):
-            for teamId, heartwood in self.state['heartwoods'].items():
-                if teamId != new_point_teamId:
-                    aura_radius_sq = (self.state['grid_size'] * 0.2)**2
-                    if distance_sq(new_point_coords, heartwood['center_coords']) < aura_radius_sq:
-                        return False, 'blocked by an enemy Heartwood aura'
-        
-        return True, 'valid'
-
     def _get_vulnerable_enemy_points(self, teamId):
         """Returns a list of enemy points that are not immune to standard attacks."""
         fortified_point_ids = self._get_fortified_point_ids()
@@ -616,53 +579,6 @@ class Game:
 
         # All remaining candidates are articulation points. Don't sacrifice.
         return None
-
-    def _get_extended_border_point(self, p1, p2):
-        """
-        Extends a line segment p1-p2 from p1 outwards through p2 to the border.
-        Returns the border point dictionary or None.
-        """
-        grid_size = self.state['grid_size']
-        x1, y1 = p1['x'], p1['y']
-        x2, y2 = p2['x'], p2['y']
-        dx, dy = x2 - x1, y2 - y1
-
-        if dx == 0 and dy == 0: return None
-
-        # Check if extension is blocked by a fissure
-        # Create a very long ray for intersection test
-        ray_end_point = {'x': p2['x'] + dx * grid_size * 2, 'y': p2['y'] + dy * grid_size * 2}
-        if self._is_ray_blocked(p2, ray_end_point):
-            return None # Extension is blocked
-
-        # We are calculating p_new = p1 + t * (p2 - p1) for t > 1
-        t_values = []
-        if dx != 0:
-            t_values.append((0 - x1) / dx)
-            t_values.append((grid_size - 1 - x1) / dx)
-        if dy != 0:
-            t_values.append((0 - y1) / dy)
-            t_values.append((grid_size - 1 - y1) / dy)
-
-        # Use a small epsilon to avoid floating point issues with the point itself
-        valid_t = [t for t in t_values if t > 1.0001]
-        if not valid_t: return None
-
-        t = min(valid_t)
-        ix, iy = x1 + t * dx, y1 + t * dy
-        ix = round(max(0, min(grid_size - 1, ix)))
-        iy = round(max(0, min(grid_size - 1, iy)))
-        return {"x": ix, "y": iy}
-
-    def _is_ray_blocked(self, p_start, p_end):
-        """Checks if a segment is blocked by a fissure or barricade."""
-        for fissure in self.state.get('fissures', []):
-            if get_segment_intersection_point(p_start, p_end, fissure['p1'], fissure['p2']):
-                 return True
-        for barricade in self.state.get('barricades', []):
-            if get_segment_intersection_point(p_start, p_end, barricade['p1'], barricade['p2']):
-                 return True
-        return False
 
     def _find_possible_bastion_pulses(self, teamId):
         team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId and len(b['prong_ids']) > 0]

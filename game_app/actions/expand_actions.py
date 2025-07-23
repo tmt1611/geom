@@ -2,7 +2,7 @@ import random
 import math
 import uuid
 from itertools import combinations
-from ..geometry import distance_sq, get_extended_border_point
+from ..geometry import distance_sq, get_extended_border_point, is_spawn_location_valid
 
 class ExpandActionsHandler:
     def __init__(self, game):
@@ -78,7 +78,10 @@ class ExpandActionsHandler:
                 self.state.get('fissures', []), self.state.get('barricades', [])
             )
             if border_point1:
-                is_valid, _ = self.game._is_spawn_location_valid(border_point1, teamId)
+                is_valid, _ = is_spawn_location_valid(
+                    border_point1, teamId, self.state['grid_size'], self.state['points'],
+                    self.state.get('fissures', []), self.state.get('heartwoods', {})
+                )
                 if is_valid:
                     possible_extensions.append({'origin_point_id': p2['id'], 'border_point': border_point1})
             
@@ -88,7 +91,10 @@ class ExpandActionsHandler:
                 self.state.get('fissures', []), self.state.get('barricades', [])
             )
             if border_point2:
-                is_valid, _ = self.game._is_spawn_location_valid(border_point2, teamId)
+                is_valid, _ = is_spawn_location_valid(
+                    border_point2, teamId, self.state['grid_size'], self.state['points'],
+                    self.state.get('fissures', []), self.state.get('heartwoods', {})
+                )
                 if is_valid:
                     possible_extensions.append({'origin_point_id': p1['id'], 'border_point': border_point2})
         return possible_extensions
@@ -224,7 +230,10 @@ class ExpandActionsHandler:
             final_y = round(max(0, min(grid_size - 1, new_y)))
 
             new_p_coords = {'x': final_x, 'y': final_y}
-            is_valid, reason = self.game._is_spawn_location_valid(new_p_coords, teamId)
+            is_valid, reason = is_spawn_location_valid(
+                new_p_coords, teamId, self.state['grid_size'], self.state['points'],
+                self.state.get('fissures', []), self.state.get('heartwoods', {})
+            )
             if not is_valid:
                 continue
 
@@ -267,7 +276,10 @@ class ExpandActionsHandler:
                 final_y = round(max(0, min(grid_size - 1, new_y)))
 
                 new_p_coords = {'x': final_x, 'y': final_y}
-                is_valid, _ = self.game._is_spawn_location_valid(new_p_coords, teamId, min_dist_sq=2.0)
+                is_valid, _ = is_spawn_location_valid(
+                    new_p_coords, teamId, self.state['grid_size'], self.state['points'],
+                    self.state.get('fissures', []), self.state.get('heartwoods', {}), min_dist_sq=2.0
+                )
                 if not is_valid:
                     valid_orbital = False; break
                 
@@ -355,7 +367,10 @@ class ExpandActionsHandler:
                     continue
 
                 new_point_coords = {"x": round(new_x), "y": round(new_y)}
-                is_valid, _ = self.game._is_spawn_location_valid(new_point_coords, teamId)
+                is_valid, _ = is_spawn_location_valid(
+                    new_point_coords, teamId, self.state['grid_size'], self.state['points'],
+                    self.state.get('fissures', []), self.state.get('heartwoods', {})
+                )
                 if not is_valid:
                     continue
 

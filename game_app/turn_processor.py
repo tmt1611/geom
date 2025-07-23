@@ -2,7 +2,7 @@ import random
 import math
 import uuid
 
-from .geometry import distance_sq
+from .geometry import distance_sq, is_spawn_location_valid
 
 class TurnProcessor:
     def __init__(self, game):
@@ -63,7 +63,10 @@ class TurnProcessor:
 
             trap['turns_left'] -= 1
             if trap['turns_left'] <= 0:
-                is_valid, _ = self.game._is_spawn_location_valid(trap['coords'], trap['teamId'])
+                is_valid, _ = is_spawn_location_valid(
+                    trap['coords'], trap['teamId'], self.state['grid_size'], self.state['points'],
+                    self.state.get('fissures', []), self.state.get('heartwoods', {})
+                )
                 if is_valid:
                     new_point_id = f"p_{uuid.uuid4().hex[:6]}"
                     new_point = {"x": round(trap['coords']['x']), "y": round(trap['coords']['y']), "teamId": trap['teamId'], "id": new_point_id}
@@ -127,7 +130,10 @@ class TurnProcessor:
                     final_y = round(max(0, min(grid_size - 1, new_y)))
                     
                     new_p_coords = {'x': final_x, 'y': final_y}
-                    if not self.game._is_spawn_location_valid(new_p_coords, teamId)[0]: continue
+                    if not is_spawn_location_valid(
+                        new_p_coords, teamId, self.state['grid_size'], self.state['points'],
+                        self.state.get('fissures', []), self.state.get('heartwoods', {})
+                    )[0]: continue
 
                     new_point_id = f"p_{uuid.uuid4().hex[:6]}"
                     new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}

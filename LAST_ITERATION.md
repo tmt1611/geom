@@ -1,11 +1,11 @@
-This iteration focuses on improving the UI/UX of the "Action Guide" tab to make it more compact, readable, and efficient.
+This iteration focuses on cleaning up the codebase by refactoring geometry-related logic.
 
-### UI Improvement: Action Guide Redesign
+### Code Refactoring: Centralizing Geometry Logic
 
-1.  **Compact List Layout**: The Action Guide has been redesigned from a space-intensive grid of cards into a more compact and scannable vertical list. Each action is now a single row, with its illustration on the left and the corresponding description on the right. This layout is more efficient, especially on wider screens, allowing users to see more actions at once without scrolling.
+1.  **Identified Misplaced Logic**: I found that several geometry-related helper functions (e.g., for checking valid spawn locations, extending lines to borders) were defined within the main `Game` class in `game_logic.py`. This made the class larger than necessary and mixed state management with pure calculation logic.
 
-2.  **Optimized Illustrations**: To complement the new list layout, the canvas size for action illustrations has been reduced from `240x150` to `200x120`. This change makes each row shorter, contributing to the overall compactness, while still providing a clear visual representation of the action.
+2.  **Consolidated into `geometry.py`**: To address this, I moved the logic for `_is_spawn_location_valid`, `_get_extended_border_point`, and `_is_ray_blocked` out of `game_logic.py` and consolidated them into the `geometry.py` module. They are now implemented as pure functions that receive the necessary parts of the game state (like grid size, points, fissures) as arguments, rather than accessing a `self.state` object directly.
 
-3.  **Refined Styling**: The CSS for the action cards has been updated to support the new `flex-direction: row` layout. This includes changing border separators from bottom to right, adjusting text padding and font sizes for better readability, and simplifying the hover effect to be more suitable for a list view.
+3.  **Updated Call Sites**: I updated all the action handlers (`expand_actions.py`, `fight_actions.py`, etc.) and the `turn_processor.py` to import and use these pure functions from `geometry.py`. This involved changing calls from `self.game.some_geometry_method(...)` to `some_geometry_method(...)` and passing the required state variables.
 
-These changes result in a cleaner, more organized Action Guide that is easier for users to navigate and understand.
+This refactoring makes the code cleaner, more modular, and easier to maintain. The `Game` class is now more focused on state and turn management, while `geometry.py` serves as the single source of truth for all geometric calculations.

@@ -2,7 +2,7 @@ import random
 import math
 import uuid
 from itertools import combinations
-from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon
+from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, is_spawn_location_valid
 
 class FortifyActionsHandler:
     def __init__(self, game):
@@ -649,7 +649,10 @@ class FortifyActionsHandler:
                     all_reflections_valid = False; break
                 
                 reflected_p_int = {'x': round(reflected_p['x']), 'y': round(reflected_p['y'])}
-                is_valid, _ = self.game._is_spawn_location_valid(reflected_p_int, teamId)
+                is_valid, _ = is_spawn_location_valid(
+                    reflected_p_int, teamId, self.state['grid_size'], self.state['points'],
+                    self.state.get('fissures', []), self.state.get('heartwoods', {})
+                )
                 if not is_valid:
                     all_reflections_valid = False; break
                 

@@ -4,7 +4,7 @@ import uuid
 from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
-    get_extended_border_point
+    get_extended_border_point, is_spawn_location_valid
 )
 
 class RuneActionsHandler:
@@ -393,8 +393,14 @@ class RuneActionsHandler:
                 'y': round(max(0, min(grid_size - 1, mid2['y'])))
             }
             
-            is_valid1, _ = self.game._is_spawn_location_valid(p1_coords, teamId)
-            is_valid2, _ = self.game._is_spawn_location_valid(p2_coords, teamId)
+            is_valid1, _ = is_spawn_location_valid(
+                p1_coords, teamId, self.state['grid_size'], self.state['points'],
+                self.state.get('fissures', []), self.state.get('heartwoods', {})
+            )
+            is_valid2, _ = is_spawn_location_valid(
+                p2_coords, teamId, self.state['grid_size'], self.state['points'],
+                self.state.get('fissures', []), self.state.get('heartwoods', {})
+            )
             
             if not is_valid1 or not is_valid2:
                  return {'success': False, 'reason': 'center of parallelogram is blocked'}
@@ -698,7 +704,10 @@ class RuneActionsHandler:
             arm_point_data = next((p for p in sacrificed_points_data if p['id'] == arm_pid), None)
             if not arm_point_data: continue
 
-            border_point = self.game._get_extended_border_point(center_point, arm_point_data)
+            border_point = get_extended_border_point(
+                center_point, arm_point_data, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', [])
+            )
             if not border_point: continue
 
             attack_ray = {'p1': center_point, 'p2': border_point}
@@ -733,7 +742,10 @@ class RuneActionsHandler:
                     lines_destroyed.append(line_to_destroy)
             else:
                 # Miss: create point on border
-                is_valid, _ = self.game._is_spawn_location_valid(border_point, teamId)
+                is_valid, _ = is_spawn_location_valid(
+                    border_point, teamId, self.state['grid_size'], self.state['points'],
+                    self.state.get('fissures', []), self.state.get('heartwoods', {})
+                )
                 if is_valid:
                     new_point_id = self.game._generate_id('p')
                     new_point = {**border_point, "teamId": teamId, "id": new_point_id}
