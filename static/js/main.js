@@ -4084,6 +4084,55 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
             ctx.globalAlpha = 1.0;
         },
+        'fight_purify_territory': (ctx, w, h) => {
+            const team1_color = 'hsl(50, 80%, 60%)'; // Light yellow for purify
+            const team2_color = 'hsl(240, 70%, 50%)';
+            
+            // Purifier (pentagon)
+            const purifier_center = {x: w*0.3, y: h*0.5};
+            const purifier_radius = w * 0.2;
+            const purifier_points = [];
+            for (let i = 0; i < 5; i++) {
+                const angle = (i / 5) * 2 * Math.PI - (Math.PI / 2);
+                purifier_points.push({
+                    x: purifier_center.x + Math.cos(angle) * purifier_radius,
+                    y: purifier_center.y + Math.sin(angle) * purifier_radius,
+                });
+            }
+            illustrationHelpers.drawPoints(ctx, purifier_points, team1_color);
+            for (let i = 0; i < 5; i++) {
+                illustrationHelpers.drawLines(ctx, [{p1: purifier_points[i], p2: purifier_points[(i+1)%5]}], team1_color);
+            }
+
+            // Enemy territory
+            const p1 = {x: w*0.8, y: h*0.2};
+            const p2 = {x: w*0.6, y: h*0.8};
+            const p3 = {x: w*0.95, y: h*0.8};
+            illustrationHelpers.drawPoints(ctx, [p1,p2,p3], team2_color);
+            illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p1}], team2_color);
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+            ctx.fillStyle = team2_color;
+            ctx.globalAlpha = 0.3;
+            ctx.fill();
+            
+            // Draw purification wave
+            ctx.save();
+            ctx.globalAlpha = 1.0;
+            ctx.beginPath();
+            ctx.arc(purifier_center.x, purifier_center.y, w * 0.4, 0, 2*Math.PI);
+            ctx.strokeStyle = team1_color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4,4]);
+            ctx.stroke();
+            ctx.restore();
+
+            // Draw fading effect on enemy territory
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fill();
+        },
     };
 
     async function initActionGuide() {
