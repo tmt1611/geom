@@ -87,18 +87,7 @@ def get_action_probabilities():
 @main_routes.route('/api/actions/all', methods=['GET'])
 def get_all_actions():
     """Returns a structured list of all possible actions with their descriptions."""
-    actions_data = []
-    for group, actions in game_data.ACTION_GROUPS.items():
-        # Sort actions within the group for consistent ordering
-        for action_name in sorted(actions):
-            actions_data.append({
-                'name': action_name,
-                'display_name': game_data.ACTION_DESCRIPTIONS.get(action_name, action_name),
-                'group': group,
-                'description': game_data.ACTION_VERBOSE_DESCRIPTIONS.get(action_name, 'No description available.')
-            })
-    # Sort by group, then by name
-    return jsonify(sorted(actions_data, key=lambda x: (x['group'], x['display_name'])))
+    return jsonify(game_data.get_all_actions_data())
 
 @main_routes.route('/api/dev/restart', methods=['POST'])
 def restart_server():

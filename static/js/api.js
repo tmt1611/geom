@@ -25,8 +25,8 @@ const api = {
             // We fetch all .py files needed for the game logic to run in the browser.
             const pyodideFileStructure = {
                 'game_app': [
-                    'game_logic.py', 'geometry.py', 'formations.py', 'game_data.py',
-                    'turn_processor.py', 'structure_data.py', 'text_data.py'
+                    'action_data.py', 'game_data.py', 'game_logic.py', 'geometry.py',
+                    'formations.py', 'structure_data.py', 'turn_processor.py'
                 ],
                 'game_app/actions': [
                     'expand_actions.py', 'fight_actions.py', 'fortify_actions.py', 'rune_actions.py', 'sacrifice_actions.py'
@@ -186,34 +186,9 @@ js_game_data = game_data
 
     async getAllActions() {
         if (this._mode === 'pyodide') {
-            // This is more complex in Pyodide as we need to replicate the server logic.
-            const game_data = this._game_data;
-            const action_groups = this._pyProxyToJs(game_data.ACTION_GROUPS);
-            const action_descs = this._pyProxyToJs(game_data.ACTION_DESCRIPTIONS);
-            const action_verbose_descs = this._pyProxyToJs(game_data.ACTION_VERBOSE_DESCRIPTIONS);
-            
-            let actions_data = [];
-            for (const group in action_groups) {
-                const actions = action_groups[group];
-                actions.sort(); // Sort for consistency
-                for (const action_name of actions) {
-                    actions_data.push({
-                        'name': action_name,
-                        'display_name': action_descs[action_name] || action_name,
-                        'group': group,
-                        'description': action_verbose_descs[action_name] || 'No description available.'
-                    });
-                }
-            }
-            // Sort by group, then by name
-            actions_data.sort((a, b) => {
-                if (a.group < b.group) return -1;
-                if (a.group > b.group) return 1;
-                if (a.display_name < b.display_name) return -1;
-                if (a.display_name > b.display_name) return 1;
-                return 0;
-            });
-            return actions_data;
+            // Call the centralized Python function to get the data structure.
+            const all_actions_py = this._game_data.get_all_actions_data();
+            return this._pyProxyToJs(all_actions_py);
         }
         return this._fetchJson('/api/actions/all');
     }

@@ -3551,7 +3551,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.font = '16px Arial';
             ctx.fillText('No Illustration', w / 2, h / 2);
         },
-        'defend_shield': (ctx, w, h) => {
+        'fortify_shield': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
             const p1 = {x: w*0.3, y: h*0.5};
             const p2 = {x: w*0.7, y: h*0.5};
