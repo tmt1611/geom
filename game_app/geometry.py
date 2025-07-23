@@ -117,7 +117,7 @@ def get_extended_border_point(p1, p2, grid_size, fissures, barricades):
     if not valid_t: return None
 
     t = min(valid_t)
-    ix, iy = x1 + t * dx, y1 + t * iy
+    ix, iy = x1 + t * dx, y1 + t * dy
     ix = round(max(0, min(grid_size - 1, ix)))
     iy = round(max(0, min(grid_size - 1, iy)))
     return {"x": ix, "y": iy}
