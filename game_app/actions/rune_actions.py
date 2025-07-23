@@ -115,8 +115,7 @@ class RuneActionsHandler:
         if hits:
             # --- Primary Effect: Destroy Line ---
             target_line = random.choice(hits)
-            self.state['lines'].remove(target_line)
-            self.state['shields'].pop(target_line.get('id'), None)
+            self.game._delete_line(target_line)
             return {
                 'success': True, 'type': 'rune_shoot_bisector', 'destroyed_line': target_line,
                 'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2}, 'rune_points': rune_points_payload
@@ -301,10 +300,7 @@ class RuneActionsHandler:
         if lines_to_destroy:
             # --- Primary Effect: Destroy Lines ---
             for line in lines_to_destroy:
-                if line in self.state['lines']:
-                    self.state['lines'].remove(line)
-                    self.state['shields'].pop(line.get('id'), None) # Pierces shields
-                    self.state['line_strengths'].pop(line.get('id'), None) # Pierces monolith empowerment
+                self.game._delete_line(line)
                     
             return {
                 'success': True,
@@ -368,9 +364,7 @@ class RuneActionsHandler:
         
         if lines_to_destroy:
             for l in lines_to_destroy:
-                if l in self.state['lines']:
-                    self.state['lines'].remove(l)
-                    self.state['shields'].pop(l.get('id'), None)
+                self.game._delete_line(l)
             
             return {
                 'success': True, 'type': 'parallel_discharge',
@@ -727,9 +721,7 @@ class RuneActionsHandler:
                 line_to_destroy = closest_hit['line']
                 
                 if line_to_destroy in self.state['lines']: # Check it hasn't been destroyed by another beam
-                    self.state['lines'].remove(line_to_destroy)
-                    self.state['shields'].pop(line_to_destroy.get('id'), None)
-                    self.state['line_strengths'].pop(line_to_destroy.get('id'), None)
+                    self.game._delete_line(line_to_destroy)
                     lines_destroyed.append(line_to_destroy)
             else:
                 # Miss: create point on border

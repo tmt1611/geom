@@ -121,9 +121,7 @@ class FightActionsHandler:
             }
 
         enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
-        self.state['lines'].remove(enemy_line)
-        self.state['shields'].pop(enemy_line.get('id'), None)
-        self.state['line_strengths'].pop(enemy_line.get('id'), None)
+        self.game._delete_line(enemy_line)
 
         destroyed_points_data = []
         if is_energized_attack:
@@ -219,8 +217,7 @@ class FightActionsHandler:
         
         targets_in_range = [ep for ep in enemy_points if distance_sq(midpoint, ep) < conversion_range_sq]
         
-        self.state['lines'].remove(line_to_sac)
-        self.state['shields'].pop(line_to_sac.get('id'), None)
+        self.game._delete_line(line_to_sac)
 
         if targets_in_range:
             point_to_convert = min(targets_in_range, key=lambda p: distance_sq(midpoint, p))
@@ -408,7 +405,7 @@ class FightActionsHandler:
                         lines_destroyed.append(enemy_line); break
             
             for l in lines_destroyed:
-                if l in self.state['lines']: self.state['lines'].remove(l); self.state['shields'].pop(l.get('id'), None)
+                self.game._delete_line(l)
             
             return {
                 'success': True, 'type': 'bastion_pulse',
@@ -699,9 +696,7 @@ class FightActionsHandler:
                     lines_destroyed.append(line)
             
             for l in lines_destroyed:
-                if l in self.state['lines']:
-                    self.state['lines'].remove(l)
-                    self.state['shields'].pop(l.get('id'), None)
+                self.game._delete_line(l)
             
             return {
                 'success': True, 'type': 'chain_lightning_fizzle_nova',
@@ -801,8 +796,7 @@ class FightActionsHandler:
             # --- Primary Effect: Hit an enemy line ---
             chosen_hit = random.choice(hits)
             enemy_line = chosen_hit['enemy_line']
-            self.state['lines'].remove(enemy_line)
-            self.state['shields'].pop(enemy_line.get('id'), None)
+            self.game._delete_line(enemy_line)
             
             return {
                 'success': True, 'type': 'refraction_beam',
@@ -930,8 +924,7 @@ class FightActionsHandler:
             target_point_id = target_point['id']
 
             # --- Primary Effect: Isolate Point ---
-            self.state['lines'].remove(line_to_sac)
-            self.state['shields'].pop(line_to_sac.get('id'), None)
+            self.game._delete_line(line_to_sac)
 
             if 'isolated_points' not in self.state:
                 self.state['isolated_points'] = {}
@@ -951,8 +944,7 @@ class FightActionsHandler:
             p1 = self.state['points'][line_to_sac['p1_id']]
             p2 = self.state['points'][line_to_sac['p2_id']]
             
-            self.state['lines'].remove(line_to_sac)
-            self.state['shields'].pop(line_to_sac.get('id'), None)
+            self.game._delete_line(line_to_sac)
 
             barricade_id = self.game._generate_id('bar')
             new_barricade = {

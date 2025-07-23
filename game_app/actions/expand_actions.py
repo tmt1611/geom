@@ -178,9 +178,8 @@ class ExpandActionsHandler:
         # Check for Ley Line bonus
         bonus_line = self.game._check_and_apply_ley_line_bonus(new_point)
 
-        # Remove old line and its potential shield
-        self.state['lines'].remove(line_to_fracture)
-        self.state['shields'].pop(line_to_fracture.get('id'), None)
+        # Remove old line and its potential shield/strength
+        self.game._delete_line(line_to_fracture)
 
         # Create two new lines
         line_id_1 = self.game._generate_id('l')

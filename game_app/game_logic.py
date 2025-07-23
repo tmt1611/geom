@@ -426,14 +426,21 @@ class Game:
             log_msg = f"The blast destroyed {destroyed_points_count} points and {destroyed_lines_count} lines."
             self.state['game_log'].append({'message': log_msg, 'short_message': '[CASCADE]', 'teamId': nexus_owner_teamId})
 
+    def _delete_line(self, line_to_delete):
+        """Removes a line from the state, along with any associated shield or strength."""
+        if line_to_delete in self.state['lines']:
+            self.state['lines'].remove(line_to_delete)
+            line_id = line_to_delete.get('id')
+            if line_id:
+                self.state['shields'].pop(line_id, None)
+                self.state['line_strengths'].pop(line_id, None)
+
     def _cleanup_structures_for_point(self, point_id):
         """Helper to remove a point from all associated secondary structures after it has been deleted."""
         # Remove connected lines (and their shields/strength)
         lines_to_remove = [l for l in self.state['lines'] if point_id in (l['p1_id'], l['p2_id'])]
-        self.state['lines'] = [l for l in self.state['lines'] if l not in lines_to_remove]
         for l in lines_to_remove:
-            self.state['shields'].pop(l.get('id'), None)
-            self.state['line_strengths'].pop(l.get('id'), None)
+            self._delete_line(l)
 
         # --- Generic and Custom Structure Cleanup from Registry ---
         for definition in structure_data.STRUCTURE_DEFINITIONS.values():

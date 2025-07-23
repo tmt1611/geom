@@ -107,9 +107,7 @@ class SacrificeActionsHandler:
         if lines_to_remove_by_proximity:
             # Primary effect happened
             for l in lines_to_remove_by_proximity:
-                if l in self.state['lines']: # Check if it wasn't already removed by cascade
-                    self.state['lines'].remove(l)
-                    self.state['shields'].pop(l.get('id'), None)
+                self.game._delete_line(l)
             
             return {
                 'success': True,
@@ -263,8 +261,7 @@ class SacrificeActionsHandler:
         original_coords = {'x': point_to_move['x'], 'y': point_to_move['y']}
 
         # Sacrifice the line first, as the action's cost is paid upfront
-        self.state['lines'].remove(line_to_sac)
-        self.state['shields'].pop(line_to_sac.get('id'), None)
+        self.game._delete_line(line_to_sac)
 
         # --- Try to find a new valid location ---
         new_coords = None
