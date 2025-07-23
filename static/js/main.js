@@ -4695,7 +4695,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.dataset.displayName = action.display_name;
                 card.dataset.description = action.description;
                 card.innerHTML = `
-                    <canvas width="300" height="150"></canvas>
+                    <canvas width="150" height="150"></canvas>
                     <div class="action-card-text">
                          <div class="action-card-header">
                             <h4>${action.display_name}</h4>

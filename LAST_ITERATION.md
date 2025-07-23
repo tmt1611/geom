@@ -1,13 +1,14 @@
-This iteration focused on improving the user experience of the "Action Guide" tab by introducing clear visual sections for each action category. This makes the guide easier to navigate and digest, addressing the request to "improve the layout... avoid cluttering".
+This iteration focuses on improving the layout and presentation of the "Action Guide" tab. The goal was to create a more compact and readable format for the action cards, addressing the suggestion to improve the layout and avoid clutter.
 
-### Action Guide Layout Improvements
+### Action Guide Layout Redesign
 
-1.  **Visual Grouping**: The Action Guide now renders actions within distinct sections for each category (Expand, Fight, Fortify, etc.). Each section is preceded by a large, clear header, breaking up the "wall of cards" and making the information more structured.
+1.  **Horizontal Card Layout**: The action cards have been redesigned from a vertical layout (illustration on top) to a horizontal one (illustration on the side).
+    *   The illustration canvas is now a fixed-size 150x150 square on the left, providing a consistent visual anchor for each card.
+    *   The action's title, group tag, and detailed description are placed to the right of the illustration.
+    *   This change makes each card shorter vertically, which allows more actions to be visible within the viewport simultaneously, making the guide feel more compact and easier to scan.
 
-2.  **Sticky Section Headers**: To enhance navigation within the guide, the section headers are now "sticky". As you scroll down the list of actions, the header for the current category remains visible at the top of the view, ensuring you always know which group of actions you are looking at.
+2.  **Adjusted Grid for Wider Cards**: To accommodate the new horizontal card format, the underlying CSS grid has been adjusted. The minimum width for each column is now larger, ensuring the new card layout has adequate space and remains responsive on various screen sizes.
 
-3.  **Unified Scrolling**: The scrolling behavior has been refined. Instead of each action group having its own grid, the entire guide content now scrolls as a single unit, which is a more standard and user-friendly interaction.
+3.  **Improved Typographic Alignment**: A small but impactful change was made to the alignment within each card's header. The vertical alignment has been set to `baseline`, which aligns the text of the action's title and its group tag along their bottom edge, resulting in a cleaner and more professional appearance.
 
-4.  **Minor Aesthetic Tweak**: The vertical alignment within each action card's header has been adjusted from `baseline` to `center`, providing better visual balance between the action's name and its category tag.
-
-These changes are primarily implemented in `static/css/style.css`, leveraging the existing JavaScript structure that already builds the guide in sections.
+These changes were implemented across `static/css/style.css` for the layout and `static/js/main.js` to update the canvas dimensions. Since all illustration functions use relative coordinates, they automatically adapted to the new square canvas without needing individual modifications.
