@@ -2,10 +2,10 @@
 from .action_data import ACTIONS
 from collections import defaultdict
 
-DEFAULT_TEAMS = {
-    'team_alpha_default': {'id': 'team_alpha_default', 'name': 'Team Alpha', 'color': '#ff4b4b', 'trait': 'Aggressive'},
-    'team_beta_default': {'id': 'team_beta_default', 'name': 'Team Beta', 'color': '#4b4bff', 'trait': 'Defensive'}
-}
+DEFAULT_TEAMS = [
+    {'id': 'team_alpha_default', 'name': 'Team Alpha', 'color': '#ff4b4b', 'trait': 'Aggressive'},
+    {'id': 'team_beta_default', 'name': 'Team Beta', 'color': '#4b4bff', 'trait': 'Defensive'}
+]
 
 # --- Static Game Data ---
 

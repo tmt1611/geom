@@ -57,7 +57,7 @@ class Game:
     def reset(self):
         """Initializes or resets the game state with default teams."""
         # Using fixed IDs for default teams ensures they can be referenced consistently.
-        default_teams = {tid: t.copy() for tid, t in game_data.DEFAULT_TEAMS.items()}
+        default_teams = {t['id']: t.copy() for t in game_data.DEFAULT_TEAMS}
         self.state = {
             "grid_size": 10,
             "teams": default_teams,
@@ -907,7 +907,7 @@ class Game:
                     for action_name in valid_actions:
                         action_list.append({
                             'name': action_name,
-                            'display_name': game_data.ACTION_DESCRIPTIONS.get(action_name, action_name),
+                            'display_name': action_data.ACTIONS[action_name].get('display_name', action_name),
                             'probability': round(action_prob, 1)
                         })
 

@@ -1,14 +1,9 @@
-This iteration focused on a significant code cleanup by refactoring how action metadata is accessed throughout the application. The goal was to make `action_data.py` the true single source of truth for all action properties, reducing redundancy and improving maintainability.
+This iteration focuses on cleaning up the codebase in both the Python backend and JavaScript frontend.
 
 **Key Changes:**
 
-1.  **Simplified `game_data.py`:**
-    *   Removed the large block of code that dynamically built several global dictionaries (`ACTION_MAP`, `ACTION_GROUPS`, etc.) at module load time.
-    *   Replaced these with simple helper functions (`get_action_groups`, `get_log_generators`) that derive the necessary data structures directly from `action_data.ACTIONS` when needed. This ensures data is always fresh and avoids maintaining parallel, redundant data structures.
+1.  **Bug Fix in Game Logic:** Fixed a critical bug in `game_logic.py` where the action probability calculation was referencing a non-existent dictionary (`game_data.ACTION_DESCRIPTIONS`), which would have caused a server error. The code now correctly retrieves the `display_name` from the single source of truth, `action_data.py`.
 
-2.  **Refactored `game_logic.py`:**
-    *   Modified all functions that previously used the dictionaries from `game_data` to access the information directly from `action_data.ACTIONS`.
-    *   This affects key logic areas, including action precondition checking (`_init_action_preconditions`), probability calculations (`get_action_probabilities`), action selection (`_choose_action_for_team`), and log message generation (`_get_action_log_messages`).
-    *   The logic is now more direct (e.g., using `action_data.ACTIONS[name]['group']` instead of `game_data.ACTION_NAME_TO_GROUP[name]`) and less prone to errors if new actions are added.
+2.  **Data Refactoring:** The `DEFAULT_TEAMS` data structure in `game_data.py` was refactored from a dictionary with redundant keys to a cleaner list of objects. The game's `reset()` method was updated to handle this improved structure. This reduces data redundancy and improves clarity.
 
-This refactoring makes the code cleaner, more robust, and easier to follow, as the flow of data from the central `action_data.py` file to its points of use is now explicit and direct.
+3.  **Frontend Code Organization:** The `main.js` file, which was becoming excessively large, has been split. All the illustration-drawing logic (`illustrationHelpers` and `illustrationDrawers`), which is static and self-contained, has been moved to a new `static/js/illustrations.js` file. This significantly slims down `main.js`, making it easier to navigate and maintain, and improves the overall organization of the frontend code.
