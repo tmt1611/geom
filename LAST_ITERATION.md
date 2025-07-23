@@ -1,19 +1,17 @@
-This iteration integrates the rune detection system into the main data-driven structure management registry, removing special-case code and making the system more unified and extensible.
+This iteration focuses on improving code organization by separating static text data from game logic configuration. This aligns with the goal of making text-based operations easier to manage.
 
 **Summary of Changes:**
 
-1.  **Centralize Rune Definitions (`structure_data.py`):**
-    *   All eleven rune types (`cross`, `v_shape`, `shield`, etc.) have been added as definitions to the `STRUCTURE_DEFINITIONS` registry.
-    *   A new `storage_type` called `team_dict_of_structures` was introduced to handle the unique storage pattern of runes (`state['runes'][teamId][rune_type]`).
-    *   Each rune definition now specifies its `structure_subtype_key` (e.g., 'cross'), `formation_checker` method, and required `formation_inputs`.
-    *   The `point_id_keys` have been defined for each rune, including a special `('list_of_lists', None)` type to handle formatters that return a simple list of point IDs.
+1.  **Created `game_app/text_data.py`:**
+    *   A new file, `text_data.py`, was created to house large, static dictionaries of text.
+    *   The `DEFAULT_TEAMS`, `ACTION_DESCRIPTIONS`, and `ACTION_VERBOSE_DESCRIPTIONS` dictionaries were moved from `game_data.py` to this new file.
 
-2.  **Generalize Structure Update Logic (`game_logic.py`):**
-    *   The `_update_structures_for_team` method was enhanced to handle the new `team_dict_of_structures` storage type, allowing it to manage runes just like any other structure.
-    *   The special-cased `_update_runes_for_team` method has been completely removed.
+2.  **Refactored `game_app/game_data.py`:**
+    *   This file now imports the text data from `text_data.py`.
+    *   The moved dictionaries are re-exported from `game_data.py` to maintain a single point of import for most other modules, preventing the need for widespread changes across the codebase. This keeps the API consistent for files like `game_logic.py` and `routes.py`.
 
-3.  **Unify Critical Point Detection (`game_logic.py`):**
-    *   The `_get_critical_structure_point_ids` method was updated to parse point IDs from rune definitions by understanding the new storage type and `point_id_keys`.
-    *   The now-redundant `_get_all_rune_point_ids` helper method has been deleted.
+3.  **Updated Project Configuration:**
+    *   `game_app/utils.py`: Added `game_app/text_data.py` to the `WATCHED_FILES` list to ensure the live-update detection system tracks changes to this new file.
+    *   `static/js/api.js`: Added `text_data.py` to the `pyodideFileStructure` list, ensuring it is loaded into the virtual filesystem when the application runs in static/Pyodide mode.
 
-This refactoring centralizes all structure and rune definitions into a single registry, making the system significantly cleaner, more consistent, and easier to extend. Adding or modifying runes now follows the exact same data-driven pattern as any other complex structure in the game.
+This change cleans up `game_data.py`, making it easier to see the core game balance data (weights, groups, etc.) without being cluttered by large blocks of text.

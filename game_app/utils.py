@@ -12,6 +12,7 @@ WATCHED_FILES = [
     'game_app/formations.py',
     'game_app/game_data.py',
     'game_app/structure_data.py',
+    'game_app/text_data.py',
     'game_app/turn_processor.py',
     'game_app/actions/expand_actions.py',
     'game_app/actions/fight_actions.py',
