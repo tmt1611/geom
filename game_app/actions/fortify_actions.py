@@ -541,17 +541,7 @@ class FortifyActionsHandler:
         mid1 = points_centroid(side1_pts)
         mid2 = points_centroid(side2_pts)
 
-        barricade_id = self.game._generate_id('bar')
-        new_barricade = {
-            'id': barricade_id,
-            'teamId': teamId,
-            'p1': mid1,
-            'p2': mid2,
-            'turns_left': 5
-        }
-
-        if 'barricades' not in self.state: self.state['barricades'] = []
-        self.state['barricades'].append(new_barricade)
+        new_barricade = self.game._create_temporary_barricade(teamId, mid1, mid2, 5)
 
         return {
             'success': True,

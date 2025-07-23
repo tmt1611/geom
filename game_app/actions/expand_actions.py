@@ -355,11 +355,7 @@ class ExpandActionsHandler:
                 new_x = p_origin['x'] + (new_vx / mag) * growth_length
                 new_y = p_origin['y'] + (new_vy / mag) * growth_length
 
-                grid_size = self.state['grid_size']
-                if not (0 <= new_x < grid_size and 0 <= new_y < grid_size):
-                    continue
-
-                new_point_coords = {"x": round(new_x), "y": round(new_y)}
+                new_point_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
                 is_valid, _ = self.game.is_spawn_location_valid(new_point_coords, teamId)
                 if not is_valid:
                     continue

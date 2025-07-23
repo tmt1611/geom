@@ -166,19 +166,8 @@ class SacrificeActionsHandler:
             }
         else:
             # Fallback Effect: Create a small fissure
-            fissure_id = self.game._generate_id('f')
             fissure_len = self.state['grid_size'] * 0.2
-            angle = random.uniform(0, math.pi)
-            p1 = {'x': sac_point_coords['x'] - (fissure_len / 2) * math.cos(angle), 'y': sac_point_coords['y'] - (fissure_len / 2) * math.sin(angle)}
-            p2 = {'x': sac_point_coords['x'] + (fissure_len / 2) * math.cos(angle), 'y': sac_point_coords['y'] + (fissure_len / 2) * math.sin(angle)}
-
-            grid_size = self.state['grid_size']
-            p1_new = clamp_and_round_point_coords(p1, grid_size)
-            p2_new = clamp_and_round_point_coords(p2, grid_size)
-
-            new_fissure = {'id': fissure_id, 'p1': p1_new, 'p2': p2_new, 'turns_left': 3}
-            if 'fissures' not in self.state: self.state['fissures'] = []
-            self.state['fissures'].append(new_fissure)
+            new_fissure = self.game._create_random_fissure(sacrificed_point_data, fissure_len, 3)
             return {
                 'success': True, 'type': 'whirlpool_fizzle_fissure',
                 'fissure': new_fissure, 'sacrificed_point': sacrificed_point_data

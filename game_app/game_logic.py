@@ -461,6 +461,40 @@ class Game:
                 self.state['shields'].pop(line_id, None)
                 self.state['line_strengths'].pop(line_id, None)
 
+    def _create_temporary_barricade(self, teamId, p1, p2, turns_left):
+        """Creates a temporary barricade and adds it to the game state."""
+        barricade_id = self._generate_id('bar')
+        new_barricade = {
+            'id': barricade_id, 'teamId': teamId,
+            'p1': {'x': p1['x'], 'y': p1['y']}, 'p2': {'x': p2['x'], 'y': p2['y']},
+            'turns_left': turns_left
+        }
+        self.state.setdefault('barricades', []).append(new_barricade)
+        return new_barricade
+
+    def _create_random_fissure(self, center_coords, length, turns_left):
+        """Creates a fissure of a given length, centered at given coordinates."""
+        grid_size = self.state['grid_size']
+        fissure_id = self._generate_id('f')
+        angle = random.uniform(0, math.pi)
+
+        half_len = length / 2
+        p1 = {
+            'x': center_coords['x'] - half_len * math.cos(angle),
+            'y': center_coords['y'] - half_len * math.sin(angle)
+        }
+        p2 = {
+            'x': center_coords['x'] + half_len * math.cos(angle),
+            'y': center_coords['y'] + half_len * math.sin(angle)
+        }
+
+        p1_clamped = clamp_and_round_point_coords(p1, grid_size)
+        p2_clamped = clamp_and_round_point_coords(p2, grid_size)
+
+        new_fissure = {'id': fissure_id, 'p1': p1_clamped, 'p2': p2_clamped, 'turns_left': turns_left}
+        self.state.setdefault('fissures', []).append(new_fissure)
+        return new_fissure
+
     def _push_points_in_radius(self, center, radius_sq, push_distance, points_to_check):
         """
         Pushes points from a given list within a radius away from a center point.

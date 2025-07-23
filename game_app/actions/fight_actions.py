@@ -245,13 +245,7 @@ class FightActionsHandler:
         if not p1 or not p2:
             return {'success': False, 'reason': 'points for fallback barricade do not exist'}
         
-        barricade_id = self.game._generate_id('bar')
-        new_barricade = {
-            'id': barricade_id, 'teamId': teamId,
-            'p1': {'x': p1['x'], 'y': p1['y']}, 'p2': {'x': p2['x'], 'y': p2['y']},
-            'turns_left': 2
-        }
-        self.state['barricades'].append(new_barricade)
+        new_barricade = self.game._create_temporary_barricade(teamId, p1, p2, 2)
         return {
             'success': True, 'type': 'pincer_fizzle_barricade',
             'barricade': new_barricade, 'pincer_points': [p1_id, p2_id]
@@ -473,25 +467,14 @@ class FightActionsHandler:
         else:
             # --- Fallback Effect: Create Fissure ---
             grid_size = self.state['grid_size']
-            fissure_id = self.game._generate_id('f')
-            fissure_len = self.state['grid_size'] * 0.3
+            fissure_len = grid_size * 0.3
             
             # Create fissure at a random location
             center_x = random.uniform(fissure_len, grid_size - fissure_len)
             center_y = random.uniform(fissure_len, grid_size - fissure_len)
-            angle = random.uniform(0, math.pi)
-
-            p1 = {'x': center_x - (fissure_len / 2) * math.cos(angle), 'y': center_y - (fissure_len / 2) * math.sin(angle)}
-            p2 = {'x': center_x + (fissure_len / 2) * math.cos(angle), 'y': center_y + (fissure_len / 2) * math.sin(angle)}
-
-            p1_new = clamp_and_round_point_coords(p1, grid_size)
-            p1['x'], p1['y'] = p1_new['x'], p1_new['y']
-            p2_new = clamp_and_round_point_coords(p2, grid_size)
-            p2['x'], p2['y'] = p2_new['x'], p2_new['y']
-
-            new_fissure = {'id': fissure_id, 'p1': p1, 'p2': p2, 'turns_left': 3}
-            if 'fissures' not in self.state: self.state['fissures'] = []
-            self.state['fissures'].append(new_fissure)
+            center_coords = {'x': center_x, 'y': center_y}
+            
+            new_fissure = self.game._create_random_fissure(center_coords, fissure_len, 3)
 
             return {
                 'success': True,
@@ -499,7 +482,7 @@ class FightActionsHandler:
                 'fissure': new_fissure,
                 'trebuchet_points': trebuchet['point_ids'],
                 'launch_point_id': trebuchet['apex_id'],
-                'impact_site': {'x': center_x, 'y': center_y}
+                'impact_site': center_coords
             }
 
     def sentry_zap(self, teamId):
@@ -901,13 +884,7 @@ class FightActionsHandler:
             
             self.game._delete_line(line_to_sac)
 
-            barricade_id = self.game._generate_id('bar')
-            new_barricade = {
-                'id': barricade_id, 'teamId': teamId,
-                'p1': {'x': p1['x'], 'y': p1['y']}, 'p2': {'x': p2['x'], 'y': p2['y']},
-                'turns_left': 2
-            }
-            self.state['barricades'].append(new_barricade)
+            new_barricade = self.game._create_temporary_barricade(teamId, p1, p2, 2)
             return {
                 'success': True, 'type': 'isolate_fizzle_barricade',
                 'barricade': new_barricade, 'sacrificed_line': line_to_sac

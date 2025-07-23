@@ -125,7 +125,7 @@ class RuneActionsHandler:
             fissure_id = self.game._generate_id('f')
             # The fissure is the segment from the vertex to the border
             new_fissure = {'id': fissure_id, 'p1': p_vertex, 'p2': border_point, 'turns_left': 2}
-            self.state['fissures'].append(new_fissure)
+            self.state.setdefault('fissures', []).append(new_fissure)
             return {
                 'success': True, 'type': 'vbeam_miss_fissure', 'fissure': new_fissure,
                 'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2}, 'rune_points': rune_points_payload
@@ -312,16 +312,9 @@ class RuneActionsHandler:
             }
         else:
             # --- Fallback Effect: Create Barricade ---
-            barricade_id = self.game._generate_id('bar')
-            new_barricade = {
-                'id': barricade_id,
-                'teamId': teamId,
-                'p1': {'x': attack_ray_p1['x'], 'y': attack_ray_p1['y']},
-                'p2': {'x': attack_ray_p2['x'], 'y': attack_ray_p2['y']},
-                'turns_left': 2 # A short-lived barricade
-            }
-            if 'barricades' not in self.state: self.state['barricades'] = []
-            self.state['barricades'].append(new_barricade)
+            new_barricade = self.game._create_temporary_barricade(
+                teamId, attack_ray_p1, attack_ray_p2, 2
+            )
 
             return {
                 'success': True,
@@ -631,20 +624,8 @@ class RuneActionsHandler:
             largest_enemy_team_id = max(enemy_team_points, key=lambda tid: len(enemy_team_points[tid]))
             enemy_centroid = points_centroid(enemy_team_points[largest_enemy_team_id])
 
-            fissure_id = self.game._generate_id('f')
             fissure_len = self.state['grid_size'] * 0.2
-            angle = random.uniform(0, math.pi)
-            p1 = {'x': enemy_centroid['x'] - (fissure_len / 2) * math.cos(angle), 'y': enemy_centroid['y'] - (fissure_len / 2) * math.sin(angle)}
-            p2 = {'x': enemy_centroid['x'] + (fissure_len / 2) * math.cos(angle), 'y': enemy_centroid['y'] + (fissure_len / 2) * math.sin(angle)}
-
-            grid_size = self.state['grid_size']
-            p1['x'] = round(max(0, min(grid_size - 1, p1['x'])))
-            p1['y'] = round(max(0, min(grid_size - 1, p1['y'])))
-            p2['x'] = round(max(0, min(grid_size - 1, p2['x'])))
-            p2['y'] = round(max(0, min(grid_size - 1, p2['y'])))
-
-            new_fissure = {'id': fissure_id, 'p1': p1, 'p2': p2, 'turns_left': 2}
-            self.state['fissures'].append(new_fissure)
+            new_fissure = self.game._create_random_fissure(enemy_centroid, fissure_len, 2)
             
             return {
                 'success': True,
