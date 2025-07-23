@@ -19,7 +19,7 @@ Users must be able to place points easily.
    * *Expand:* Create a new line segment connecting two same-team points.
    * *Fight:* Extend a line. If it hits an enemy line, that enemy line is removed.
 
-   Each team performs multiple actions per turn. Actions are picked randomly from the available pool and displayed to the user. The phase can proceed turn-by-turn or run rapidly until stopping criteria (e.g., turn limit) are met.
+   Each team performs one action per turn. Actions are picked randomly from the available pool and displayed to the user. The phase can proceed turn-by-turn or run rapidly until stopping criteria (e.g., turn limit) are met.
 
 3. **Interpret phase:**
    The system helps users examine the outcome. This can include scores (for sandbox use) or structural/visual analysis (for divination). Metrics might include triangle count, occupied area, line count, etc.
