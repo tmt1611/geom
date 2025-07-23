@@ -11,24 +11,59 @@ class ExpandActionsHandler:
     # --- Action Precondition Checks ---
 
     def can_perform_add_line(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) >= 2, "Requires at least 2 points."
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if len(team_point_ids) < 2:
+            return False, "Requires at least 2 points."
+
+        # Check if primary effect is possible
+        max_lines = len(team_point_ids) * (len(team_point_ids) - 1) / 2
+        num_existing_lines = len({tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.state['lines'] if l['teamId'] == teamId})
+        if max_lines > num_existing_lines:
+            return True, ""
+
+        # If primary is not possible, check if fallback is possible
+        if self.game.get_team_lines(teamId):
+            return True, ""
+        
+        return False, "No new lines can be added and no existing lines to strengthen."
 
     def can_perform_extend_line(self, teamId):
-        can_perform = len(self._find_possible_extensions(teamId)) > 0
-        return can_perform, "No lines can be validly extended."
+        # Primary needs a valid extension. Fallback needs any line to strengthen.
+        # So, the action is possible if there are any lines at all.
+        if len(self.game.get_team_lines(teamId)) > 0:
+            return True, ""
+        return False, "No lines to extend or strengthen."
 
     def can_perform_grow_line(self, teamId):
-        return len(self.game.get_team_lines(teamId)) > 0, "Requires at least 1 line to grow from."
+        # Primary needs a line, fallback needs a line. So one check is enough.
+        can_perform = len(self.game.get_team_lines(teamId)) > 0
+        return can_perform, "Requires at least 1 line to grow from or strengthen."
 
     def can_perform_fracture_line(self, teamId):
-        can_perform = len(self._find_fracturable_lines(teamId)) > 0
-        return can_perform, "No non-territory lines long enough to fracture."
+        # Primary needs a fracturable line. Fallback needs any line.
+        # So, the action is possible if there are any lines at all.
+        if len(self.game.get_team_lines(teamId)) > 0:
+            return True, ""
+        return False, "No lines to fracture or strengthen."
 
     def can_perform_spawn_point(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) > 0, "Requires at least 1 point to spawn from."
+        # Primary needs a point. Fallback needs a line.
+        can_spawn = len(self.game.get_team_point_ids(teamId)) > 0
+        can_strengthen = len(self.game.get_team_lines(teamId)) > 0
+        can_perform = can_spawn or can_strengthen
+        reason = "" if can_perform else "No points to spawn from and no lines to strengthen."
+        return can_perform, reason
 
     def can_perform_create_orbital(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) >= 5, "Requires at least 5 points."
+        # Primary needs >= 5 points. Fallback needs >=1 point and >0 lines.
+        num_points = len(self.game.get_team_point_ids(teamId))
+        if num_points >= 5:
+            return True, ""
+        
+        if num_points >= 1 and len(self.game.get_team_lines(teamId)) > 0:
+            return True, ""
+
+        return False, "Requires at least 5 points, or at least 1 point and 1 line for fallback."
 
     # --- End Precondition Checks ---
 

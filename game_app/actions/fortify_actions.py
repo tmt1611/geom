@@ -14,8 +14,11 @@ class FortifyActionsHandler:
         return len(self.game.get_team_lines(teamId)) > 0, "Requires at least one line to shield or overcharge."
 
     def can_perform_claim_territory(self, teamId):
-        can_perform = len(self._find_claimable_triangles(teamId)) > 0
-        return can_perform, "No new triangles available to claim."
+        can_claim = len(self._find_claimable_triangles(teamId)) > 0
+        can_reinforce = any(t['teamId'] == teamId for t in self.state.get('territories', []))
+        can_perform = can_claim or can_reinforce
+        reason = "" if can_perform else "No new triangles to claim and no existing territories to reinforce."
+        return can_perform, reason
 
     def can_perform_create_anchor(self, teamId):
         return len(self.game.get_team_point_ids(teamId)) >= 3, "Requires at least 3 points to sacrifice one."
@@ -78,8 +81,11 @@ class FortifyActionsHandler:
         return can_perform, "No valid mirror reflection found."
 
     def can_perform_form_bastion(self, teamId):
-        can_perform = len(self._find_possible_bastions(teamId)) > 0
-        return can_perform, "No valid bastion formation found."
+        can_form = len(self._find_possible_bastions(teamId)) > 0
+        can_reinforce = bool(self.game._get_fortified_point_ids().intersection(self.game.get_team_point_ids(teamId)))
+        can_perform = can_form or can_reinforce
+        reason = "" if can_perform else "No valid bastion formation and no fortified points to reinforce."
+        return can_perform, reason
 
     def _find_possible_monoliths_and_fallbacks(self, teamId):
         """Helper to find valid monoliths (tall rectangles) and regular rectangles for fallback reinforcement."""
@@ -171,8 +177,11 @@ class FortifyActionsHandler:
         return can_perform, "Requires an active Barricade Rune."
 
     def can_perform_reposition_point(self, teamId):
-        can_perform = bool(self.game._find_non_critical_sacrificial_point(teamId))
-        return can_perform, "No free points available to reposition."
+        can_reposition = bool(self.game._find_non_critical_sacrificial_point(teamId))
+        can_strengthen = len(self.game.get_team_lines(teamId)) > 0
+        can_perform = can_reposition or can_strengthen
+        reason = "" if can_perform else "No free points to reposition and no lines to strengthen."
+        return can_perform, reason
     
     def can_perform_build_chronos_spire(self, teamId):
         has_wonder = any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values())
