@@ -163,7 +163,7 @@ class FortifyActionsHandler:
             
             territory_to_reinforce = random.choice(team_territories)
             p_ids = territory_to_reinforce['point_ids']
-            boundary_lines_keys = [tuple(sorted((p_ids[0], p_ids[1]))), tuple(sorted((p_ids[1], p_ids[2]))), tuple(sorted((p_ids[2], p_ids[0])))]
+            boundary_lines_keys = self.game._get_territory_boundary_line_keys(territory_to_reinforce)
             
             strengthened_lines = []
             all_team_lines = self.game.get_team_lines(teamId)

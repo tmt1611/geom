@@ -277,9 +277,6 @@ class FightActionsHandler:
             return {'success': False, 'reason': 'not enough points for pincer attack'}
 
         enemy_points = self.game._get_vulnerable_enemy_points(teamId)
-        if not enemy_points:
-             p1_id, p2_id = random.sample(team_point_ids, 2)
-             return self._pincer_attack_fallback_barricade(teamId, p1_id, p2_id)
 
         points_map = self.state['points']
         max_range_sq = (self.state['grid_size'] * 0.4)**2
@@ -315,6 +312,8 @@ class FightActionsHandler:
                     'attacker_p1_id': p1_id, 'attacker_p2_id': p2_id, 'destroyed_team_name': destroyed_team_name
                 }
         
+        # --- Fallback: Create Barricade ---
+        # This block is reached if no targets were found in the loop or if there were no enemies to begin with.
         p1_id, p2_id = random.sample(team_point_ids, 2)
         return self._pincer_attack_fallback_barricade(teamId, p1_id, p2_id)
 
@@ -360,7 +359,7 @@ class FightActionsHandler:
             }
         else:
             p_ids = territory['point_ids']
-            boundary_lines_keys = [tuple(sorted((p_ids[0], p_ids[1]))), tuple(sorted((p_ids[1], p_ids[2]))), tuple(sorted((p_ids[2], p_ids[0])))]
+            boundary_lines_keys = self.game._get_territory_boundary_line_keys(territory)
             strengthened_lines = []
             for line in self.game.get_team_lines(teamId):
                 if tuple(sorted((line['p1_id'], line['p2_id']))) in boundary_lines_keys:

@@ -139,16 +139,10 @@ class ExpandActionsHandler:
         fracturable_lines = []
         
         # Get territory boundary lines to exclude them from fracturing
-        territory_lines = set()
-        for t in self.state.get('territories', []):
-            if t['teamId'] == teamId:
-                p_ids = t['point_ids']
-                territory_lines.add(tuple(sorted((p_ids[0], p_ids[1]))))
-                territory_lines.add(tuple(sorted((p_ids[1], p_ids[2]))))
-                territory_lines.add(tuple(sorted((p_ids[2], p_ids[0]))))
+        territory_line_keys = self.game._get_all_territory_boundary_line_keys(teamId)
 
         for line in team_lines:
-            if tuple(sorted((line['p1_id'], line['p2_id']))) in territory_lines:
+            if tuple(sorted((line['p1_id'], line['p2_id']))) in territory_line_keys:
                 continue
             if line['p1_id'] in points and line['p2_id'] in points:
                 p1 = points[line['p1_id']]

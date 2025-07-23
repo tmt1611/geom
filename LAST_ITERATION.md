@@ -1,13 +1,12 @@
-This iteration focuses on cleaning up the codebase by removing data duplication and refactoring a verbose function to be more maintainable and data-driven.
+This iteration focuses on cleaning up the codebase by refactoring duplicated logic into centralized helper methods, making the code more DRY (Don't Repeat Yourself).
 
-**Summary of Changes:**
+**Key Changes:**
 
-1.  **Completed Data Separation (`game_data.py`, `text_data.py`):**
-    *   The previous iteration had moved text dictionaries to `text_data.py` but left duplicated definitions in `game_data.py`.
-    *   I have now removed the duplicated `ACTION_DESCRIPTIONS` and `ACTION_VERBOSE_DESCRIPTIONS` dictionaries from `game_data.py`.
-    *   `game_data.py` now correctly imports these, along with `DEFAULT_TEAMS`, directly from `text_data.py`, making `text_data.py` the single source of truth for static game text. This eliminates redundancy and improves code organization.
+1.  **Centralized Territory Logic:**
+    *   Identified that the logic for finding the boundary lines of a claimed territory was duplicated across three different action handler files (`expand_actions.py`, `fight_actions.py`, `fortify_actions.py`).
+    *   Created two new helper methods in `game_logic.py`: `_get_territory_boundary_line_keys` (for a single territory) and `_get_all_territory_boundary_line_keys` (for all of a team's territories).
+    *   Refactored the three action handler files to use these new, centralized helpers, removing the repeated code blocks.
 
-2.  **Refactored Point Augmentation Logic (`game_logic.py`):**
-    *   The `_augment_points_for_frontend` method, which adds boolean flags to point objects for rendering, was a long, hardcoded block of checks.
-    *   I have refactored this function to be data-driven. A new dictionary, `POINT_AUGMENTATIONS`, now defines the relationship between a flag name (e.g., `'is_anchor'`) and the data source to check against.
-    *   The function now pre-fetches all necessary data sets and then iterates through this configuration dictionary, making the code cleaner, more declarative, and significantly easier to extend with new point statuses in the future.
+2.  **Simplified `pincer_attack` Logic:**
+    *   The `pincer_attack` method in `fight_actions.py` had two separate blocks of code that would trigger the same fallback effect (creating a barricade).
+    *   Refactored the method to remove the initial check, allowing the logic to flow naturally to a single fallback block at the end if no valid attack target is found. This makes the code shorter and easier to follow.

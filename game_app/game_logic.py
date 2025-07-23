@@ -317,6 +317,25 @@ class Game:
         """Returns lines belonging to a team."""
         return [l for l in self.state['lines'] if l['teamId'] == teamId]
 
+    def _get_territory_boundary_line_keys(self, territory):
+        """Returns a list of line keys for a single territory's boundaries."""
+        p_ids = territory.get('point_ids', [])
+        if len(p_ids) == 3:
+            return [
+                tuple(sorted((p_ids[0], p_ids[1]))),
+                tuple(sorted((p_ids[1], p_ids[2]))),
+                tuple(sorted((p_ids[2], p_ids[0])))
+            ]
+        return []
+
+    def _get_all_territory_boundary_line_keys(self, teamId):
+        """Returns a set of all line keys for a team's territory boundaries."""
+        boundary_keys = set()
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        for t in team_territories:
+            boundary_keys.update(self._get_territory_boundary_line_keys(t))
+        return boundary_keys
+
     def _get_fortified_point_ids(self):
         """Returns a set of all point IDs that are part of any claimed territory."""
         return {pid for t in self.state.get('territories', []) for pid in t['point_ids']}
