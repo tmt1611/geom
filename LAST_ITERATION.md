@@ -1,15 +1,29 @@
-This iteration focused on a significant code refactoring to improve encapsulation and maintainability, specifically around how action preconditions are checked.
+This iteration focuses on improving the user interface of the "Action Guide" tab, making it more visually appealing, compact, and informative by adding new illustrations.
 
-### 1. Decoupling Action Preconditions from `Game` Class
-- The large, hard-to-maintain dictionary of lambda functions inside `game_logic.py`'s `_get_all_actions_status` method has been removed.
-- **`game_app/actions/expand_actions.py`**: Added `can_perform_*` methods (e.g., `can_perform_add_line`) for each action in the handler. These methods encapsulate the logic for checking if an action is valid (e.g., having enough points, finding a valid target).
-- **`game_app/actions/fight_actions.py`**: Added corresponding `can_perform_*` methods for all fight-related actions.
-- **`game_app/actions/fortify_actions.py`**: Added corresponding `can_perform_*` methods for all fortify, defend, and terraform actions managed by this handler.
+### 1. Action Guide Layout Redesign
+The layout of the Action Guide has been significantly refactored for better readability and space efficiency.
 
-### 2. Centralized Precondition Dispatch in `game_logic.py`
-- A new method, `_init_action_preconditions`, was added to the `Game` class constructor.
-- This method creates a dispatch map (`self.action_preconditions`) that links action names (e.g., `'expand_add'`) to the new `can_perform_*` methods in their respective handlers.
-- For actions whose logic has not yet been moved to a handler (like `Sacrifice` and `Rune` actions), private helper methods (e.g., `_can_perform_sacrifice_nova`) were created within the `Game` class to contain their precondition logic, and these were also added to the dispatch map.
-- The `_get_all_actions_status` method was refactored into a simple loop that iterates through the `action_preconditions` map, calling the appropriate check for each action.
+- **File**: `static/css/style.css`
+- **Changes**:
+    - The grid now supports more compact cards (`minmax(300px, 1fr)`), allowing more actions to be visible on screen at once.
+    - Action cards now use a vertical layout (`flex-direction: column`), placing the illustration on top of the description. This creates a cleaner, more modern card design.
+    - The canvas for illustrations is now larger (`100%` width, `150px` height) to accommodate more detailed visuals.
+    - Paddings, gaps, and text styles within the cards were adjusted to reduce clutter and improve the presentation of information.
 
-This refactoring makes the `Game` class less aware of the internal logic of each action, delegating that responsibility to the specialized handlers. This improves code organization, reduces coupling, and makes it easier to add or modify actions and their validation rules in the future.
+- **File**: `static/js/main.js`
+- **Changes**:
+    - The JavaScript function that dynamically creates the action cards has been updated to generate the new HTML structure (placing the `<canvas>` outside the `.action-card-text` div).
+    - The canvas resolution was increased to `300x150` to match the new aspect ratio and provide a sharper drawing surface for the illustrations.
+
+### 2. New Action Illustrations
+To make the guide more useful, several previously un-illustrated actions now have custom visuals.
+
+- **File**: `static/js/main.js`
+- **Changes**:
+    - Added new drawing functions to the `illustrationDrawers` object for the following actions:
+        - `rune_starlight_cascade`: Shows a Star Rune sacrificing a point to create a damaging area-of-effect blast.
+        - `rune_focus_beam`: Depicts a Star Rune firing a concentrated beam at a high-value enemy structure.
+        - `rune_cardinal_pulse`: Illustrates the consumption of a Plus Rune to fire four destructive beams in cardinal directions.
+    - All illustration functions were updated to draw on the new, larger `300x150` canvas.
+
+These changes result in a more professional and user-friendly Action Guide that better communicates the function of each game mechanic.
