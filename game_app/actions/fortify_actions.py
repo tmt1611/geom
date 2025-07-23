@@ -162,22 +162,13 @@ class FortifyActionsHandler:
                 return {'success': False, 'reason': 'no new triangles to claim and no existing territories to reinforce'}
             
             territory_to_reinforce = random.choice(team_territories)
-            p_ids = territory_to_reinforce['point_ids']
-            boundary_lines_keys = self.game._get_territory_boundary_line_keys(territory_to_reinforce)
-            
-            strengthened_lines = []
-            all_team_lines = self.game.get_team_lines(teamId)
-            
-            for line in all_team_lines:
-                if tuple(sorted((line['p1_id'], line['p2_id']))) in boundary_lines_keys:
-                    if self.game._strengthen_line(line):
-                        strengthened_lines.append(line)
+            strengthened_lines = self.game._reinforce_territory_boundaries(territory_to_reinforce)
             
             # The action is 'successful' even if no lines were strengthened (they might be maxed out)
             # The log message will reflect if lines were strengthened or not.
             return {
                 'success': True, 'type': 'claim_fizzle_reinforce',
-                'territory_point_ids': p_ids, 'strengthened_lines': strengthened_lines
+                'territory_point_ids': territory_to_reinforce['point_ids'], 'strengthened_lines': strengthened_lines
             }
 
     def _find_possible_bastions(self, teamId):

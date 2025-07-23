@@ -1,11 +1,15 @@
-This iteration focuses on a significant code cleanup by refactoring how frontend visualization flags for points are generated. The goal is to make this process more modular, maintainable, and data-driven by leveraging the existing `structure_data.py` registry, adhering to the DRY (Don't Repeat Yourself) principle.
+This iteration focuses on improving code quality by refactoring duplicated logic into centralized helper methods, following the DRY (Don't Repeat Yourself) principle.
 
 ### Key Changes:
 
-1.  **Data-Driven Point Augmentation:** The `_get_structure_point_ids_by_type` method in `game_logic.py`, which gathers point IDs for special rendering flags, was previously hardcoded. It has been completely rewritten to be dynamically driven by the `STRUCTURE_DEFINITIONS` registry. This eliminates the need to manually update this function whenever a new visual structure is added to the game.
+1.  **Created `_push_points_in_radius` Helper:**
+    -   Identified that several actions (`convert_point`, `bastion_pulse`, `purify_territory`, `nova_burst`) contained nearly identical code for creating a "shockwave" or "push" effect that moves points away from a central location.
+    -   Extracted this logic into a single, reusable helper method, `_push_points_in_radius`, within `game_logic.py`.
+    -   Refactored the four affected actions across `fight_actions.py` and `sacrifice_actions.py` to use this new helper, making their code shorter, cleaner, and easier to maintain.
 
-2.  **Enhanced Structure Registry:** To support the refactoring, the `STRUCTURE_DEFINITIONS` in `structure_data.py` has been enhanced with new metadata keys (`frontend_flag_key` and `frontend_flag_keys`). These keys explicitly link a structure's definition to the specific flags used by the frontend, making the connection clear and easy to manage.
+2.  **Created `_reinforce_territory_boundaries` Helper:**
+    -   Observed that the fallback logic for both the `claim_territory` and `territory_strike` actions involved reinforcing the boundary lines of an existing territory.
+    -   Consolidated this logic into a new helper method, `_reinforce_territory_boundaries`, within `game_logic.py`.
+    -   Updated both actions in `fortify_actions.py` and `fight_actions.py` to call this helper, reducing code duplication and improving clarity.
 
-3.  **Improved I-Rune Definition:** The definition for `rune_i_shape` was updated to include all its distinct point lists (`point_ids`, `internal_points`, `endpoints`). This allows the new data-driven system to correctly identify all specialized points within the I-Rune (such as the "sentry eye" and "posts") for unique visual rendering.
-
-These changes centralize the logic for identifying structure points, reduce code redundancy, and make it simpler to add new structures with unique visual properties in the future.
+These changes enhance the maintainability of the codebase by centralizing common game mechanics, making future modifications to these effects much simpler.

@@ -117,25 +117,8 @@ class SacrificeActionsHandler:
             }
         else:
             # Fallback Effect: Push points
-            pushed_points = []
-            push_distance = 2.0
-            grid_size = self.state['grid_size']
-            for point in self.state['points'].values():
-                if distance_sq(sac_point_coords, point) < blast_radius_sq:
-                    dx = point['x'] - sac_point_coords['x']
-                    dy = point['y'] - sac_point_coords['y']
-                    dist = math.sqrt(dx**2 + dy**2)
-                    if dist < 0.1: continue
-
-                    push_vx = dx / dist
-                    push_vy = dy / dist
-
-                    new_x = point['x'] + push_vx * push_distance
-                    new_y = point['y'] + push_vy * push_distance
-                    
-                    new_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, grid_size)
-                    point['x'], point['y'] = new_coords['x'], new_coords['y']
-                    pushed_points.append(point.copy())
+            points_to_push = list(self.state['points'].values())
+            pushed_points = self.game._push_points_in_radius(sac_point_coords, blast_radius_sq, 2.0, points_to_push)
             
             return {
                 'success': True,

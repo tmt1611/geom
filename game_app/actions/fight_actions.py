@@ -229,19 +229,9 @@ class FightActionsHandler:
                 'sacrificed_line': line_to_sac, 'original_team_name': original_team_name
             }
         else:
-            pushed_points = []
-            push_distance = 2.0
-            grid_size = self.state['grid_size']
-            for point in [p for p in self.state['points'].values() if p['teamId'] != teamId]:
-                if distance_sq(midpoint, point) < conversion_range_sq:
-                    dx, dy = point['x'] - midpoint['x'], point['y'] - midpoint['y']
-                    dist = math.sqrt(dx**2 + dy**2)
-                    if dist < 0.1: continue
-                    new_x = point['x'] + (dx / dist) * push_distance
-                    new_y = point['y'] + (dy / dist) * push_distance
-                    new_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, grid_size)
-                    point['x'], point['y'] = new_coords['x'], new_coords['y']
-                    pushed_points.append(point.copy())
+            # Fallback: Repulsive pulse
+            points_to_push = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+            pushed_points = self.game._push_points_in_radius(midpoint, conversion_range_sq, 2.0, points_to_push)
             return {
                 'success': True, 'type': 'convert_fizzle_push', 'sacrificed_line': line_to_sac,
                 'pulse_center': midpoint, 'radius_sq': conversion_range_sq, 'pushed_points_count': len(pushed_points)
@@ -355,13 +345,7 @@ class FightActionsHandler:
                 'destroyed_team_name': destroyed_team_name
             }
         else:
-            p_ids = territory['point_ids']
-            boundary_lines_keys = self.game._get_territory_boundary_line_keys(territory)
-            strengthened_lines = []
-            for line in self.game.get_team_lines(teamId):
-                if tuple(sorted((line['p1_id'], line['p2_id']))) in boundary_lines_keys:
-                    if self.game._strengthen_line(line):
-                        strengthened_lines.append(line)
+            strengthened_lines = self.game._reinforce_territory_boundaries(territory)
             return {
                 'success': True, 'type': 'territory_fizzle_reinforce',
                 'territory_point_ids': territory['point_ids'], 'strengthened_lines': strengthened_lines
@@ -414,24 +398,9 @@ class FightActionsHandler:
 
         # --- Fallback Effect: Shockwave ---
         else:
-            pushed_points = []
-            push_distance = 2.0
-            grid_size = self.state['grid_size']
             blast_radius_sq = (self.state['grid_size'] * 0.2)**2
-
-            for point in self.state['points'].values():
-                if distance_sq(sacrificed_prong_data, point) < blast_radius_sq:
-                    dx, dy = point['x'] - sacrificed_prong_data['x'], point['y'] - sacrificed_prong_data['y']
-                    dist = math.sqrt(dx**2 + dy**2)
-                    if dist < 0.1: continue
-
-                    push_vx, push_vy = dx / dist, dy / dist
-                    new_x = point['x'] + push_vx * push_distance
-                    new_y = point['y'] + push_vy * push_distance
-                    
-                    new_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, grid_size)
-                    point['x'], point['y'] = new_coords['x'], new_coords['y']
-                    pushed_points.append(point.copy())
+            points_to_push = list(self.state['points'].values())
+            pushed_points = self.game._push_points_in_radius(sacrificed_prong_data, blast_radius_sq, 2.0, points_to_push)
             
             return {
                 'success': True, 'type': 'bastion_pulse_fizzle_shockwave',
@@ -871,22 +840,8 @@ class FightActionsHandler:
         pulse_center = points_centroid(purifier_points)
         pulse_radius_sq = (self.state['grid_size'] * 0.25)**2
         
-        pushed_points = []
-        push_distance = 2.5
-        grid_size = self.state['grid_size']
-
-        for point in [p for p in self.state['points'].values() if p['teamId'] != teamId]:
-            if distance_sq(pulse_center, point) < pulse_radius_sq:
-                dx = point['x'] - pulse_center['x']
-                dy = point['y'] - pulse_center['y']
-                dist = math.sqrt(dx**2 + dy**2)
-                if dist < 0.1: continue
-
-                new_x = point['x'] + (dx / dist) * push_distance
-                new_y = point['y'] + (dy / dist) * push_distance
-                new_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, grid_size)
-                point['x'], point['y'] = new_coords['x'], new_coords['y']
-                pushed_points.append(point.copy())
+        points_to_push = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        pushed_points = self.game._push_points_in_radius(pulse_center, pulse_radius_sq, 2.5, points_to_push)
         
         return {
             'success': True, 'type': 'purify_fizzle_push',

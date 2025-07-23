@@ -6,7 +6,8 @@ from .geometry import (
     distance_sq, on_segment, orientation, segments_intersect,
     get_segment_intersection_point, is_ray_blocked, get_extended_border_point,
     polygon_area, points_centroid, polygon_perimeter, get_convex_hull,
-    is_spawn_location_valid as geom_is_spawn_location_valid
+    is_spawn_location_valid as geom_is_spawn_location_valid,
+    clamp_and_round_point_coords
 )
 from .formations import FormationManager
 from . import game_data
@@ -363,6 +364,17 @@ class Game:
             boundary_keys.update(self._get_territory_boundary_line_keys(t))
         return boundary_keys
 
+    def _reinforce_territory_boundaries(self, territory):
+        """Strengthens the boundary lines of a given territory. Returns list of strengthened lines."""
+        teamId = territory['teamId']
+        boundary_lines_keys = self._get_territory_boundary_line_keys(territory)
+        strengthened_lines = []
+        for line in self.get_team_lines(teamId):
+            if tuple(sorted((line['p1_id'], line['p2_id']))) in boundary_lines_keys:
+                if self._strengthen_line(line):
+                    strengthened_lines.append(line)
+        return strengthened_lines
+
     def _get_fortified_point_ids(self):
         """Returns a set of all point IDs that are part of any claimed territory."""
         return {pid for t in self.state.get('territories', []) for pid in t['point_ids']}
@@ -461,6 +473,31 @@ class Game:
             if line_id:
                 self.state['shields'].pop(line_id, None)
                 self.state['line_strengths'].pop(line_id, None)
+
+    def _push_points_in_radius(self, center, radius_sq, push_distance, points_to_check):
+        """
+        Pushes points from a given list within a radius away from a center point.
+        Modifies points in-place.
+        Returns a list of points that were moved.
+        """
+        pushed_points = []
+        grid_size = self.state['grid_size']
+
+        for point in points_to_check:
+            if distance_sq(center, point) < radius_sq:
+                dx = point['x'] - center['x']
+                dy = point['y'] - center['y']
+                dist = math.sqrt(dx**2 + dy**2)
+                if dist < 0.1: continue
+
+                new_x = point['x'] + (dx / dist) * push_distance
+                new_y = point['y'] + (dy / dist) * push_distance
+                
+                new_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, grid_size)
+                point['x'], point['y'] = new_coords['x'], new_coords['y']
+                pushed_points.append(point.copy())
+                
+        return pushed_points
 
     def _cleanup_structures_for_point(self, point_id):
         """Helper to remove a point from all associated secondary structures after it has been deleted."""
