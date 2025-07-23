@@ -237,14 +237,9 @@ class FortifyActionsHandler:
             lines_to_strengthen = [l for l in self.game.get_team_lines(teamId) if l['p1_id'] == point_to_reinforce_id or l['p2_id'] == point_to_reinforce_id]
             
             strengthened_lines = []
-            max_strength = 3
             for line in lines_to_strengthen:
-                line_id = line.get('id')
-                if line_id:
-                    current_strength = self.state['line_strengths'].get(line_id, 0)
-                    if current_strength < max_strength:
-                        self.state['line_strengths'][line_id] = current_strength + 1
-                        strengthened_lines.append(line)
+                if self.game._strengthen_line(line):
+                    strengthened_lines.append(line)
             
             return {
                 'success': True, 'type': 'bastion_fizzle_reinforce',
@@ -870,17 +865,12 @@ class FortifyActionsHandler:
             return {'success': False, 'reason': 'could not select points to mirror'}
 
         strengthened_lines = []
-        max_strength = 3
         all_team_lines = self.game.get_team_lines(teamId)
         
         for line in all_team_lines:
             if line['p1_id'] in points_to_strengthen_ids or line['p2_id'] in points_to_strengthen_ids:
-                line_id = line.get('id')
-                if line_id:
-                    current_strength = self.state['line_strengths'].get(line_id, 0)
-                    if current_strength < max_strength:
-                        self.state['line_strengths'][line_id] = current_strength + 1
-                        strengthened_lines.append(line)
+                if self.game._strengthen_line(line):
+                    strengthened_lines.append(line)
         
         if not strengthened_lines:
             # This can happen if the chosen points have no lines or their lines are max strength.

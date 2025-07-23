@@ -807,13 +807,10 @@ class RuneActionsHandler:
         else:
             # Fallback: Strengthen the stem lines
             strengthened_lines = []
-            max_strength = 3
             stem_lines_keys = [tuple(sorted((rune['mid_id'], rune['stem1_id']))), tuple(sorted((rune['mid_id'], rune['stem2_id'])))]
             for line in self.game.get_team_lines(teamId):
                 if tuple(sorted((line['p1_id'], line['p2_id']))) in stem_lines_keys:
-                    line_id = line.get('id')
-                    if line_id and self.state['line_strengths'].get(line_id, 0) < max_strength:
-                        self.state['line_strengths'][line_id] = self.state['line_strengths'].get(line_id, 0) + 1
+                    if self.game._strengthen_line(line):
                         strengthened_lines.append(line)
             
             return {

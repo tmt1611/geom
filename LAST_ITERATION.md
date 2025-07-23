@@ -1,9 +1,12 @@
-This iteration introduces a significant code cleanup by refactoring line deletion logic into a centralized helper method. This adheres to the DRY (Don't Repeat Yourself) principle and makes the codebase cleaner and easier to maintain.
+This iteration introduces two significant code cleanup efforts to improve code quality and maintainability, adhering to the DRY (Don't Repeat Yourself) principle.
 
 **Key Changes:**
 
-1.  **Centralized Line Deletion Logic:**
-    *   Identified that the logic for deleting a line and its associated properties (shields, strength) was duplicated across more than 10 different methods in the 5 action handler files.
-    *   Created a new helper method, `_delete_line(line_to_delete)`, in `game_logic.py`. This method robustly removes a line from the main list and also cleans up its corresponding entries in the `shields` and `line_strengths` dictionaries.
-    *   Refactored `_cleanup_structures_for_point` to use this new helper, simplifying its own logic for removing lines connected to a deleted point.
-    *   Replaced all manual line deletion code blocks in `expand_actions.py`, `fight_actions.py`, `rune_actions.py`, and `sacrifice_actions.py` with a single call to the new `_delete_line` helper. This greatly reduces code duplication and ensures that line deletion is handled consistently everywhere.
+1.  **Refactored Sacrificial Point Selection:**
+    *   The `_find_non_critical_sacrificial_point` method in `game_logic.py` was refactored for clarity and performance.
+    *   It previously contained a complex, inefficient implementation for detecting articulation points (critical connection points).
+    *   It now reuses the existing, more efficient `_find_articulation_points` helper method. This change makes the code shorter, faster, and its logic easier to follow.
+
+2.  **Centralized Line Strengthening Logic:**
+    *   Identified that the logic for strengthening a line (increasing its strength stat up to a maximum) was duplicated across multiple action handler files (`expand_actions.py`, `fortify_actions.py`, `rune_actions.py`).
+    *   Replaced all instances of this manual logic with a call to the centralized `_strengthen_line` helper in `game_logic.py`. This reduces code duplication and ensures that line strengthening is handled consistently everywhere.

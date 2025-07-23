@@ -315,14 +315,9 @@ class ExpandActionsHandler:
              return {'success': False, 'reason': 'could not find a valid position for an orbital and no lines to strengthen'}
         
         strengthened_lines_info = []
-        max_strength = 3
         for line in lines_to_strengthen:
-            line_id = line.get('id')
-            if line_id:
-                current_strength = self.state['line_strengths'].get(line_id, 0)
-                if current_strength < max_strength:
-                    self.state['line_strengths'][line_id] = current_strength + 1
-                    strengthened_lines_info.append(line)
+            if self.game._strengthen_line(line):
+                strengthened_lines_info.append(line)
 
         return {
             'success': True, 'type': 'orbital_fizzle_strengthen',

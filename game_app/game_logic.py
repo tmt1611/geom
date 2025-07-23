@@ -627,56 +627,34 @@ class Game:
         if len(team_point_ids) <= 2:
             return None
 
+        # 1. Exclude points from critical structures
         critical_structure_pids = self._get_critical_structure_point_ids(teamId)
-        
         candidate_pids = [pid for pid in team_point_ids if pid not in critical_structure_pids]
 
         if not candidate_pids:
             return None
 
-        # 2. Build adjacency list to check for articulation points.
+        # 2. Find and exclude articulation points.
+        articulation_point_pids = set(self._find_articulation_points(teamId))
+        safe_candidates = [pid for pid in candidate_pids if pid not in articulation_point_pids]
+
+        if not safe_candidates:
+            return None
+
+        # 3. Prioritize leaf nodes (degree 1) among safe candidates, as they are the safest.
         adj = {pid: set() for pid in team_point_ids}
         for line in self.get_team_lines(teamId):
             if line['p1_id'] in adj and line['p2_id'] in adj:
                 adj[line['p1_id']].add(line['p2_id'])
                 adj[line['p2_id']].add(line['p1_id'])
         
-        # Prefer points with degree 1 (leaves), which are never articulation points.
-        degree_one_candidates = [pid for pid in candidate_pids if len(adj.get(pid, set())) == 1]
-        if degree_one_candidates:
-            return random.choice(degree_one_candidates)
-
-        # Check other candidates for being articulation points.
-        def count_components(nodes, adjacency_list):
-            if not nodes: return 0
-            visited, count = set(), 0
-            for node in nodes:
-                if node not in visited:
-                    count += 1
-                    stack = [node]
-                    visited.add(node)
-                    while stack:
-                        curr = stack.pop()
-                        for neighbor in adjacency_list.get(curr, set()):
-                            if neighbor in nodes and neighbor not in visited:
-                                visited.add(neighbor)
-                                stack.append(neighbor)
-            return count
-
-        initial_components = count_components(set(team_point_ids), adj)
+        leaf_candidates = [pid for pid in safe_candidates if len(adj.get(pid, set())) == 1]
         
-        non_articulation_points = []
-        for pid in candidate_pids:
-            if len(adj.get(pid, set())) > 1:
-                remaining_nodes = set(team_point_ids) - {pid}
-                if count_components(remaining_nodes, adj) <= initial_components:
-                    non_articulation_points.append(pid)
+        if leaf_candidates:
+            return random.choice(leaf_candidates)
         
-        if non_articulation_points:
-            return random.choice(non_articulation_points)
-
-        # All remaining candidates are articulation points. Don't sacrifice.
-        return None
+        # If no leaves, return any other safe candidate.
+        return random.choice(safe_candidates)
 
     def _find_articulation_points(self, teamId):
         """Finds all articulation points (cut vertices) for a team's graph."""
