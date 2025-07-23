@@ -1,13 +1,7 @@
-This iteration focuses on two key areas: refactoring the backend code for cleanliness and improving the UI of the "Action Guide" for better usability and compactness.
+This iteration delivers a mix of a critical bug fix, a code refactoring, and a user interface enhancement.
 
-### 1. Code Cleanup: Removing Dead Code
-A previous refactoring had moved all "Rune" action logic from the main `game_logic.py` file into a dedicated `RuneActionsHandler`. However, the original methods were left behind in `game_logic.py`, creating a significant amount of dead, unreachable code. This has now been removed, making the `Game` class smaller and easier to navigate, and ensuring that all action logic resides solely within its designated handler.
+1.  **Critical Bugfix for Static/Pyodide Mode**: A major issue was discovered in `static/js/api.js` where the Pyodide (WebAssembly) backend was not loading all the necessary Python action handler files. Specifically, `rune_actions.py` and `sacrifice_actions.py` were missing from the list of files to be loaded into the virtual filesystem. This would have caused the application to crash when running in static mode (e.g., on GitHub Pages) as soon as a Rune or Sacrifice action was attempted. This has been corrected by adding the missing files to the load list, ensuring the static version of the game is fully functional.
 
-### 2. UI Improvement: Redesigning the Action Guide
-The Action Guide tab has been redesigned to be more compact and visually scannable, addressing the user's request to avoid clutter and improve presentation.
+2.  **Code Refactoring for Cleanliness**: In `game_logic.py`, the complex logic for identifying all points belonging to various rune structures was scattered and difficult to maintain due to inconsistent data structures. To clean this up, a new helper method, `_get_all_rune_point_ids`, was created. This method encapsulates the logic for parsing all rune types. The original logic inside `_find_non_critical_sacrificial_point` has been replaced with a single call to this new, clean helper function, improving code readability and maintainability.
 
-- **New Layout**: The action cards now use a horizontal, two-column layout. The illustration appears on the left, and the title, category, and description are on the right.
-- **Improved Compactness**: This new layout makes each card shorter, allowing more actions to be visible on the screen simultaneously, which reduces the need for vertical scrolling.
-- **Canvas Resizing**: The illustration canvases have been resized to fit the new card dimensions (150x120px), and the drawing functions have been updated accordingly.
-
-These changes result in a cleaner codebase and a more user-friendly interface for browsing the game's complex actions.
+3.  **UI Improvement for Action Guide**: To address the user's request for a more compact Action Guide, several minor CSS adjustments were made in `static/css/style.css`. The minimum width of action cards was reduced, and internal padding, gaps, and font sizes were tweaked. These changes result in a slightly tighter and more information-dense layout, allowing more actions to be visible on screen at once.

@@ -512,6 +512,33 @@ class Game:
             'strengthened_line': line_to_strengthen
         }
 
+    def _get_all_rune_point_ids(self, teamId):
+        """Helper to get a set of all point IDs involved in any rune for a team."""
+        rune_pids = set()
+        team_runes_data = self.state.get('runes', {}).get(teamId, {})
+        if not team_runes_data:
+            return rune_pids
+
+        for rune_category in team_runes_data.values():
+            for rune_instance in rune_category:
+                if isinstance(rune_instance, list):
+                    # For simple runes that are just a list of point IDs (e.g., barricade, cross)
+                    rune_pids.update(rune_instance)
+                elif isinstance(rune_instance, dict):
+                    # Check for common keys that hold all point IDs
+                    for key in ['all_points', 'point_ids', 'all_point_ids']:
+                        if key in rune_instance and rune_instance[key]:
+                            rune_pids.update(rune_instance[key])
+                    # Check for component keys
+                    for key in ['cycle_ids', 'triangle_ids', 'prong_ids', 'arm_ids', 'endpoints', 'internal_points']:
+                        if key in rune_instance and rune_instance[key]:
+                            rune_pids.update(rune_instance[key])
+                    # Check for single point ID keys
+                    for key in ['core_id', 'vertex_id', 'handle_id', 'apex_id', 'center_id', 'mid_id', 'stem1_id', 'stem2_id', 'head_id']:
+                        if key in rune_instance and rune_instance[key]:
+                            rune_pids.add(rune_instance[key])
+        return rune_pids
+
     def _find_non_critical_sacrificial_point(self, teamId):
         """
         Finds a point that can be sacrificed without crippling the team.
@@ -530,17 +557,7 @@ class Game:
         trebuchet_pids = {pid for trebuchet_list in self.state.get('trebuchets', {}).values() for trebuchet in trebuchet_list for pid in trebuchet.get('point_ids', [])}
         purifier_pids = {pid for purifier_list in self.state.get('purifiers', {}).values() for purifier in purifier_list for pid in purifier.get('point_ids', [])}
         
-        rune_pids = set()
-        team_runes_data = self.state.get('runes', {}).get(teamId, {})
-        for rune_category in team_runes_data.values():
-            for rune_instance in rune_category:
-                if isinstance(rune_instance, list):
-                    rune_pids.update(rune_instance)
-                elif isinstance(rune_instance, dict):
-                    for key in ['point_ids', 'all_points', 'cycle_ids', 'triangle_ids', 'prong_ids', 'arm_ids']:
-                        if key in rune_instance and rune_instance[key]: rune_pids.update(rune_instance[key])
-                    for key in ['core_id', 'vertex_id', 'handle_id', 'apex_id', 'center_id', 'mid_id', 'stem1_id', 'stem2_id', 'head_id']:
-                        if key in rune_instance and rune_instance[key]: rune_pids.add(rune_instance[key])
+        rune_pids = self._get_all_rune_point_ids(teamId)
         
         critical_structure_pids = fortified_point_ids.union(
             bastion_pids['cores'], bastion_pids['prongs'],
