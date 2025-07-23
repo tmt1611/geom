@@ -924,8 +924,8 @@ body.game-running .game-column {
 
 .action-guide-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
     flex-grow: 1;
     overflow-y: auto;
     padding: 10px;
@@ -937,7 +937,7 @@ body.game-running .game-column {
     background-color: #fff;
     box-shadow: 0 2px 4px rgba(0,0,0,0.06);
     display: flex;
-    flex-direction: row; /* Illustration and text side-by-side */
+    flex-direction: column; /* Illustration on top */
     gap: 0;
     padding: 0;
     transition: box-shadow 0.2s, transform 0.2s;
@@ -952,7 +952,7 @@ body.game-running .game-column {
     flex-direction: column;
     flex-grow: 1;
     gap: 4px;
-    padding: 8px 10px;
+    padding: 10px 12px;
 }
 .action-card-header {
     padding: 0;
@@ -983,10 +983,10 @@ body.game-running .game-column {
 .action-card-header .action-group--sacrifice { background-color: #d35400; }
 .action-card-header .action-group--rune { background-color: #8e44ad; }
 .action-card canvas {
-    width: 120px; /* Fixed width for illustration */
-    height: 100px; /* Fixed height */
+    width: 100%; /* Full width */
+    height: 150px; /* Fixed height, aspect ratio controlled by canvas attributes */
     background-color: #fdfdfd;
-    border-right: 1px solid #dfe4ea; /* Separator */
+    border-bottom: 1px solid #dfe4ea; /* Separator */
     border-radius: 0;
     flex-shrink: 0;
 }

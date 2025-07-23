@@ -1,5 +1,13 @@
-This iteration focuses on cleaning the Python codebase by refactoring for better separation of concerns and simplifying complex functions.
+This iteration focuses on improving the "Action Guide" tab by making the layout more compact and refining the illustrations. The action cards are now arranged in a vertical layout (illustration on top of text) which allows for more cards to be visible on screen at once. Additionally, the illustrations themselves have been upscaled and their drawing parameters adjusted to look sharper and better proportioned in the new layout.
 
-1.  **Refactoring Geometry Functions**: The `_get_extended_border_point` and `_is_ray_blocked` methods were previously stateful methods within the main `Game` class, accessing `self.state` directly. They have been refactored into pure functions in `geometry.py` (`get_extended_border_point` and `is_ray_blocked`), which now receive necessary state information (like `grid_size`, `fissures`, `barricades`) as arguments. The original methods in `game_logic.py` have been converted into thin wrappers that call these new, pure geometry functions. This change improves code organization by moving pure geometric calculations into the `geometry` module, enhancing separation of concerns and making the code easier to test and reason about.
+### Action Guide Layout Improvements
 
-2.  **Simplifying Complex Action Logic**: The `attack_line` method in `fight_actions.py` was a large, multi-step function responsible for finding a target, handling a successful hit (including damage vs. destruction), and handling a miss. To improve readability and maintainability, this logic has been broken down into three smaller, more focused private helper methods: `_find_closest_attack_hit`, `_handle_attack_hit`, and `_handle_attack_miss`. The main `attack_line` method now serves as a coordinator, orchestrating calls to these helpers, which makes its logic significantly clearer and more manageable.
+1.  **Vertical Card Layout**: The CSS for `.action-card` was changed from `flex-direction: row` to `flex-direction: column`. This stacks the illustration canvas on top of the descriptive text, creating a taller, narrower card.
+
+2.  **Compact Grid**: The CSS for `.action-guide-grid` was updated to use a smaller minimum width for cards (`minmax(280px, 1fr)` instead of `340px`), allowing more cards to fit horizontally in the available space.
+
+3.  **Enhanced Illustrations**:
+    *   The resolution of the illustration canvas elements was increased from `120x100` to `240x150` in `main.js`. This provides a larger drawing surface, resulting in less pixelated and clearer images when scaled by CSS.
+    *   All hardcoded pixel values (e.g., line widths, font sizes, radii) within the JavaScript illustration drawing functions were manually scaled up to match the new, higher-resolution canvas, ensuring all visual elements remain proportional and aesthetically pleasing.
+
+These changes collectively result in a cleaner, more organized, and visually appealing Action Guide that better utilizes screen real estate.

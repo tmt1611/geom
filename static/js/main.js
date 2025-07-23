@@ -3272,7 +3272,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         drawArrow: (ctx, p1, p2, color) => {
-            const headlen = 10;
+            const headlen = 15;
             const dx = p2.x - p1.x;
             const dy = p2.y - p1.y;
             const angle = Math.atan2(dy, dx);
@@ -3321,7 +3321,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)';
-            ctx.lineWidth = 8;
+            ctx.lineWidth = 12;
             ctx.stroke();
             ctx.restore();
 
@@ -3355,9 +3355,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             ctx.save();
             ctx.beginPath();
-            ctx.arc(p_new.x, p_new.y, 10, 0, 2*Math.PI);
+            ctx.arc(p_new.x, p_new.y, 15, 0, 2*Math.PI);
             ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 4;
+            ctx.lineWidth = 6;
             ctx.stroke();
             ctx.fillStyle = team1_color;
             ctx.fill();
@@ -3415,7 +3415,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color);
             illustrationHelpers.drawArrow(ctx, p2, hit, team1_color);
             
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3436,8 +3436,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
-            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
+            ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
+            ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
             ctx.stroke();
 
             // Enemy point
@@ -3449,11 +3449,11 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.save();
             ctx.strokeStyle = 'rgba(200, 230, 255, 0.9)';
             ctx.lineWidth = 2;
-            illustrationHelpers.drawJaggedLine(ctx, lightning_origin, ep1, 7, 8);
+            illustrationHelpers.drawJaggedLine(ctx, lightning_origin, ep1, 7, 12);
             ctx.restore();
 
             // Blast on enemy
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3485,7 +3485,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Converted point (draw a halo of new color)
             ctx.beginPath();
-            ctx.arc(ep1.x, ep1.y, 8, 0, 2 * Math.PI);
+            ctx.arc(ep1.x, ep1.y, 12, 0, 2 * Math.PI);
             ctx.fillStyle = team1_color;
             ctx.globalAlpha = 0.5;
             ctx.fill();
@@ -3524,8 +3524,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
-            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
+            ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
+            ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
             ctx.stroke();
 
             // Enemy line crossing perimeter
@@ -3535,7 +3535,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
 
             // Pulse/blast
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3554,7 +3554,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawArrow(ctx, p1, ep1, team1_color);
             illustrationHelpers.drawArrow(ctx, p2, ep1, team1_color);
             
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3575,7 +3575,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const beam_end = {x: w*0.4, y: h*0.05};
             illustrationHelpers.drawArrow(ctx, p2, beam_end, 'rgba(255, 100, 100, 1.0)');
 
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3625,7 +3625,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawArrow(ctx, hit_prism, hit_enemy, 'rgba(255, 100, 100, 1.0)');
 
             // Explosion
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3655,7 +3655,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Draw strike
             illustrationHelpers.drawArrow(ctx, center, ep1, 'rgba(100, 255, 100, 1.0)');
 
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3674,13 +3674,13 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
-            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
+            ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
+            ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
             ctx.stroke();
 
             // Anchor point
             ctx.fillStyle = team1_color;
-            ctx.fillRect(p_anchor.x - 5, p_anchor.y - 5, 10, 10);
+            ctx.fillRect(p_anchor.x - 8, p_anchor.y - 8, 16, 16);
 
             // Enemy points
             illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
@@ -3720,7 +3720,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Draw core as fortified
             ctx.save();
             ctx.fillStyle = team1_color;
-            const size = 12;
+            const size = 18;
             ctx.translate(core.x, core.y);
             ctx.beginPath();
             ctx.moveTo(0, -size); ctx.lineTo(size, 0); ctx.lineTo(0, size); ctx.lineTo(-size, 0);
@@ -3818,7 +3818,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             ctx.moveTo(l1.x, l1.y); ctx.lineTo(l2.x, l2.y);
             ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)';
-            ctx.lineWidth = 8;
+            ctx.lineWidth = 12;
             ctx.stroke();
             ctx.restore();
         },
@@ -3924,7 +3924,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Sacrificed point
             illustrationHelpers.drawPoints(ctx, [center], team1_color);
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -4030,17 +4030,17 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineWidth = 2;
             [center, ...branches].forEach(p => {
                 ctx.beginPath();
-                ctx.moveTo(p.x - 4, p.y - 4); ctx.lineTo(p.x + 4, p.y + 4);
-                ctx.moveTo(p.x - 4, p.y + 4); ctx.lineTo(p.x + 4, p.y - 4);
+                ctx.moveTo(p.x - 6, p.y - 6); ctx.lineTo(p.x + 6, p.y + 6);
+                ctx.moveTo(p.x - 6, p.y + 6); ctx.lineTo(p.x + 6, p.y - 6);
                 ctx.stroke();
             });
 
             // Draw Heartwood symbol
             ctx.beginPath();
-            ctx.arc(center.x, center.y, 10, 0, 2 * Math.PI);
+            ctx.arc(center.x, center.y, 15, 0, 2 * Math.PI);
             ctx.fillStyle = team1_color;
             ctx.fill();
-            ctx.font = 'bold 20px Arial';
+            ctx.font = 'bold 30px Arial';
             ctx.fillStyle = 'white';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -4102,7 +4102,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawPoints(ctx, [ep], team2_color);
             
             // Cage
-            const cage_r = 10;
+            const cage_r = 15;
             ctx.strokeStyle = 'rgba(150, 220, 255, 0.9)';
             ctx.lineWidth = 1.5;
             ctx.beginPath(); ctx.moveTo(ep.x - cage_r, ep.y); ctx.lineTo(ep.x + cage_r, ep.y);
@@ -4220,8 +4220,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = team1_color;
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2;
-            const spire_base_w = 12;
-            const spire_h = 25;
+            const spire_base_w = 18;
+            const spire_h = 37;
             ctx.beginPath();
             ctx.moveTo(center.x - spire_base_w, center.y + spire_h/2);
             ctx.lineTo(center.x, center.y - spire_h/2);
@@ -4386,8 +4386,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = 'red';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
-            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
+            ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
+            ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
             ctx.stroke();
 
             // Blast radius
@@ -4409,7 +4409,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}, {p1: ep3, p2: ep4}], team2_color, 1);
             
             // Damage effect
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -4442,7 +4442,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const target = {x: w*0.8, y: h*0.5};
             ctx.save();
             ctx.fillStyle = team2_color;
-            const size = 12;
+            const size = 18;
             ctx.translate(target.x, target.y);
             ctx.beginPath();
             ctx.moveTo(0, -size); ctx.lineTo(size, 0); ctx.lineTo(0, size); ctx.lineTo(-size, 0);
@@ -4454,7 +4454,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawArrow(ctx, center, target, 'rgba(255, 255, 150, 1.0)');
 
             // Explosion
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -4481,8 +4481,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineWidth = 2;
             rune_points.forEach(p => {
                 ctx.beginPath();
-                ctx.moveTo(p.x - 4, p.y - 4); ctx.lineTo(p.x + 4, p.y + 4);
-                ctx.moveTo(p.x - 4, p.y + 4); ctx.lineTo(p.x + 4, p.y - 4);
+                ctx.moveTo(p.x - 6, p.y - 6); ctx.lineTo(p.x + 6, p.y + 6);
+                ctx.moveTo(p.x - 6, p.y + 6); ctx.lineTo(p.x + 6, p.y - 6);
                 ctx.stroke();
             });
 
@@ -4494,7 +4494,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color);
             const hit_point = {x: w*0.9, y: h*0.5};
             illustrationHelpers.drawArrow(ctx, center, hit_point, team1_color);
-            ctx.font = '24px Arial'; ctx.fillStyle = 'red'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.font = '36px Arial'; ctx.fillStyle = 'red'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText('💥', hit_point.x, hit_point.y);
 
             // 2. Top beam misses, creates point
@@ -4535,7 +4535,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.restore();
 
             // Blast on enemy line
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -4716,7 +4716,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.dataset.description = action.description;
 
                 card.innerHTML = `
-                    <canvas width="120" height="100"></canvas>
+                    <canvas width="240" height="150"></canvas>
                     <div class="action-card-text">
                          <div class="action-card-header">
                             <h4>${action.display_name}</h4>
@@ -4733,7 +4733,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ctx = canvas.getContext('2d');
                 
                 const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
-                drawer(ctx, 120, 100);
+                drawer(ctx, 240, 150);
             }
 
             function filterActions() {
