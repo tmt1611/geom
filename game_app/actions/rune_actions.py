@@ -696,6 +696,7 @@ class RuneActionsHandler:
         lines_destroyed = []
         points_created = []
         attack_rays = []
+        bastion_line_ids = self.game._get_bastion_line_ids()
         
         for arm_pid in rune['arm_ids']:
             # The arm point itself was sacrificed, so we use its last known coordinates from the sacrifice data.
@@ -717,7 +718,7 @@ class RuneActionsHandler:
             hits = []
             for enemy_line in enemy_lines:
                  # Cardinal Pulse is powerful, it bypasses shields but not bastions.
-                if enemy_line.get('id') in self.game._get_bastion_line_ids(): continue
+                if enemy_line.get('id') in bastion_line_ids: continue
                 if enemy_line['p1_id'] not in self.state['points'] or enemy_line['p2_id'] not in self.state['points']: continue
                 
                 ep1 = self.state['points'][enemy_line['p1_id']]

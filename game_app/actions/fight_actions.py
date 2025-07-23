@@ -75,7 +75,7 @@ class FightActionsHandler:
         """Provides direct access to the game's current state dictionary."""
         return self.game.state
 
-    def _find_closest_attack_hit(self, attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune):
+    def _find_closest_attack_hit(self, attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune, bastion_line_ids):
         points = self.state['points']
         closest_hit = None
         min_dist_sq = float('inf')
@@ -85,7 +85,6 @@ class FightActionsHandler:
             if is_shielded and not team_has_cross_rune:
                 continue
             
-            bastion_line_ids = self.game._get_bastion_line_ids()
             if enemy_line.get('id') in bastion_line_ids:
                 continue
             
@@ -169,6 +168,7 @@ class FightActionsHandler:
         points = self.state['points']
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
         team_has_cross_rune = len(self.state.get('runes', {}).get(teamId, {}).get('cross', [])) > 0
+        bastion_line_ids = self.game._get_bastion_line_ids()
         
         random.shuffle(team_lines)
         for line in team_lines:
@@ -190,7 +190,7 @@ class FightActionsHandler:
             if is_ray_blocked(attack_segment_p1, attack_segment_p2, self.state.get('fissures', []), self.state.get('barricades', [])):
                 continue
 
-            closest_hit = self._find_closest_attack_hit(attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune)
+            closest_hit = self._find_closest_attack_hit(attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune, bastion_line_ids)
             
             if closest_hit:
                 return self._handle_attack_hit(closest_hit, line, attack_segment_p1)
@@ -690,9 +690,10 @@ class FightActionsHandler:
             lines_destroyed = []
             enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
             points_map = self.state['points']
+            bastion_line_ids = self.game._get_bastion_line_ids()
 
             for line in enemy_lines:
-                if line.get('id') in self.game._get_bastion_line_ids() or line.get('id') in self.state['shields']: continue
+                if line.get('id') in bastion_line_ids or line.get('id') in self.state['shields']: continue
                 if not (line['p1_id'] in points_map and line['p2_id'] in points_map): continue
                 p1, p2 = points_map[line['p1_id']], points_map[line['p2_id']]
 
