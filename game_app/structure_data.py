@@ -30,11 +30,13 @@ STRUCTURE_DEFINITIONS = {
         'state_key': 'monoliths', 'storage_type': 'dict',
         'point_id_keys': [('list', 'point_ids')],
         'is_critical': True,
+        'frontend_flag_key': 'monolith',
     },
     'purifiers': {
         'state_key': 'purifiers', 'storage_type': 'team_dict_list',
         'point_id_keys': [('list', 'point_ids')],
         'is_critical': True,
+        'frontend_flag_key': 'purifier',
     },
     'nexuses': {
         'state_key': 'nexuses', 'storage_type': 'team_dict_list',
@@ -42,6 +44,7 @@ STRUCTURE_DEFINITIONS = {
         'is_critical': True,
         'formation_checker': 'check_nexuses',
         'formation_inputs': ['team_point_ids', 'team_lines', 'all_points'],
+        'frontend_flag_key': 'nexus',
     },
     'attuned_nexuses': {
         'state_key': 'attuned_nexuses', 'storage_type': 'dict',
@@ -61,6 +64,7 @@ STRUCTURE_DEFINITIONS = {
         'is_critical': True,
         'formation_checker': 'check_trebuchets',
         'formation_inputs': ['team_point_ids', 'team_lines', 'all_points'],
+        'frontend_flag_key': 'trebuchet',
     },
     'ley_lines': {
         'state_key': 'ley_lines', 'storage_type': 'dict',
@@ -169,7 +173,12 @@ STRUCTURE_DEFINITIONS = {
         'is_critical': True,
         'formation_checker': 'check_i_rune',
         'formation_inputs': ['team_point_ids', 'team_lines', 'all_points'],
-        'point_id_keys': [('list', 'point_ids')],
+        'point_id_keys': [('list', 'point_ids'), ('list', 'internal_points'), ('list', 'endpoints')],
+        'frontend_flag_keys': {
+            'point_ids': 'i_rune', # used for is_i_rune_point and is_conduit_point
+            'internal_points': 'i_rune_sentry_eye',
+            'endpoints': 'i_rune_sentry_post'
+        },
     },
     'rune_parallel': {
         'state_key': 'runes', 'storage_type': 'team_dict_of_structures',

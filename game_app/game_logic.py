@@ -282,31 +282,58 @@ class Game:
         }
 
     def _get_structure_point_ids_by_type(self):
-        """Returns a dictionary mapping structure types to sets of point IDs for frontend augmentation."""
-        ids = {
-            'i_rune': set(), 'i_rune_sentry_eye': set(), 'i_rune_sentry_post': set(),
-            'nexus': set(), 'monolith': set(), 'trebuchet': set(), 'purifier': set()
-        }
+        """
+        Returns a dictionary mapping structure types to sets of point IDs for frontend augmentation.
+        This version is driven by the STRUCTURE_DEFINITIONS registry.
+        """
+        from collections import defaultdict
+        ids = defaultdict(set)
 
-        for team_runes in self.state.get('runes', {}).values():
-            for i_rune in team_runes.get('i_shape', []):
-                ids['i_rune'].update(i_rune.get('point_ids', []))
-                ids['i_rune_sentry_eye'].update(i_rune.get('internal_points', []))
-                ids['i_rune_sentry_post'].update(i_rune.get('endpoints', []))
+        for definition in structure_data.STRUCTURE_DEFINITIONS.values():
+            flag_key = definition.get('frontend_flag_key')
+            flag_keys_map = definition.get('frontend_flag_keys')
+            if not flag_key and not flag_keys_map:
+                continue
+
+            state_key = definition['state_key']
+            storage = self.state.get(state_key)
+            if not storage:
+                continue
+            
+            structures_to_process = []
+            storage_type = definition['storage_type']
+
+            if storage_type == 'list':
+                structures_to_process = storage
+            elif storage_type == 'dict':
+                structures_to_process = storage.values()
+            elif storage_type == 'team_dict_list':
+                for team_list in storage.values():
+                    structures_to_process.extend(team_list)
+            elif storage_type == 'team_dict_of_structures':
+                subtype_key = definition['structure_subtype_key']
+                for team_structs in storage.values():
+                    structures_to_process.extend(team_structs.get(subtype_key, []))
+            
+            if not structures_to_process:
+                continue
+
+            for struct in structures_to_process:
+                if flag_key: # Simple case: one flag for the whole structure
+                    for key_info in definition.get('point_id_keys', []):
+                        if isinstance(key_info, tuple):
+                            _, key_name = key_info
+                            point_ids = struct.get(key_name, [])
+                            ids[flag_key].update(point_ids)
+                        else: # string
+                            point_id = struct.get(key_info)
+                            if point_id:
+                                ids[flag_key].add(point_id)
+                elif flag_keys_map: # Complex case: different flags for different point lists
+                    for internal_key, generated_flag_key in flag_keys_map.items():
+                        point_ids = struct.get(internal_key, [])
+                        ids[generated_flag_key].update(point_ids)
         
-        # Structures that are dicts of lists {teamId: [item, ...]}
-        list_structures = {'nexus': 'nexuses', 'trebuchet': 'trebuchets', 'purifier': 'purifiers'}
-        for key, state_key in list_structures.items():
-            for team_list in self.state.get(state_key, {}).values():
-                for struct in team_list:
-                    ids[key].update(struct.get('point_ids', []))
-
-        # Structures that are dicts of dicts {itemId: {..., point_ids: [...]}}
-        dict_structures = {'monolith': 'monoliths'}
-        for key, state_key in dict_structures.items():
-            for struct in self.state.get(state_key, {}).values():
-                ids[key].update(struct.get('point_ids', []))
-
         return ids
 
     def get_team_point_ids(self, teamId):
