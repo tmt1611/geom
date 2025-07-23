@@ -132,6 +132,33 @@ def get_extended_border_point(p1, p2, grid_size, fissures, barricades, scorched_
     return {"x": ix, "y": iy}
 
 
+def get_edges_by_distance(point_list):
+    """
+    Given a list of points forming a convex polygon, returns their sides and diagonals based on distance.
+    This works well for regular or near-regular convex polygons.
+    Returns {'sides': list_of_pairs, 'diagonals': list_of_pairs, 'distances_sq': dict_of_dists}
+    where pairs are tuples of point IDs.
+    """
+    num_vertices = len(point_list)
+    if num_vertices < 3:
+        return {'sides': [], 'diagonals': [], 'distances_sq': {}}
+
+    points_map = {p['id']: p for p in point_list}
+    point_ids = list(points_map.keys())
+    
+    all_pairs = list(combinations(point_ids, 2))
+    
+    all_pair_dists = {pair: distance_sq(points_map[pair[0]], points_map[pair[1]]) for pair in all_pairs}
+    sorted_pairs = sorted(all_pair_dists.keys(), key=all_pair_dists.get)
+    
+    num_sides = num_vertices
+    
+    sides = sorted_pairs[:num_sides]
+    diagonals = sorted_pairs[num_sides:]
+    
+    return {'sides': sides, 'diagonals': diagonals, 'distances_sq': all_pair_dists}
+
+
 def reflect_point(point, p1_axis, p2_axis):
     """Reflects a point across the line defined by p1_axis and p2_axis."""
     px, py = point['x'], point['y']
@@ -294,19 +321,24 @@ def is_regular_pentagon(p1, p2, p3, p4, p5):
     if len(set((p['x'], p['y']) for p in points)) < 5:
         return False
 
-    # Calculate all 10 squared distances between the 5 points.
-    dists_sq = sorted([distance_sq(pi, pj) for pi, pj in combinations(points, 2)])
+    edge_data = get_edges_by_distance(points)
+    side_pairs = edge_data['sides']
+    diag_pairs = edge_data['diagonals']
+    dists_sq = edge_data['distances_sq']
     
+    if len(side_pairs) != 5 or len(diag_pairs) != 5:
+        return False
+
     # A regular pentagon has 5 equal sides (shortest distance) and 5 equal diagonals (next shortest).
-    side_sq = dists_sq[0]
-    diag_sq = dists_sq[5]
+    side_sq = dists_sq[side_pairs[0]]
+    diag_sq = dists_sq[diag_pairs[0]]
 
     # Check for 5 equal sides
-    if not all(abs(d - side_sq) < 0.01 for d in dists_sq[0:5]):
+    if not all(abs(dists_sq[pair] - side_sq) < 0.01 for pair in side_pairs):
         return False
 
     # Check for 5 equal diagonals
-    if not all(abs(d - diag_sq) < 0.01 for d in dists_sq[5:10]):
+    if not all(abs(dists_sq[pair] - diag_sq) < 0.01 for pair in diag_pairs):
         return False
         
     # Check the golden ratio property: diag^2 / side^2 = phi^2

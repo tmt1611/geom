@@ -2,7 +2,7 @@ import random
 import math
 import uuid
 from itertools import combinations
-from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, is_spawn_location_valid, points_centroid, clamp_and_round_point_coords
+from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, is_spawn_location_valid, points_centroid, clamp_and_round_point_coords, get_edges_by_distance
 
 class FortifyActionsHandler:
     def __init__(self, game):
@@ -294,10 +294,8 @@ class FortifyActionsHandler:
 
             if is_rect:
                 # Check for the 4 outer perimeter lines
-                all_pairs = list(combinations(p_ids_tuple, 2))
-                all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
-                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-                side_pairs = sorted_pairs[0:4]
+                edge_data = get_edges_by_distance(p_list)
+                side_pairs = edge_data['sides']
 
                 if all(tuple(sorted(pair)) in existing_lines_by_points for pair in side_pairs):
                     # Monolith requires a thin rectangle, aspect ratio > 3.0
@@ -527,12 +525,8 @@ class FortifyActionsHandler:
 
         # Determine barricade from midpoints of an opposite pair of sides of the rectangle
         # Use the original coordinates from p_list for this.
-        all_pairs = list(combinations(p_list, 2))
-        all_pair_dists = {tuple(p['id'] for p in pair): distance_sq(pair[0], pair[1]) for pair in all_pairs}
-        sorted_pair_ids = sorted(all_pair_dists.keys(), key=lambda pair_ids: all_pair_dists[pair_ids])
-
-        # The two longest pairs are diagonals, the other four are sides.
-        side_pair_ids = sorted_pair_ids[0:4]
+        edge_data = get_edges_by_distance(p_list)
+        side_pair_ids = edge_data['sides']
 
         # Pick one side
         side1_ids = set(side_pair_ids[0])
@@ -709,10 +703,9 @@ class FortifyActionsHandler:
         points = self.state['points']
 
         # Find and sacrifice a diagonal line
-        all_pairs = list(combinations(p_ids, 2))
-        all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
-        sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-        diag_pairs = sorted_pairs[4:6]
+        p_list = [points[pid] for pid in p_ids]
+        edge_data = get_edges_by_distance(p_list)
+        diag_pairs = edge_data['diagonals']
 
         existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
         
@@ -962,10 +955,8 @@ class FortifyActionsHandler:
             p_list = [points[pid] for pid in p_ids_tuple]
             if is_regular_pentagon(*p_list):
                 # To be a valid formation, the 5 outer "side" lines must exist.
-                all_pairs = list(combinations(p_ids_tuple, 2))
-                all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
-                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-                side_pairs = sorted_pairs[0:5]
+                edge_data = get_edges_by_distance(p_list)
+                side_pairs = edge_data['sides']
 
                 if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
                     possible_purifiers.append({'point_ids': list(p_ids_tuple)})

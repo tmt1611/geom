@@ -5,7 +5,7 @@ from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
     get_extended_border_point, is_spawn_location_valid, is_point_inside_triangle,
-    points_centroid, clamp_and_round_point_coords
+    points_centroid, clamp_and_round_point_coords, get_edges_by_distance
 )
 
 class RuneActionsHandler:
@@ -348,11 +348,9 @@ class RuneActionsHandler:
             return {'success': False, 'reason': 'rune points no longer exist'}
         
         # Find diagonals
-        all_pairs = list(combinations(rune_p_ids_tuple, 2))
-        all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
-        sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-        diag1_p_ids = sorted_pairs[-1]
-        diag2_p_ids = sorted_pairs[-2]
+        p_list = [points[pid] for pid in rune_p_ids_tuple]
+        edge_data = get_edges_by_distance(p_list)
+        diag1_p_ids, diag2_p_ids = edge_data['diagonals']
         d1_p1, d1_p2 = points[diag1_p_ids[0]], points[diag1_p_ids[1]]
         d2_p1, d2_p2 = points[diag2_p_ids[0]], points[diag2_p_ids[1]]
 

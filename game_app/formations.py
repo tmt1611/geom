@@ -1,7 +1,8 @@
 import math
 from itertools import combinations
 from .geometry import (distance_sq, get_isosceles_triangle_info, is_rectangle,
-                       is_parallelogram, orientation, is_point_inside_triangle)
+                       is_parallelogram, orientation, is_point_inside_triangle,
+                       get_edges_by_distance)
 
 class FormationManager:
     """
@@ -26,13 +27,9 @@ class FormationManager:
             
             is_rect, aspect_ratio = is_rectangle(*p_list)
             if is_rect and abs(aspect_ratio - 1.0) < 0.05:
-                all_pairs = list(combinations(p_ids_tuple, 2))
-                all_pair_dists = {pair: distance_sq(all_points[pair[0]], all_points[pair[1]]) for pair in all_pairs}
-                
-                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-                
-                side_pairs = sorted_pairs[0:4]
-                diag_pairs = sorted_pairs[4:6]
+                edge_data = get_edges_by_distance(p_list)
+                side_pairs = edge_data['sides']
+                diag_pairs = edge_data['diagonals']
 
                 if sum(1 for p1_id, p2_id in side_pairs if tuple(sorted((p1_id, p2_id))) in existing_lines) < 4:
                     continue
@@ -106,10 +103,8 @@ class FormationManager:
             is_rect, _ = is_rectangle(*p_list)
 
             if is_rect:
-                all_pairs = list(combinations(p_ids_tuple, 2))
-                all_pair_dists = {pair: distance_sq(all_points[pair[0]], all_points[pair[1]]) for pair in all_pairs}
-                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-                side_pairs = sorted_pairs[0:4]
+                edge_data = get_edges_by_distance(p_list)
+                side_pairs = edge_data['sides']
                 
                 if sum(1 for p1_id, p2_id in side_pairs if tuple(sorted((p1_id, p2_id))) in existing_lines) == 4:
                     barricade_runes.append(list(p_ids_tuple))
@@ -300,10 +295,8 @@ class FormationManager:
             is_rect, _ = is_rectangle(*p_list)
             if not is_rect: continue
             
-            all_pairs = list(combinations(p_ids_tuple, 2))
-            all_pair_dists = {pair: distance_sq(all_points[pair[0]], all_points[pair[1]]) for pair in all_pairs}
-            sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-            diag1_pair, diag2_pair = sorted_pairs[-1], sorted_pairs[-2]
+            edge_data = get_edges_by_distance(p_list)
+            diag1_pair, diag2_pair = edge_data['diagonals']
 
             if tuple(sorted(diag1_pair)) in existing_lines and tuple(sorted(diag2_pair)) in existing_lines:
                 cross_runes.append(list(p_ids_tuple))
@@ -420,10 +413,8 @@ class FormationManager:
             p_list = [all_points[pid] for pid in p_ids_tuple]
             is_para, is_rect = is_parallelogram(*p_list)
             if is_para and not is_rect:
-                all_pairs = list(combinations(p_ids_tuple, 2))
-                all_pair_dists = {pair: distance_sq(all_points[pair[0]], all_points[pair[1]]) for pair in all_pairs}
-                sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
-                side_pairs = sorted_pairs[0:4]
+                edge_data = get_edges_by_distance(p_list)
+                side_pairs = edge_data['sides']
                 
                 if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
                     parallel_runes.append(list(p_ids_tuple))
