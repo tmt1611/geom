@@ -896,8 +896,8 @@ body.game-running .game-column {
 }
 #guide-search {
     flex-grow: 1;
-    min-width: 250px; /* Ensure it has a minimum size */
-    max-width: 400px;
+    min-width: 200px; /* Ensure it has a minimum size */
+    max-width: 300px;
     padding: 8px 12px;
     font-size: 1em;
     border: 1px solid #ccc;
