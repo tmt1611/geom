@@ -590,10 +590,13 @@ class RuneActionsHandler:
             target_wonder = min(wonder_coords_list, key=lambda w: distance_sq(center_point, w['coords']))
             target_type = 'wonder'
         else:
+            all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in self.state.get('stasis_points', {})]
+            bastion_cores = self.game._get_bastion_point_ids()['cores']
+            monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
+
             high_value_points = [
-                p for p in self.game._get_vulnerable_enemy_points(teamId) if 
-                p['id'] in self.game._get_bastion_point_ids()['cores'] or 
-                p['id'] in {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
+                p for p in all_enemy_points if
+                p['id'] in bastion_cores or p['id'] in monolith_point_ids
             ]
             if high_value_points:
                 target_point = min(high_value_points, key=lambda p: distance_sq(center_point, p))

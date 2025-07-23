@@ -61,10 +61,6 @@ class FightActionsHandler:
         """Provides direct access to the game's current state dictionary."""
         return self.game.state
 
-    def _get_vulnerable_enemy_points(self, teamId):
-        """Returns a list of enemy points that are not immune to standard attacks."""
-        return self.game._get_vulnerable_enemy_points(teamId)
-
     def _find_closest_attack_hit(self, attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune):
         points = self.state['points']
         closest_hit = None
@@ -191,7 +187,7 @@ class FightActionsHandler:
         p2 = points_map[line_to_sac['p2_id']]
         midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
         
-        enemy_points = self._get_vulnerable_enemy_points(teamId)
+        enemy_points = self.game._get_vulnerable_enemy_points(teamId)
         conversion_range_sq = (self.state['grid_size'] * 0.3)**2
         
         targets_in_range = [ep for ep in enemy_points if distance_sq(midpoint, ep) < conversion_range_sq]
@@ -253,7 +249,7 @@ class FightActionsHandler:
         if len(team_point_ids) < 2:
             return {'success': False, 'reason': 'not enough points for pincer attack'}
 
-        enemy_points = self._get_vulnerable_enemy_points(teamId)
+        enemy_points = self.game._get_vulnerable_enemy_points(teamId)
         if not enemy_points:
              p1_id, p2_id = random.sample(team_point_ids, 2)
              return self._pincer_attack_fallback_barricade(teamId, p1_id, p2_id)
@@ -323,7 +319,7 @@ class FightActionsHandler:
         triangle_points = [points_map[pid] for pid in territory['point_ids']]
         centroid = self.game._points_centroid(triangle_points)
 
-        enemy_points = self._get_vulnerable_enemy_points(teamId)
+        enemy_points = self.game._get_vulnerable_enemy_points(teamId)
         if enemy_points:
             target_point = min(enemy_points, key=lambda p: distance_sq(centroid, p))
             destroyed_point_data = self.game._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
@@ -452,7 +448,7 @@ class FightActionsHandler:
             target_point = random.choice(high_value_targets)
         else:
             # 2. Any vulnerable enemy target
-            vulnerable_targets = self._get_vulnerable_enemy_points(teamId)
+            vulnerable_targets = self.game._get_vulnerable_enemy_points(teamId)
             if vulnerable_targets:
                 target_point = random.choice(vulnerable_targets)
         
@@ -638,7 +634,7 @@ class FightActionsHandler:
         if endpoint1_id in self.state['points'] and endpoint2_id in self.state['points']:
             endpoint1 = self.state['points'][endpoint1_id]
             endpoint2 = self.state['points'][endpoint2_id]
-            vulnerable_enemies = self._get_vulnerable_enemy_points(teamId)
+            vulnerable_enemies = self.game._get_vulnerable_enemy_points(teamId)
             
             if vulnerable_enemies:
                 closest_enemy = min(vulnerable_enemies, key=lambda p: min(distance_sq(endpoint1, p), distance_sq(endpoint2, p)))

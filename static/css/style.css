@@ -924,7 +924,7 @@ body.game-running .game-column {
 
 .action-guide-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
     gap: 15px;
     flex-grow: 1;
     overflow-y: auto;
@@ -937,11 +937,12 @@ body.game-running .game-column {
     background-color: #fff;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     display: flex;
-    flex-direction: column; /* Illustration on top */
+    flex-direction: row; /* Illustration on left */
     gap: 0;
     padding: 0;
     transition: box-shadow 0.2s;
     overflow: hidden;
+    height: 140px; /* Fixed height for cards */
 }
 .action-card:hover {
     box-shadow: 0 4px 10px rgba(0,0,0,0.1);
@@ -951,7 +952,9 @@ body.game-running .game-column {
     flex-direction: column;
     flex-grow: 1;
     gap: 4px;
-    padding: 10px 15px; /* More horizontal padding */
+    padding: 10px 15px;
+    overflow-y: auto; /* Allow scrolling for long descriptions */
+    min-width: 0; /* Fix flexbox overflow */
 }
 .action-card-header {
     padding: 0;
@@ -963,7 +966,7 @@ body.game-running .game-column {
 }
 .action-card-header h4 {
     margin: 0;
-    font-size: 1.15em; /* Slightly larger title */
+    font-size: 1.15em;
     color: #2c3e50;
     flex-shrink: 0;
 }
@@ -982,16 +985,17 @@ body.game-running .game-column {
 .action-card-header .action-group--sacrifice { background-color: #d35400; }
 .action-card-header .action-group--rune { background-color: #8e44ad; }
 .action-card canvas {
-    width: 100%; /* Full card width */
-    height: 160px; /* Slightly smaller illustrations */
+    width: 140px;
+    height: 140px;
     background-color: #fdfdfd;
-    border-bottom: 1px solid #dfe4ea; /* Separator on bottom */
+    border-right: 1px solid #dfe4ea;
+    border-bottom: none;
     border-radius: 0;
     flex-shrink: 0;
 }
 .action-card-description {
     padding: 0;
-    font-size: 0.85em; /* Slightly larger description */
+    font-size: 0.85em;
     line-height: 1.45;
     color: #34495e;
     flex-grow: 1;
