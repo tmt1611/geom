@@ -29,14 +29,6 @@ class Game:
     ACTION_VERBOSE_DESCRIPTIONS = game_data.ACTION_VERBOSE_DESCRIPTIONS
     ACTION_MAP = game_data.ACTION_MAP
     ACTION_LOG_GENERATORS = game_data.ACTION_LOG_GENERATORS
-    _RUNE_LIST_POINT_ID_KEYS = {
-        'all_points', 'point_ids', 'all_point_ids', 'cycle_ids', 'triangle_ids',
-        'prong_ids', 'arm_ids', 'endpoints', 'internal_points'
-    }
-    _RUNE_SINGLE_POINT_ID_KEYS = {
-        'core_id', 'vertex_id', 'handle_id', 'apex_id', 'center_id', 'mid_id',
-        'stem1_id', 'stem2_id', 'head_id'
-    }
 
 
     def __init__(self):
@@ -528,7 +520,10 @@ class Game:
         }
 
     def _get_all_rune_point_ids(self, teamId):
-        """Helper to get a set of all point IDs involved in any rune for a team."""
+        """
+        Helper to get a set of all point IDs involved in any rune for a team.
+        It inspects rune data structures to find point IDs dynamically.
+        """
         rune_pids = set()
         team_runes_data = self.state.get('runes', {}).get(teamId, {})
         if not team_runes_data:
@@ -539,12 +534,11 @@ class Game:
                 if isinstance(rune_instance, list):
                     rune_pids.update(rune_instance)
                 elif isinstance(rune_instance, dict):
-                    for key, value in rune_instance.items():
-                        if value:
-                            if key in self._RUNE_LIST_POINT_ID_KEYS:
-                                rune_pids.update(value)
-                            elif key in self._RUNE_SINGLE_POINT_ID_KEYS:
-                                rune_pids.add(value)
+                    for value in rune_instance.values():
+                        if isinstance(value, str) and value.startswith('p_'):
+                            rune_pids.add(value)
+                        elif isinstance(value, list) and value and isinstance(value[0], str) and value[0].startswith('p_'):
+                            rune_pids.update(value)
         return rune_pids
 
     def _get_critical_structure_point_ids(self, teamId):

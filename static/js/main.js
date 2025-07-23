@@ -1113,53 +1113,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function drawScorchedZones(gameState, isHighlightingActive = false) {
-        if (!gameState.scorched_zones) return;
-    
-        gameState.scorched_zones.forEach(zone => {
-            const isHighlighted = false; // TODO: decide if these can be highlighted
-            ctx.save();
-            if (isHighlightingActive && !isHighlighted) {
-                ctx.globalAlpha = 0.2;
-            } else if (isHighlightingActive && isHighlighted) {
-                ctx.globalAlpha = 1.0;
-            }
-    
-            const triPoints = zone.points;
-            if (triPoints && triPoints.length === 3) {
-                ctx.beginPath();
-                ctx.moveTo((triPoints[0].x + 0.5) * cellSize, (triPoints[0].y + 0.5) * cellSize);
-                ctx.lineTo((triPoints[1].x + 0.5) * cellSize, (triPoints[1].y + 0.5) * cellSize);
-                ctx.lineTo((triPoints[2].x + 0.5) * cellSize, (triPoints[2].y + 0.5) * cellSize);
-                ctx.closePath();
-
-                // Dark fill with some transparency
-                ctx.fillStyle = `rgba(50, 50, 50, ${0.4 + (zone.turns_left / 5) * 0.2})`;
-                ctx.fill();
-
-                // Jagged, burnt orange border
-                ctx.strokeStyle = `rgba(200, 80, 0, ${0.5 + (zone.turns_left / 5) * 0.3})`;
-                ctx.lineWidth = 2;
-                illustrationHelpers.drawJaggedLine(
-                    {x: (triPoints[0].x + 0.5) * cellSize, y: (triPoints[0].y + 0.5) * cellSize},
-                    {x: (triPoints[1].x + 0.5) * cellSize, y: (triPoints[1].y + 0.5) * cellSize},
-                    10, 3
-                );
-                illustrationHelpers.drawJaggedLine(
-                    {x: (triPoints[1].x + 0.5) * cellSize, y: (triPoints[1].y + 0.5) * cellSize},
-                    {x: (triPoints[2].x + 0.5) * cellSize, y: (triPoints[2].y + 0.5) * cellSize},
-                    10, 3
-                );
-                illustrationHelpers.drawJaggedLine(
-                    {x: (triPoints[2].x + 0.5) * cellSize, y: (triPoints[2].y + 0.5) * cellSize},
-                    {x: (triPoints[0].x + 0.5) * cellSize, y: (triPoints[0].y + 0.5) * cellSize},
-                    10, 3
-                );
-            }
-            ctx.restore();
-        });
-    }
-
     function drawBarricades(gameState, isHighlightingActive = false) {
         if (!gameState.barricades) return;
 
