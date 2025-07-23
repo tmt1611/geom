@@ -75,6 +75,54 @@ def get_segment_intersection_point(p1, q1, p2, q2):
     return None  # Intersection point is not on both segments
 
 
+def is_ray_blocked(p_start, p_end, fissures, barricades):
+    """Checks if a segment is blocked by a fissure or barricade."""
+    for fissure in fissures:
+        if get_segment_intersection_point(p_start, p_end, fissure['p1'], fissure['p2']):
+            return True
+    for barricade in barricades:
+        if get_segment_intersection_point(p_start, p_end, barricade['p1'], barricade['p2']):
+            return True
+    return False
+
+
+def get_extended_border_point(p1, p2, grid_size, fissures, barricades):
+    """
+    Extends a line segment p1-p2 from p1 outwards through p2 to the border.
+    Returns the border point dictionary or None.
+    """
+    x1, y1 = p1['x'], p1['y']
+    x2, y2 = p2['x'], p2['y']
+    dx, dy = x2 - x1, y2 - y1
+
+    if dx == 0 and dy == 0: return None
+
+    # Check if extension is blocked
+    # Create a very long ray for intersection test
+    ray_end_point = {'x': p2['x'] + dx * grid_size * 2, 'y': p2['y'] + dy * grid_size * 2}
+    if is_ray_blocked(p2, ray_end_point, fissures, barricades):
+        return None # Extension is blocked
+
+    # We are calculating p_new = p1 + t * (p2 - p1) for t > 1
+    t_values = []
+    if dx != 0:
+        t_values.append((0 - x1) / dx)
+        t_values.append((grid_size - 1 - x1) / dx)
+    if dy != 0:
+        t_values.append((0 - y1) / dy)
+        t_values.append((grid_size - 1 - y1) / dy)
+
+    # Use a small epsilon to avoid floating point issues with the point itself
+    valid_t = [t for t in t_values if t > 1.0001]
+    if not valid_t: return None
+
+    t = min(valid_t)
+    ix, iy = x1 + t * dx, y1 + t * iy
+    ix = round(max(0, min(grid_size - 1, ix)))
+    iy = round(max(0, min(grid_size - 1, iy)))
+    return {"x": ix, "y": iy}
+
+
 def reflect_point(point, p1_axis, p2_axis):
     """Reflects a point across the line defined by p1_axis and p2_axis."""
     px, py = point['x'], point['y']

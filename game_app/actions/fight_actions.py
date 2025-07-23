@@ -64,6 +64,72 @@ class FightActionsHandler:
         """Returns a list of enemy points that are not immune to standard attacks."""
         return self.game._get_vulnerable_enemy_points(teamId)
 
+    def _find_closest_attack_hit(self, attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune):
+        points = self.state['points']
+        closest_hit = None
+        min_dist_sq = float('inf')
+
+        for enemy_line in enemy_lines:
+            is_shielded = enemy_line.get('id') in self.state['shields']
+            if is_shielded and not team_has_cross_rune:
+                continue
+            
+            bastion_line_ids = self.game._get_bastion_line_ids()
+            if enemy_line.get('id') in bastion_line_ids:
+                continue
+            
+            if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
+            ep1 = points[enemy_line['p1_id']]
+            ep2 = points[enemy_line['p2_id']]
+
+            intersection_point = get_segment_intersection_point(attack_segment_p1, attack_segment_p2, ep1, ep2)
+            if intersection_point:
+                dist_sq = distance_sq(attack_segment_p1, intersection_point)
+                if dist_sq < min_dist_sq:
+                    min_dist_sq = dist_sq
+                    closest_hit = {
+                        'target_line': enemy_line,
+                        'intersection_point': intersection_point,
+                        'bypassed_shield': is_shielded and team_has_cross_rune
+                    }
+        return closest_hit
+
+    def _handle_attack_hit(self, closest_hit, attacker_line, attack_segment_p1):
+        enemy_line = closest_hit['target_line']
+        line_strength = self.state.get('line_strengths', {}).get(enemy_line['id'])
+        if line_strength and line_strength > 0:
+            self.state['line_strengths'][enemy_line['id']] -= 1
+            if self.state['line_strengths'][enemy_line['id']] <= 0:
+                del self.state['line_strengths'][enemy_line['id']]
+            return {
+                'success': True, 'type': 'attack_line_strengthened',
+                'damaged_line': enemy_line, 'attacker_line': attacker_line,
+                'attack_ray': {'p1': attack_segment_p1, 'p2': closest_hit['intersection_point']},
+                'intersection_point': closest_hit['intersection_point']
+            }
+
+        enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
+        self.state['lines'].remove(enemy_line)
+        self.state['shields'].pop(enemy_line.get('id'), None)
+        self.state['line_strengths'].pop(enemy_line.get('id'), None)
+        return {
+            'success': True, 'type': 'attack_line', 'destroyed_team': enemy_team_name, 'destroyed_line': enemy_line,
+            'attacker_line': attacker_line, 'attack_ray': {'p1': attack_segment_p1, 'p2': closest_hit['intersection_point']},
+            'bypassed_shield': closest_hit['bypassed_shield']
+        }
+
+    def _handle_attack_miss(self, teamId, border_point, attacker_line, attack_segment_p1):
+        is_valid, _ = self.game._is_spawn_location_valid(border_point, teamId)
+        if is_valid:
+            new_point_id = self.game._generate_id('p')
+            new_point = {**border_point, "teamId": teamId, "id": new_point_id}
+            self.state['points'][new_point_id] = new_point
+            return {
+                'success': True, 'type': 'attack_miss_spawn', 'new_point': new_point,
+                'attacker_line': attacker_line, 'attack_ray': {'p1': attack_segment_p1, 'p2': border_point}
+            }
+        return None
+
     def attack_line(self, teamId):
         """[FIGHT ACTION]: Extend a line to hit an enemy line. If it misses, it creates a new point on the border."""
         team_lines = self.game.get_team_lines(teamId)
@@ -91,66 +157,14 @@ class FightActionsHandler:
             if self.game._is_ray_blocked(attack_segment_p1, attack_segment_p2):
                 continue
 
-            closest_hit = None
-            min_dist_sq = float('inf')
-
-            for enemy_line in enemy_lines:
-                is_shielded = enemy_line.get('id') in self.state['shields']
-                if is_shielded and not team_has_cross_rune:
-                    continue
-                
-                bastion_line_ids = self.game._get_bastion_line_ids()
-                if enemy_line.get('id') in bastion_line_ids:
-                    continue
-                
-                if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
-                ep1 = points[enemy_line['p1_id']]
-                ep2 = points[enemy_line['p2_id']]
-
-                intersection_point = get_segment_intersection_point(attack_segment_p1, attack_segment_p2, ep1, ep2)
-                if intersection_point:
-                    dist_sq = distance_sq(attack_segment_p1, intersection_point)
-                    if dist_sq < min_dist_sq:
-                        min_dist_sq = dist_sq
-                        closest_hit = {
-                            'target_line': enemy_line,
-                            'intersection_point': intersection_point,
-                            'bypassed_shield': is_shielded and team_has_cross_rune
-                        }
+            closest_hit = self._find_closest_attack_hit(attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune)
             
             if closest_hit:
-                enemy_line = closest_hit['target_line']
-                line_strength = self.state.get('line_strengths', {}).get(enemy_line['id'])
-                if line_strength and line_strength > 0:
-                    self.state['line_strengths'][enemy_line['id']] -= 1
-                    if self.state['line_strengths'][enemy_line['id']] <= 0:
-                        del self.state['line_strengths'][enemy_line['id']]
-                    return {
-                        'success': True, 'type': 'attack_line_strengthened',
-                        'damaged_line': enemy_line, 'attacker_line': line,
-                        'attack_ray': {'p1': attack_segment_p1, 'p2': closest_hit['intersection_point']},
-                        'intersection_point': closest_hit['intersection_point']
-                    }
-
-                enemy_team_name = self.state['teams'][enemy_line['teamId']]['name']
-                self.state['lines'].remove(enemy_line)
-                self.state['shields'].pop(enemy_line.get('id'), None)
-                self.state['line_strengths'].pop(enemy_line.get('id'), None)
-                return {
-                    'success': True, 'type': 'attack_line', 'destroyed_team': enemy_team_name, 'destroyed_line': enemy_line,
-                    'attacker_line': line, 'attack_ray': {'p1': attack_segment_p1, 'p2': closest_hit['intersection_point']},
-                    'bypassed_shield': closest_hit['bypassed_shield']
-                }
+                return self._handle_attack_hit(closest_hit, line, attack_segment_p1)
             else:
-                is_valid, _ = self.game._is_spawn_location_valid(border_point, teamId)
-                if is_valid:
-                    new_point_id = self.game._generate_id('p')
-                    new_point = {**border_point, "teamId": teamId, "id": new_point_id}
-                    self.state['points'][new_point_id] = new_point
-                    return {
-                        'success': True, 'type': 'attack_miss_spawn', 'new_point': new_point,
-                        'attacker_line': line, 'attack_ray': {'p1': attack_segment_p1, 'p2': border_point}
-                    }
+                result = self._handle_attack_miss(teamId, border_point, line, attack_segment_p1)
+                if result:
+                    return result
         
         return {'success': False, 'reason': 'no valid attack or spawn opportunity found'}
 

@@ -4,7 +4,7 @@ import uuid  # For unique point IDs
 from itertools import combinations
 from .geometry import (
     distance_sq, on_segment, orientation, segments_intersect,
-    get_segment_intersection_point
+    get_segment_intersection_point, is_ray_blocked, get_extended_border_point
 )
 from .formations import FormationManager
 from . import game_data
