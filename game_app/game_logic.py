@@ -124,27 +124,44 @@ class Game:
 
     def _augment_points_for_frontend(self, points):
         """Adds transient frontend-specific data to points."""
-        fortified_point_ids = self._get_fortified_point_ids()
-        bastion_point_ids = self._get_bastion_point_ids()
-        structure_pids = self._get_structure_point_ids_by_type()
-        
+        # Pre-fetch data sets
+        data_sets = {
+            'fortified_ids': self._get_fortified_point_ids(),
+            'bastion_ids': self._get_bastion_point_ids(),
+            'structure_pids': self._get_structure_point_ids_by_type(),
+            'state': self.state,
+        }
+
+        # Define augmentations in a data-driven way: flag -> (data_set_key, sub_key or None)
+        POINT_AUGMENTATIONS = {
+            'is_anchor': ('state', 'anchors'),
+            'is_fortified': ('fortified_ids', None),
+            'is_bastion_core': ('bastion_ids', 'cores'),
+            'is_bastion_prong': ('bastion_ids', 'prongs'),
+            'is_i_rune_point': ('structure_pids', 'i_rune'),
+            'is_sentry_eye': ('structure_pids', 'i_rune_sentry_eye'),
+            'is_sentry_post': ('structure_pids', 'i_rune_sentry_post'),
+            'is_conduit_point': ('structure_pids', 'i_rune'),
+            'is_nexus_point': ('structure_pids', 'nexus'),
+            'is_monolith_point': ('structure_pids', 'monolith'),
+            'is_trebuchet_point': ('structure_pids', 'trebuchet'),
+            'is_purifier_point': ('structure_pids', 'purifier'),
+            'is_in_stasis': ('state', 'stasis_points'),
+            'is_isolated': ('state', 'isolated_points'),
+        }
+
         augmented_points = {}
         for pid, point in points.items():
             augmented_point = point.copy()
-            augmented_point['is_anchor'] = pid in self.state['anchors']
-            augmented_point['is_fortified'] = pid in fortified_point_ids
-            augmented_point['is_bastion_core'] = pid in bastion_point_ids['cores']
-            augmented_point['is_bastion_prong'] = pid in bastion_point_ids['prongs']
-            augmented_point['is_i_rune_point'] = pid in structure_pids['i_rune']
-            augmented_point['is_sentry_eye'] = pid in structure_pids['i_rune_sentry_eye']
-            augmented_point['is_sentry_post'] = pid in structure_pids['i_rune_sentry_post']
-            augmented_point['is_conduit_point'] = pid in structure_pids['i_rune'] # I-Runes are also Conduits
-            augmented_point['is_nexus_point'] = pid in structure_pids['nexus']
-            augmented_point['is_monolith_point'] = pid in structure_pids['monolith']
-            augmented_point['is_trebuchet_point'] = pid in structure_pids['trebuchet']
-            augmented_point['is_purifier_point'] = pid in structure_pids['purifier']
-            augmented_point['is_in_stasis'] = pid in self.state.get('stasis_points', {})
-            augmented_point['is_isolated'] = pid in self.state.get('isolated_points', {})
+            for flag, (data_key, sub_key) in POINT_AUGMENTATIONS.items():
+                source_container = data_sets.get(data_key, {})
+                
+                target_collection = source_container
+                if sub_key:
+                    # sub_key collections are either dicts of sets, or dicts in the main state
+                    target_collection = source_container.get(sub_key, {})
+                
+                augmented_point[flag] = pid in target_collection
             augmented_points[pid] = augmented_point
         return augmented_points
 

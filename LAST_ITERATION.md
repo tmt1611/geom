@@ -1,17 +1,13 @@
-This iteration focuses on improving code organization by separating static text data from game logic configuration. This aligns with the goal of making text-based operations easier to manage.
+This iteration focuses on cleaning up the codebase by removing data duplication and refactoring a verbose function to be more maintainable and data-driven.
 
 **Summary of Changes:**
 
-1.  **Created `game_app/text_data.py`:**
-    *   A new file, `text_data.py`, was created to house large, static dictionaries of text.
-    *   The `DEFAULT_TEAMS`, `ACTION_DESCRIPTIONS`, and `ACTION_VERBOSE_DESCRIPTIONS` dictionaries were moved from `game_data.py` to this new file.
+1.  **Completed Data Separation (`game_data.py`, `text_data.py`):**
+    *   The previous iteration had moved text dictionaries to `text_data.py` but left duplicated definitions in `game_data.py`.
+    *   I have now removed the duplicated `ACTION_DESCRIPTIONS` and `ACTION_VERBOSE_DESCRIPTIONS` dictionaries from `game_data.py`.
+    *   `game_data.py` now correctly imports these, along with `DEFAULT_TEAMS`, directly from `text_data.py`, making `text_data.py` the single source of truth for static game text. This eliminates redundancy and improves code organization.
 
-2.  **Refactored `game_app/game_data.py`:**
-    *   This file now imports the text data from `text_data.py`.
-    *   The moved dictionaries are re-exported from `game_data.py` to maintain a single point of import for most other modules, preventing the need for widespread changes across the codebase. This keeps the API consistent for files like `game_logic.py` and `routes.py`.
-
-3.  **Updated Project Configuration:**
-    *   `game_app/utils.py`: Added `game_app/text_data.py` to the `WATCHED_FILES` list to ensure the live-update detection system tracks changes to this new file.
-    *   `static/js/api.js`: Added `text_data.py` to the `pyodideFileStructure` list, ensuring it is loaded into the virtual filesystem when the application runs in static/Pyodide mode.
-
-This change cleans up `game_data.py`, making it easier to see the core game balance data (weights, groups, etc.) without being cluttered by large blocks of text.
+2.  **Refactored Point Augmentation Logic (`game_logic.py`):**
+    *   The `_augment_points_for_frontend` method, which adds boolean flags to point objects for rendering, was a long, hardcoded block of checks.
+    *   I have refactored this function to be data-driven. A new dictionary, `POINT_AUGMENTATIONS`, now defines the relationship between a flag name (e.g., `'is_anchor'`) and the data source to check against.
+    *   The function now pre-fetches all necessary data sets and then iterates through this configuration dictionary, making the code cleaner, more declarative, and significantly easier to extend with new point statuses in the future.
