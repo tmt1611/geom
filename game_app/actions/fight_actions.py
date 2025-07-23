@@ -171,14 +171,14 @@ class FightActionsHandler:
             p_start, p_end = random.choice([(p1, p2), (p2, p1)])
             border_point = get_extended_border_point(
                 p_start, p_end, self.state['grid_size'],
-                self.state.get('fissures', []), self.state.get('barricades', [])
+                self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
             )
             if not border_point: continue
 
             attack_segment_p1 = p_end
             attack_segment_p2 = border_point
 
-            if is_ray_blocked(attack_segment_p1, attack_segment_p2, self.state.get('fissures', []), self.state.get('barricades', [])):
+            if is_ray_blocked(attack_segment_p1, attack_segment_p2, self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])):
                 continue
 
             closest_hit = self._find_closest_attack_hit(attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune, bastion_line_ids)
@@ -547,7 +547,7 @@ class FightActionsHandler:
             
             zap_ray_end = get_extended_border_point(
                 p_eye, target_point, self.state['grid_size'],
-                self.state.get('fissures', []), self.state.get('barricades', [])
+                self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
             ) or target_point
             destroyed_team_name = self.state['teams'][destroyed_point_data['teamId']]['name']
             
@@ -564,10 +564,10 @@ class FightActionsHandler:
             dummy_end_point = {'x': p_eye['x'] + zap_vx, 'y': p_eye['y'] + zap_vy}
             border_point = get_extended_border_point(
                 p_eye, dummy_end_point, self.state['grid_size'],
-                self.state.get('fissures', []), self.state.get('barricades', [])
+                self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
             )
             
-            if not border_point or is_ray_blocked(p_eye, border_point, self.state.get('fissures', []), self.state.get('barricades', [])):
+            if not border_point or is_ray_blocked(p_eye, border_point, self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])):
                  return {'success': False, 'reason': 'zap path to border was blocked'}
 
             new_point = self.game._helper_spawn_on_border(teamId, border_point)
@@ -675,7 +675,7 @@ class FightActionsHandler:
             
             source_ray_end = get_extended_border_point(
                 ls1, ls2, self.state['grid_size'],
-                self.state.get('fissures', []), self.state.get('barricades', [])
+                self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
             )
             if not source_ray_end: continue
             source_ray = {'p1': ls2, 'p2': source_ray_end}
@@ -699,7 +699,7 @@ class FightActionsHandler:
                 refracted_end_dummy = {'x': intersection_point['x'] + pvx/mag, 'y': intersection_point['y'] + pvy/mag}
                 refracted_ray_end = get_extended_border_point(
                     intersection_point, refracted_end_dummy, self.state['grid_size'],
-                    self.state.get('fissures', []), self.state.get('barricades', [])
+                    self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
                 )
                 if not refracted_ray_end: continue
                 

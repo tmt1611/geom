@@ -99,7 +99,7 @@ class ExpandActionsHandler:
         """Helper to check if a line extension is valid and add it to a list."""
         border_point = get_extended_border_point(
             p_start, p_end, self.state['grid_size'],
-            self.state.get('fissures', []), self.state.get('barricades', [])
+            self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
         )
         if border_point:
             is_valid, _ = self.game.is_spawn_location_valid(border_point, teamId)

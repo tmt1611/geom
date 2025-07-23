@@ -91,7 +91,7 @@ class RuneActionsHandler:
         p_end = {'x': p_vertex['x'] + bisector_v['x']/mag_b, 'y': p_vertex['y'] + bisector_v['y']/mag_b}
         border_point = get_extended_border_point(
             p_vertex, p_end, self.state['grid_size'],
-            self.state.get('fissures', []), self.state.get('barricades', [])
+            self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
         )
         if not border_point: return {'success': False, 'reason': 'bisector attack path blocked'}
         
@@ -267,7 +267,7 @@ class RuneActionsHandler:
         # The attack fires from the apex, directed by the handle
         border_point = get_extended_border_point(
             p_handle, p_apex, self.state['grid_size'],
-            self.state.get('fissures', []), self.state.get('barricades', [])
+            self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
         )
         if not border_point:
             return {'success': False, 'reason': 'impale attack does not hit border'}
@@ -671,7 +671,7 @@ class RuneActionsHandler:
 
             border_point = get_extended_border_point(
                 center_point, arm_point_data, self.state['grid_size'],
-                self.state.get('fissures', []), self.state.get('barricades', [])
+                self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
             )
             if not border_point: continue
 
