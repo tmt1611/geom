@@ -232,7 +232,7 @@ class FortifyActionsHandler:
         
         # --- Primary Action: Form Bastion ---
         chosen_bastion = random.choice(possible_bastions)
-        bastion_id = f"b_{uuid.uuid4().hex[:6]}"
+        bastion_id = self.game._generate_id('b')
         new_bastion = {
             'id': bastion_id,
             'teamId': teamId,
@@ -311,7 +311,7 @@ class FortifyActionsHandler:
 
         # --- Primary Action: Form Monolith ---
         chosen_monolith_data = random.choice(possible_monoliths)
-        monolith_id = f"m_{uuid.uuid4().hex[:6]}"
+        monolith_id = self.game._generate_id('m')
         new_monolith = {
             'id': monolith_id,
             'teamId': teamId,
@@ -375,7 +375,7 @@ class FortifyActionsHandler:
             return {'success': False, 'reason': 'failed to sacrifice points for heartwood'}
 
         # --- Create the Heartwood ---
-        heartwood_id = f"hw_{uuid.uuid4().hex[:6]}"
+        heartwood_id = self.game._generate_id('hw')
         new_heartwood = {
             'id': heartwood_id,
             'teamId': teamId,
@@ -426,7 +426,7 @@ class FortifyActionsHandler:
         if not sacrificed_point_data:
             return {'success': False, 'reason': 'failed to sacrifice point for spire'}
 
-        spire_id = f"rs_{uuid.uuid4().hex[:6]}"
+        spire_id = self.game._generate_id('rs')
         new_spire = {
             'id': spire_id,
             'teamId': teamId,
@@ -470,7 +470,7 @@ class FortifyActionsHandler:
         
         p2 = random.choice(opposite_borders) if opposite_borders else random.choice(borders)
 
-        fissure_id = f"f_{uuid.uuid4().hex[:6]}"
+        fissure_id = self.game._generate_id('f')
         new_fissure = { 'id': fissure_id, 'p1': p1, 'p2': p2, 'turns_left': 8 }
         self.state['fissures'].append(new_fissure)
         
@@ -540,7 +540,7 @@ class FortifyActionsHandler:
         mid1 = self.game._points_centroid(side1_pts)
         mid2 = self.game._points_centroid(side2_pts)
 
-        barricade_id = f"bar_{uuid.uuid4().hex[:6]}"
+        barricade_id = self.game._generate_id('bar')
         new_barricade = {
             'id': barricade_id,
             'teamId': teamId,
@@ -588,7 +588,7 @@ class FortifyActionsHandler:
             return {'success': False, 'reason': 'failed to sacrifice all formation points'}
             
         # Create the Wonder
-        wonder_id = f"w_{uuid.uuid4().hex[:6]}"
+        wonder_id = self.game._generate_id('w')
         new_wonder = {
             'id': wonder_id,
             'teamId': teamId,
@@ -653,7 +653,7 @@ class FortifyActionsHandler:
                 if not is_valid:
                     all_reflections_valid = False; break
                 
-                new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                new_point_id = self.game._generate_id('p')
                 new_points_to_create.append({**reflected_p_int, "teamId": teamId, "id": new_point_id})
             
             if all_reflections_valid and new_points_to_create:
@@ -690,7 +690,7 @@ class FortifyActionsHandler:
             last_axis_pids = random.sample(team_point_ids, 2)
             existing_lines_keys = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in all_team_lines}
             if tuple(sorted(last_axis_pids)) not in existing_lines_keys:
-                line_id = f"l_{uuid.uuid4().hex[:6]}"
+                line_id = self.game._generate_id('l')
                 new_line = {"id": line_id, "p1_id": last_axis_pids[0], "p2_id": last_axis_pids[1], "teamId": teamId}
                 self.state['lines'].append(new_line)
                 return {'success': True, 'type': 'add_line', 'line': new_line} # Reuse add_line type

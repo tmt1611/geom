@@ -118,7 +118,7 @@ class RuneActionsHandler:
             }
         else:
             # --- Fallback Effect: Create Fissure ---
-            fissure_id = f"f_{uuid.uuid4().hex[:6]}"
+            fissure_id = self.game._generate_id('f')
             # The fissure is the segment from the vertex to the border
             new_fissure = {'id': fissure_id, 'p1': p_vertex, 'p2': border_point, 'turns_left': 2}
             self.state['fissures'].append(new_fissure)
@@ -308,7 +308,7 @@ class RuneActionsHandler:
             }
         else:
             # --- Fallback Effect: Create Barricade ---
-            barricade_id = f"bar_{uuid.uuid4().hex[:6]}"
+            barricade_id = self.game._generate_id('bar')
             new_barricade = {
                 'id': barricade_id,
                 'teamId': teamId,
@@ -392,15 +392,15 @@ class RuneActionsHandler:
             if not is_valid1 or not is_valid2:
                  return {'success': False, 'reason': 'center of parallelogram is blocked'}
 
-            p1_id = f"p_{uuid.uuid4().hex[:6]}"
+            p1_id = self.game._generate_id('p')
             new_p1 = {**p1_coords, 'id': p1_id, 'teamId': teamId}
             self.state['points'][p1_id] = new_p1
             
-            p2_id = f"p_{uuid.uuid4().hex[:6]}"
+            p2_id = self.game._generate_id('p')
             new_p2 = {**p2_coords, 'id': p2_id, 'teamId': teamId}
             self.state['points'][p2_id] = new_p2
             
-            line_id = f"l_{uuid.uuid4().hex[:6]}"
+            line_id = self.game._generate_id('l')
             new_line = {'id': line_id, 'p1_id': p1_id, 'p2_id': p2_id, 'teamId': teamId}
             self.state['lines'].append(new_line)
             
@@ -634,7 +634,7 @@ class RuneActionsHandler:
             largest_enemy_team_id = max(enemy_team_points, key=lambda tid: len(enemy_team_points[tid]))
             enemy_centroid = self.game._points_centroid(enemy_team_points[largest_enemy_team_id])
 
-            fissure_id = f"f_{uuid.uuid4().hex[:6]}"
+            fissure_id = self.game._generate_id('f')
             fissure_len = self.state['grid_size'] * 0.2
             angle = random.uniform(0, math.pi)
             p1 = {'x': enemy_centroid['x'] - (fissure_len / 2) * math.cos(angle), 'y': enemy_centroid['y'] - (fissure_len / 2) * math.sin(angle)}
@@ -728,7 +728,7 @@ class RuneActionsHandler:
                 # Miss: create point on border
                 is_valid, _ = self.game._is_spawn_location_valid(border_point, teamId)
                 if is_valid:
-                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                    new_point_id = self.game._generate_id('p')
                     new_point = {**border_point, "teamId": teamId, "id": new_point_id}
                     self.state['points'][new_point_id] = new_point
                     points_created.append(new_point)

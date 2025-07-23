@@ -53,7 +53,7 @@ class ExpandActionsHandler:
 
         if possible_pairs:
             p1_id, p2_id = random.choice(possible_pairs)
-            line_id = f"l_{uuid.uuid4().hex[:6]}"
+            line_id = self.game._generate_id('l')
             new_line = {"id": line_id, "p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
             self.state['lines'].append(new_line)
             return {'success': True, 'type': 'add_line', 'line': new_line}
@@ -108,7 +108,7 @@ class ExpandActionsHandler:
                 break
 
         # Create new point with a unique ID
-        new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+        new_point_id = self.game._generate_id('p')
         new_point = {**border_point, "teamId": teamId, "id": new_point_id}
         self.state['points'][new_point_id] = new_point
         
@@ -116,7 +116,7 @@ class ExpandActionsHandler:
         
         if is_empowered:
             # Empowered extension also creates a line to the new point
-            line_id = f"l_{uuid.uuid4().hex[:6]}"
+            line_id = self.game._generate_id('l')
             new_line = {"id": line_id, "p1_id": origin_point_id, "p2_id": new_point_id, "teamId": teamId}
             self.state['lines'].append(new_line)
             result_payload['new_line'] = new_line
@@ -170,7 +170,7 @@ class ExpandActionsHandler:
         final_x = round(max(0, min(grid_size - 1, new_x)))
         final_y = round(max(0, min(grid_size - 1, new_y)))
 
-        new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+        new_point_id = self.game._generate_id('p')
         new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
         self.state['points'][new_point_id] = new_point
 
@@ -179,9 +179,9 @@ class ExpandActionsHandler:
         self.state['shields'].pop(line_to_fracture.get('id'), None)
 
         # Create two new lines
-        line_id_1 = f"l_{uuid.uuid4().hex[:6]}"
+        line_id_1 = self.game._generate_id('l')
         new_line_1 = {"id": line_id_1, "p1_id": line_to_fracture['p1_id'], "p2_id": new_point_id, "teamId": teamId}
-        line_id_2 = f"l_{uuid.uuid4().hex[:6]}"
+        line_id_2 = self.game._generate_id('l')
         new_line_2 = {"id": line_id_2, "p1_id": new_point_id, "p2_id": line_to_fracture['p2_id'], "teamId": teamId}
         self.state['lines'].extend([new_line_1, new_line_2])
 
@@ -223,7 +223,7 @@ class ExpandActionsHandler:
                 continue
 
             # We found a valid spawn, create the new point
-            new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+            new_point_id = self.game._generate_id('p')
             new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
             self.state['points'][new_point_id] = new_point
 
@@ -269,7 +269,7 @@ class ExpandActionsHandler:
                 if is_too_close_to_sibling:
                     valid_orbital = False; break
                 
-                new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                new_point_id = self.game._generate_id('p')
                 new_points_to_create.append({"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id})
             
             if not valid_orbital:
@@ -281,7 +281,7 @@ class ExpandActionsHandler:
             for new_p_data in new_points_to_create:
                 self.state['points'][new_p_data['id']] = new_p_data
                 created_points.append(new_p_data)
-                line_id = f"l_{uuid.uuid4().hex[:6]}"
+                line_id = self.game._generate_id('l')
                 new_line = {"id": line_id, "p1_id": p_center_id, "p2_id": new_p_data['id'], "teamId": teamId}
                 self.state['lines'].append(new_line)
                 created_lines.append(new_line)
@@ -354,10 +354,10 @@ class ExpandActionsHandler:
                     continue
 
                 # --- Primary Effect: Grow Line ---
-                new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                new_point_id = self.game._generate_id('p')
                 new_point = {**new_point_coords, "teamId": teamId, "id": new_point_id}
                 self.state['points'][new_point_id] = new_point
-                line_id = f"l_{uuid.uuid4().hex[:6]}"
+                line_id = self.game._generate_id('l')
                 new_line = {"id": line_id, "p1_id": p_origin_id, "p2_id": new_point_id, "teamId": teamId}
                 self.state['lines'].append(new_line)
                 return {'success': True, 'type': 'grow_line', 'new_point': new_point, 'new_line': new_line}

@@ -144,7 +144,7 @@ class FightActionsHandler:
             else:
                 is_valid, _ = self.game._is_spawn_location_valid(border_point, teamId)
                 if is_valid:
-                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                    new_point_id = self.game._generate_id('p')
                     new_point = {**border_point, "teamId": teamId, "id": new_point_id}
                     self.state['points'][new_point_id] = new_point
                     return {
@@ -214,7 +214,7 @@ class FightActionsHandler:
         if not p1 or not p2:
             return {'success': False, 'reason': 'points for fallback barricade do not exist'}
         
-        barricade_id = f"bar_{uuid.uuid4().hex[:6]}"
+        barricade_id = self.game._generate_id('bar')
         new_barricade = {
             'id': barricade_id, 'teamId': teamId,
             'p1': {'x': p1['x'], 'y': p1['y']}, 'p2': {'x': p2['x'], 'y': p2['y']},
@@ -459,7 +459,7 @@ class FightActionsHandler:
         else:
             # --- Fallback Effect: Create Fissure ---
             grid_size = self.state['grid_size']
-            fissure_id = f"f_{uuid.uuid4().hex[:6]}"
+            fissure_id = self.game._generate_id('f')
             fissure_len = self.state['grid_size'] * 0.3
             
             # Create fissure at a random location
@@ -577,7 +577,7 @@ class FightActionsHandler:
             if not is_valid:
                  return {'success': False, 'reason': 'no valid spawn location on border for zap miss'}
 
-            new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+            new_point_id = self.game._generate_id('p')
             new_point = {**border_point, "teamId": teamId, "id": new_point_id}
             self.state['points'][new_point_id] = new_point
             

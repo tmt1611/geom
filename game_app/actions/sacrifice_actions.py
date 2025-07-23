@@ -167,7 +167,7 @@ class SacrificeActionsHandler:
         # --- Determine Outcome ---
         if has_targets:
             # Primary Effect: Create Whirlpool
-            whirlpool_id = f"wp_{uuid.uuid4().hex[:6]}"
+            whirlpool_id = self.game._generate_id('wp')
             new_whirlpool = {
                 'id': whirlpool_id, 'teamId': teamId, 'coords': sac_point_coords,
                 'turns_left': 4, 'strength': 0.05, 'swirl': 0.5,
@@ -181,7 +181,7 @@ class SacrificeActionsHandler:
             }
         else:
             # Fallback Effect: Create a small fissure
-            fissure_id = f"f_{uuid.uuid4().hex[:6]}"
+            fissure_id = self.game._generate_id('f')
             fissure_len = self.state['grid_size'] * 0.2
             angle = random.uniform(0, math.pi)
             p1 = {'x': sac_point_coords['x'] - (fissure_len / 2) * math.cos(angle), 'y': sac_point_coords['y'] - (fissure_len / 2) * math.sin(angle)}
@@ -309,7 +309,7 @@ class SacrificeActionsHandler:
             return {'success': False, 'reason': 'failed to sacrifice point for trap'}
 
         # Create the trap
-        trap_id = f"rt_{uuid.uuid4().hex[:6]}"
+        trap_id = self.game._generate_id('rt')
         new_trap = {
             'id': trap_id,
             'teamId': teamId,

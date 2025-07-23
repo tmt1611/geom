@@ -214,6 +214,10 @@ class Game:
             }
         return live_stats
 
+    def _generate_id(self, prefix):
+        """Generates a unique ID with a given prefix."""
+        return f"{prefix}_{uuid.uuid4().hex[:6]}"
+
     def start_game(self, teams, points, max_turns, grid_size):
         """Starts a new game with the given parameters."""
         self.reset()
@@ -235,7 +239,7 @@ class Game:
                         0 <= p['x'] < grid_size and 0 <= p['y'] < grid_size]
 
         for p in valid_points:
-            point_id = f"p_{uuid.uuid4().hex[:6]}"
+            point_id = self._generate_id('p')
             self.state['points'][point_id] = {**p, 'id': point_id}
         
         self.state['game_phase'] = "RUNNING" if len(self.state['points']) > 0 else "SETUP"
