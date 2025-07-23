@@ -3714,6 +3714,39 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
             ctx.restore();
         },
+        'rune_shield_pulse': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            
+            // Shield rune
+            const t1 = {x: w*0.3, y: h*0.2};
+            const t2 = {x: w*0.1, y: h*0.8};
+            const t3 = {x: w*0.5, y: h*0.8};
+            const core = {x: w*0.3, y: h*0.6};
+            const center = {x: (t1.x+t2.x+t3.x)/3, y: (t1.y+t2.y+t3.y)/3};
+            
+            illustrationHelpers.drawPoints(ctx, [t1, t2, t3, core], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:t1,p2:t2},{p1:t2,p2:t3},{p1:t3,p2:t1}], team1_color);
+
+            // Shockwave
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, w*0.3, 0, 2*Math.PI);
+            ctx.strokeStyle = 'rgba(173, 216, 230, 0.7)'; // shield blue
+            ctx.setLineDash([4,4]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+
+            // Enemy points
+            const ep1 = {x: w*0.8, y: h*0.3};
+            const ep2 = {x: w*0.7, y: h*0.7};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+
+            // Push arrows
+            illustrationHelpers.drawArrow(ctx, ep1, {x: w*0.9, y: h*0.2}, '#aaa');
+            illustrationHelpers.drawArrow(ctx, ep2, {x: w*0.8, y: h*0.8}, '#aaa');
+        },
         'rune_impale': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
             const team2_color = 'hsl(240, 70%, 50%)';
