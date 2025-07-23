@@ -1,15 +1,13 @@
-This iteration focuses on a significant refactoring of how point properties (like being part of a structure or having a status) are calculated and sent to the frontend. The goal was to follow the DRY principle, improve maintainability, and centralize logic in a data-driven way.
+This iteration focused on refactoring and centralizing all action-related metadata. Previously, information about game actions (their group, description, implementation mapping, and log messages) was spread across `game_data.py` and `text_data.py`. This made adding or modifying actions cumbersome and error-prone.
+
+To improve this, I've introduced a single source of truth for all action definitions.
 
 **Key Changes:**
 
-1.  **Centralized Point Flags in `structure_data.py`:**
-    -   Previously, the logic for what constitutes a "fortified" point, a "bastion core", an "anchor", etc., was spread across multiple methods in `game_logic.py` (`_get_fortified_point_ids`, `_get_bastion_point_ids`, a manual dictionary `POINT_AUGMENTATIONS`).
-    -   This logic has been completely centralized into the `STRUCTURE_DEFINITIONS` registry in `structure_data.py`. Each structure definition now contains `frontend_flag_key` or `frontend_flag_keys` to specify the boolean flags its points should receive (e.g., `'is_fortified'`, `'is_bastion_core'`).
-    -   This makes it much easier to add new structures or change how existing ones are represented on the frontend, as all the configuration is in one place. It also fixed a minor bug where some structure flags were not being correctly applied.
+1.  **New `action_data.py` file:** A new file, `game_app/action_data.py`, has been created. It contains a single dictionary named `ACTIONS` that serves as a registry for every action in the game. Each entry contains all relevant metadata: its group, display name, detailed description, handler mapping, and associated log message generators.
 
-2.  **Refactored Game Logic (`game_logic.py`):**
-    -   Removed the now-redundant helper methods `_get_structure_point_ids_by_type` and its dependencies.
-    -   Created a new, generic helper method `_get_all_point_flags()` that reads the `STRUCTURE_DEFINITIONS` registry and generates a complete map of which points have which flags (e.g., `{'is_anchor': {p1, p2}, 'is_fortified': {p3, p4}}`).
-    -   Massively simplified the `_augment_points_for_frontend()` method. It now uses the output of `_get_all_point_flags()` to efficiently add all relevant boolean flags to each point object before sending the state to the client.
+2.  **Simplified `game_data.py`:** This file now dynamically builds the older data structures (like `ACTION_MAP`, `ACTION_GROUPS`, etc.) by importing and processing the `ACTIONS` dictionary from the new file. This maintains backward compatibility with the existing game logic, requiring no changes to `game_logic.py` or `routes.py`, while still benefiting from the centralized data source.
 
-This refactoring makes the code cleaner, more data-driven, and easier to extend. The logic for point augmentation is now entirely derived from the central `structure_data.py` registry, reducing complexity and the chance of errors.
+3.  **Removed `text_data.py`:** With all action descriptions and default team data consolidated into `action_data.py` and `game_data.py` respectively, `text_data.py` became redundant and has been deleted.
+
+This refactoring significantly improves the codebase's organization and maintainability. It's now much cleaner and more straightforward to manage the game's action system, adhering to the DRY (Don't Repeat Yourself) principle.

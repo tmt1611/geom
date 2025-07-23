@@ -1,15 +1,35 @@
 # game_app/game_data.py
-from .text_data import ACTION_DESCRIPTIONS, ACTION_VERBOSE_DESCRIPTIONS, DEFAULT_TEAMS
+from .action_data import ACTIONS
 
-ACTION_GROUPS = {
-    'Expand': ['expand_add', 'expand_extend', 'expand_grow', 'expand_fracture', 'expand_spawn', 'expand_orbital'],
-    'Fight': ['fight_attack', 'fight_convert', 'fight_pincer_attack', 'fight_territory_strike', 'fight_bastion_pulse', 'fight_sentry_zap', 'fight_chain_lightning', 'fight_refraction_beam', 'fight_launch_payload', 'fight_purify_territory', 'fight_isolate_point'],
-    'Fortify': ['fortify_claim', 'fortify_anchor', 'fortify_mirror', 'fortify_form_bastion', 'fortify_form_monolith', 'fortify_form_purifier', 'fortify_cultivate_heartwood', 'fortify_form_rift_spire', 'terraform_create_fissure', 'terraform_raise_barricade', 'fortify_build_wonder', 'fortify_shield', 'fortify_reposition_point', 'fortify_attune_nexus', 'fortify_create_ley_line'],
-    'Sacrifice': ['sacrifice_nova', 'sacrifice_whirlpool', 'sacrifice_phase_shift', 'sacrifice_rift_trap', 'sacrifice_scorch_territory'],
-    'Rune': ['rune_shoot_bisector', 'rune_area_shield', 'rune_shield_pulse', 'rune_impale', 'rune_hourglass_stasis', 'rune_t_hammer_slam', 'rune_starlight_cascade', 'rune_focus_beam', 'rune_cardinal_pulse', 'rune_parallel_discharge']
+DEFAULT_TEAMS = {
+    'team_alpha_default': {'id': 'team_alpha_default', 'name': 'Team Alpha', 'color': '#ff4b4b', 'trait': 'Aggressive'},
+    'team_beta_default': {'id': 'team_beta_default', 'name': 'Team Beta', 'color': '#4b4bff', 'trait': 'Defensive'}
 }
-# Reverse mapping for quick category lookup
-ACTION_NAME_TO_GROUP = {action: group for group, actions in ACTION_GROUPS.items() for action in actions}
+
+# --- Structures built dynamically from ACTIONS for backward compatibility ---
+
+ACTION_GROUPS = {}
+ACTION_NAME_TO_GROUP = {}
+ACTION_MAP = {}
+ACTION_DESCRIPTIONS = {}
+ACTION_VERBOSE_DESCRIPTIONS = {}
+ACTION_LOG_GENERATORS = {}
+
+for action_name, data in ACTIONS.items():
+    group = data['group']
+    if group not in ACTION_GROUPS:
+        ACTION_GROUPS[group] = []
+    ACTION_GROUPS[group].append(action_name)
+    
+    ACTION_NAME_TO_GROUP[action_name] = group
+    ACTION_MAP[action_name] = (data['handler'], data['method'])
+    ACTION_DESCRIPTIONS[action_name] = data['display_name']
+    ACTION_VERBOSE_DESCRIPTIONS[action_name] = data['description']
+    
+    if 'log_generators' in data:
+        ACTION_LOG_GENERATORS.update(data['log_generators'])
+
+# --- Static Game Data ---
 
 GROUP_BASE_WEIGHTS = {
     'Expand': 30,
@@ -24,146 +44,4 @@ TRAIT_GROUP_MULTIPLIERS = {
     'Expansive':  {'Expand': 2.0, 'Fight': 0.6, 'Fortify': 0.7},
     'Defensive':  {'Fortify': 2.5, 'Fight': 0.5, 'Sacrifice': 0.5},
     'Balanced':   {} # Uses base weights
-}
-
-ACTION_MAP = {
-    # ('handler_name_in_game_class', 'method_name_in_handler')
-    'expand_add': ('expand_handler', 'add_line'),
-    'expand_extend': ('expand_handler', 'extend_line'),
-    'expand_grow': ('expand_handler', 'grow_line'),
-    'expand_fracture': ('expand_handler', 'fracture_line'),
-    'expand_spawn': ('expand_handler', 'spawn_point'),
-    'expand_orbital': ('expand_handler', 'create_orbital'),
-    'fight_attack': ('fight_handler', 'attack_line'),
-    'fight_convert': ('fight_handler', 'convert_point'),
-    'fight_pincer_attack': ('fight_handler', 'pincer_attack'),
-    'fight_territory_strike': ('fight_handler', 'territory_strike'),
-    'fight_bastion_pulse': ('fight_handler', 'bastion_pulse'),
-    'fight_chain_lightning': ('fight_handler', 'chain_lightning'),
-    'fight_refraction_beam': ('fight_handler', 'refraction_beam'),
-    'fight_launch_payload': ('fight_handler', 'launch_payload'),
-    'fight_sentry_zap': ('fight_handler', 'sentry_zap'),
-    'fight_purify_territory': ('fight_handler', 'purify_territory'),
-    'fight_isolate_point': ('fight_handler', 'isolate_point'),
-    'fortify_claim': ('fortify_handler', 'claim_territory'),
-    'fortify_anchor': ('fortify_handler', 'create_anchor'),
-    'fortify_mirror': ('fortify_handler', 'mirror_structure'),
-    'fortify_form_bastion': ('fortify_handler', 'form_bastion'),
-    'fortify_form_monolith': ('fortify_handler', 'form_monolith'),
-    'fortify_form_purifier': ('fortify_handler', 'form_purifier'),
-    'fortify_cultivate_heartwood': ('fortify_handler', 'cultivate_heartwood'),
-    'fortify_form_rift_spire': ('fortify_handler', 'form_rift_spire'),
-    'fortify_reposition_point': ('fortify_handler', 'reposition_point'),
-    'terraform_create_fissure': ('fortify_handler', 'create_fissure'),
-    'terraform_raise_barricade': ('fortify_handler', 'raise_barricade'),
-    'fortify_build_wonder': ('fortify_handler', 'build_chronos_spire'),
-    'fortify_attune_nexus': ('fortify_handler', 'attune_nexus'),
-    'fortify_create_ley_line': ('fortify_handler', 'create_ley_line'),
-    'sacrifice_nova': ('sacrifice_handler', 'nova_burst'),
-    'sacrifice_whirlpool': ('sacrifice_handler', 'create_whirlpool'),
-    'sacrifice_phase_shift': ('sacrifice_handler', 'phase_shift'),
-    'sacrifice_rift_trap': ('sacrifice_handler', 'rift_trap'),
-    'sacrifice_scorch_territory': ('sacrifice_handler', 'scorch_territory'),
-    'fortify_shield': ('fortify_handler', 'shield_line'),
-    'rune_shoot_bisector': ('rune_handler', 'shoot_bisector'),
-    'rune_area_shield': ('rune_handler', 'area_shield'),
-    'rune_shield_pulse': ('rune_handler', 'shield_pulse'),
-    'rune_impale': ('rune_handler', 'impale'),
-    'rune_hourglass_stasis': ('rune_handler', 'hourglass_stasis'),
-    'rune_starlight_cascade': ('rune_handler', 'starlight_cascade'),
-    'rune_focus_beam': ('rune_handler', 'focus_beam'),
-    'rune_t_hammer_slam': ('rune_handler', 't_hammer_slam'),
-    'rune_cardinal_pulse': ('rune_handler', 'cardinal_pulse'),
-    'rune_parallel_discharge': ('rune_handler', 'parallel_discharge')
-}
-
-ACTION_LOG_GENERATORS = {
-    'add_line_fizzle_strengthen': lambda r: ("could not add a new line, and instead reinforced an existing one.", "[ADD->REINFORCE]"),
-    'extend_fizzle_strengthen': lambda r: ("tried to extend a line but couldn't, so it reinforced an existing line instead.", "[EXTEND->REINFORCE]"),
-    'fracture_fizzle_strengthen': lambda r: ("could not find a line to fracture, and instead reinforced one.", "[FRACTURE->REINFORCE]"),
-    'add_line': lambda r: ("connected two points.", "[+LINE]"),
-    'extend_line': lambda r: (
-        f"extended a line to the border, creating a new point{' with an empowered Conduit extension!' if r.get('is_empowered') else '.'}",
-        "[RAY!]" if r.get('is_empowered') else "[EXTEND]"
-    ),
-    'grow_line': lambda r: ("grew a new branch, creating a new point.", "[GROW]"),
-    'fracture_line': lambda r: ("fractured a line, creating a new point.", "[FRACTURE]"),
-    'spawn_point': lambda r: ("spawned a new point from an existing one.", "[SPAWN]"),
-    'create_orbital': lambda r: (f"created an orbital structure with {len(r['new_points'])} new points.", "[ORBITAL]"),
-    'orbital_fizzle_strengthen': lambda r: (f"failed to form an orbital and instead reinforced {len(r['strengthened_lines'])} lines around a central point.", "[ORBITAL->REINFORCE]"),
-    'attack_line': lambda r: (
-        f"attacked and destroyed a line from Team {r['destroyed_team']}{', bypassing its shield with a Cross Rune!' if r.get('bypassed_shield') else '.'}",
-        "[PIERCE!]" if r.get('bypassed_shield') else "[ATTACK]"
-    ),
-    'attack_line_energized': lambda r: (f"unleashed an energized attack, obliterating a line and its {len(r['destroyed_points'])} endpoints from Team {r['destroyed_team']}.", "[OBLITERATE!]"),
-    'attack_miss_spawn': lambda r: ("launched an attack that missed, but the energy coalesced into a new point on the border.", "[ATTACK->SPAWN]"),
-    'attack_line_strengthened': lambda r: ("attacked a strengthened line, weakening its defenses.", "[DAMAGE]"),
-    'convert_point': lambda r: (f"sacrificed a line to convert a point from Team {r['original_team_name']}.", "[CONVERT]"),
-    'convert_fizzle_push': lambda r: (f"attempted to convert a point but found no targets, instead unleashing a pulse that pushed back {r['pushed_points_count']} enemies.", "[CONVERT->PUSH]"),
-    'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
-    'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION!]"),
-    'attune_nexus': lambda r: ("attuned a Nexus, sacrificing a line to energize its surroundings.", "[ATTUNED!]"),
-    'isolate_point': lambda r: (f"isolated a critical point from Team {r['target_team_name']}, cutting their supply lines.", "[ISOLATE!]"),
-    'isolate_fizzle_barricade': lambda r: ("failed to find a critical enemy point to isolate and instead formed a defensive barricade.", "[ISOLATE->WALL]"),
-    'monolith_fizzle_reinforce': lambda r: (f"failed to form a Monolith and instead reinforced the {len(r['strengthened_lines'])} lines of a potential structure.", "[MONOLITH->REINFORCE]"),
-    'form_monolith': lambda r: ("erected a resonant Monolith from a pillar of light.", "[MONOLITH]"),
-    'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
-    'purify_territory': lambda r: (f"unleashed its Purifier, cleansing a territory from Team {r['cleansed_team_name']}.", "[PURIFY!]"),
-    'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
-    'build_chronos_spire': lambda r: (f"sacrificed {r['sacrificed_points_count']} points to construct the Chronos Spire, a path to victory!", "[WONDER!]"),
-    'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
-    'bastion_pulse_fizzle_shockwave': lambda r: (f"attempted a bastion pulse that fizzled, instead creating a shockwave that pushed {r['pushed_points_count']} points.", "[PULSE->FIZZLE]"),
-    'bastion_fizzle_reinforce': lambda r: (f"failed to form a Bastion and instead reinforced {len(r['strengthened_lines'])} lines around a key defensive point.", "[BASTION->REINFORCE]"),
-    'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
-    'mirror_fizzle_strengthen': lambda r: (f"attempted to mirror its structure, but instead reinforced {len(r['strengthened_lines'])} connected lines.", "[MIRROR->REINFORCE]"),
-    'reposition_point': lambda r: ("subtly repositioned a point for a better tactical advantage.", "[REPOSITION]"),
-    'reposition_fizzle_strengthen': lambda r: ("could not find a better position for any point, and instead reinforced a line.", "[REPOSITION->REINFORCE]"),
-    'create_anchor': lambda r: ("sacrificed a point to create a gravitational anchor.", "[ANCHOR]"),
-    'nova_burst': lambda r: (f"sacrificed a point in a nova burst, destroying {r['lines_destroyed']} lines.", "[NOVA]"),
-    'nova_shockwave': lambda r: (f"sacrificed a point in a shockwave, pushing back {r['pushed_points_count']} nearby points.", "[SHOCKWAVE]"),
-    'scorch_territory': lambda r: (f"sacrificed a territory, scorching the earth and making it impassable.", "[SCORCHED!]"),
-    'spawn_fizzle_strengthen': lambda r: ("could not find a place to spawn a new point, and instead reinforced an existing line.", "[SPAWN->REINFORCE]"),
-    'whirlpool_fizzle_fissure': lambda r: ("sacrificed a point to open a whirlpool, but with no targets in range, it collapsed into a temporary fissure.", "[WHIRLPOOL->FIZZLE]"),
-    'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
-    'shield_overcharge': lambda r: (f"could not shield a new line, and instead overcharged an existing shield to last for {r['new_duration']} turns.", "[OVERCHARGE]"),
-    'grow_fizzle_strengthen': lambda r: ("failed to grow a new branch and instead reinforced an existing line.", "[GROW->REINFORCE]"),
-    'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
-    'vbeam_miss_fissure': lambda r: ("unleashed a V-Rune beam that missed, scarring the earth with a temporary fissure.", "[V-BEAM->FISSURE]"),
-    'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
-    'area_shield_fizzle_push': lambda r: (f"activated a Shield Rune with no lines to protect, instead pushing {r['pushed_points_count']} friendly points to de-clutter.", "[AEGIS->PUSH]"),
-    'rune_shield_pulse': lambda r: (f"unleashed a shockwave from a Shield Rune, pushing back {r['pushed_points_count']} enemy points.", "[PULSE!]"),
-    'shield_pulse_fizzle_pull': lambda r: (f"unleashed a shockwave from a Shield Rune with no enemies in range, instead pulling in {r['pulled_points_count']} friendly points to consolidate.", "[PULSE->PULL]"),
-    'rune_impale': lambda r: (f"fired a piercing blast from a Trident Rune, destroying {len(r['destroyed_lines'])} lines.", "[IMPALE!]"),
-    'impale_fizzle_barricade': lambda r: ("fired a Trident blast that missed all targets, creating a temporary barricade in its wake.", "[IMPALE->WALL]"),
-    'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from Team {r['target_team_name']} in time.", "[STASIS!]"),
-    'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),
-    'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from Team {r['destroyed_team_name']}.", "[FOCUS BEAM!]"),
-    'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from Team {r['destroyed_team_name']}.", "[ZAP!]"),
-    'sentry_zap_miss_spawn': lambda r: ("a Sentry fired a beam that missed all targets, creating a new point on the border.", "[ZAP->SPAWN]"),
-    'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
-    'refraction_miss_spawn': lambda r: ("fired a refracted beam from a Prism that missed, creating a new point on the border.", "[REFRACT->SPAWN]"),
-    'chain_lightning': lambda r: (f"unleashed Chain Lightning from a Conduit, destroying a point from Team {r['destroyed_team_name']}.", "[LIGHTNING!]"),
-    'chain_lightning_fizzle_nova': lambda r: (f"attempted to use Chain Lightning which fizzled, instead unleashing a mini-nova that destroyed {r['lines_destroyed_count']} lines.", "[LIGHTNING->NOVA]"),
-    'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from Team {r['destroyed_team_name']}.", "[PINCER!]"),
-    'pincer_fizzle_barricade': lambda r: ("failed to find a pincer target and instead formed a temporary defensive barricade.", "[PINCER->WALL]"),
-    'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from Team {r['destroyed_team_name']}.", "[TERRITORY!]"),
-    'territory_fizzle_reinforce': lambda r: ("could not find a target for a territory strike, and instead reinforced its own boundaries.", "[TERRITORY->REINFORCE]"),
-    'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {r['destroyed_team_name']}.", "[TREBUCHET!]"),
-    'launch_payload_fallback_hit': lambda r: (f"found no high-value targets and instead launched a payload from a Trebuchet at a standard point from Team {r['destroyed_team_name']}.", "[TREBUCHET]"),
-    'launch_payload_fizzle_fissure': lambda r: ("found no enemy targets and instead launched a payload from a Trebuchet that impacted the battlefield, creating a temporary fissure.", "[TREBUCHET->FIZZLE]"),
-    'create_whirlpool': lambda r: ("sacrificed a point to create a chaotic whirlpool.", "[WHIRLPOOL!]"),
-    'phase_shift': lambda r: ("sacrificed a line to phase shift a point to a new location.", "[PHASE!]"),
-    'phase_shift_fizzle_anchor': lambda r: (f"attempted to phase shift a point but failed, instead causing the residual energy to form a temporary gravitational anchor.", "[PHASE->ANCHOR]"),
-    'create_rift_trap': lambda r: ("sacrificed a point to lay a latent Rift Trap.", "[TRAP SET]"),
-    'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]"),
-    'claim_fizzle_reinforce': lambda r: ("could not find a new territory to claim, and instead reinforced an existing one.", "[CLAIM->REINFORCE]"),
-    'purify_fizzle_push': lambda r: (f"found no territories to cleanse, and instead emitted a pulse that pushed back {r['pushed_points_count']} enemies.", "[PURIFY->PUSH]"),
-    'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead sacrificed a rune point to create a temporary anchor.", "[STASIS->ANCHOR]"),
-    'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from Team {r['destroyed_team_name']}.", "[FOCUS BEAM]"),
-    'focus_beam_fizzle_fissure': lambda r: ("found no targets for its Focus Beam and instead scarred the enemy's heartland with a temporary fissure.", "[FOCUS->FIZZLE]"),
-    'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
-    't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
-    'rune_cardinal_pulse': lambda r: (f"consumed a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points with four beams of energy.", "[CARDINAL PULSE!]"),
-    'parallel_discharge': lambda r: (f"unleashed a Parallel Discharge, cleansing its interior of {len(r['lines_destroyed'])} enemy lines.", "[DISCHARGE!]"),
-    'parallel_discharge_fizzle_spawn': lambda r: ("unleashed a Parallel Discharge that found no targets, and instead created a new structure at its center.", "[DISCHARGE->SPAWN]"),
 }
