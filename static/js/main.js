@@ -4300,6 +4300,122 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawJaggedLine(ctx, fissure_start, fissure_end, 15, 6);
             ctx.restore();
         },
+        'fortify_form_rift_spire': (ctx, w, h) => {
+            const team1_color = 'hsl(280, 70%, 60%)'; // Purple for rift
+            const center = {x: w*0.5, y: h*0.5};
+
+            // 3 territories meeting at 'center'
+            const t1_p2 = {x: w*0.2, y: h*0.2};
+            const t1_p3 = {x: w*0.8, y: h*0.2};
+            const t2_p3 = {x: w*0.2, y: h*0.8};
+            const t3_p3 = {x: w*0.8, y: h*0.8};
+
+            // Draw territories
+            ctx.save();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.2;
+            ctx.beginPath(); // T1
+            ctx.moveTo(center.x, center.y); ctx.lineTo(t1_p2.x, t1_p2.y); ctx.lineTo(t1_p3.x, t1_p3.y); ctx.closePath();
+            ctx.fill();
+            ctx.beginPath(); // T2
+            ctx.moveTo(center.x, center.y); ctx.lineTo(t1_p2.x, t1_p2.y); ctx.lineTo(t2_p3.x, t2_p3.y); ctx.closePath();
+            ctx.fill();
+            ctx.beginPath(); // T3
+            ctx.moveTo(center.x, center.y); ctx.lineTo(t1_p3.x, t1_p3.y); ctx.lineTo(t3_p3.x, t3_p3.y); ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Draw points
+            illustrationHelpers.drawPoints(ctx, [center, t1_p2, t1_p3, t2_p3, t3_p3], team1_color);
+            
+            // Draw sacrifice 'X' over center point
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(center.x - 5, center.y - 5); ctx.lineTo(center.x + 5, center.y + 5);
+            ctx.moveTo(center.x - 5, center.y + 5); ctx.lineTo(center.x + 5, center.y - 5);
+            ctx.stroke();
+
+            // Draw Spire symbol over it
+            ctx.save();
+            ctx.translate(center.x, center.y);
+            ctx.beginPath();
+            const spikes = 7;
+            const outerRadius = 12;
+            const innerRadius = 6;
+            for (let i = 0; i < spikes * 2; i++) {
+                const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                const angle = (i * Math.PI) / spikes;
+                ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+            }
+            ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.8;
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+        },
+        'rune_starlight_cascade': (ctx, w, h) => {
+            const team1_color = 'hsl(50, 80%, 60%)'; // Gold for star
+            const team2_color = 'hsl(240, 70%, 50%)';
+
+            const center = {x: w*0.35, y: h*0.5};
+            const radius = w * 0.25;
+            const num_points = 5;
+            const cycle_points = [];
+
+            for (let i = 0; i < num_points; i++) {
+                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
+                cycle_points.push({
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y + Math.sin(angle) * radius,
+                });
+            }
+            const p_sac = cycle_points[0];
+
+            // Draw star rune
+            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
+            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
+            for (let i = 0; i < num_points; i++) {
+                illustrationHelpers.drawLines(ctx, [{p1: cycle_points[i], p2: cycle_points[(i+1)%num_points]}], team1_color);
+            }
+
+            // Sacrificed point
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
+            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
+            ctx.stroke();
+
+            // Blast radius
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(p_sac.x, p_sac.y, w*0.3, 0, 2*Math.PI);
+            ctx.strokeStyle = 'rgba(255, 255, 150, 0.7)';
+            ctx.setLineDash([4,4]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+            
+            // Enemy lines
+            const ep1 = {x: w*0.8, y: h*0.2};
+            const ep2 = {x: w*0.8, y: h*0.8};
+            const ep3 = {x: w*0.6, y: h*0.1};
+            const ep4 = {x: w*0.9, y: h*0.1};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2, ep3, ep4], team2_color);
+            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}, {p1: ep3, p2: ep4}], team2_color, 1);
+            
+            // Damage effect
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('💥', w*0.8, h*0.5);
+            ctx.fillText('💥', w*0.75, h*0.1);
+        },
     };
 
     async function initActionGuide() {

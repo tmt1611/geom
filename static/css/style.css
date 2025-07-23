@@ -924,11 +924,11 @@ body.game-running .game-column {
 
 .action-guide-grid {
     display: grid;
-    grid-template-columns: 1fr; /* Single column list view */
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 15px;
     flex-grow: 1;
     overflow-y: auto;
-    padding: 5px 15px 5px 5px;
+    padding: 15px;
 }
 .action-card {
     border: 1px solid #dfe4ea;
@@ -936,10 +936,15 @@ body.game-running .game-column {
     background-color: #fcfcfc;
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     display: flex;
-    flex-direction: row;
-    gap: 15px;
+    flex-direction: column;
+    gap: 10px;
     padding: 12px;
-    align-items: flex-start;
+    align-items: stretch;
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+.action-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
 }
 .action-card-text {
     display: flex;
@@ -965,8 +970,9 @@ body.game-running .game-column {
     text-transform: uppercase;
 }
 .action-card canvas {
-    width: 180px;
-    height: 120px;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 3 / 2; /* Based on 180/120 */
     background-color: #fff;
     border: 1px solid #dfe4ea;
     border-radius: 4px;
