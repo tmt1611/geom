@@ -1,9 +1,9 @@
-This iteration focuses on improving the user interface and expanding the visual documentation in the "Action Guide" tab.
+This iteration focuses on improving the "Action Guide" tab by adding new illustrations and making the existing ones larger and clearer.
 
-### 1. Redesigned Action Guide Layout
+### 1. New Illustrations
+To provide a more complete visual reference for players, new illustrations have been created for the following actions:
+- **Fight: Refraction Beam:** The new artwork visualizes how a "Prism" structure (formed by two adjacent friendly territories) can be used to "bank" an attack shot, reflecting it around obstacles to hit a target.
+- **Terraform: Create Fissure:** This illustration depicts a charged "Rift Spire" creating a jagged, impassable fissure across the game board, helping players understand this powerful terrain-altering ability.
 
-The layout of the "Action Guide" tab has been significantly improved for better readability and compactness. The previous multi-column grid has been replaced with a single-column list view. Action cards now feature a side-by-side layout, with the illustration on the left and the descriptive text on the right. This change makes better use of horizontal space, reduces vertical scrolling, and presents the information in a more organized and less cluttered manner.
-
-### 2. New Illustration for "Raise Barricade"
-
-To further enhance the visual guide, a new illustration has been developed for the `terraform_raise_barricade` action. The artwork clearly depicts the process: a four-point "Barricade Rune" is shown being consumed, which then results in the creation of a jagged, wall-like structure. This visual aid helps users quickly understand the cause-and-effect of this powerful terrain-altering action.
+### 2. Larger, Clearer Illustrations
+The canvas size for all action illustrations in the guide has been increased from 150x100 to 180x120 pixels. This makes each visual easier to see and understand, allowing for more detail in the drawings and improving the overall presentation of the guide.

@@ -965,8 +965,8 @@ body.game-running .game-column {
     text-transform: uppercase;
 }
 .action-card canvas {
-    width: 150px;
-    height: 100px;
+    width: 180px;
+    height: 120px;
     background-color: #fff;
     border: 1px solid #dfe4ea;
     border-radius: 4px;

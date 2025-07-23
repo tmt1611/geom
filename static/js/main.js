@@ -3581,6 +3581,56 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.textBaseline = 'middle';
             ctx.fillText('💥', ep1.x, ep1.y);
         },
+        'fight_refraction_beam': (ctx, w, h) => {
+            const team1_color = 'hsl(240, 70%, 50%)'; // Blue
+            const team2_color = 'hsl(0, 70%, 50%)';   // Red
+            
+            // Prism structure (two adjacent triangles)
+            const pA = {x: w*0.3, y: h*0.5};
+            const pB = {x: w*0.5, y: h*0.2};
+            const pC = {x: w*0.5, y: h*0.8};
+            const pD = {x: w*0.7, y: h*0.5};
+            const prism_points = [pA, pB, pC, pD];
+            
+            // Draw territory fills
+            ctx.save();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.2;
+            ctx.beginPath();
+            ctx.moveTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y); ctx.lineTo(pC.x, pC.y); ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(pD.x, pD.y); ctx.lineTo(pB.x, pB.y); ctx.lineTo(pC.x, pC.y); ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            
+            illustrationHelpers.drawPoints(ctx, prism_points, team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:pA,p2:pB},{p1:pA,p2:pC},{p1:pB,p2:pC}], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:pD,p2:pB},{p1:pD,p2:pC}], team1_color);
+
+            // Enemy line
+            const ep1 = {x: w*0.9, y: h*0.2};
+            const ep2 = {x: w*0.9, y: h*0.8};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color);
+
+            // Beam
+            const source_point = {x: w*0.1, y: h*0.3};
+            const hit_prism = {x: w*0.5, y: h*0.4};
+            const hit_enemy = {x: w*0.9, y: h*0.5};
+
+            // Source ray
+            illustrationHelpers.drawArrow(ctx, source_point, hit_prism, 'rgba(255, 255, 150, 1.0)');
+            // Reflected ray
+            illustrationHelpers.drawArrow(ctx, hit_prism, hit_enemy, 'rgba(255, 100, 100, 1.0)');
+
+            // Explosion
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('💥', hit_enemy.x, hit_enemy.y);
+        },
         'fight_territory_strike': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
             const team2_color = 'hsl(240, 70%, 50%)';
@@ -4213,6 +4263,43 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawJaggedLine(ctx, mid1, mid2, 10, 4);
             ctx.restore();
         },
+        'terraform_create_fissure': (ctx, w, h) => {
+            const team1_color = 'hsl(280, 70%, 60%)'; // Purple for rift
+            
+            // Rift Spire
+            const spire_center = {x: w*0.2, y: h*0.5};
+            ctx.save();
+            ctx.translate(spire_center.x, spire_center.y);
+            ctx.beginPath();
+            const spikes = 7;
+            const outerRadius = 12;
+            const innerRadius = 6;
+            for (let i = 0; i < spikes * 2; i++) {
+                const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                const angle = (i * Math.PI) / spikes;
+                ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+            }
+            ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+
+            // Beam from spire to fissure start
+            const fissure_start = {x: w*0.4, y: h*0.3};
+            illustrationHelpers.drawDashedLine(ctx, spire_center, fissure_start, team1_color);
+            
+            // Fissure
+            const fissure_end = {x: w*0.9, y: h*0.7};
+            ctx.save();
+            ctx.strokeStyle = 'rgba(30, 30, 30, 0.8)';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            illustrationHelpers.drawJaggedLine(ctx, fissure_start, fissure_end, 15, 6);
+            ctx.restore();
+        },
     };
 
     async function initActionGuide() {
@@ -4239,7 +4326,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.dataset.description = action.description;
 
                 card.innerHTML = `
-                    <canvas width="150" height="100"></canvas>
+                    <canvas width="180" height="120"></canvas>
                     <div class="action-card-text">
                          <div class="action-card-header">
                             <h4>${action.display_name}</h4>
@@ -4256,7 +4343,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ctx = canvas.getContext('2d');
                 
                 const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
-                drawer(ctx, 150, 100);
+                drawer(ctx, 180, 120);
             }
 
             function filterActions() {
