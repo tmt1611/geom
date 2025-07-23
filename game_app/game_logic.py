@@ -123,6 +123,7 @@ class Game:
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
             "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': [], 'barricade': [], 't_shape': [], 'plus_shape': [], 'i_shape': [], 'parallel': []}}
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
+            "attuned_nexuses": {}, # {nexus_id: {teamId, turns_left, center, point_ids, radius_sq}}
             "prisms": {}, # {teamId: [prism1, prism2, ...]}
             "barricades": [], # {id, teamId, p1, p2, turns_left}
             "heartwoods": {}, # {teamId: {id, center_coords, growth_counter}}
@@ -306,6 +307,24 @@ class Game:
     def _get_fortified_point_ids(self):
         """Returns a set of all point IDs that are part of any claimed territory."""
         return {pid for t in self.state.get('territories', []) for pid in t['point_ids']}
+
+    def _is_line_energized(self, line):
+        """Checks if a line is within range of a friendly Attuned Nexus."""
+        if not self.state.get('attuned_nexuses'):
+            return False
+        
+        if line['p1_id'] not in self.state['points'] or line['p2_id'] not in self.state['points']:
+            return False
+            
+        p1 = self.state['points'][line['p1_id']]
+        p2 = self.state['points'][line['p2_id']]
+        midpoint = points_centroid([p1, p2])
+
+        for nexus in self.state['attuned_nexuses'].values():
+            if nexus['teamId'] == line['teamId']:
+                if distance_sq(midpoint, nexus['center']) < nexus['radius_sq']:
+                    return True
+        return False
 
     def _get_bastion_point_ids(self):
         """Returns a dict of bastion core and prong point IDs."""

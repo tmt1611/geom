@@ -25,6 +25,7 @@ class TurnProcessor:
         self._process_whirlpools()
         self._process_monoliths()
         self._process_scorched_zones()
+        self._process_attuned_nexuses()
         
         game_ended = self._process_wonders()
         if game_ended:
@@ -32,6 +33,24 @@ class TurnProcessor:
 
         self._process_spires_fissures_barricades()
         return False
+
+    def _process_attuned_nexuses(self):
+        """Handles decay of attuned nexuses."""
+        if 'attuned_nexuses' not in self.state:
+            return
+
+        expired_nexus_ids = []
+        for nexus_id, nexus_data in self.state['attuned_nexuses'].items():
+            nexus_data['turns_left'] -= 1
+            if nexus_data['turns_left'] <= 0:
+                expired_nexus_ids.append(nexus_id)
+        
+        for nexus_id in expired_nexus_ids:
+            nexus = self.state['attuned_nexuses'].pop(nexus_id)
+            team_name = self.state['teams'][nexus['teamId']]['name']
+            log_msg = {'teamId': nexus['teamId'], 'message': f"An Attuned Nexus from Team {team_name} has lost its charge.", 'short_message': '[NEXUS:FADE]'}
+            self.state['game_log'].append(log_msg)
+            self.state['new_turn_events'].append({'type': 'attuned_nexus_fade', 'nexus': nexus})
 
     def _process_shields_and_stasis(self):
         """Handles decay of shields and stasis effects."""

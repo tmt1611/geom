@@ -66,6 +66,10 @@ class FortifyActionsHandler:
         )) > 0
         return has_star_rune, "Requires a Star Rune and no existing Wonder."
 
+    def can_perform_attune_nexus(self, teamId):
+        can_perform = len(self._find_attunable_nexuses(teamId)) > 0
+        return can_perform, "Requires a Nexus with a diagonal to sacrifice."
+
     # --- End Precondition Checks ---
 
     @property
@@ -658,6 +662,76 @@ class FortifyActionsHandler:
             'type': 'build_chronos_spire',
             'wonder': new_wonder,
             'sacrificed_points_count': len(sacrificed_points_data)
+        }
+
+    def _find_attunable_nexuses(self, teamId):
+        """Finds nexuses that can be attuned."""
+        self.game._update_nexuses_for_team(teamId)
+        team_nexuses = self.state.get('nexuses', {}).get(teamId, [])
+        if not team_nexuses:
+            return []
+        
+        attuned_nexus_pids = {pid for an in self.state.get('attuned_nexuses', {}).values() for pid in an['point_ids']}
+        
+        attunable = []
+        for nexus in team_nexuses:
+            if any(pid in attuned_nexus_pids for pid in nexus['point_ids']):
+                continue
+            
+            # A Nexus is defined by having a diagonal, so we just need to find one that isn't already part of an attuned structure.
+            attunable.append(nexus)
+            
+        return attunable
+
+    def attune_nexus(self, teamId):
+        """[FORTIFY ACTION]: Empowers a Nexus by sacrificing a diagonal, energizing nearby friendly lines for powerful attacks."""
+        attunable_nexuses = self._find_attunable_nexuses(teamId)
+        if not attunable_nexuses:
+            return {'success': False, 'reason': 'no valid nexus to attune'}
+            
+        nexus_to_attune = random.choice(attunable_nexuses)
+        p_ids = nexus_to_attune['point_ids']
+        points = self.state['points']
+
+        # Find and sacrifice a diagonal line
+        all_pairs = list(combinations(p_ids, 2))
+        all_pair_dists = {pair: distance_sq(points[pair[0]], points[pair[1]]) for pair in all_pairs}
+        sorted_pairs = sorted(all_pair_dists.keys(), key=lambda pair: all_pair_dists[pair])
+        diag_pairs = sorted_pairs[4:6]
+
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+        
+        line_to_sac = None
+        for p1_id, p2_id in diag_pairs:
+            line_key = tuple(sorted((p1_id, p2_id)))
+            if line_key in existing_lines:
+                line_to_sac = existing_lines[line_key]
+                break
+        
+        if not line_to_sac:
+            return {'success': False, 'reason': 'nexus found but its diagonal line is missing'}
+
+        # --- Primary Effect: Attune the Nexus ---
+        self.state['lines'].remove(line_to_sac)
+        self.state['shields'].pop(line_to_sac.get('id'), None)
+
+        nexus_id = self.game._generate_id('an')
+        new_attuned_nexus = {
+            'id': nexus_id,
+            'teamId': teamId,
+            'point_ids': p_ids,
+            'center': nexus_to_attune['center'],
+            'turns_left': 5,
+            'radius_sq': (self.state['grid_size'] * 0.3)**2
+        }
+        if 'attuned_nexuses' not in self.state: self.state['attuned_nexuses'] = {}
+        self.state['attuned_nexuses'][nexus_id] = new_attuned_nexus
+        
+        return {
+            'success': True,
+            'type': 'attune_nexus',
+            'nexus': new_attuned_nexus,
+            'sacrificed_line': line_to_sac
         }
 
     def mirror_structure(self, teamId):

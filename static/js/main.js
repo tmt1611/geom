@@ -596,65 +596,80 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function drawNexuses(gameState, isHighlightingActive = false) {
-        if (!gameState.nexuses) return;
-    
-        for (const teamId in gameState.nexuses) {
-            const teamNexuses = gameState.nexuses[teamId];
-            const team = gameState.teams[teamId];
-            if (!team || !teamNexuses) continue;
-    
-            teamNexuses.forEach(nexus => {
-                const isHighlighted = nexus.point_ids.every(pid => lastActionHighlights.points.has(pid));
-                ctx.save();
-                if (isHighlightingActive && !isHighlighted) {
-                    ctx.globalAlpha = 0.2;
-                } else if (isHighlightingActive && isHighlighted) {
-                    ctx.globalAlpha = 1.0;
-                }
-                const points = nexus.point_ids.map(pid => gameState.points[pid]).filter(p => p);
-                if (points.length !== 4) return;
-                
-                // Draw the square fill
-                ctx.beginPath();
-                // Sort points to draw polygon correctly. Angular sort around center is robust.
-                const center = nexus.center;
-                points.sort((a, b) => {
-                    return Math.atan2(a.y - center.y, a.x - center.x) - Math.atan2(b.y - center.y, b.x - center.x);
-                });
-                
-                ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
-                for (let i = 1; i < points.length; i++) {
-                     ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
-                }
-                ctx.closePath();
-                ctx.fillStyle = team.color;
-                ctx.globalAlpha = 0.25;
-                ctx.fill();
-    
-                // Draw the central orb
-                const orb_cx = (nexus.center.x + 0.5) * cellSize;
-                const orb_cy = (nexus.center.y + 0.5) * cellSize;
-                const pulse = Math.abs(Math.sin(Date.now() / 800)); // Faster pulse
-                
-                // Outer glow
-                const gradient = ctx.createRadialGradient(orb_cx, orb_cy, 0, orb_cx, orb_cy, 10 + pulse * 5);
-                gradient.addColorStop(0, `rgba(255, 255, 255, ${0.8 - pulse * 0.3})`);
-                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                ctx.fillStyle = gradient;
-                ctx.globalAlpha = 1.0;
-                ctx.beginPath();
-                ctx.arc(orb_cx, orb_cy, 10 + pulse * 5, 0, 2 * Math.PI);
-                ctx.fill();
-    
-                // Inner core
-                ctx.fillStyle = team.color;
-                ctx.beginPath();
-                ctx.arc(orb_cx, orb_cy, 4 + pulse * 2, 0, 2 * Math.PI);
-                ctx.fill();
-    
-                ctx.restore();
-            });
+        // This function will now draw both regular and attuned nexuses.
+        const allNexuses = [];
+        if (gameState.nexuses) {
+            for (const teamId in gameState.nexuses) {
+                gameState.nexuses[teamId].forEach(n => allNexuses.push({ ...n, teamId: teamId, is_attuned: false }));
+            }
         }
+        if (gameState.attuned_nexuses) {
+            Object.values(gameState.attuned_nexuses).forEach(n => allNexuses.push({ ...n, is_attuned: true }));
+        }
+        if (allNexuses.length === 0) return;
+    
+        allNexuses.forEach(nexus => {
+            const team = gameState.teams[nexus.teamId];
+            if (!team) return;
+
+            const isHighlighted = nexus.point_ids.every(pid => lastActionHighlights.points.has(pid));
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
+            const points = nexus.point_ids.map(pid => gameState.points[pid]).filter(p => p);
+            if (points.length !== 4) return;
+            
+            // Draw the square fill
+            ctx.beginPath();
+            const center = nexus.center;
+            points.sort((a, b) => Math.atan2(a.y - center.y, a.x - center.x) - Math.atan2(b.y - center.y, b.x - center.x));
+            
+            ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
+            for (let i = 1; i < points.length; i++) {
+                 ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
+            }
+            ctx.closePath();
+            ctx.fillStyle = team.color;
+            ctx.globalAlpha *= (nexus.is_attuned ? 0.35 : 0.25);
+            ctx.fill();
+
+            // Draw the central orb
+            const orb_cx = (nexus.center.x + 0.5) * cellSize;
+            const orb_cy = (nexus.center.y + 0.5) * cellSize;
+            const pulse = Math.abs(Math.sin(Date.now() / (nexus.is_attuned ? 400 : 800)));
+            
+            // Outer glow
+            const glow_radius = (nexus.is_attuned ? 15 : 10) + pulse * 5;
+            const gradient = ctx.createRadialGradient(orb_cx, orb_cy, 0, orb_cx, orb_cy, glow_radius);
+            gradient.addColorStop(0, `rgba(255, 255, 255, ${0.8 - pulse * 0.3})`);
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.globalAlpha = 1.0; // Reset alpha for orb
+            ctx.beginPath();
+            ctx.arc(orb_cx, orb_cy, glow_radius, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Inner core
+            ctx.fillStyle = team.color;
+            ctx.beginPath();
+            ctx.arc(orb_cx, orb_cy, (nexus.is_attuned ? 6 : 4) + pulse * 2, 0, 2 * Math.PI);
+            ctx.fill();
+
+            if (nexus.is_attuned) {
+                // Draw energy aura for attuned nexuses
+                ctx.beginPath();
+                ctx.arc(orb_cx, orb_cy, Math.sqrt(nexus.radius_sq) * cellSize, 0, 2 * Math.PI);
+                ctx.strokeStyle = team.color;
+                ctx.globalAlpha = 0.1 + pulse * 0.15;
+                ctx.lineWidth = 1 + pulse * 2;
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        });
     }
 
     function drawRunes(gameState, isHighlightingActive = false) {
@@ -1894,6 +1909,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 color: details.bypassed_shield ? 'rgba(255, 100, 255, 1.0)' : 'rgba(255, 0, 0, 1.0)'
             });
         },
+        'attack_line_energized': (details, gameState) => {
+            lastActionHighlights.lines.add(details.attacker_line.id);
+            visualEffects.push({
+                type: 'animated_ray',
+                p1: details.attack_ray.p1,
+                p2: details.attack_ray.p2,
+                startTime: Date.now(),
+                duration: 600,
+                color: 'rgba(255, 255, 100, 1.0)', // Energized yellow/white
+                lineWidth: 5
+            });
+            details.destroyed_points.forEach(p => {
+                visualEffects.push({ type: 'point_explosion', x: p.x, y: p.y, startTime: Date.now() + 200, duration: 500 });
+            });
+        },
         'rune_shoot_bisector': (details, gameState) => {
             details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
             visualEffects.push({
@@ -2061,6 +2091,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 startTime: Date.now(),
                 duration: 1200
             });
+        },
+        'attune_nexus': (details, gameState) => {
+            details.nexus.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            lastActionHighlights.structures.add(details.nexus.id);
+            const line = details.sacrificed_line;
+            const p1 = gameState.points[line.p1_id];
+            const p2 = gameState.points[line.p2_id];
+            if (p1 && p2) {
+                 visualEffects.push({
+                     type: 'point_pull', // Looks like energy being pulled in
+                     center: details.nexus.center,
+                     points: [p1, p2],
+                     startTime: Date.now(),
+                     duration: 1000,
+                 });
+            }
         },
         'form_monolith': (details, gameState) => {
             visualEffects.push({
@@ -2426,6 +2472,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         startTime: Date.now(),
                         duration: 1000,
                         color: 'rgba(220, 220, 255, 0.9)'
+                    });
+                } else if (event.type === 'attuned_nexus_fade') {
+                    // Maybe a small implosion effect on the nexus orb
+                    visualEffects.push({
+                        type: 'point_implosion',
+                        x: event.nexus.center.x,
+                        y: event.nexus.center.y,
+                        startTime: Date.now(),
+                        duration: 800,
+                        color: gameState.teams[event.nexus.teamId].color
                     });
                 }
             });

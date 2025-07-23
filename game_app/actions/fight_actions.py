@@ -95,6 +95,8 @@ class FightActionsHandler:
 
     def _handle_attack_hit(self, closest_hit, attacker_line, attack_segment_p1):
         enemy_line = closest_hit['target_line']
+        is_energized_attack = self.game._is_line_energized(attacker_line)
+
         line_strength = self.state.get('line_strengths', {}).get(enemy_line['id'])
         if line_strength and line_strength > 0:
             self.state['line_strengths'][enemy_line['id']] -= 1
@@ -111,9 +113,23 @@ class FightActionsHandler:
         self.state['lines'].remove(enemy_line)
         self.state['shields'].pop(enemy_line.get('id'), None)
         self.state['line_strengths'].pop(enemy_line.get('id'), None)
+
+        destroyed_points_data = []
+        if is_energized_attack:
+            aggressor_team_id = attacker_line['teamId']
+            p1_data = self.game._delete_point_and_connections(enemy_line['p1_id'], aggressor_team_id)
+            if p1_data: destroyed_points_data.append(p1_data)
+            p2_data = self.game._delete_point_and_connections(enemy_line['p2_id'], aggressor_team_id)
+            if p2_data: destroyed_points_data.append(p2_data)
+
         return {
-            'success': True, 'type': 'attack_line', 'destroyed_team': enemy_team_name, 'destroyed_line': enemy_line,
-            'attacker_line': attacker_line, 'attack_ray': {'p1': attack_segment_p1, 'p2': closest_hit['intersection_point']},
+            'success': True, 
+            'type': 'attack_line_energized' if is_energized_attack else 'attack_line',
+            'destroyed_team': enemy_team_name, 
+            'destroyed_line': enemy_line,
+            'destroyed_points': destroyed_points_data,
+            'attacker_line': attacker_line, 
+            'attack_ray': {'p1': attack_segment_p1, 'p2': closest_hit['intersection_point']},
             'bypassed_shield': closest_hit['bypassed_shield']
         }
 
