@@ -235,20 +235,13 @@ class Game:
 
     def _get_fortified_point_ids(self):
         """Returns a set of all point IDs that are part of any claimed territory."""
-        fortified_ids = set()
-        for territory in self.state.get('territories', []):
-            for point_id in territory['point_ids']:
-                fortified_ids.add(point_id)
-        return fortified_ids
+        return {pid for t in self.state.get('territories', []) for pid in t['point_ids']}
 
     def _get_bastion_point_ids(self):
         """Returns a dict of bastion core and prong point IDs."""
-        core_ids = set()
-        prong_ids = set()
-        for bastion in self.state.get('bastions', {}).values():
-            core_ids.add(bastion['core_id'])
-            for pid in bastion['prong_ids']:
-                prong_ids.add(pid)
+        bastions = self.state.get('bastions', {}).values()
+        core_ids = {b['core_id'] for b in bastions if 'core_id' in b}
+        prong_ids = {pid for b in bastions if 'prong_ids' in b for pid in b['prong_ids']}
         return {'cores': core_ids, 'prongs': prong_ids}
 
     def _get_bastion_line_ids(self):
@@ -2256,20 +2249,8 @@ class Game:
                     total_length += math.sqrt(distance_sq(p1, p2))
 
             # 2. Triangle Count
-            adj = {pid: set() for pid in team_point_ids}
-            for line in team_lines:
-                if line['p1_id'] in adj and line['p2_id'] in adj:
-                    adj[line['p1_id']].add(line['p2_id'])
-                    adj[line['p2_id']].add(line['p1_id'])
-            
-            triangles = 0
-            sorted_point_ids = sorted(list(team_point_ids))
-            for i in sorted_point_ids:
-                for j in adj.get(i, set()):
-                    if j > i:
-                        for k in adj.get(j, set()):
-                            if k > j and k in adj.get(i, set()):
-                                triangles += 1
+            all_triangles = self.formation_manager._find_all_triangles(team_point_ids, team_lines)
+            triangles = len(all_triangles)
             
             # 3. Convex Hull and its properties (using Graham Scan)
             hull_points = self._get_convex_hull(team_points_list)

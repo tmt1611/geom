@@ -924,7 +924,7 @@ body.game-running .game-column {
 
 .action-guide-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 15px;
     flex-grow: 1;
     overflow-y: auto;
@@ -970,8 +970,8 @@ body.game-running .game-column {
     text-transform: uppercase;
 }
 .action-card canvas {
-    width: 180px;
-    height: 120px;
+    width: 150px;
+    height: 100px;
     background-color: #fff;
     border: 1px solid #dfe4ea;
     border-radius: 4px;

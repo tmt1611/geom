@@ -51,28 +51,13 @@ class FortifyActionsHandler:
     def _find_claimable_triangles(self, teamId):
         """Finds all triangles for a team that have not yet been claimed."""
         team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) < 3:
-            return []
-
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.game.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-
-        all_triangles = set()
-        sorted_point_ids = sorted(list(team_point_ids))
-        for i in sorted_point_ids:
-            for j in adj.get(i, set()):
-                if j > i:
-                    for k in adj.get(j, set()):
-                        if k > j and k in adj.get(i, set()):
-                            all_triangles.add(tuple(sorted((i, j, k))))
+        team_lines = self.game.get_team_lines(teamId)
         
+        all_triangles = self.game.formation_manager._find_all_triangles(team_point_ids, team_lines)
         if not all_triangles:
             return []
-
-        claimed_triangles = set(tuple(sorted(t['point_ids'])) for t in self.state['territories'])
+            
+        claimed_triangles = {tuple(sorted(t['point_ids'])) for t in self.state['territories']}
         return list(all_triangles - claimed_triangles)
 
     def claim_territory(self, teamId):

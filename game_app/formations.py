@@ -116,6 +116,27 @@ class FormationManager:
                     used_points.update(p_ids_tuple)
         return barricade_runes
 
+    def _find_all_triangles(self, team_point_ids, team_lines):
+        """Finds all triangles (as tuples of point IDs) for a given set of points and lines."""
+        if len(team_point_ids) < 3:
+            return set()
+
+        adj = {pid: set() for pid in team_point_ids}
+        for line in team_lines:
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+
+        all_triangles = set()
+        sorted_point_ids = sorted(list(team_point_ids))
+        for i in sorted_point_ids:
+            for j in adj.get(i, set()):
+                if j > i:
+                    for k in adj.get(j, set()):
+                        if k > j and k in adj.get(i, set()):
+                            all_triangles.add(tuple(sorted((i, j, k))))
+        return all_triangles
+
     def check_v_rune(self, team_point_ids, team_lines, all_points):
         """Finds all 'V' shapes for a team."""
         adj_lines = {pid: [] for pid in team_point_ids}
@@ -166,19 +187,7 @@ class FormationManager:
         
         used_points, shield_runes = set(), []
 
-        adj = {pid: set() for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-
-        all_triangles_pids = set()
-        sorted_pids = sorted(list(team_point_ids)) 
-        for i in sorted_pids:
-            for j in adj.get(i, set()):
-                if j > i:
-                    for k in adj.get(j, set()):
-                        if k > j and k in adj.get(i, set()): all_triangles_pids.add(tuple(sorted((i, j, k))))
+        all_triangles_pids = self._find_all_triangles(team_point_ids, team_lines)
 
         for tri_ids in all_triangles_pids:
             if any(pid in used_points for pid in tri_ids): continue
