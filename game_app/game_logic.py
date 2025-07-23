@@ -69,7 +69,7 @@ class Game:
             "isolated_points": {}, # {point_id: turns_left}
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
-            "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': [], 'barricade': [], 't_shape': [], 'plus_shape': [], 'i_shape': [], 'parallel': []}}
+            "runes": {}, # {teamId: {rune_type: [rune_data, ...]}}. Populated by _update_structures_for_team.
             "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "attuned_nexuses": {}, # {nexus_id: {teamId, turns_left, center, point_ids, radius_sq}}
             "prisms": {}, # {teamId: [prism1, prism2, ...]}

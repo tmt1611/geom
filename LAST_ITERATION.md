@@ -1,24 +1,13 @@
-This iteration focused on improving code quality and fixing logic bugs. Specifically, it addresses a major code duplication issue in the frontend JavaScript and refactors several backend action precondition checks to be more accurate and robust.
+This iteration focuses on cleaning up the codebase by removing dead and duplicated code, fixing a UI display bug, and improving maintainability by decoupling data from logic.
 
-### 1. JavaScript Code Cleanup
+1.  **JavaScript Code Deduplication**: A large block of code containing illustration drawing functions (`illustrationHelpers` and `illustrationDrawers`) was duplicated in `static/js/main.js`. Since these are already defined in `static/js/illustrations.js` and loaded first, the redundant code has been removed from `main.js`. This fixes a bug where illustrations in the action guide might not render correctly and significantly cleans up the main JavaScript file.
 
-A large block of code containing the `illustrationHelpers` and `illustrationDrawers` objects was duplicated in both `static/js/main.js` and `static/js/illustrations.js`. The duplicated code has been removed from `main.js`, as it is correctly sourced from `illustrations.js`. This cleanup reduces the size of `main.js` by over 450 lines, eliminates potential bugs from mismatched definitions, and improves maintainability.
+2.  **JavaScript Bugfix & Cleanup**:
+    *   The `updateInterpretationPanel` function in `main.js` was referencing obsolete `sentries` and `conduits` properties from the game state, which no longer exist. This has been corrected to display the count for `I-Rune`, which is the current data structure.
+    *   An unused drawing function, `drawConduits`, which also referenced the obsolete `conduits` state, has been removed entirely.
 
-### 2. Robust Action Precondition Checks
+3.  **Python Code Cleanup**:
+    *   The function `get_action_groups` in `game_app/game_data.py` was defined but never called. It has been removed.
+    *   In `game_app/game_logic.py`, the initial state for `runes` contained a hardcoded comment listing all possible rune types. This has been replaced with a more generic comment, decoupling the game's core logic from the specific list of runes defined in `structure_data.py`. This makes adding new rune types easier in the future.
 
-Several `can_perform_*` methods in the action handler files only checked if the primary effect of an action was possible, ignoring that many actions have a fallback effect (e.g., strengthening a line) that would still constitute a valid move. This could lead to the action selection logic incorrectly discarding perfectly valid moves.
-
-The following precondition checks have been updated to account for both primary and fallback effects, making the AI's action selection more accurate and the game simulation more robust:
-
--   **`expand_actions.py`**:
-    -   `can_perform_add_line`: Now considers both adding a new line and strengthening an existing one.
-    -   `can_perform_extend_line`: Now correctly allows the action if any line exists (to be extended or strengthened).
-    -   `can_perform_fracture_line`: Now correctly allows the action if any line exists (to be fractured or strengthened).
-    -   `can_perform_spawn_point`: Now checks if a point can be spawned *or* if a line can be strengthened.
-    -   `can_perform_create_orbital`: Now correctly checks for the primary condition (>=5 points) or the fallback condition (>=1 point and >=1 line).
--   **`fortify_actions.py`**:
-    -   `can_perform_claim_territory`: Now allows the action if new territory can be claimed *or* if existing territory can be reinforced.
-    -   `can_perform_form_bastion`: Now allows the action if a bastion can be formed *or* if a fortified point can be reinforced.
-    -   `can_perform_reposition_point`: Now allows the action if a point can be moved *or* if a line can be strengthened.
-
-These changes reduce the likelihood of the game engine needing to retry action selections and ensure that a team can always utilize its full range of possible moves.
+These changes improve code health, fix a minor UI bug, and make the application more robust and easier to maintain.

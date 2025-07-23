@@ -24,13 +24,6 @@ TRAIT_GROUP_MULTIPLIERS = {
     'Balanced':   {} # Uses base weights
 }
 
-def get_action_groups():
-    """Returns a dictionary mapping action groups to lists of action names."""
-    groups = defaultdict(list)
-    for action_name, data in ACTIONS.items():
-        groups[data['group']].append(action_name)
-    return dict(groups)
-
 def get_log_generators():
     """Returns a dictionary mapping result types to log generator functions."""
     generators = {}

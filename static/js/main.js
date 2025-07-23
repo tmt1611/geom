@@ -396,34 +396,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function drawConduits(gameState) {
-        if (!gameState.conduits) return;
-    
-        for (const teamId in gameState.conduits) {
-            const teamConduits = gameState.conduits[teamId];
-            const team = gameState.teams[teamId];
-            if (!team || !teamConduits) continue;
-    
-            teamConduits.forEach(conduit => {
-                const p1 = gameState.points[conduit.endpoint1_id];
-                const p2 = gameState.points[conduit.endpoint2_id];
-    
-                if (p1 && p2) {
-                    ctx.beginPath();
-                    ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
-                    ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
-                    ctx.strokeStyle = team.color;
-                    ctx.lineWidth = 10; // Thick line
-                    ctx.globalAlpha = 0.15; // Very translucent
-                    ctx.lineCap = 'round';
-                    ctx.stroke();
-                    ctx.globalAlpha = 1.0;
-                    ctx.lineCap = 'butt';
-                }
-            });
-        }
-    }
-
     function drawTerritories(pointsDict, territories, teams, isHighlightingActive = false) {
         if (!pointsDict || !territories) return;
         territories.forEach(territory => {
@@ -2751,7 +2723,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms, sentries, conduits, nexuses, bastions, monoliths, wonders, purifiers } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms, nexuses, bastions, monoliths, wonders, purifiers } = gameState;
 
         let turnText = `Turn: ${turn} / ${max_turns}`;
         if (game_phase === 'RUNNING' && actions_queue_this_turn && actions_queue_this_turn.length > 0) {
@@ -2776,11 +2748,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     const teamRunes = runes[teamId] || {};
                     const allStructures = {
+                        'I-Rune': teamRunes.i_shape ? teamRunes.i_shape.length : 0,
                         'Cross': teamRunes.cross ? teamRunes.cross.length : 0,
                         'V-Rune': teamRunes.v_shape ? teamRunes.v_shape.length : 0,
                         'Prism': (prisms && prisms[teamId]) ? prisms[teamId].length : 0,
-                        'Sentry': (sentries && sentries[teamId]) ? sentries[teamId].length : 0,
-                        'Conduit': (conduits && conduits[teamId]) ? conduits[teamId].length : 0,
                         'Nexus': (nexuses && nexuses[teamId]) ? nexuses[teamId].length : 0,
                         'Bastion': Object.values(bastions || {}).filter(b => b.teamId === teamId).length,
                         'Monolith': Object.values(monoliths || {}).filter(m => m.teamId === teamId).length,
