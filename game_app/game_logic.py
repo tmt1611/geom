@@ -607,18 +607,22 @@ class Game:
         
         return deleted_point_data
 
+    def _get_all_immune_point_ids(self):
+        """Returns a set of all point IDs that are currently immune to standard attacks."""
+        fortified_point_ids = self._get_fortified_point_ids()
+        bastion_point_ids = self._get_bastion_point_ids()
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        return fortified_point_ids.union(
+            bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
+        )
+
     def _get_vulnerable_enemy_points(self, teamId, immune_point_ids=None):
         """
         Returns a list of enemy points that are not immune to standard attacks.
         Can accept a pre-calculated set of immune point IDs for optimization.
         """
         if immune_point_ids is None:
-            fortified_point_ids = self._get_fortified_point_ids()
-            bastion_point_ids = self._get_bastion_point_ids()
-            stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
-            immune_point_ids = fortified_point_ids.union(
-                bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
-            )
+            immune_point_ids = self._get_all_immune_point_ids()
         return [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
 
     def is_spawn_location_valid(self, new_point_coords, teamId, min_dist_sq=1.0, points_override=None):

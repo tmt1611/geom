@@ -414,14 +414,17 @@ class FightActionsHandler:
         # --- Target Prioritization ---
         target_point = None
 
+        # --- Target Prioritization ---
+        target_point = None
+
         # 1. High-value targets
         all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
         stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+        # We still need the components of immunity to define "high-value"
         fortified_ids = self.game._get_fortified_point_ids()
-        bastion_point_ids_dict = self.game._get_bastion_point_ids()
-        bastion_cores = bastion_point_ids_dict['cores']
+        bastion_cores = self.game._get_bastion_point_ids()['cores']
         monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
-        
+
         high_value_targets = [
             p for p in all_enemy_points if
             p['id'] not in stasis_point_ids and (
@@ -435,10 +438,8 @@ class FightActionsHandler:
             target_point = random.choice(high_value_targets)
         else:
             # 2. Any vulnerable enemy target
-            # Build the full immune set from components we've already fetched
-            immune_point_ids = fortified_ids.union(
-                bastion_point_ids_dict['cores'], bastion_point_ids_dict['prongs'], stasis_point_ids
-            )
+            # Use the new helper to get all immune points.
+            immune_point_ids = self.game._get_all_immune_point_ids()
             vulnerable_targets = self.game._get_vulnerable_enemy_points(teamId, immune_point_ids=immune_point_ids)
             if vulnerable_targets:
                 target_point = random.choice(vulnerable_targets)
@@ -451,9 +452,9 @@ class FightActionsHandler:
                 return {'success': False, 'reason': 'failed to destroy target point'}
             
             # Determine if the target was high-value for logging/visuals
-            is_high_value = destroyed_point_data['id'] in fortified_ids or \
-                            destroyed_point_data['id'] in bastion_cores or \
-                            destroyed_point_data['id'] in monolith_point_ids
+            is_high_value = (destroyed_point_data['id'] in fortified_ids or
+                            destroyed_point_data['id'] in bastion_cores or
+                            destroyed_point_data['id'] in monolith_point_ids)
 
             destroyed_team_name = self.state['teams'][destroyed_point_data['teamId']]['name']
             return {
