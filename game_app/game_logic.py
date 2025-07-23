@@ -28,6 +28,14 @@ class Game:
     ACTION_VERBOSE_DESCRIPTIONS = game_data.ACTION_VERBOSE_DESCRIPTIONS
     ACTION_MAP = game_data.ACTION_MAP
     ACTION_LOG_GENERATORS = game_data.ACTION_LOG_GENERATORS
+    _RUNE_LIST_POINT_ID_KEYS = {
+        'all_points', 'point_ids', 'all_point_ids', 'cycle_ids', 'triangle_ids',
+        'prong_ids', 'arm_ids', 'endpoints', 'internal_points'
+    }
+    _RUNE_SINGLE_POINT_ID_KEYS = {
+        'core_id', 'vertex_id', 'handle_id', 'apex_id', 'center_id', 'mid_id',
+        'stem1_id', 'stem2_id', 'head_id'
+    }
 
 
     def __init__(self):
@@ -490,21 +498,14 @@ class Game:
         for rune_category in team_runes_data.values():
             for rune_instance in rune_category:
                 if isinstance(rune_instance, list):
-                    # For simple runes that are just a list of point IDs (e.g., barricade, cross)
                     rune_pids.update(rune_instance)
                 elif isinstance(rune_instance, dict):
-                    # Check for common keys that hold all point IDs
-                    for key in ['all_points', 'point_ids', 'all_point_ids']:
-                        if key in rune_instance and rune_instance[key]:
-                            rune_pids.update(rune_instance[key])
-                    # Check for component keys
-                    for key in ['cycle_ids', 'triangle_ids', 'prong_ids', 'arm_ids', 'endpoints', 'internal_points']:
-                        if key in rune_instance and rune_instance[key]:
-                            rune_pids.update(rune_instance[key])
-                    # Check for single point ID keys
-                    for key in ['core_id', 'vertex_id', 'handle_id', 'apex_id', 'center_id', 'mid_id', 'stem1_id', 'stem2_id', 'head_id']:
-                        if key in rune_instance and rune_instance[key]:
-                            rune_pids.add(rune_instance[key])
+                    for key, value in rune_instance.items():
+                        if value:
+                            if key in self._RUNE_LIST_POINT_ID_KEYS:
+                                rune_pids.update(value)
+                            elif key in self._RUNE_SINGLE_POINT_ID_KEYS:
+                                rune_pids.add(value)
         return rune_pids
 
     def _find_non_critical_sacrificial_point(self, teamId):

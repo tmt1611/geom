@@ -3550,11 +3550,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
 
             // Pulse/blast
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', w*0.4, h*0.7);
+            illustrationHelpers.drawExplosion(ctx, w*0.4, h*0.7);
         },
         'fight_pincer_attack': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
@@ -3974,12 +3970,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const center = {x: w*0.5, y: h*0.5};
 
             // Sacrificed point
-            illustrationHelpers.drawPoints(ctx, [center], team1_color);
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', center.x-20, center.y-20);
+            illustrationHelpers.drawExplosion(ctx, center.x, center.y);
 
             const pointsToPull = [
                 {x: w*0.2, y: h*0.2},
@@ -4517,11 +4508,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.restore();
 
             // Blast on enemy line
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', w*0.5, h*0.5);
+            illustrationHelpers.drawExplosion(ctx, w*0.5, h*0.5);
         },
         'rune_starlight_cascade': (ctx, w, h) => {
             const team1_color = 'hsl(50, 80%, 60%)'; // Gold for star
@@ -4575,12 +4562,8 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}, {p1: ep3, p2: ep4}], team2_color, 1);
             
             // Damage effect
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', w*0.8, h*0.5);
-            ctx.fillText('💥', w*0.75, h*0.1);
+            illustrationHelpers.drawExplosion(ctx, w*0.8, h*0.5, 'red', 12);
+            illustrationHelpers.drawExplosion(ctx, w*0.75, h*0.1, 'red', 12);
         },
         'rune_focus_beam': (ctx, w, h) => {
             const team1_color = 'hsl(50, 80%, 60%)'; // Gold for star
@@ -4620,11 +4603,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawArrow(ctx, center, target, 'rgba(255, 255, 150, 1.0)');
 
             // Explosion
-            ctx.font = '24px Arial';
-            ctx.fillStyle = 'red';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('💥', target.x, target.y);
+            illustrationHelpers.drawExplosion(ctx, target.x, target.y, 'red', 20);
         },
         'rune_cardinal_pulse': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
@@ -4660,8 +4639,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color);
             const hit_point = {x: w*0.9, y: h*0.5};
             illustrationHelpers.drawArrow(ctx, center, hit_point, team1_color);
-            ctx.font = '24px Arial'; ctx.fillStyle = 'red'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText('💥', hit_point.x, hit_point.y);
+            illustrationHelpers.drawExplosion(ctx, hit_point.x, hit_point.y, 'red', 12);
 
             // 2. Top beam misses, creates point
             const new_point = {x: w*0.5, y: h*0.05};
