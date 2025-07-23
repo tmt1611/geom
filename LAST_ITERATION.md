@@ -1,15 +1,13 @@
-This iteration focuses on cleaning up the codebase by refactoring duplicated code. Specifically, several geometric helper functions were present in multiple files (`game_logic.py`, `formations.py`). These have been consolidated into the `geometry.py` module, making it the single source of truth for geometric calculations.
+This iteration focuses on improving the UI of the "Action Guide" tab and cleaning up the illustrations for consistency.
 
-### Code Cleanup: Geometry Function Consolidation
+### UI Improvement: Action Guide Layout
 
-1.  **Centralized `polygon_area` and `is_point_inside_triangle`**:
-    - The `_polygon_area` and `_is_point_inside_triangle` methods were duplicated in `game_logic.py` and `formations.py`.
-    - These have been moved to `geometry.py` as stateless, public functions: `polygon_area()` and `is_point_inside_triangle()`.
-    - All modules (`game_logic.py`, `formations.py`, `rune_actions.py`) have been updated to import and use these centralized functions, removing the duplicated local implementations.
+1.  **Compact Grid Layout:** The Action Guide has been changed from a single vertical list to a responsive grid. This makes the layout more compact and allows users to see more actions at once without excessive scrolling.
+2.  **Improved Card Design:** The action cards within the guide now feature a top-down design. The illustration is placed prominently at the top, occupying the full width of the card, with the title and description below. This gives more space to the visuals and creates a cleaner presentation.
+3.  **Larger Illustrations:** To accommodate the new layout and improve clarity, the canvas size for each illustration has been increased from `200x120` to `300x180`.
 
-2.  **Centralized Ray/Border Collision Logic**:
-    - The `_get_extended_border_point` and `_is_ray_blocked` methods were duplicated in `game_logic.py` and `geometry.py`.
-    - The implementations in `game_logic.py` were removed.
-    - The call site in `rune_actions.py` was updated to use the canonical function from `geometry.py`, ensuring consistent collision detection with fissures and barricades.
+### Code Cleanup: Illustration Consistency
 
-These changes significantly improve the codebase's maintainability and consistency by adhering to the Don't Repeat Yourself (DRY) principle, without altering any game logic.
+1.  **Standardized Visuals:** The font size for the "explosion" (💥) and "heart" (❤) symbols used across multiple action illustrations has been standardized. This ensures a more consistent and polished look throughout the guide.
+
+These changes address the user's request to make the Action Guide more compact, better presented, and less cluttered, while also performing minor code cleanup for visual consistency.

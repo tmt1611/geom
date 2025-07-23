@@ -3415,7 +3415,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color);
             illustrationHelpers.drawArrow(ctx, p2, hit, team1_color);
             
-            ctx.font = '36px Arial';
+            ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3453,7 +3453,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.restore();
 
             // Blast on enemy
-            ctx.font = '36px Arial';
+            ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3535,7 +3535,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
 
             // Pulse/blast
-            ctx.font = '36px Arial';
+            ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3554,7 +3554,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawArrow(ctx, p1, ep1, team1_color);
             illustrationHelpers.drawArrow(ctx, p2, ep1, team1_color);
             
-            ctx.font = '36px Arial';
+            ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3575,7 +3575,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const beam_end = {x: w*0.4, y: h*0.05};
             illustrationHelpers.drawArrow(ctx, p2, beam_end, 'rgba(255, 100, 100, 1.0)');
 
-            ctx.font = '36px Arial';
+            ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3625,7 +3625,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawArrow(ctx, hit_prism, hit_enemy, 'rgba(255, 100, 100, 1.0)');
 
             // Explosion
-            ctx.font = '36px Arial';
+            ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3655,7 +3655,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Draw strike
             illustrationHelpers.drawArrow(ctx, center, ep1, 'rgba(100, 255, 100, 1.0)');
 
-            ctx.font = '36px Arial';
+            ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3924,7 +3924,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Sacrificed point
             illustrationHelpers.drawPoints(ctx, [center], team1_color);
-            ctx.font = '36px Arial';
+            ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -4040,7 +4040,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.arc(center.x, center.y, 15, 0, 2 * Math.PI);
             ctx.fillStyle = team1_color;
             ctx.fill();
-            ctx.font = 'bold 30px Arial';
+            ctx.font = 'bold 24px Arial';
             ctx.fillStyle = 'white';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -4409,7 +4409,7 @@ document.addEventListener('DOMContentLoaded', () => {
             illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}, {p1: ep3, p2: ep4}], team2_color, 1);
             
             // Damage effect
-            ctx.font = '36px Arial';
+            ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -4535,7 +4535,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.restore();
 
             // Blast on enemy line
-            ctx.font = '36px Arial';
+            ctx.font = '24px Arial';
             ctx.fillStyle = 'red';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -4721,7 +4721,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.dataset.description = action.description;
 
                 card.innerHTML = `
-                    <canvas width="200" height="120"></canvas>
+                    <canvas width="300" height="180"></canvas>
                     <div class="action-card-text">
                          <div class="action-card-header">
                             <h4>${action.display_name}</h4>
@@ -4738,7 +4738,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ctx = canvas.getContext('2d');
                 
                 const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
-                drawer(ctx, 200, 120);
+                drawer(ctx, 300, 180);
             }
 
             function filterActions() {
