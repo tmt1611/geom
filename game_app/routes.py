@@ -1,6 +1,7 @@
 import os
 from flask import Blueprint, render_template, jsonify, request, current_app, send_from_directory
 from . import game_logic
+from . import game_data
 from . import utils
 
 # Using a Blueprint to organize routes.
@@ -87,15 +88,14 @@ def get_action_probabilities():
 def get_all_actions():
     """Returns a structured list of all possible actions with their descriptions."""
     actions_data = []
-    game = game_logic.game
-    for group, actions in game.ACTION_GROUPS.items():
+    for group, actions in game_data.ACTION_GROUPS.items():
         # Sort actions within the group for consistent ordering
         for action_name in sorted(actions):
             actions_data.append({
                 'name': action_name,
-                'display_name': game.ACTION_DESCRIPTIONS.get(action_name, action_name),
+                'display_name': game_data.ACTION_DESCRIPTIONS.get(action_name, action_name),
                 'group': group,
-                'description': game.ACTION_VERBOSE_DESCRIPTIONS.get(action_name, 'No description available.')
+                'description': game_data.ACTION_VERBOSE_DESCRIPTIONS.get(action_name, 'No description available.')
             })
     # Sort by group, then by name
     return jsonify(sorted(actions_data, key=lambda x: (x['group'], x['display_name'])))

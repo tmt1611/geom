@@ -5,6 +5,7 @@ const api = {
     _mode: 'http', // 'http' or 'pyodide'
     _pyodide: null,
     _game: null,
+    _game_data: null,
 
     /**
      * Initializes the API, loading Pyodide if specified.
@@ -57,13 +58,15 @@ const api = {
             this._pyodide.runPython(`
 import sys
 sys.path.append('/')
-from game_app import game_logic
+from game_app import game_logic, game_data
 # Make the game instance available on Python's global scope under a specific name
 js_game_instance = game_logic.game
+js_game_data = game_data
             `);
 
             // Get a proxy to the game instance from the Python global scope.
             this._game = this._pyodide.globals.get('js_game_instance');
+            this._game_data = this._pyodide.globals.get('js_game_data');
             console.log('Pyodide backend ready.');
         } else {
             this._mode = 'http';
@@ -184,10 +187,10 @@ js_game_instance = game_logic.game
     async getAllActions() {
         if (this._mode === 'pyodide') {
             // This is more complex in Pyodide as we need to replicate the server logic.
-            const game = this._game;
-            const action_groups = this._pyProxyToJs(game.ACTION_GROUPS);
-            const action_descs = this._pyProxyToJs(game.ACTION_DESCRIPTIONS);
-            const action_verbose_descs = this._pyProxyToJs(game.ACTION_VERBOSE_DESCRIPTIONS);
+            const game_data = this._game_data;
+            const action_groups = this._pyProxyToJs(game_data.ACTION_GROUPS);
+            const action_descs = this._pyProxyToJs(game_data.ACTION_DESCRIPTIONS);
+            const action_verbose_descs = this._pyProxyToJs(game_data.ACTION_VERBOSE_DESCRIPTIONS);
             
             let actions_data = [];
             for (const group in action_groups) {

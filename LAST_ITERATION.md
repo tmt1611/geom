@@ -1,11 +1,11 @@
-This iteration focuses on a significant code cleanup by refactoring a commonly used helper function.
+This iteration focuses on cleaning up the codebase by removing redundant data structures from the main `Game` class.
 
-The geometric helper function `is_spawn_location_valid` is called from almost every action file to verify if a new point can be created at a given coordinate. Each call required passing multiple slices of the game state (e.g., `grid_size`, `points`, `fissures`, `heartwoods`). This created repetitive, verbose code.
+**Summary of Changes:**
 
-To address this, I have:
-1.  Created a new wrapper method, `Game.is_spawn_location_valid()`, in `game_logic.py`.
-2.  This new method automatically retrieves the necessary state slices and calls the underlying geometry function. This centralizes the logic and simplifies the call sites.
-3.  Updated all 15+ call sites across the action handlers (`expand`, `fight`, `fortify`, etc.) and the `turn_processor` to use this new, cleaner wrapper method.
-4.  The wrapper was designed to handle a few special cases where a modified list of points is needed for the check, ensuring the refactoring could be applied universally without losing functionality.
+1.  **Refactor `game_logic.py`:** Large dictionaries (`ACTION_GROUPS`, `ACTION_MAP`, etc.) were being copied from `game_data.py` into the `Game` class as class attributes. This was redundant. I have removed these attributes from the `Game` class. All logic within `game_logic.py` now directly accesses these constants from the `game_data` module, adhering to the DRY (Don't Repeat Yourself) principle.
 
-This change significantly improves code readability and maintainability by reducing boilerplate and abstracting the details of state management for this common task.
+2.  **Update `routes.py`:** The API endpoint for retrieving all action descriptions (`/api/actions/all`) was previously accessing the data from the `game` instance. It has been updated to import `game_data` and use the constants directly, reflecting the change in `game_logic.py`.
+
+3.  **Update `static/js/api.js`:** The Pyodide (in-browser Python) mode was also accessing these data structures through the `game` object proxy. I've updated the Pyodide initialization to also create a proxy for the `game_data` module. The JavaScript functions now correctly retrieve action information from this new `game_data` proxy when running in static mode.
+
+This refactoring makes the code cleaner, reduces memory usage by avoiding data duplication, and centralizes the single source of truth for game data constants within the `game_data.py` module.

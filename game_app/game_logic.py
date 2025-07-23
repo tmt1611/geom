@@ -22,16 +22,6 @@ from .turn_processor import TurnProcessor
 class Game:
     """Encapsulates the entire game state and logic."""
 
-    ACTION_GROUPS = game_data.ACTION_GROUPS
-    ACTION_NAME_TO_GROUP = game_data.ACTION_NAME_TO_GROUP
-    GROUP_BASE_WEIGHTS = game_data.GROUP_BASE_WEIGHTS
-    TRAIT_GROUP_MULTIPLIERS = game_data.TRAIT_GROUP_MULTIPLIERS
-    ACTION_DESCRIPTIONS = game_data.ACTION_DESCRIPTIONS
-    ACTION_VERBOSE_DESCRIPTIONS = game_data.ACTION_VERBOSE_DESCRIPTIONS
-    ACTION_MAP = game_data.ACTION_MAP
-    ACTION_LOG_GENERATORS = game_data.ACTION_LOG_GENERATORS
-
-
     def __init__(self):
         self.formation_manager = FormationManager()
         self.reset()
@@ -47,7 +37,7 @@ class Game:
     def _init_action_preconditions(self):
         """Dynamically maps action names to their precondition check methods based on ACTION_MAP."""
         self.action_preconditions = {}
-        for action_name, (handler_name, method_name) in self.ACTION_MAP.items():
+        for action_name, (handler_name, method_name) in game_data.ACTION_MAP.items():
             handler = getattr(self, handler_name, None)
             if handler:
                 precondition_method_name = f"can_perform_{method_name}"
@@ -792,21 +782,21 @@ class Game:
         all_action_statuses = self._get_all_actions_status(teamId)
         
         # Group valid actions by category
-        valid_actions_by_group = {group: [] for group in self.ACTION_GROUPS.keys()}
+        valid_actions_by_group = {group: [] for group in game_data.ACTION_GROUPS.keys()}
         for action_name, status in all_action_statuses.items():
             if status['valid']:
-                group = self.ACTION_NAME_TO_GROUP.get(action_name)
+                group = game_data.ACTION_NAME_TO_GROUP.get(action_name)
                 if group:
                     valid_actions_by_group[group].append(action_name)
         
         # Determine group weights based on trait and valid actions
         team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
-        group_multipliers = self.TRAIT_GROUP_MULTIPLIERS.get(team_trait, {})
+        group_multipliers = game_data.TRAIT_GROUP_MULTIPLIERS.get(team_trait, {})
         
         final_group_weights = {}
         for group_name, actions in valid_actions_by_group.items():
             if actions: # Only consider groups that have at least one valid action
-                base_weight = self.GROUP_BASE_WEIGHTS.get(group_name, 0)
+                base_weight = game_data.GROUP_BASE_WEIGHTS.get(group_name, 0)
                 multiplier = group_multipliers.get(group_name, 1.0)
                 final_group_weights[group_name] = base_weight * multiplier
 
@@ -832,7 +822,7 @@ class Game:
                     for action_name in valid_actions:
                         action_list.append({
                             'name': action_name,
-                            'display_name': self.ACTION_DESCRIPTIONS.get(action_name, action_name),
+                            'display_name': game_data.ACTION_DESCRIPTIONS.get(action_name, action_name),
                             'probability': round(action_prob, 1)
                         })
 
@@ -847,9 +837,9 @@ class Game:
                 if not status['valid']:
                     response['invalid'].append({
                         'name': name,
-                        'display_name': self.ACTION_DESCRIPTIONS.get(name, name),
+                        'display_name': game_data.ACTION_DESCRIPTIONS.get(name, name),
                         'reason': status['reason'],
-                        'group': self.ACTION_NAME_TO_GROUP.get(name, 'Other')
+                        'group': game_data.ACTION_NAME_TO_GROUP.get(name, 'Other')
                     })
             response['invalid'].sort(key=lambda x: (x['group'], x['display_name']))
 
@@ -864,20 +854,20 @@ class Game:
         if not possible_actions: return None, None
 
         # --- 2. Group these valid actions by category ---
-        valid_actions_by_group = {group: [] for group in self.ACTION_GROUPS.keys()}
+        valid_actions_by_group = {group: [] for group in game_data.ACTION_GROUPS.keys()}
         for action_name in possible_actions:
-            group = self.ACTION_NAME_TO_GROUP.get(action_name)
+            group = game_data.ACTION_NAME_TO_GROUP.get(action_name)
             if group:
                 valid_actions_by_group[group].append(action_name)
 
         # --- 3. Determine final group weights based on trait and which groups are actually possible ---
         team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
-        group_multipliers = self.TRAIT_GROUP_MULTIPLIERS.get(team_trait, {})
+        group_multipliers = game_data.TRAIT_GROUP_MULTIPLIERS.get(team_trait, {})
         
         final_group_weights = {}
         for group_name, actions in valid_actions_by_group.items():
             if actions: # Only consider groups that have at least one valid action
-                base_weight = self.GROUP_BASE_WEIGHTS.get(group_name, 0)
+                base_weight = game_data.GROUP_BASE_WEIGHTS.get(group_name, 0)
                 multiplier = group_multipliers.get(group_name, 1.0)
                 final_group_weights[group_name] = base_weight * multiplier
         
@@ -891,7 +881,7 @@ class Game:
         chosen_action_name = random.choice(valid_actions_by_group[chosen_group])
         
         # --- 5. Return the chosen action name and its function ---
-        action_map_entry = self.ACTION_MAP.get(chosen_action_name)
+        action_map_entry = game_data.ACTION_MAP.get(chosen_action_name)
         if not action_map_entry:
             return chosen_action_name, None
             
@@ -1002,8 +992,8 @@ class Game:
         """Generates the long and short log messages for a given action result."""
         action_type = result.get('type')
 
-        if action_type in self.ACTION_LOG_GENERATORS:
-            long_msg, short_msg = self.ACTION_LOG_GENERATORS[action_type](result)
+        if action_type in game_data.ACTION_LOG_GENERATORS:
+            long_msg, short_msg = game_data.ACTION_LOG_GENERATORS[action_type](result)
             return long_msg, short_msg
         
         # Fallback for any action that might not have a custom message
