@@ -508,6 +508,37 @@ class Game:
                                 rune_pids.add(value)
         return rune_pids
 
+    def _get_critical_structure_point_ids(self, teamId):
+        """Returns a set of point IDs that are part of critical structures for a team."""
+        critical_pids = set()
+
+        # Fortified points (from territories)
+        for t in self.state.get('territories', []):
+            if t['teamId'] == teamId:
+                critical_pids.update(t['point_ids'])
+
+        # Bastions
+        for b in self.state.get('bastions', {}).values():
+            if b['teamId'] == teamId:
+                critical_pids.add(b['core_id'])
+                critical_pids.update(b['prong_ids'])
+        
+        # Structures stored as {teamId: [list of dicts with point_ids]}
+        for key in ['nexuses', 'trebuchets', 'purifiers']:
+            for struct in self.state.get(key, {}).get(teamId, []):
+                critical_pids.update(struct.get('point_ids', []))
+        
+        # Structures stored as {id: dict with teamId and point_ids}
+        for key in ['monoliths']:
+            for struct in self.state.get(key, {}).values():
+                if struct.get('teamId') == teamId:
+                    critical_pids.update(struct.get('point_ids', []))
+
+        # Runes
+        critical_pids.update(self._get_all_rune_point_ids(teamId))
+        
+        return critical_pids
+
     def _find_non_critical_sacrificial_point(self, teamId):
         """
         Finds a point that can be sacrificed without crippling the team.
@@ -518,20 +549,7 @@ class Game:
         if len(team_point_ids) <= 2:
             return None
 
-        # 1. Identify points in critical structures.
-        fortified_point_ids = self._get_fortified_point_ids()
-        bastion_pids = self._get_bastion_point_ids()
-        monolith_pids = {pid for m in self.state.get('monoliths', {}).values() for pid in m.get('point_ids', [])}
-        nexus_pids = {pid for nexus_list in self.state.get('nexuses', {}).values() for nexus in nexus_list for pid in nexus.get('point_ids', [])}
-        trebuchet_pids = {pid for trebuchet_list in self.state.get('trebuchets', {}).values() for trebuchet in trebuchet_list for pid in trebuchet.get('point_ids', [])}
-        purifier_pids = {pid for purifier_list in self.state.get('purifiers', {}).values() for purifier in purifier_list for pid in purifier.get('point_ids', [])}
-        
-        rune_pids = self._get_all_rune_point_ids(teamId)
-        
-        critical_structure_pids = fortified_point_ids.union(
-            bastion_pids['cores'], bastion_pids['prongs'],
-            monolith_pids, nexus_pids, trebuchet_pids, purifier_pids, rune_pids
-        )
+        critical_structure_pids = self._get_critical_structure_point_ids(teamId)
         
         candidate_pids = [pid for pid in team_point_ids if pid not in critical_structure_pids]
 

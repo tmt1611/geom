@@ -3320,6 +3320,15 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
             ctx.restore();
         },
+        drawFortifiedPoint: (ctx, p, color) => {
+            ctx.fillStyle = color;
+            const radius = 5;
+            const size = radius * 1.7;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y - size); ctx.lineTo(p.x + size, p.y); ctx.lineTo(p.x, p.y + size); ctx.lineTo(p.x - size, p.y);
+            ctx.closePath();
+            ctx.fill();
+        }
     };
     
     const illustrationDrawers = {
@@ -4062,7 +4071,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             illustrationHelpers.drawPoints(ctx, [apex, b1, b2, cw], team1_color);
             illustrationHelpers.drawLines(ctx, [{p1:apex,p2:b1},{p1:b1,p2:cw},{p1:cw,p2:b2},{p1:b2,p2:apex},{p1:b1,p2:b2}], team1_color);
-            illustrationHelpers.drawPoints(ctx, [target], team2_color);
+            
+            // Draw a fortified point as the target
+            illustrationHelpers.drawFortifiedPoint(ctx, target, team2_color);
 
             // Arc
             ctx.beginPath();
@@ -4072,6 +4083,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = 'red';
             ctx.stroke();
             ctx.setLineDash([]);
+            
+            // Explosion on target
+            illustrationHelpers.drawExplosion(ctx, target.x, target.y);
         },
         'rune_hourglass_stasis': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';
