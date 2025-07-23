@@ -4133,6 +4133,54 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
             ctx.fill();
         },
+        'fortify_build_wonder': (ctx, w, h) => {
+            const team1_color = 'hsl(50, 80%, 60%)'; // Gold for wonder
+            const center = {x: w*0.5, y: h*0.5};
+            const radius = w * 0.3;
+            const num_points = 5;
+            const cycle_points = [];
+
+            for (let i = 0; i < num_points; i++) {
+                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
+                cycle_points.push({
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y + Math.sin(angle) * radius,
+                });
+            }
+            
+            // Draw original star rune
+            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
+            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
+            for (let i = 0; i < num_points; i++) {
+                illustrationHelpers.drawLines(ctx, [{p1: cycle_points[i], p2: cycle_points[(i+1)%num_points]}], team1_color);
+            }
+            
+            // Draw sacrifice 'X' over them
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            [center, ...cycle_points].forEach(p => {
+                ctx.beginPath();
+                ctx.moveTo(p.x - 4, p.y - 4); ctx.lineTo(p.x + 4, p.y + 4);
+                ctx.moveTo(p.x - 4, p.y + 4); ctx.lineTo(p.x + 4, p.y - 4);
+                ctx.stroke();
+            });
+
+            // Draw Spire symbol at center
+            ctx.save();
+            ctx.fillStyle = team1_color;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            const spire_base_w = 12;
+            const spire_h = 25;
+            ctx.beginPath();
+            ctx.moveTo(center.x - spire_base_w, center.y + spire_h/2);
+            ctx.lineTo(center.x, center.y - spire_h/2);
+            ctx.lineTo(center.x + spire_base_w, center.y + spire_h/2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        },
     };
 
     async function initActionGuide() {

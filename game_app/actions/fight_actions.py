@@ -1,5 +1,6 @@
 import random
 import math
+import uuid
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point
 )
@@ -97,7 +98,7 @@ class FightActionsHandler:
             else:
                 is_valid, _ = self.game._is_spawn_location_valid(border_point, teamId)
                 if is_valid:
-                    new_point_id = self.game._generate_id('p')
+                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
                     new_point = {**border_point, "teamId": teamId, "id": new_point_id}
                     self.state['points'][new_point_id] = new_point
                     return {
@@ -167,7 +168,7 @@ class FightActionsHandler:
         if not p1 or not p2:
             return {'success': False, 'reason': 'points for fallback barricade do not exist'}
         
-        barricade_id = self.game._generate_id('bar')
+        barricade_id = f"bar_{uuid.uuid4().hex[:6]}"
         new_barricade = {
             'id': barricade_id, 'teamId': teamId,
             'p1': {'x': p1['x'], 'y': p1['y']}, 'p2': {'x': p2['x'], 'y': p2['y']},
