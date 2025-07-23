@@ -1,6 +1,5 @@
 import random
 import math
-import uuid
 from itertools import combinations
 from ..geometry import distance_sq, get_extended_border_point, clamp_and_round_point_coords
 

@@ -1,6 +1,5 @@
 import random
 import math
-import uuid
 from ..geometry import distance_sq, clamp_and_round_point_coords
 
 class SacrificeActionsHandler:

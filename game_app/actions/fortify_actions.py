@@ -1,6 +1,5 @@
 import random
 import math
-import uuid
 from itertools import combinations
 from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, points_centroid, clamp_and_round_point_coords, get_edges_by_distance
 

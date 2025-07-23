@@ -1,6 +1,5 @@
 import random
 import math
-import uuid
 from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
