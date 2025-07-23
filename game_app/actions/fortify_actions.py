@@ -27,11 +27,77 @@ class FortifyActionsHandler:
         can_perform = len(self._find_possible_bastions(teamId)) > 0
         return can_perform, "No valid bastion formation found."
 
+    def _find_possible_monoliths_and_fallbacks(self, teamId):
+        """Helper to find valid monoliths (tall rectangles) and regular rectangles for fallback reinforcement."""
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if len(team_point_ids) < 4:
+            return [], []
+
+        points = self.state['points']
+        existing_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+        existing_monolith_points = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
+
+        possible_monoliths = []
+        fallback_candidates = []
+        
+        for p_ids_tuple in combinations(team_point_ids, 4):
+            if any(pid in existing_monolith_points for pid in p_ids_tuple):
+                continue
+            
+            p_list = [points[pid] for pid in p_ids_tuple]
+            is_rect, aspect_ratio = is_rectangle(*p_list)
+
+            if is_rect:
+                edge_data = get_edges_by_distance(p_list)
+                side_pairs = edge_data['sides']
+
+                if all(tuple(sorted(pair)) in existing_lines_by_points for pair in side_pairs):
+                    if aspect_ratio > 3.0:
+                        center_x = sum(p['x'] for p in p_list) / 4
+                        center_y = sum(p['y'] for p in p_list) / 4
+                        possible_monoliths.append({
+                            'point_ids': list(p_ids_tuple),
+                            'center_coords': {'x': center_x, 'y': center_y}
+                        })
+                    else:
+                        fallback_candidates.append({'point_ids': list(p_ids_tuple), 'side_pairs': side_pairs})
+        return possible_monoliths, fallback_candidates
+
     def can_perform_form_monolith(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) >= 4, "Requires at least 4 points."
+        possible_monoliths, fallback_candidates = self._find_possible_monoliths_and_fallbacks(teamId)
+        can_perform = len(possible_monoliths) > 0 or len(fallback_candidates) > 0
+        return can_perform, "No valid rectangle formation found."
+
+    def _find_possible_purifiers(self, teamId):
+        """Helper to find valid pentagonal formations for a Purifier."""
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if len(team_point_ids) < 5:
+            return []
+
+        points = self.state['points']
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.game.get_team_lines(teamId)}
+        
+        # Get points already used in other major structures
+        existing_purifier_points = {pid for p_list in self.state.get('purifiers', {}).values() for p in p_list for pid in p['point_ids']}
+
+        possible_purifiers = []
+        for p_ids_tuple in combinations(team_point_ids, 5):
+            if any(pid in existing_purifier_points for pid in p_ids_tuple):
+                continue
+
+            p_list = [points[pid] for pid in p_ids_tuple]
+            if is_regular_pentagon(*p_list):
+                # To be a valid formation, the 5 outer "side" lines must exist.
+                edge_data = get_edges_by_distance(p_list)
+                side_pairs = edge_data['sides']
+
+                if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
+                    possible_purifiers.append({'point_ids': list(p_ids_tuple)})
+        return possible_purifiers
 
     def can_perform_form_purifier(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) >= 5, "Requires at least 5 points."
+        can_perform = len(self._find_possible_purifiers(teamId)) > 0
+        return can_perform, "No valid pentagon formation found."
 
     def can_perform_cultivate_heartwood(self, teamId):
         can_perform = len(self.game.get_team_point_ids(teamId)) >= 6 and teamId not in self.state.get('heartwoods', {})
@@ -260,48 +326,31 @@ class FortifyActionsHandler:
 
     def form_monolith(self, teamId):
         """[FORTIFY ACTION]: Forms a Monolith from a tall, thin rectangle. If not possible, reinforces a regular rectangle."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) < 4:
-            return {'success': False, 'reason': 'not enough points'}
-
-        points = self.state['points']
-        existing_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
-        existing_monolith_points = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
-
-        possible_monoliths = []
-        fallback_candidates = []
+        possible_monoliths, fallback_candidates = self._find_possible_monoliths_and_fallbacks(teamId)
         
-        for p_ids_tuple in combinations(team_point_ids, 4):
-            if any(pid in existing_monolith_points for pid in p_ids_tuple):
-                continue
+        if possible_monoliths:
+            # --- Primary Action: Form Monolith ---
+            chosen_monolith_data = random.choice(possible_monoliths)
+            monolith_id = self.game._generate_id('m')
+            new_monolith = {
+                'id': monolith_id,
+                'teamId': teamId,
+                'point_ids': chosen_monolith_data['point_ids'],
+                'center_coords': chosen_monolith_data['center_coords'],
+                'charge_counter': 0,
+                'charge_interval': 4, # Emits wave every 4 turns
+                'wave_radius_sq': (self.state['grid_size'] * 0.3)**2
+            }
             
-            p_list = [points[pid] for pid in p_ids_tuple]
-            is_rect, aspect_ratio = is_rectangle(*p_list)
-
-            if is_rect:
-                # Check for the 4 outer perimeter lines
-                edge_data = get_edges_by_distance(p_list)
-                side_pairs = edge_data['sides']
-
-                if all(tuple(sorted(pair)) in existing_lines_by_points for pair in side_pairs):
-                    # Monolith requires a thin rectangle, aspect ratio > 3.0
-                    if aspect_ratio > 3.0:
-                        center_x = sum(p['x'] for p in p_list) / 4
-                        center_y = sum(p['y'] for p in p_list) / 4
-                        possible_monoliths.append({
-                            'point_ids': list(p_ids_tuple),
-                            'center_coords': {'x': center_x, 'y': center_y}
-                        })
-                    else:
-                        fallback_candidates.append({'point_ids': list(p_ids_tuple), 'side_pairs': side_pairs})
-        
-        if not possible_monoliths:
+            if 'monoliths' not in self.state: self.state['monoliths'] = {}
+            self.state['monoliths'][monolith_id] = new_monolith
+            
+            return {'success': True, 'type': 'form_monolith', 'monolith': new_monolith}
+        elif fallback_candidates:
             # --- Fallback: Reinforce a regular rectangle ---
-            if not fallback_candidates:
-                return {'success': False, 'reason': 'no valid monolith or rectangle formation found'}
-            
             candidate = random.choice(fallback_candidates)
             strengthened_lines = []
+            existing_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
             for pair in candidate['side_pairs']:
                 line = existing_lines_by_points.get(tuple(sorted(pair)))
                 if line and self.game._strengthen_line(line):
@@ -313,24 +362,8 @@ class FortifyActionsHandler:
                 'reinforced_point_ids': candidate['point_ids'],
                 'strengthened_lines': strengthened_lines
             }
-
-        # --- Primary Action: Form Monolith ---
-        chosen_monolith_data = random.choice(possible_monoliths)
-        monolith_id = self.game._generate_id('m')
-        new_monolith = {
-            'id': monolith_id,
-            'teamId': teamId,
-            'point_ids': chosen_monolith_data['point_ids'],
-            'center_coords': chosen_monolith_data['center_coords'],
-            'charge_counter': 0,
-            'charge_interval': 4, # Emits wave every 4 turns
-            'wave_radius_sq': (self.state['grid_size'] * 0.3)**2
-        }
-        
-        if 'monoliths' not in self.state: self.state['monoliths'] = {}
-        self.state['monoliths'][monolith_id] = new_monolith
-        
-        return {'success': True, 'type': 'form_monolith', 'monolith': new_monolith}
+        else:
+            return {'success': False, 'reason': 'no valid monolith or rectangle formation found'}
 
     def cultivate_heartwood(self, teamId):
         """[FORTIFY ACTION]: Cultivates a Heartwood from a point with many connections."""
@@ -901,38 +934,13 @@ class FortifyActionsHandler:
 
     def form_purifier(self, teamId):
         """[FORTIFY ACTION]: Forms a Purifier from a regular pentagon of points."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) < 5:
-            return {'success': False, 'reason': 'not enough points'}
-
-        points = self.state['points']
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.game.get_team_lines(teamId)}
-        
-        # Get points already used in other major structures
-        existing_purifier_points = {pid for p_list in self.state.get('purifiers', {}).values() for p in p_list for pid in p['point_ids']}
-
-        possible_purifiers = []
-        for p_ids_tuple in combinations(team_point_ids, 5):
-            if any(pid in existing_purifier_points for pid in p_ids_tuple):
-                continue
-
-            p_list = [points[pid] for pid in p_ids_tuple]
-            if is_regular_pentagon(*p_list):
-                # To be a valid formation, the 5 outer "side" lines must exist.
-                edge_data = get_edges_by_distance(p_list)
-                side_pairs = edge_data['sides']
-
-                if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
-                    possible_purifiers.append({'point_ids': list(p_ids_tuple)})
+        possible_purifiers = self._find_possible_purifiers(teamId)
         
         if not possible_purifiers:
             return {'success': False, 'reason': 'no valid pentagon formation found'}
 
         chosen_purifier_data = random.choice(possible_purifiers)
         
-        if teamId not in self.state.get('purifiers', {}):
-            self.state['purifiers'][teamId] = []
-            
-        self.state['purifiers'][teamId].append(chosen_purifier_data)
+        self.state.setdefault('purifiers', {}).setdefault(teamId, []).append(chosen_purifier_data)
         
         return {'success': True, 'type': 'form_purifier', 'purifier': chosen_purifier_data}

@@ -1,9 +1,11 @@
-This iteration focuses on cleaning up the codebase in both the Python backend and JavaScript frontend.
+This iteration focuses on improving the accuracy and clarity of the game's action logic by refactoring several action handlers. The primary goal is to make the "precondition checks" more precise, which benefits both the AI's action selection and the user-facing "Action Preview" panel.
 
 **Key Changes:**
 
-1.  **Bug Fix in Game Logic:** Fixed a critical bug in `game_logic.py` where the action probability calculation was referencing a non-existent dictionary (`game_data.ACTION_DESCRIPTIONS`), which would have caused a server error. The code now correctly retrieves the `display_name` from the single source of truth, `action_data.py`.
+1.  **Refactored `form_monolith` and `form_purifier`:**
+    *   In `game_app/actions/fortify_actions.py`, the complex logic for finding valid geometric formations (rectangles for Monoliths, pentagons for Purifiers) was extracted from the main action methods into dedicated private helper methods (`_find_possible_monoliths_and_fallbacks`, `_find_possible_purifiers`). This improves code organization by separating the "finding" logic from the "acting" logic.
+    *   The action precondition checks (`can_perform_...`) for these actions now use these helpers. Previously, they only checked for a minimum number of points, which was inaccurate. Now, an action is only considered "possible" if a valid geometric formation actually exists on the board, leading to smarter AI choices and more accurate UI feedback.
+    *   The main action methods (`form_monolith`, `form_purifier`) were simplified to use the new helpers, making them cleaner and more focused.
+    *   A minor bug in `form_purifier`'s state update logic was fixed by using `setdefault` for safer dictionary manipulation.
 
-2.  **Data Refactoring:** The `DEFAULT_TEAMS` data structure in `game_data.py` was refactored from a dictionary with redundant keys to a cleaner list of objects. The game's `reset()` method was updated to handle this improved structure. This reduces data redundancy and improves clarity.
-
-3.  **Frontend Code Organization:** The `main.js` file, which was becoming excessively large, has been split. All the illustration-drawing logic (`illustrationHelpers` and `illustrationDrawers`), which is static and self-contained, has been moved to a new `static/js/illustrations.js` file. This significantly slims down `main.js`, making it easier to navigate and maintain, and improves the overall organization of the frontend code.
+This refactoring makes the code cleaner and the game simulation more robust by ensuring that actions are only attempted when they have a genuine chance of succeeding.
