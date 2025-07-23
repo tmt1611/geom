@@ -2,6 +2,7 @@ import random
 import math
 import uuid  # For unique point IDs
 from itertools import combinations
+from collections import defaultdict
 from .geometry import (
     distance_sq, on_segment, orientation, segments_intersect,
     get_segment_intersection_point, is_ray_blocked, get_extended_border_point,
@@ -11,6 +12,7 @@ from .geometry import (
 )
 from .formations import FormationManager
 from . import game_data
+from . import action_data
 from . import structure_data
 from .actions.expand_actions import ExpandActionsHandler
 from .actions.fortify_actions import FortifyActionsHandler
@@ -34,11 +36,13 @@ class Game:
         self.rune_handler = RuneActionsHandler(self)
         self.turn_processor = TurnProcessor(self)
         self._init_action_preconditions()
+        self._log_generators = game_data.get_log_generators()
 
     def _init_action_preconditions(self):
         """Dynamically maps action names to their precondition check methods based on ACTION_MAP."""
         self.action_preconditions = {}
-        for action_name, (handler_name, method_name) in game_data.ACTION_MAP.items():
+        for action_name, data in action_data.ACTIONS.items():
+            handler_name, method_name = data['handler'], data['method']
             handler = getattr(self, handler_name, None)
             if handler:
                 precondition_method_name = f"can_perform_{method_name}"
@@ -864,12 +868,11 @@ class Game:
         all_action_statuses = self._get_all_actions_status(teamId)
         
         # Group valid actions by category
-        valid_actions_by_group = {group: [] for group in game_data.ACTION_GROUPS.keys()}
+        valid_actions_by_group = defaultdict(list)
         for action_name, status in all_action_statuses.items():
             if status['valid']:
-                group = game_data.ACTION_NAME_TO_GROUP.get(action_name)
-                if group:
-                    valid_actions_by_group[group].append(action_name)
+                group = action_data.ACTIONS[action_name]['group']
+                valid_actions_by_group[group].append(action_name)
         
         # Determine group weights based on trait and valid actions
         team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
@@ -919,9 +922,9 @@ class Game:
                 if not status['valid']:
                     response['invalid'].append({
                         'name': name,
-                        'display_name': game_data.ACTION_DESCRIPTIONS.get(name, name),
+                        'display_name': action_data.ACTIONS[name].get('display_name', name),
                         'reason': status['reason'],
-                        'group': game_data.ACTION_NAME_TO_GROUP.get(name, 'Other')
+                        'group': action_data.ACTIONS[name].get('group', 'Other')
                     })
             response['invalid'].sort(key=lambda x: (x['group'], x['display_name']))
 
@@ -936,11 +939,10 @@ class Game:
         if not possible_actions: return None, None
 
         # --- 2. Group these valid actions by category ---
-        valid_actions_by_group = {group: [] for group in game_data.ACTION_GROUPS.keys()}
+        valid_actions_by_group = defaultdict(list)
         for action_name in possible_actions:
-            group = game_data.ACTION_NAME_TO_GROUP.get(action_name)
-            if group:
-                valid_actions_by_group[group].append(action_name)
+            group = action_data.ACTIONS[action_name]['group']
+            valid_actions_by_group[group].append(action_name)
 
         # --- 3. Determine final group weights based on trait and which groups are actually possible ---
         team_trait = self.state['teams'][teamId].get('trait', 'Balanced')
@@ -963,11 +965,11 @@ class Game:
         chosen_action_name = random.choice(valid_actions_by_group[chosen_group])
         
         # --- 5. Return the chosen action name and its function ---
-        action_map_entry = game_data.ACTION_MAP.get(chosen_action_name)
-        if not action_map_entry:
+        action_details = action_data.ACTIONS.get(chosen_action_name)
+        if not action_details:
             return chosen_action_name, None
             
-        handler_name, method_name = action_map_entry
+        handler_name, method_name = action_details['handler'], action_details['method']
         handler = getattr(self, handler_name, None)
         if not handler:
             return chosen_action_name, None
@@ -1076,8 +1078,8 @@ class Game:
         """Generates the long and short log messages for a given action result."""
         action_type = result.get('type')
 
-        if action_type in game_data.ACTION_LOG_GENERATORS:
-            long_msg, short_msg = game_data.ACTION_LOG_GENERATORS[action_type](result)
+        if action_type in self._log_generators:
+            long_msg, short_msg = self._log_generators[action_type](result)
             return long_msg, short_msg
         
         # Fallback for any action that might not have a custom message

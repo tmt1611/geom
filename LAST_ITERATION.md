@@ -1,19 +1,14 @@
-This iteration focused on cleaning up the action handler code by refactoring repeated logic into centralized helper methods. Specifically, the creation of temporary structures like `barricades` and `fissures` was duplicated across multiple action files.
-
-By moving this logic into new helper methods within the main `Game` class, I have reduced code duplication, improved maintainability, and ensured these operations behave consistently wherever they are used.
+This iteration focused on a significant code cleanup by refactoring how action metadata is accessed throughout the application. The goal was to make `action_data.py` the true single source of truth for all action properties, reducing redundancy and improving maintainability.
 
 **Key Changes:**
 
-1.  **New Helper Methods in `game_logic.py`:**
-    *   Added `_create_temporary_barricade` to handle the creation and state management of barricades.
-    *   Added `_create_random_fissure` to centralize the logic for creating randomly oriented fissures around a center point.
+1.  **Simplified `game_data.py`:**
+    *   Removed the large block of code that dynamically built several global dictionaries (`ACTION_MAP`, `ACTION_GROUPS`, etc.) at module load time.
+    *   Replaced these with simple helper functions (`get_action_groups`, `get_log_generators`) that derive the necessary data structures directly from `action_data.ACTIONS` when needed. This ensures data is always fresh and avoids maintaining parallel, redundant data structures.
 
-2.  **Refactored Action Handlers:**
-    *   Updated `fight_actions.py`, `fortify_actions.py`, and `rune_actions.py` to call the new `_create_temporary_barricade` helper instead of implementing the logic inline.
-    *   Updated `fight_actions.py`, `sacrifice_actions.py`, and `rune_actions.py` to use the new `_create_random_fissure` helper, which also fixed a minor bug related to coordinate clamping.
+2.  **Refactored `game_logic.py`:**
+    *   Modified all functions that previously used the dictionaries from `game_data` to access the information directly from `action_data.ACTIONS`.
+    *   This affects key logic areas, including action precondition checking (`_init_action_preconditions`), probability calculations (`get_action_probabilities`), action selection (`_choose_action_for_team`), and log message generation (`_get_action_log_messages`).
+    *   The logic is now more direct (e.g., using `action_data.ACTIONS[name]['group']` instead of `game_data.ACTION_NAME_TO_GROUP[name]`) and less prone to errors if new actions are added.
 
-3.  **Improved Code Consistency:**
-    *   Standardized point creation in `expand_actions.py`'s `grow_line` action to use the `clamp_and_round_point_coords` helper, making it more robust and consistent with other actions.
-    *   Made a minor improvement in `rune_actions.py` to use `setdefault` for list appends, making the code more defensive.
-
-These changes make the action handlers cleaner, more concise, and easier to understand, while improving the overall robustness of the game logic.
+This refactoring makes the code cleaner, more robust, and easier to follow, as the flow of data from the central `action_data.py` file to its points of use is now explicit and direct.
