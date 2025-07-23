@@ -35,6 +35,59 @@ class Game:
         self.fortify_handler = FortifyActionsHandler(self)
         self.fight_handler = FightActionsHandler(self)
         self.turn_processor = TurnProcessor(self)
+        self._init_action_preconditions()
+
+    def _init_action_preconditions(self):
+        """Maps action names to their precondition check methods for cleaner validation."""
+        self.action_preconditions = {
+            # Expand Actions
+            'expand_add': self.expand_handler.can_perform_add_line,
+            'expand_extend': self.expand_handler.can_perform_extend_line,
+            'expand_grow': self.expand_handler.can_perform_grow_line,
+            'expand_fracture': self.expand_handler.can_perform_fracture_line,
+            'expand_spawn': self.expand_handler.can_perform_spawn_point,
+            'expand_orbital': self.expand_handler.can_perform_create_orbital,
+            # Fight Actions
+            'fight_attack': self.fight_handler.can_perform_attack_line,
+            'fight_convert': self.fight_handler.can_perform_convert_point,
+            'fight_pincer_attack': self.fight_handler.can_perform_pincer_attack,
+            'fight_territory_strike': self.fight_handler.can_perform_territory_strike,
+            'fight_bastion_pulse': self.fight_handler.can_perform_bastion_pulse,
+            'fight_sentry_zap': self.fight_handler.can_perform_sentry_zap,
+            'fight_chain_lightning': self.fight_handler.can_perform_chain_lightning,
+            'fight_refraction_beam': self.fight_handler.can_perform_refraction_beam,
+            'fight_launch_payload': self.fight_handler.can_perform_launch_payload,
+            'fight_purify_territory': self.fight_handler.can_perform_purify_territory,
+            # Fortify Actions
+            'defend_shield': self.fortify_handler.can_perform_protect_line,
+            'fortify_claim': self.fortify_handler.can_perform_claim_territory,
+            'fortify_anchor': self.fortify_handler.can_perform_create_anchor,
+            'fortify_mirror': self.fortify_handler.can_perform_mirror_structure,
+            'fortify_form_bastion': self.fortify_handler.can_perform_form_bastion,
+            'fortify_form_monolith': self.fortify_handler.can_perform_form_monolith,
+            'fortify_form_purifier': self.fortify_handler.can_perform_form_purifier,
+            'fortify_cultivate_heartwood': self.fortify_handler.can_perform_cultivate_heartwood,
+            'fortify_form_rift_spire': self.fortify_handler.can_perform_form_rift_spire,
+            'terraform_create_fissure': self.fortify_handler.can_perform_create_fissure,
+            'terraform_raise_barricade': self.fortify_handler.can_perform_raise_barricade,
+            'fortify_build_wonder': self.fortify_handler.can_perform_build_chronos_spire,
+            # Sacrifice Actions (logic still in Game class)
+            'sacrifice_nova': self._can_perform_sacrifice_nova,
+            'sacrifice_whirlpool': self._can_perform_sacrifice_whirlpool,
+            'sacrifice_phase_shift': self._can_perform_sacrifice_phase_shift,
+            'sacrifice_rift_trap': self._can_perform_sacrifice_rift_trap,
+            # Rune Actions (logic still in Game class)
+            'rune_shoot_bisector': self._can_perform_rune_shoot_bisector,
+            'rune_area_shield': self._can_perform_rune_area_shield,
+            'rune_shield_pulse': self._can_perform_rune_shield_pulse,
+            'rune_impale': self._can_perform_rune_impale,
+            'rune_hourglass_stasis': self._can_perform_rune_hourglass_stasis,
+            'rune_starlight_cascade': self._can_perform_rune_starlight_cascade,
+            'rune_focus_beam': self._can_perform_rune_focus_beam,
+            'rune_t_hammer_slam': self._can_perform_rune_t_hammer_slam,
+            'rune_cardinal_pulse': self._can_perform_rune_cardinal_pulse,
+            'rune_parallel_discharge': self._can_perform_rune_parallel_discharge,
+        }
 
     def reset(self):
         """Initializes or resets the game state with default teams."""

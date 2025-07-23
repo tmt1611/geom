@@ -8,6 +8,30 @@ class ExpandActionsHandler:
     def __init__(self, game):
         self.game = game
 
+    # --- Action Precondition Checks ---
+
+    def can_perform_add_line(self, teamId):
+        return len(self.game.get_team_point_ids(teamId)) >= 2, "Requires at least 2 points."
+
+    def can_perform_extend_line(self, teamId):
+        can_perform = len(self._find_possible_extensions(teamId)) > 0
+        return can_perform, "No lines can be validly extended."
+
+    def can_perform_grow_line(self, teamId):
+        return len(self.game.get_team_lines(teamId)) > 0, "Requires at least 1 line to grow from."
+
+    def can_perform_fracture_line(self, teamId):
+        can_perform = len(self._find_fracturable_lines(teamId)) > 0
+        return can_perform, "No non-territory lines long enough to fracture."
+
+    def can_perform_spawn_point(self, teamId):
+        return len(self.game.get_team_point_ids(teamId)) > 0, "Requires at least 1 point to spawn from."
+
+    def can_perform_create_orbital(self, teamId):
+        return len(self.game.get_team_point_ids(teamId)) >= 5, "Requires at least 5 points."
+
+    # --- End Precondition Checks ---
+
     @property
     def state(self):
         """Provides direct access to the game's current state dictionary."""

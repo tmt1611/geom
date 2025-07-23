@@ -1,13 +1,15 @@
-This iteration focused on two areas: improving the UI of the Action Guide tab and refactoring duplicated code for better maintainability and clarity.
+This iteration focused on a significant code refactoring to improve encapsulation and maintainability, specifically around how action preconditions are checked.
 
-### 1. Action Guide Compactness
-- **`static/css/style.css` & `static/js/main.js`**: The Action Guide cards have been made more compact.
-    - The card width was reduced from `450px` to `400px`, and the illustration canvas was resized from `180x120` to `150x100`.
-    - This allows more action cards to be visible on the screen at once, especially on wider monitors, reducing the need for scrolling.
+### 1. Decoupling Action Preconditions from `Game` Class
+- The large, hard-to-maintain dictionary of lambda functions inside `game_logic.py`'s `_get_all_actions_status` method has been removed.
+- **`game_app/actions/expand_actions.py`**: Added `can_perform_*` methods (e.g., `can_perform_add_line`) for each action in the handler. These methods encapsulate the logic for checking if an action is valid (e.g., having enough points, finding a valid target).
+- **`game_app/actions/fight_actions.py`**: Added corresponding `can_perform_*` methods for all fight-related actions.
+- **`game_app/actions/fortify_actions.py`**: Added corresponding `can_perform_*` methods for all fortify, defend, and terraform actions managed by this handler.
 
-### 2. Code Refactoring & Simplification
-- **`game_app/game_logic.py`**: Several helper methods were simplified using Python comprehensions for conciseness and better readability.
-    - `_get_fortified_point_ids()` was converted into a single set comprehension.
-    - `_get_bastion_point_ids()` was refactored to use set comprehensions, making the code shorter and more expressive.
-- **`game_app/formations.py`**: A new helper method `_find_all_triangles` was created to centralize the logic for detecting all triangular formations for a team. This logic was previously duplicated in three different places.
-- **`game_app/actions/fortify_actions.py` & `game_app/game_logic.py` & `game_app/formations.py`**: The duplicated triangle-finding logic was removed and replaced with calls to the new `formation_manager._find_all_triangles` method. This reduces code duplication, fixes a source of potential bugs, and makes the codebase easier to maintain.
+### 2. Centralized Precondition Dispatch in `game_logic.py`
+- A new method, `_init_action_preconditions`, was added to the `Game` class constructor.
+- This method creates a dispatch map (`self.action_preconditions`) that links action names (e.g., `'expand_add'`) to the new `can_perform_*` methods in their respective handlers.
+- For actions whose logic has not yet been moved to a handler (like `Sacrifice` and `Rune` actions), private helper methods (e.g., `_can_perform_sacrifice_nova`) were created within the `Game` class to contain their precondition logic, and these were also added to the dispatch map.
+- The `_get_all_actions_status` method was refactored into a simple loop that iterates through the `action_preconditions` map, calling the appropriate check for each action.
+
+This refactoring makes the `Game` class less aware of the internal logic of each action, delegating that responsibility to the specialized handlers. This improves code organization, reduces coupling, and makes it easier to add or modify actions and their validation rules in the future.

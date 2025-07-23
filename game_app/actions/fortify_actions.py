@@ -8,6 +8,62 @@ class FortifyActionsHandler:
     def __init__(self, game):
         self.game = game
 
+    # --- Action Precondition Checks ---
+
+    def can_perform_protect_line(self, teamId):
+        return len(self.game.get_team_lines(teamId)) > 0, "Requires at least one line to shield or overcharge."
+
+    def can_perform_claim_territory(self, teamId):
+        can_perform = len(self._find_claimable_triangles(teamId)) > 0
+        return can_perform, "No new triangles available to claim."
+
+    def can_perform_create_anchor(self, teamId):
+        return len(self.game.get_team_point_ids(teamId)) >= 3, "Requires at least 3 points to sacrifice one."
+
+    def can_perform_mirror_structure(self, teamId):
+        return len(self.game.get_team_point_ids(teamId)) >= 3, "Requires at least 3 points to mirror."
+
+    def can_perform_form_bastion(self, teamId):
+        can_perform = len(self._find_possible_bastions(teamId)) > 0
+        return can_perform, "No valid bastion formation found."
+
+    def can_perform_form_monolith(self, teamId):
+        return len(self.game.get_team_point_ids(teamId)) >= 4, "Requires at least 4 points."
+
+    def can_perform_form_purifier(self, teamId):
+        return len(self.game.get_team_point_ids(teamId)) >= 5, "Requires at least 5 points."
+
+    def can_perform_cultivate_heartwood(self, teamId):
+        can_perform = len(self.game.get_team_point_ids(teamId)) >= 6 and teamId not in self.state.get('heartwoods', {})
+        return can_perform, "Requires >= 6 points and no existing Heartwood."
+
+    def can_perform_form_rift_spire(self, teamId):
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        return len(team_territories) >= 3, "Requires at least 3 territories."
+
+    def can_perform_create_fissure(self, teamId):
+        team_spires = self.state.get('rift_spires', {}).values()
+        can_perform = any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in team_spires)
+        return can_perform, "Requires a charged Rift Spire."
+
+    def can_perform_raise_barricade(self, teamId):
+        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('barricade', []))
+        return can_perform, "Requires an active Barricade Rune."
+    
+    def can_perform_build_chronos_spire(self, teamId):
+        has_wonder = any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values())
+        if has_wonder:
+            return False, "Team already has a wonder."
+        
+        has_star_rune = len(self.game.formation_manager.check_star_rune(
+            self.game.get_team_point_ids(teamId),
+            self.game.get_team_lines(teamId),
+            self.state['points']
+        )) > 0
+        return has_star_rune, "Requires a Star Rune and no existing Wonder."
+
+    # --- End Precondition Checks ---
+
     @property
     def state(self):
         """Provides direct access to the game's current state dictionary."""

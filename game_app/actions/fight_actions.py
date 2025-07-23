@@ -9,6 +9,52 @@ class FightActionsHandler:
     def __init__(self, game):
         self.game = game
 
+    # --- Action Precondition Checks ---
+
+    def can_perform_attack_line(self, teamId):
+        return len(self.game.get_team_lines(teamId)) > 0, "Requires at least 1 line to attack from."
+
+    def can_perform_convert_point(self, teamId):
+        return len(self.game.get_team_lines(teamId)) > 0, "Requires at least 1 line to sacrifice."
+
+    def can_perform_pincer_attack(self, teamId):
+        return len(self.game.get_team_point_ids(teamId)) >= 2, "Requires at least 2 points."
+
+    def can_perform_territory_strike(self, teamId):
+        return len(self._get_large_territories(teamId)) > 0, "No large territories available."
+
+    def can_perform_bastion_pulse(self, teamId):
+        can_perform = len(self.game._find_possible_bastion_pulses(teamId)) > 0
+        return can_perform, "No bastion has crossing enemy lines to pulse."
+
+    def can_perform_sentry_zap(self, teamId):
+        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
+        can_perform = any(r.get('internal_points') for r in team_i_runes)
+        return can_perform, "Requires an I-Rune with at least 3 points."
+
+    def can_perform_chain_lightning(self, teamId):
+        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
+        can_perform = any(r.get('internal_points') for r in team_i_runes)
+        return can_perform, "Requires an I-Rune with internal points."
+
+    def can_perform_refraction_beam(self, teamId):
+        has_prism = bool(self.state.get('prisms', {}).get(teamId, []))
+        num_enemy_lines = len(self.state['lines']) - len(self.game.get_team_lines(teamId))
+        can_perform = has_prism and num_enemy_lines > 0
+        return can_perform, "Requires a Prism and enemy lines."
+
+    def can_perform_launch_payload(self, teamId):
+        can_perform = bool(self.state.get('trebuchets', {}).get(teamId, []))
+        return can_perform, "Requires a Trebuchet."
+
+    def can_perform_purify_territory(self, teamId):
+        has_purifier = bool(self.state.get('purifiers', {}).get(teamId, []))
+        has_enemy_territory = any(t['teamId'] != teamId for t in self.state.get('territories', []))
+        can_perform = has_purifier and has_enemy_territory
+        return can_perform, "Requires a Purifier and an enemy territory."
+
+    # --- End Precondition Checks ---
+
     @property
     def state(self):
         """Provides direct access to the game's current state dictionary."""
