@@ -10,7 +10,7 @@ class FortifyActionsHandler:
 
     # --- Action Precondition Checks ---
 
-    def can_perform_protect_line(self, teamId):
+    def can_perform_shield_line(self, teamId):
         return len(self.game.get_team_lines(teamId)) > 0, "Requires at least one line to shield or overcharge."
 
     def can_perform_claim_territory(self, teamId):
@@ -69,8 +69,8 @@ class FortifyActionsHandler:
         """Provides direct access to the game's current state dictionary."""
         return self.game.state
 
-    def protect_line(self, teamId):
-        """[DEFEND ACTION]: Applies a temporary shield to a line. If all lines are shielded, it overcharges one."""
+    def shield_line(self, teamId):
+        """[FORTIFY ACTION]: Applies a temporary shield to a line. If all lines are shielded, it overcharges one."""
         team_lines = self.game.get_team_lines(teamId)
         if not team_lines:
             return {'success': False, 'reason': 'no lines to shield'}
@@ -646,7 +646,7 @@ class FortifyActionsHandler:
                 reflected_p_int = {'x': round(reflected_p['x']), 'y': round(reflected_p['y'])}
                 is_valid, _ = is_spawn_location_valid(
                     reflected_p_int, teamId, self.state['grid_size'], self.state['points'],
-                    self.state.get('fissures', []), self.state.get('heartwoods', {})
+                    self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', [])
                 )
                 if not is_valid:
                     all_reflections_valid = False; break

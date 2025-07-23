@@ -75,18 +75,27 @@ def get_segment_intersection_point(p1, q1, p2, q2):
     return None  # Intersection point is not on both segments
 
 
-def is_ray_blocked(p_start, p_end, fissures, barricades):
-    """Checks if a segment is blocked by a fissure or barricade."""
-    for fissure in fissures:
-        if get_segment_intersection_point(p_start, p_end, fissure['p1'], fissure['p2']):
+def is_ray_blocked(p_start, p_end, fissures, barricades, scorched_zones=None):
+    """Checks if a segment is blocked by a fissure, barricade, or scorched zone."""
+    obstacles = (fissures or []) + (barricades or [])
+    for obstacle in obstacles:
+        if get_segment_intersection_point(p_start, p_end, obstacle['p1'], obstacle['p2']):
             return True
-    for barricade in barricades:
-        if get_segment_intersection_point(p_start, p_end, barricade['p1'], barricade['p2']):
-            return True
+    
+    if scorched_zones:
+        for zone in scorched_zones:
+            if len(zone['points']) == 3:
+                p1, p2, p3 = zone['points']
+                # Check intersection with any of the 3 edges of the triangle
+                if (get_segment_intersection_point(p_start, p_end, p1, p2) or
+                    get_segment_intersection_point(p_start, p_end, p2, p3) or
+                    get_segment_intersection_point(p_start, p_end, p3, p1)):
+                    return True
+
     return False
 
 
-def get_extended_border_point(p1, p2, grid_size, fissures, barricades):
+def get_extended_border_point(p1, p2, grid_size, fissures, barricades, scorched_zones=None):
     """
     Extends a line segment p1-p2 from p1 outwards through p2 to the border.
     Returns the border point dictionary or None.
@@ -100,7 +109,7 @@ def get_extended_border_point(p1, p2, grid_size, fissures, barricades):
     # Check if extension is blocked
     # Create a very long ray for intersection test
     ray_end_point = {'x': p2['x'] + dx * grid_size * 2, 'y': p2['y'] + dy * grid_size * 2}
-    if is_ray_blocked(p2, ray_end_point, fissures, barricades):
+    if is_ray_blocked(p2, ray_end_point, fissures, barricades, scorched_zones):
         return None # Extension is blocked
 
     # We are calculating p_new = p1 + t * (p2 - p1) for t > 1
@@ -355,7 +364,7 @@ def get_convex_hull(points):
     return hull
 
 
-def is_spawn_location_valid(new_point_coords, new_point_teamId, grid_size, all_points, fissures, heartwoods, min_dist_sq=1.0):
+def is_spawn_location_valid(new_point_coords, new_point_teamId, grid_size, all_points, fissures, heartwoods, scorched_zones=None, min_dist_sq=1.0):
     """Checks if a new point can be spawned at the given coordinates."""
     # Check if point is within grid boundaries
     if not (0 <= new_point_coords['x'] < grid_size and 0 <= new_point_coords['y'] < grid_size):
@@ -388,5 +397,12 @@ def is_spawn_location_valid(new_point_coords, new_point_teamId, grid_size, all_p
                 aura_radius_sq = (grid_size * 0.2)**2
                 if distance_sq(new_point_coords, heartwood['center_coords']) < aura_radius_sq:
                     return False, 'blocked by an enemy Heartwood aura'
+
+    # Check against scorched zones
+    if scorched_zones:
+        for zone in scorched_zones:
+            if len(zone['points']) == 3:
+                if is_point_inside_triangle(new_point_coords, zone['points'][0], zone['points'][1], zone['points'][2]):
+                    return False, 'inside a scorched zone'
     
     return True, 'valid'

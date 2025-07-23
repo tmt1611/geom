@@ -21,6 +21,10 @@ class SacrificeActionsHandler:
     def can_perform_rift_trap(self, teamId):
         return len(self.game.get_team_point_ids(teamId)) > 1, "Requires more than 1 point to sacrifice."
 
+    def can_perform_scorch_territory(self, teamId):
+        can_perform = any(t['teamId'] == teamId for t in self.state.get('territories', []))
+        return can_perform, "Requires at least one claimed territory to sacrifice."
+
     # --- End Precondition Checks ---
 
     @property
@@ -271,7 +275,7 @@ class SacrificeActionsHandler:
             candidate_coords = {'x': random.randint(0, grid_size - 1), 'y': random.randint(0, grid_size - 1)}
             is_valid, _ = is_spawn_location_valid(
                 candidate_coords, teamId, self.state['grid_size'], self.state['points'],
-                self.state.get('fissures', []), self.state.get('heartwoods', {}), min_dist_sq=1.0
+                self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', []), min_dist_sq=1.0
             )
             if is_valid:
                 new_coords = candidate_coords
@@ -328,4 +332,49 @@ class SacrificeActionsHandler:
             'type': 'create_rift_trap',
             'trap': new_trap,
             'sacrificed_point': sacrificed_point_data
+        }
+
+    def scorch_territory(self, teamId):
+        """[SACRIFICE ACTION]: Sacrifices a claimed territory to render the area impassable for several turns."""
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        if not team_territories:
+            return {'success': False, 'reason': 'no territories to sacrifice'}
+        
+        territory_to_scorch = random.choice(team_territories)
+        
+        # Get point coordinates before deleting them
+        points_map = self.state['points']
+        if not all(pid in points_map for pid in territory_to_scorch['point_ids']):
+            return {'success': False, 'reason': 'territory points no longer exist'}
+        
+        scorched_points_coords = [points_map[pid].copy() for pid in territory_to_scorch['point_ids']]
+
+        # --- Sacrifice the territory ---
+        # Remove territory object
+        self.state['territories'].remove(territory_to_scorch)
+        
+        # Delete points and their connected lines
+        sacrificed_points_data = []
+        for pid in territory_to_scorch['point_ids']:
+            sac_data = self.game._delete_point_and_connections(pid, aggressor_team_id=teamId)
+            if sac_data:
+                sacrificed_points_data.append(sac_data)
+
+        if not sacrificed_points_data:
+            return {'success': False, 'reason': 'failed to sacrifice territory points'}
+            
+        # --- Create Scorched Zone ---
+        new_scorched_zone = {
+            'teamId': teamId,
+            'points': scorched_points_coords, # Store copies of point data
+            'turns_left': 5
+        }
+        if 'scorched_zones' not in self.state: self.state['scorched_zones'] = []
+        self.state['scorched_zones'].append(new_scorched_zone)
+        
+        return {
+            'success': True,
+            'type': 'scorch_territory',
+            'scorched_zone': new_scorched_zone,
+            'sacrificed_points_count': len(sacrificed_points_data)
         }

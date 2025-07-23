@@ -24,6 +24,7 @@ class TurnProcessor:
         self._process_heartwoods()
         self._process_whirlpools()
         self._process_monoliths()
+        self._process_scorched_zones()
         
         game_ended = self._process_wonders()
         if game_ended:
@@ -65,7 +66,7 @@ class TurnProcessor:
             if trap['turns_left'] <= 0:
                 is_valid, _ = is_spawn_location_valid(
                     trap['coords'], trap['teamId'], self.state['grid_size'], self.state['points'],
-                    self.state.get('fissures', []), self.state.get('heartwoods', {})
+                    self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', [])
                 )
                 if is_valid:
                     new_point_id = f"p_{uuid.uuid4().hex[:6]}"
@@ -132,7 +133,7 @@ class TurnProcessor:
                     new_p_coords = {'x': final_x, 'y': final_y}
                     if not is_spawn_location_valid(
                         new_p_coords, teamId, self.state['grid_size'], self.state['points'],
-                        self.state.get('fissures', []), self.state.get('heartwoods', {})
+                        self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', [])
                     )[0]: continue
 
                     new_point_id = f"p_{uuid.uuid4().hex[:6]}"
@@ -195,6 +196,16 @@ class TurnProcessor:
                     midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
                     if distance_sq(center, midpoint) < radius_sq:
                         self.game._strengthen_line(line)
+
+    def _process_scorched_zones(self):
+        """Handles decay of scorched zones."""
+        if self.state.get('scorched_zones'):
+            active_zones = []
+            for zone in self.state['scorched_zones']:
+                zone['turns_left'] -= 1
+                if zone['turns_left'] > 0:
+                    active_zones.append(zone)
+            self.state['scorched_zones'] = active_zones
 
     def _process_wonders(self):
         """Handles Wonder countdowns and checks for Wonder victory. Returns True if game ends."""

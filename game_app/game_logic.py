@@ -72,7 +72,7 @@ class Game:
             'fight_launch_payload': self.fight_handler.can_perform_launch_payload,
             'fight_purify_territory': self.fight_handler.can_perform_purify_territory,
             # Fortify Actions
-            'defend_shield': self.fortify_handler.can_perform_protect_line,
+            'fortify_shield': self.fortify_handler.can_perform_shield_line,
             'fortify_claim': self.fortify_handler.can_perform_claim_territory,
             'fortify_anchor': self.fortify_handler.can_perform_create_anchor,
             'fortify_mirror': self.fortify_handler.can_perform_mirror_structure,
@@ -89,6 +89,7 @@ class Game:
             'sacrifice_whirlpool': self.sacrifice_handler.can_perform_create_whirlpool,
             'sacrifice_phase_shift': self.sacrifice_handler.can_perform_phase_shift,
             'sacrifice_rift_trap': self.sacrifice_handler.can_perform_rift_trap,
+            'sacrifice_scorch_territory': self.sacrifice_handler.can_perform_scorch_territory,
             # Rune Actions
             'rune_shoot_bisector': self.rune_handler.can_perform_shoot_bisector,
             'rune_area_shield': self.rune_handler.can_perform_area_shield,
@@ -131,6 +132,7 @@ class Game:
             "rift_spires": {}, # {spire_id: {teamId, coords, charge}}
             "rift_traps": [], # {id, teamId, coords, turns_left, radius_sq}
             "fissures": [], # {id, p1, p2, turns_left}
+            "scorched_zones": [], # {teamId, points, turns_left}
             "wonders": {}, # {wonder_id: {teamId, type, turns_to_victory, ...}}
             "line_strengths": {}, # {line_id: strength}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
