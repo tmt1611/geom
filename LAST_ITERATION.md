@@ -1,22 +1,16 @@
-This iteration introduces a new strategic action inspired by concepts of Feng Shui (channeling energy) and warfare (strategic upgrades), and also performs a code cleanup to improve the robustness of how nexuses are handled.
+This iteration focuses on code cleanup and the introduction of a new tactical action inspired by warfare principles.
 
-### 1. New Feng Shui/Warfare Action: Attune Nexus
+### 1. Code Cleanup and Bug Fixes
 
-A new `Fortify` action has been added to provide teams with a powerful, temporary offensive buff, creating a new strategic objective around the `Nexus` structure.
+*   **Fixed Duplication:** Removed a duplicated `scorch_territory` method in `game_app/actions/sacrifice_actions.py` which was a remnant of a previous merge.
+*   **Resolved Inconsistency:** The action to shield a line was inconsistently named `defend_shield` and `fortify_shield`. All references in `game_app/game_data.py` have been standardized to `fortify_shield` to match the rest of the codebase and its action group.
+*   **Added Missing Action Data:** The `sacrifice_scorch_territory` action was missing from the `ACTION_GROUPS` and `ACTION_DESCRIPTIONS` dictionaries in `game_data.py`, causing it to not be selected by the AI. This has been corrected.
 
-*   **Action:** `Attune Nexus`
-*   **Concept:** A team can channel energy into one of its Nexus structures, a place of geometric stability and power. This transforms it into an "Attuned Nexus" for a limited time.
-*   **Cost & Effect:** The action sacrifices one of the Nexus's diagonal lines. In return, the Attuned Nexus projects an "energy field" in a radius around it. All friendly lines within this field become **Energized**.
-*   **Strategic Impact:** An Energized line used in an `Attack Line` action is devastating. It not only destroys the enemy line but also obliterates both of its endpoints, making it a powerful tool for dismantling an opponent's entire structure. This creates a high-risk, high-reward choice: sacrifice a line for a temporary but significant power boost.
-*   **Implementation:**
-    *   A new `attune_nexus` method and its precondition check were added to `fortify_actions.py`.
-    *   The game state in `game_logic.py` now tracks `attuned_nexuses`, which decay over time via the `turn_processor.py`.
-    *   The `attack_line` logic in `fight_actions.py` was updated to check if the attacking line is energized and, if so, to destroy the target's points as well.
-    *   The frontend in `main.js` now renders Attuned Nexuses with a distinct pulsing energy aura, and Energized Attacks are visualized with a more powerful beam effect.
+### 2. New Warfare Action: Reposition Point
 
-### 2. Code Refactoring: Robust Nexus Handling
+Inspired by Sun Tzu's principle of "subduing the enemy without fighting," a new subtle, strategic action has been added to the `Fortify` group:
 
-The introduction of this new action highlighted a need for more robust handling of Nexus structures.
-
-*   The helper function `_find_attunable_nexuses` was created to ensure that only valid, non-attuned nexuses with the required diagonal line can be selected for the new action.
-*   The `drawNexuses` function in `main.js` was refactored to handle rendering both regular and the new Attuned Nexuses from a single, unified data source, simplifying the rendering logic.
+*   **Action:** `Reposition Point`
+*   **Effect:** Moves a single "free" point (one not part of a critical structure like a rune or bastion) to a new nearby location.
+*   **Strategic Impact:** This action allows a team to make minor tactical adjustments to its board presence. It can be used to untangle a dense cluster of points, move a point into a more advantageous position for a future formation, or subtly shift the team's center of gravity. It's a preparatory move that emphasizes positioning over direct conflict.
+*   **Fallback:** If a valid new position cannot be found, the action strengthens a random friendly line, ensuring the turn is never wasted.

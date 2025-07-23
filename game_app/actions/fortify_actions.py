@@ -53,6 +53,10 @@ class FortifyActionsHandler:
     def can_perform_reposition_point(self, teamId):
         can_perform = bool(self.game._find_non_critical_sacrificial_point(teamId))
         return can_perform, "No free points available to reposition."
+
+    def can_perform_reposition_point(self, teamId):
+        can_perform = bool(self.game._find_non_critical_sacrificial_point(teamId))
+        return can_perform, "No free points available to reposition."
     
     def can_perform_build_chronos_spire(self, teamId):
         has_wonder = any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values())
@@ -562,6 +566,59 @@ class FortifyActionsHandler:
             'rune_points': list(rune_p_ids_tuple),
             'sacrificed_points_count': len(sacrificed_points_data)
         }
+
+    def reposition_point(self, teamId):
+        """[FORTIFY ACTION]: Moves a single non-critical point to a new nearby location. If not possible, strengthens a line."""
+        # We can reuse the logic for finding a "non-critical" point, as it effectively finds a "free" point.
+        point_to_move_id = self.game._find_non_critical_sacrificial_point(teamId)
+        
+        if not point_to_move_id or point_to_move_id not in self.state['points']:
+            return self.game._fallback_strengthen_random_line(teamId, 'reposition')
+
+        p_origin = self.state['points'][point_to_move_id]
+        original_coords = {'x': p_origin['x'], 'y': p_origin['y'], 'id': p_origin['id'], 'teamId': p_origin['teamId']}
+
+
+        # Try a few times to find a valid empty spot nearby
+        for _ in range(15):
+            angle = random.uniform(0, 2 * math.pi)
+            # Move between 1 and 3 units away
+            radius = random.uniform(1.0, 3.0)
+            
+            new_x = p_origin['x'] + math.cos(angle) * radius
+            new_y = p_origin['y'] + math.sin(angle) * radius
+            
+            grid_size = self.state['grid_size']
+            final_x = round(max(0, min(grid_size - 1, new_x)))
+            final_y = round(max(0, min(grid_size - 1, new_y)))
+
+            new_p_coords = {'x': final_x, 'y': final_y}
+            
+            # Temporarily remove the point being moved to validate its new spot
+            temp_points = self.state['points'].copy()
+            del temp_points[point_to_move_id]
+
+            is_valid, _ = is_spawn_location_valid(
+                new_p_coords, teamId, self.state['grid_size'], temp_points,
+                self.state.get('fissures', []), self.state.get('heartwoods', {}), 
+                scorched_zones=self.state.get('scorched_zones', [])
+            )
+            if not is_valid:
+                continue
+
+            # We found a valid move
+            p_origin['x'] = final_x
+            p_origin['y'] = final_y
+
+            return {
+                'success': True, 
+                'type': 'reposition_point', 
+                'moved_point': p_origin,
+                'original_coords': original_coords
+            }
+
+        # Fallback: Strengthen a random line
+        return self.game._fallback_strengthen_random_line(teamId, 'reposition')
 
     def reposition_point(self, teamId):
         """[FORTIFY ACTION]: Moves a single non-critical point to a new nearby location. If not possible, strengthens a line."""
