@@ -462,7 +462,8 @@ class FightActionsHandler:
         all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
         stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
         fortified_ids = self.game._get_fortified_point_ids()
-        bastion_cores = self.game._get_bastion_point_ids()['cores']
+        bastion_point_ids_dict = self.game._get_bastion_point_ids()
+        bastion_cores = bastion_point_ids_dict['cores']
         monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
         
         high_value_targets = [
@@ -478,7 +479,11 @@ class FightActionsHandler:
             target_point = random.choice(high_value_targets)
         else:
             # 2. Any vulnerable enemy target
-            vulnerable_targets = self.game._get_vulnerable_enemy_points(teamId)
+            # Build the full immune set from components we've already fetched
+            immune_point_ids = fortified_ids.union(
+                bastion_point_ids_dict['cores'], bastion_point_ids_dict['prongs'], stasis_point_ids
+            )
+            vulnerable_targets = self.game._get_vulnerable_enemy_points(teamId, immune_point_ids=immune_point_ids)
             if vulnerable_targets:
                 target_point = random.choice(vulnerable_targets)
         

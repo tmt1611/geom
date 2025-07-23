@@ -1,17 +1,7 @@
-This iteration focuses on small but meaningful performance optimizations within the action handlers. I identified several places where expensive calculations (specifically, finding all bastion line IDs) were being performed inside loops.
+This iteration focuses on two key areas of code cleaning: reducing duplication and optimizing a frequently used function.
 
-1.  **Optimized `attack_line`:** In `fight_actions.py`, the `_get_bastion_line_ids()` call was inside the `_find_closest_attack_hit` helper, which itself was called inside a loop in `attack_line`. I hoisted this call out of the loops into the main `attack_line` method and passed the result down as an argument. This reduces redundant computations significantly.
+1.  **Code Duplication:** The `game_logic.py` file had identical blocks of code in both `run_next_action` and `get_action_probabilities` responsible for updating game structures like runes and prisms. I've consolidated this logic into a single new helper method, `_update_structures_for_team`, making the code cleaner and easier to maintain.
 
-2.  **Optimized `chain_lightning`:** In the fallback "Mini-Nova" effect for `chain_lightning` in `fight_actions.py`, the `_get_bastion_line_ids()` call was inside a loop iterating over enemy lines. I moved this call to before the loop.
+2.  **Performance Optimization:** The `launch_payload` action in `fight_actions.py` was performing redundant calculations. It would fetch lists of fortified and bastion points to find high-value targets, and if none were found, it would call `_get_vulnerable_enemy_points`, which would *re-fetch* the same lists internally. To fix this, I've modified `_get_vulnerable_enemy_points` to optionally accept a pre-calculated set of immune point IDs. The `launch_payload` action now calculates this set once and reuses it for both target-finding steps, eliminating the redundant work.
 
-3.  **Optimized `cardinal_pulse`:** In `rune_actions.py`, the `_get_bastion_line_ids()` call was inside a loop that fires the four beams of the pulse. Since the set of bastion lines doesn't change during this action, I hoisted the call to before the loop.
-
-These changes reduce the computational load of several fight actions, especially in late-game scenarios with many lines and structures on the board, without altering the game logic.
-
-### Changes
-*   **`game_app/actions/fight_actions.py`:**
-    *   Modified `_find_closest_attack_hit` to accept `bastion_line_ids` as an argument instead of calculating it internally.
-    *   Updated `attack_line` to calculate `bastion_line_ids` once and pass it to `_find_closest_attack_hit`.
-    *   In `chain_lightning`, moved the `_get_bastion_line_ids()` call outside the `for line in enemy_lines` loop.
-*   **`game_app/actions/rune_actions.py`:**
-    *   In `cardinal_pulse`, moved the `_get_bastion_line_ids()` call outside the `for arm_pid in rune['arm_ids']` loop.
+These changes improve code quality and slightly enhance performance without altering any game mechanics.

@@ -484,14 +484,18 @@ class Game:
         
         return deleted_point_data
 
-    def _get_vulnerable_enemy_points(self, teamId):
-        """Returns a list of enemy points that are not immune to standard attacks."""
-        fortified_point_ids = self._get_fortified_point_ids()
-        bastion_point_ids = self._get_bastion_point_ids()
-        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
-        immune_point_ids = fortified_point_ids.union(
-            bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
-        )
+    def _get_vulnerable_enemy_points(self, teamId, immune_point_ids=None):
+        """
+        Returns a list of enemy points that are not immune to standard attacks.
+        Can accept a pre-calculated set of immune point IDs for optimization.
+        """
+        if immune_point_ids is None:
+            fortified_point_ids = self._get_fortified_point_ids()
+            bastion_point_ids = self._get_bastion_point_ids()
+            stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
+            immune_point_ids = fortified_point_ids.union(
+                bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
+            )
         return [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
 
     def _strengthen_line(self, line):
@@ -771,10 +775,7 @@ class Game:
             return {"error": "Team not found"}
 
         # Update structures for the team to get the most accurate list of possible actions
-        self._update_runes_for_team(teamId)
-        self._update_prisms_for_team(teamId)
-        self._update_trebuchets_for_team(teamId)
-        self._update_nexuses_for_team(teamId)
+        self._update_structures_for_team(teamId)
 
         all_action_statuses = self._get_all_actions_status(teamId)
         
@@ -996,6 +997,17 @@ class Game:
         # Fallback for any action that might not have a custom message
         return "performed a successful action.", "[ACTION]"
 
+    def _update_structures_for_team(self, teamId):
+        """
+        A helper to update all complex structures for a given team.
+        This is called before determining actions or executing an action to ensure
+        the game state is based on the latest formations.
+        """
+        self._update_runes_for_team(teamId)
+        self._update_prisms_for_team(teamId)
+        self._update_trebuchets_for_team(teamId)
+        self._update_nexuses_for_team(teamId)
+
     def run_next_action(self):
         """Runs a single successful action for the next team in the current turn."""
         if self.state['game_phase'] != 'RUNNING':
@@ -1028,13 +1040,7 @@ class Game:
         
         # Update all special structures for the current team right before it acts.
         # This ensures the team acts based on its most current state.
-        self._update_runes_for_team(teamId)
-        self._update_prisms_for_team(teamId)
-        self._update_trebuchets_for_team(teamId)
-        # We also re-update nexuses here mainly so the frontend display is accurate
-        # if a nexus is created or destroyed mid-turn. Bonus actions for this turn
-        # are already locked in from _start_new_turn.
-        self._update_nexuses_for_team(teamId)
+        self._update_structures_for_team(teamId)
 
         team_name = self.state['teams'][teamId]['name']
         
