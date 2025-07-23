@@ -525,28 +525,6 @@ class Game:
             'strengthened_line': line_to_strengthen
         }
 
-    def _get_all_rune_point_ids(self, teamId):
-        """
-        Helper to get a set of all point IDs involved in any rune for a team.
-        It inspects rune data structures to find point IDs dynamically.
-        """
-        rune_pids = set()
-        team_runes_data = self.state.get('runes', {}).get(teamId, {})
-        if not team_runes_data:
-            return rune_pids
-
-        for rune_category in team_runes_data.values():
-            for rune_instance in rune_category:
-                if isinstance(rune_instance, list):
-                    rune_pids.update(rune_instance)
-                elif isinstance(rune_instance, dict):
-                    for value in rune_instance.values():
-                        if isinstance(value, str) and value.startswith('p_'):
-                            rune_pids.add(value)
-                        elif isinstance(value, list) and value and isinstance(value[0], str) and value[0].startswith('p_'):
-                            rune_pids.update(value)
-        return rune_pids
-
     def _get_critical_structure_point_ids(self, teamId):
         """Returns a set of point IDs that are part of critical structures for a team, using the structure registry."""
         critical_pids = set()
@@ -561,13 +539,18 @@ class Game:
                 continue
                 
             structures_to_check = []
-            if definition['storage_type'] == 'list':
+            storage_type = definition['storage_type']
+
+            if storage_type == 'list':
                 structures_to_check = [s for s in storage if s.get('teamId') == teamId]
-            elif definition['storage_type'] == 'dict':
+            elif storage_type == 'dict':
                 structures_to_check = [s for s in storage.values() if s.get('teamId') == teamId]
-            elif definition['storage_type'] == 'team_dict_list':
+            elif storage_type == 'team_dict_list':
                 structures_to_check = storage.get(teamId, [])
-            elif definition['storage_type'] == 'dict_keyed_by_pid':
+            elif storage_type == 'team_dict_of_structures':
+                subtype_key = definition['structure_subtype_key']
+                structures_to_check = storage.get(teamId, {}).get(subtype_key, [])
+            elif storage_type == 'dict_keyed_by_pid':
                 for pid, data in storage.items():
                     if data.get('teamId') == teamId:
                         critical_pids.add(pid)
@@ -576,16 +559,18 @@ class Game:
             for struct in structures_to_check:
                 for key_info in definition.get('point_id_keys', []):
                     if isinstance(key_info, tuple):
-                        _, key_name = key_info
-                        pids = struct.get(key_name)
-                        if pids: critical_pids.update(pids)
-                    else: # It's a string
+                        key_type, key_name = key_info
+                        if key_type == 'list':
+                            pids = struct.get(key_name)
+                            if pids: critical_pids.update(pids)
+                        elif key_type == 'list_of_lists':
+                            # Here, the struct itself is the list of point IDs
+                            if isinstance(struct, list):
+                                critical_pids.update(struct)
+                    else: # It's a string (e.g. 'core_id')
                         point_id = struct.get(key_info)
                         if point_id:
                             critical_pids.add(point_id)
-
-        # Runes are handled separately as they are complex and already have a helper
-        critical_pids.update(self._get_all_rune_point_ids(teamId))
         
         return critical_pids
 
@@ -1026,11 +1011,13 @@ class Game:
             # Call the checker and update the state
             result = checker_func(*args)
             
-            if definition['storage_type'] == 'team_dict_list':
-                self.state[state_key][teamId] = result
-        
-        # --- Update runes (special case for now) ---
-        self._update_runes_for_team(teamId)
+            storage_type = definition['storage_type']
+            if storage_type == 'team_dict_list':
+                self.state.setdefault(state_key, {})[teamId] = result
+            elif storage_type == 'team_dict_of_structures':
+                self.state.setdefault(state_key, {}).setdefault(teamId, {})
+                subtype_key = definition['structure_subtype_key']
+                self.state[state_key][teamId][subtype_key] = result
 
     def run_next_action(self):
         """Runs a single successful action for the next team in the current turn."""
@@ -1208,32 +1195,6 @@ class Game:
             interpretation[teamId] = stats
             
         return interpretation
-
-    # --- Rune System ---
-    
-    def _update_runes_for_team(self, teamId):
-        """Checks and updates all rune states for a given team by delegating to the FormationManager."""
-        if teamId not in self.state['runes']:
-            self.state['runes'][teamId] = {}
-
-        team_point_ids = self.get_team_point_ids(teamId)
-        team_lines = self.get_team_lines(teamId)
-        all_points = self.state['points']
-        fm = self.formation_manager
-
-        self.state['runes'][teamId] = {
-            'cross': fm.check_cross_rune(team_point_ids, team_lines, all_points),
-            'v_shape': fm.check_v_rune(team_point_ids, team_lines, all_points),
-            'shield': fm.check_shield_rune(team_point_ids, team_lines, all_points),
-            'trident': fm.check_trident_rune(team_point_ids, team_lines, all_points),
-            'hourglass': fm.check_hourglass_rune(team_point_ids, team_lines, all_points),
-            'star': fm.check_star_rune(team_point_ids, team_lines, all_points),
-            'barricade': fm.check_barricade_rune(team_point_ids, team_lines, all_points),
-            't_shape': fm.check_t_rune(team_point_ids, team_lines, all_points),
-            'plus_shape': fm.check_plus_rune(team_point_ids, team_lines, all_points),
-            'i_shape': fm.check_i_rune(team_point_ids, team_lines, all_points),
-            'parallel': fm.check_parallel_rune(team_point_ids, team_lines, all_points),
-        }
 
 
 
