@@ -3,7 +3,7 @@
 ACTION_GROUPS = {
     'Expand': ['expand_add', 'expand_extend', 'expand_grow', 'expand_fracture', 'expand_spawn', 'expand_orbital'],
     'Fight': ['fight_attack', 'fight_convert', 'fight_pincer_attack', 'fight_territory_strike', 'fight_bastion_pulse', 'fight_sentry_zap', 'fight_chain_lightning', 'fight_refraction_beam', 'fight_launch_payload', 'fight_purify_territory', 'fight_isolate_point'],
-    'Fortify': ['fortify_claim', 'fortify_anchor', 'fortify_mirror', 'fortify_form_bastion', 'fortify_form_monolith', 'fortify_form_purifier', 'fortify_cultivate_heartwood', 'fortify_form_rift_spire', 'terraform_create_fissure', 'terraform_raise_barricade', 'fortify_build_wonder', 'fortify_shield', 'fortify_reposition_point', 'fortify_attune_nexus'],
+    'Fortify': ['fortify_claim', 'fortify_anchor', 'fortify_mirror', 'fortify_form_bastion', 'fortify_form_monolith', 'fortify_form_purifier', 'fortify_cultivate_heartwood', 'fortify_form_rift_spire', 'terraform_create_fissure', 'terraform_raise_barricade', 'fortify_build_wonder', 'fortify_shield', 'fortify_reposition_point', 'fortify_attune_nexus', 'fortify_create_ley_line'],
     'Sacrifice': ['sacrifice_nova', 'sacrifice_whirlpool', 'sacrifice_phase_shift', 'sacrifice_rift_trap', 'sacrifice_scorch_territory'],
     'Rune': ['rune_shoot_bisector', 'rune_area_shield', 'rune_shield_pulse', 'rune_impale', 'rune_hourglass_stasis', 'rune_t_hammer_slam', 'rune_starlight_cascade', 'rune_focus_beam', 'rune_cardinal_pulse', 'rune_parallel_discharge']
 }
@@ -30,7 +30,7 @@ ACTION_DESCRIPTIONS = {
     'expand_orbital': "Create Orbital",
     'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory", 'fight_isolate_point': "Isolate Point",
     'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder", 'fortify_reposition_point': "Reposition Point",
-    'fortify_shield': "Shield Line / Overcharge", 'fortify_attune_nexus': "Attune Nexus",
+    'fortify_shield': "Shield Line / Overcharge", 'fortify_attune_nexus': "Attune Nexus", 'fortify_create_ley_line': "Create Ley Line",
     'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'sacrifice_rift_trap': "Create Rift Trap", 'sacrifice_scorch_territory': "Scorch Territory",
     'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam", 'rune_cardinal_pulse': "Rune: Cardinal Pulse", 'rune_parallel_discharge': "Rune: Parallel Discharge", 'rune_t_hammer_slam': "Rune: T-Hammer Slam",
     'terraform_raise_barricade': "Raise Barricade"
@@ -53,6 +53,7 @@ ACTION_VERBOSE_DESCRIPTIONS = {
     'fight_refraction_beam': "A Prism structure is used to 'bank' an attack shot. A beam is fired, reflects off the Prism's edge, and destroys the first enemy line it then hits. If it misses, it creates a point on the border.",
     'fight_launch_payload': "A Trebuchet structure launches a projectile to destroy a high-value enemy point (e.g., a fortified point). If none exist, it targets a regular point. If no targets exist, it creates a fissure.",
     'fight_purify_territory': "A Purifier structure neutralizes the nearest enemy territory, removing its fortified status. If no enemy territories exist, it pushes nearby enemy points away.",
+    'fortify_create_ley_line': "Activates an I-Rune into a powerful Ley Line for several turns. When new friendly points are created near the Ley Line, they are automatically connected to it with a new line for free. If all I-Runes are already active, it pulses one Ley Line to strengthen all connected lines instead.",
     'fortify_attune_nexus': "Sacrifices a diagonal line from one of its Nexuses to supercharge it. For several turns, the Attuned Nexus energizes all nearby friendly lines, causing their attacks to also destroy the target line's endpoints.",
     'fortify_claim': "Forms a triangle of three points and their connecting lines into a claimed territory, making its points immune to conversion. If no new triangles can be formed, it reinforces an existing territory.",
     'fortify_anchor': "Sacrifices one point to turn another into a gravitational anchor, which pulls nearby enemy points towards it for several turns.",
@@ -116,6 +117,7 @@ ACTION_MAP = {
     'terraform_raise_barricade': ('fortify_handler', 'raise_barricade'),
     'fortify_build_wonder': ('fortify_handler', 'build_chronos_spire'),
     'fortify_attune_nexus': ('fortify_handler', 'attune_nexus'),
+    'fortify_create_ley_line': ('fortify_handler', 'create_ley_line'),
     'sacrifice_nova': ('sacrifice_handler', 'nova_burst'),
     'sacrifice_whirlpool': ('sacrifice_handler', 'create_whirlpool'),
     'sacrifice_phase_shift': ('sacrifice_handler', 'phase_shift'),

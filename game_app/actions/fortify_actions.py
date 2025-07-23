@@ -70,6 +70,24 @@ class FortifyActionsHandler:
         can_perform = len(self._find_attunable_nexuses(teamId)) > 0
         return can_perform, "Requires a Nexus with a diagonal to sacrifice."
 
+    def can_perform_create_ley_line(self, teamId):
+        # An I-Rune is a line of 3 or more points.
+        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
+        if not team_i_runes:
+            return False, "Requires an I-Rune (a line of 3+ points)."
+        
+        # Check if there's at least one I-Rune that isn't already an active Ley Line.
+        for i_rune in team_i_runes:
+            is_active = False
+            for ll in self.state.get('ley_lines', {}).values():
+                if set(ll['point_ids']) == set(i_rune['point_ids']):
+                    is_active = True
+                    break
+            if not is_active:
+                return True, ""
+                
+        return False, "All available I-Runes are already active Ley Lines."
+
     # --- End Precondition Checks ---
 
     @property
@@ -733,6 +751,74 @@ class FortifyActionsHandler:
             'nexus': new_attuned_nexus,
             'sacrificed_line': line_to_sac
         }
+
+    def create_ley_line(self, teamId):
+        """[FORTIFY ACTION]: Activates an I-Rune into a Ley Line, granting bonuses to nearby point creation. If all are active, it pulses one."""
+        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
+        if not team_i_runes:
+            return {'success': False, 'reason': 'no I-Runes to convert'}
+        
+        available_runes = []
+        for i_rune in team_i_runes:
+            # Check if this exact set of points is already a ley line.
+            is_active = False
+            for ll in self.state.get('ley_lines', {}).values():
+                if set(ll['point_ids']) == set(i_rune['point_ids']):
+                    is_active = True
+                    break
+            if not is_active:
+                available_runes.append(i_rune)
+
+        if available_runes:
+            # --- Primary Effect: Create a new Ley Line ---
+            rune_to_activate = random.choice(available_runes)
+            ley_line_id = self.game._generate_id('ll')
+            
+            new_ley_line = {
+                'id': ley_line_id,
+                'teamId': teamId,
+                'point_ids': rune_to_activate['point_ids'],
+                'turns_left': 8,
+                'bonus_radius_sq': (self.state['grid_size'] * 0.15)**2
+            }
+
+            if 'ley_lines' not in self.state:
+                self.state['ley_lines'] = {}
+            self.state['ley_lines'][ley_line_id] = new_ley_line
+
+            return {
+                'success': True,
+                'type': 'create_ley_line',
+                'ley_line': new_ley_line
+            }
+        else:
+            # --- Fallback Effect: Pulse an existing Ley Line ---
+            team_ley_lines = [ll for ll in self.state.get('ley_lines', {}).values() if ll['teamId'] == teamId]
+            if not team_ley_lines:
+                return {'success': False, 'reason': 'no I-Runes to convert and no Ley Lines to pulse'}
+
+            ley_line_to_pulse = random.choice(team_ley_lines)
+            
+            # Strengthen all lines connected to any point on the ley line
+            strengthened_lines = []
+            all_team_lines = self.game.get_team_lines(teamId)
+            ley_line_pids = set(ley_line_to_pulse['point_ids'])
+
+            for line in all_team_lines:
+                # Don't strengthen the ley line's own segments
+                if line['p1_id'] in ley_line_pids and line['p2_id'] in ley_line_pids:
+                    continue
+                
+                if line['p1_id'] in ley_line_pids or line['p2_id'] in ley_line_pids:
+                    if self.game._strengthen_line(line):
+                        strengthened_lines.append(line)
+            
+            return {
+                'success': True,
+                'type': 'ley_line_pulse',
+                'pulsed_ley_line_id': ley_line_to_pulse['id'],
+                'strengthened_lines': strengthened_lines
+            }
 
     def mirror_structure(self, teamId):
         """[FORTIFY ACTION]: Reflects points to create symmetry. If not possible, reinforces the structure."""

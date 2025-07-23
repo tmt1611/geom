@@ -87,6 +87,7 @@ class Game:
             'fortify_build_wonder': self.fortify_handler.can_perform_build_chronos_spire,
             'fortify_reposition_point': self.fortify_handler.can_perform_reposition_point,
             'fortify_attune_nexus': self.fortify_handler.can_perform_attune_nexus,
+            'fortify_create_ley_line': self.fortify_handler.can_perform_create_ley_line,
             # Sacrifice Actions
             'sacrifice_nova': self.sacrifice_handler.can_perform_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_handler.can_perform_create_whirlpool,
@@ -139,6 +140,7 @@ class Game:
             "fissures": [], # {id, p1, p2, turns_left}
             "scorched_zones": [], # {teamId, points, turns_left}
             "wonders": {}, # {wonder_id: {teamId, type, turns_to_victory, ...}}
+            "ley_lines": {}, # {ley_line_id: {teamId, point_ids, turns_left, bonus_radius_sq}}
             "line_strengths": {}, # {line_id: strength}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
@@ -206,6 +208,57 @@ class Game:
             augmented_point['is_isolated'] = pid in self.state.get('isolated_points', {})
             augmented_points[pid] = augmented_point
         return augmented_points
+
+    def _check_and_apply_ley_line_bonus(self, new_point):
+        """Checks if a newly created point is near a friendly Ley Line and applies the bonus if so."""
+        if not self.state.get('ley_lines'):
+            return None
+
+        team_ley_lines = [ll for ll in self.state['ley_lines'].values() if ll['teamId'] == new_point['teamId']]
+        if not team_ley_lines:
+            return None
+
+        closest_ley_line_point = None
+        min_dist_sq_to_ley_line = float('inf')
+
+        for ley_line in team_ley_lines:
+            # Broad phase check: Check if the new point is roughly within the bounding box + radius of the ley line
+            points_on_line = [self.state['points'][pid] for pid in ley_line['point_ids'] if pid in self.state['points']]
+            if not points_on_line: continue
+            
+            centroid = points_centroid(points_on_line)
+            # A very rough check to see if the point is anywhere near the ley line's general area
+            if distance_sq(new_point, centroid) > (polygon_perimeter(points_on_line)**2 / 4) + ley_line['bonus_radius_sq']:
+                 continue
+
+            for pid in ley_line['point_ids']:
+                if pid not in self.state['points']: continue
+                ley_point = self.state['points'][pid]
+                dist_sq = distance_sq(new_point, ley_point)
+                
+                if dist_sq < ley_line['bonus_radius_sq']:
+                    if dist_sq < min_dist_sq_to_ley_line:
+                        min_dist_sq_to_ley_line = dist_sq
+                        closest_ley_line_point = ley_point
+
+        if closest_ley_line_point:
+            # Apply bonus: create a new line to the closest point on the ley line
+            line_id = self._generate_id('l')
+            bonus_line = {"id": line_id, "p1_id": new_point['id'], "p2_id": closest_ley_line_point['id'], "teamId": new_point['teamId']}
+            self.state['lines'].append(bonus_line)
+
+            # Log this bonus event
+            team_name = self.state['teams'][new_point['teamId']]['name']
+            log_msg = f"A new point for Team {team_name} was empowered by a nearby Ley Line, creating a bonus connection!"
+            self.state['game_log'].append({'message': log_msg, 'short_message': '[LEY LINE BONUS!]', 'teamId': new_point['teamId']})
+            self.state['action_events'].append({
+                'type': 'ley_line_bonus',
+                'bonus_line': bonus_line
+            })
+
+            return bonus_line
+        
+        return None
 
     def _calculate_live_stats(self):
         """Calculates and returns live stats for all teams."""

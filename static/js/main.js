@@ -1199,6 +1199,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function drawLeyLines(gameState, isHighlightingActive = false) {
+        if (!gameState.ley_lines) return;
+    
+        for (const leyLineId in gameState.ley_lines) {
+            const ley_line = gameState.ley_lines[leyLineId];
+            const team = gameState.teams[ley_line.teamId];
+            if (!team) continue;
+    
+            const isHighlighted = ley_line.point_ids.every(pid => lastActionHighlights.points.has(pid));
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
+    
+            const points = ley_line.point_ids.map(pid => gameState.points[pid]).filter(p => p);
+            if (points.length < 2) {
+                ctx.restore();
+                continue;
+            }
+            
+            // Find the two endpoints
+            const p1 = points[0];
+            const p2 = points[points.length - 1];
+    
+            const x1 = (p1.x + 0.5) * cellSize;
+            const y1 = (p1.y + 0.5) * cellSize;
+            const x2 = (p2.x + 0.5) * cellSize;
+            const y2 = (p2.y + 0.5) * cellSize;
+    
+            // Draw a thick, glowing, translucent line
+            const pulse = Math.abs(Math.sin(Date.now() / 600));
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            
+            ctx.strokeStyle = team.color;
+            ctx.lineWidth = 10 + pulse * 4;
+            ctx.globalAlpha *= (0.3 + pulse * 0.2); // Pulsing alpha
+            ctx.filter = 'blur(5px)'; // Glow effect
+            ctx.stroke();
+    
+            ctx.restore();
+        }
+    }
+
     function drawWonders(gameState, isHighlightingActive = false) {
         if (!gameState.wonders) return;
     
@@ -1809,6 +1856,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 drawFissures(currentGameState, isHighlightingActive);
                 drawBarricades(currentGameState, isHighlightingActive);
                 drawScorchedZones(currentGameState, isHighlightingActive);
+                drawLeyLines(currentGameState, isHighlightingActive);
                 drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams, isHighlightingActive);
                 drawPoints(currentGameState.points, currentGameState.teams, isHighlightingActive);
                 
@@ -2439,6 +2487,22 @@ document.addEventListener('DOMContentLoaded', () => {
             visualizer(details, gameState);
         }
 
+        // Generic handling for bonus lines from any action
+        if (details.bonus_line) {
+            lastActionHighlights.lines.add(details.bonus_line.id);
+            visualEffects.push({
+                type: 'new_line', line: details.bonus_line, startTime: Date.now(), duration: 800
+            });
+        }
+        if (details.bonus_lines) {
+            details.bonus_lines.forEach(line => {
+                lastActionHighlights.lines.add(line.id);
+                visualEffects.push({
+                    type: 'new_line', line: line, startTime: Date.now(), duration: 800
+                });
+            });
+        }
+
         // Set a timer to clear the highlights
         lastActionHighlights.clearTimeout = setTimeout(() => {
             lastActionHighlights.points.clear();
@@ -2517,6 +2581,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         duration: 800,
                         color: gameState.teams[event.nexus.teamId].color
                     });
+                } else if (event.type === 'ley_line_fade') {
+                    const points = event.ley_line.point_ids.map(pid => gameState.points[pid]).filter(p => p);
+                    if (points.length >= 2) {
+                        visualEffects.push({
+                            type: 'line_flash',
+                            line: { p1_id: points[0].id, p2_id: points[points.length - 1].id },
+                            startTime: Date.now(),
+                            duration: 1000,
+                        });
+                    }
                 }
             });
         }

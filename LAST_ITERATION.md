@@ -1,23 +1,26 @@
-This iteration combines code cleanup with the introduction of a new strategic action based on topological and warfare concepts.
+This iteration introduces a new strategic element inspired by geomancy and Feng Shui: **Ley Lines**. This feature adds a new layer to the `Fortify` strategy, encouraging players to build specific formations (I-Runes) and then expand around them to gain bonuses.
 
-### 1. Code Cleanup and Consistency
+### 1. New Concept: Ley Lines
 
-Multiple files were updated to fix bugs and ensure consistency for existing actions:
+A new action, `Create Ley Line`, has been added, bringing concepts of energy flow and strategic placement into the game.
 
-*   **Duplication Bug:** In `fortify_actions.py`, a duplicated `reposition_point` method and its corresponding `can_perform` check were removed.
-*   **Missing Action Data:** The `fortify_attune_nexus` action was fully integrated into the game's data structures (`game_data.py`, `game_logic.py`), making it available for teams to use.
-*   **Documentation Update:** The official `rules.md` was updated to include the descriptions for `Attune Nexus` and `Reposition Point`, and to correct the category for `Shield Line` to `[FORTIFY]` for consistency.
-
-### 2. New Warfare/Topology Action: Isolate Point
-
-A new action has been added to the `Fight` category, introducing concepts of topological weak points and strategic isolation from warfare.
-
-*   **Action:** `Isolate Point`
-*   **Concept:** This action is inspired by the military tactic of cutting off enemy supply lines by targeting critical infrastructure. In the game's context, this translates to identifying and neutralizing an enemy's "articulation point".
-*   **Topological Basis:** An articulation point (or cut vertex) is a point in a graph which, if removed, would split the graph into separate, disconnected components. These points are the glue holding a team's structure together.
+*   **Concept:** Ley Lines are mystical lines of energy that run across the battlefield. In the game, they are formed by activating an existing `I-Rune` (a straight line of 3 or more connected points). This is inspired by the idea of building upon existing energy conduits.
 *   **Mechanics:**
-    1.  The action identifies an enemy articulation point.
-    2.  It sacrifices a friendly line to "isolate" the target.
-    3.  The isolated point cannot be used by its owner and becomes vulnerable. Each turn, it has a chance to collapse and be destroyed.
-*   **Strategic Impact:** This provides a way to dismantle an opponent's network without direct destruction, creating strategic decay. It encourages players (and the AI) to build resilient, interconnected structures rather than long, fragile chains.
-*   **Fallback:** If no enemy articulation point can be found, the action creates a temporary defensive `barricade` instead, representing a shift to a defensive posture.
+    1.  A team with an `I-Rune` can use the **`[FORTIFY] Create Ley Line`** action.
+    2.  This converts the I-Rune into an active Ley Line for several turns.
+    3.  **Bonus Effect:** While the Ley Line is active, any new friendly point created near it is automatically connected to the closest point on the Ley Line with a free bonus line. This promotes structured expansion and reinforces the team's control over the area.
+    4.  **Fallback:** If all of a team's I-Runes are already converted into Ley Lines, the action instead **pulses** an existing Ley Line, strengthening all lines connected to it.
+*   **Strategic Impact:** This encourages players to think about not just where they expand, but *how*. Building long, straight formations becomes a valuable long-term strategy, as these can be turned into conduits for rapid, reinforced expansion.
+
+### 2. Code Implementation
+
+To support this new feature, the following changes were made:
+
+*   **`fortify_actions.py`:** A new `create_ley_line` method and its `can_perform_create_ley_line` precondition check have been added.
+*   **`game_logic.py`:** The game state now tracks `ley_lines`. A new helper method, `_check_and_apply_ley_line_bonus`, was created to handle the bonus effect whenever a new point is created by any `Expand` action.
+*   **`expand_actions.py`:** All actions that create new points (`spawn_point`, `extend_line`, `fracture_line`, etc.) have been updated to call the new bonus-checking helper and include any bonus lines in their action results.
+*   **`turn_processor.py`:** Logic has been added to handle the turn-based decay of active Ley Lines.
+*   **`game_data.py`:** All necessary descriptions, logs, and mappings for the new action have been added.
+*   **`static/js/main.js`:** A new `drawLeyLines` function was created to give them a distinct, glowing visual effect on the canvas. The `processActionVisuals` function was updated to handle the new `ley_line_fade` and `ley_line_bonus` events.
+
+This change is self-contained, enhances strategic depth, and fits the user's request to incorporate concepts from geomancy/Feng Shui while maintaining clean code.

@@ -27,6 +27,7 @@ class TurnProcessor:
         self._process_monoliths()
         self._process_scorched_zones()
         self._process_attuned_nexuses()
+        self._process_ley_lines()
         
         game_ended = self._process_wonders()
         if game_ended:
@@ -52,6 +53,24 @@ class TurnProcessor:
             log_msg = {'teamId': nexus['teamId'], 'message': f"An Attuned Nexus from Team {team_name} has lost its charge.", 'short_message': '[NEXUS:FADE]'}
             self.state['game_log'].append(log_msg)
             self.state['new_turn_events'].append({'type': 'attuned_nexus_fade', 'nexus': nexus})
+
+    def _process_ley_lines(self):
+        """Handles decay of ley lines."""
+        if 'ley_lines' not in self.state:
+            return
+
+        expired_ley_line_ids = []
+        for ll_id, ll_data in self.state['ley_lines'].items():
+            ll_data['turns_left'] -= 1
+            if ll_data['turns_left'] <= 0:
+                expired_ley_line_ids.append(ll_id)
+        
+        for ll_id in expired_ley_line_ids:
+            ley_line = self.state['ley_lines'].pop(ll_id)
+            team_name = self.state['teams'][ley_line['teamId']]['name']
+            log_msg = {'teamId': ley_line['teamId'], 'message': f"A Ley Line from Team {team_name} has faded.", 'short_message': '[LEY LINE:FADE]'}
+            self.state['game_log'].append(log_msg)
+            self.state['new_turn_events'].append({'type': 'ley_line_fade', 'ley_line': ley_line})
 
     def _process_shields_and_stasis(self):
         """Handles decay of shields and stasis effects."""

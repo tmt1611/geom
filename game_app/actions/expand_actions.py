@@ -119,7 +119,12 @@ class ExpandActionsHandler:
         new_point = {**border_point, "teamId": teamId, "id": new_point_id}
         self.state['points'][new_point_id] = new_point
         
+        # Check for Ley Line bonus
+        bonus_line = self.game._check_and_apply_ley_line_bonus(new_point)
+
         result_payload = {'success': True, 'type': 'extend_line', 'new_point': new_point, 'is_empowered': is_empowered}
+        if bonus_line:
+            result_payload['bonus_line'] = bonus_line
         
         if is_empowered:
             # Empowered extension also creates a line to the new point
@@ -181,6 +186,9 @@ class ExpandActionsHandler:
         new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
         self.state['points'][new_point_id] = new_point
 
+        # Check for Ley Line bonus
+        bonus_line = self.game._check_and_apply_ley_line_bonus(new_point)
+
         # Remove old line and its potential shield
         self.state['lines'].remove(line_to_fracture)
         self.state['shields'].pop(line_to_fracture.get('id'), None)
@@ -192,7 +200,7 @@ class ExpandActionsHandler:
         new_line_2 = {"id": line_id_2, "p1_id": new_point_id, "p2_id": line_to_fracture['p2_id'], "teamId": teamId}
         self.state['lines'].extend([new_line_1, new_line_2])
 
-        return {
+        result_payload = {
             'success': True,
             'type': 'fracture_line',
             'new_point': new_point,
@@ -200,6 +208,10 @@ class ExpandActionsHandler:
             'new_line2': new_line_2,
             'old_line': line_to_fracture
         }
+        if bonus_line:
+            result_payload['bonus_line'] = bonus_line
+        
+        return result_payload
 
     def spawn_point(self, teamId):
         """[EXPAND ACTION]: Creates a new point near an existing one. If not possible, strengthens a line."""
@@ -237,7 +249,13 @@ class ExpandActionsHandler:
             new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
             self.state['points'][new_point_id] = new_point
 
-            return {'success': True, 'type': 'spawn_point', 'new_point': new_point}
+            # Check for Ley Line bonus
+            bonus_line = self.game._check_and_apply_ley_line_bonus(new_point)
+            result_payload = {'success': True, 'type': 'spawn_point', 'new_point': new_point}
+            if bonus_line:
+                result_payload['bonus_line'] = bonus_line
+            
+            return result_payload
 
         # Fallback: Strengthen a random line
         return self.game._fallback_strengthen_random_line(teamId, 'spawn')
@@ -291,18 +309,29 @@ class ExpandActionsHandler:
             # --- Primary Effect: Create Orbital ---
             created_points = []
             created_lines = []
+            bonus_lines = []
             for new_p_data in new_points_to_create:
                 self.state['points'][new_p_data['id']] = new_p_data
                 created_points.append(new_p_data)
+                
+                # Check for Ley Line bonus on each created point
+                bonus_line = self.game._check_and_apply_ley_line_bonus(new_p_data)
+                if bonus_line:
+                    bonus_lines.append(bonus_line)
+
                 line_id = self.game._generate_id('l')
                 new_line = {"id": line_id, "p1_id": p_center_id, "p2_id": new_p_data['id'], "teamId": teamId}
                 self.state['lines'].append(new_line)
                 created_lines.append(new_line)
             
-            return {
+            result_payload = {
                 'success': True, 'type': 'create_orbital', 'center_point_id': p_center_id,
                 'new_points': created_points, 'new_lines': created_lines
             }
+            if bonus_lines:
+                result_payload['bonus_lines'] = bonus_lines
+            
+            return result_payload
         
         # --- Fallback: Strengthen lines around a chosen center ---
         p_center_id_fallback = random.choice(team_point_ids)
@@ -373,10 +402,19 @@ class ExpandActionsHandler:
                 new_point_id = self.game._generate_id('p')
                 new_point = {**new_point_coords, "teamId": teamId, "id": new_point_id}
                 self.state['points'][new_point_id] = new_point
+
+                # Check for Ley Line bonus
+                bonus_line = self.game._check_and_apply_ley_line_bonus(new_point)
+
                 line_id = self.game._generate_id('l')
                 new_line = {"id": line_id, "p1_id": p_origin_id, "p2_id": new_point_id, "teamId": teamId}
                 self.state['lines'].append(new_line)
-                return {'success': True, 'type': 'grow_line', 'new_point': new_point, 'new_line': new_line}
+                
+                result_payload = {'success': True, 'type': 'grow_line', 'new_point': new_point, 'new_line': new_line}
+                if bonus_line:
+                    result_payload['bonus_line'] = bonus_line
+                
+                return result_payload
 
         # --- Fallback: Strengthen a line ---
         return self.game._fallback_strengthen_random_line(teamId, 'grow')
