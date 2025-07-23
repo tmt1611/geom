@@ -207,6 +207,16 @@ class TurnProcessor:
                     active_zones.append(zone)
             self.state['scorched_zones'] = active_zones
 
+    def _process_scorched_zones(self):
+        """Handles decay of scorched zones."""
+        if self.state.get('scorched_zones'):
+            active_zones = []
+            for zone in self.state['scorched_zones']:
+                zone['turns_left'] -= 1
+                if zone['turns_left'] > 0:
+                    active_zones.append(zone)
+            self.state['scorched_zones'] = active_zones
+
     def _process_wonders(self):
         """Handles Wonder countdowns and checks for Wonder victory. Returns True if game ends."""
         if not self.state.get('wonders'):
