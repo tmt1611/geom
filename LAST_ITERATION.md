@@ -1,11 +1,17 @@
-This iteration focuses on cleaning up the codebase by removing redundant data structures from the main `Game` class.
+This iteration refactors the structure detection logic in `game_logic.py` to be more data-driven and less repetitive, following the DRY (Don't Repeat Yourself) principle.
 
 **Summary of Changes:**
 
-1.  **Refactor `game_logic.py`:** Large dictionaries (`ACTION_GROUPS`, `ACTION_MAP`, etc.) were being copied from `game_data.py` into the `Game` class as class attributes. This was redundant. I have removed these attributes from the `Game` class. All logic within `game_logic.py` now directly accesses these constants from the `game_data` module, adhering to the DRY (Don't Repeat Yourself) principle.
+1.  **Centralize Formation Checking Logic (`structure_data.py`):**
+    *   The `STRUCTURE_DEFINITIONS` registry in `structure_data.py` has been extended with new keys: `formation_checker` and `formation_inputs`.
+    *   These keys store the name of the corresponding check method in `FormationManager` and the data it requires (e.g., points, lines, territories), respectively. This turns the registry into a single source of truth for how structures are defined and detected.
 
-2.  **Update `routes.py`:** The API endpoint for retrieving all action descriptions (`/api/actions/all`) was previously accessing the data from the `game` instance. It has been updated to import `game_data` and use the constants directly, reflecting the change in `game_logic.py`.
+2.  **Generalize Structure Updates (`game_logic.py`):**
+    *   The `_update_structures_for_team` method has been rewritten. It now iterates through the `STRUCTURE_DEFINITIONS` registry, dynamically calling the appropriate checker method from `FormationManager` with the correct arguments for each structure type.
+    *   This eliminates the need for several repetitive, single-purpose update methods (`_update_nexuses_for_team`, `_update_prisms_for_team`, `_update_trebuchets_for_team`), which have been deleted. The code is now cleaner and easier to extend with new structures.
 
-3.  **Update `static/js/api.js`:** The Pyodide (in-browser Python) mode was also accessing these data structures through the `game` object proxy. I've updated the Pyodide initialization to also create a proxy for the `game_data` module. The JavaScript functions now correctly retrieve action information from this new `game_data` proxy when running in static mode.
+3.  **Corrected Logic for Bonus Actions:**
+    *   The call to update structures is now correctly placed within `_build_action_queue`. This ensures that bonus actions (e.g., from a Nexus) are granted based on the state at the beginning of the turn.
+    *   A clarifying comment was added to `run_next_action` to explain why `_update_structures_for_team` is still called there (to re-sync state after other teams' actions within the same turn).
 
-This refactoring makes the code cleaner, reduces memory usage by avoiding data duplication, and centralizes the single source of truth for game data constants within the `game_data.py` module.
+This refactoring makes the system for detecting new game structures more robust, maintainable, and extensible. Adding a new structure that is formed from points and lines now only requires an entry in the `STRUCTURE_DEFINITIONS` registry and a corresponding checker method in `FormationManager`, with no changes needed in `game_logic.py`.

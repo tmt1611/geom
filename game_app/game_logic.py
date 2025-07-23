@@ -727,16 +727,7 @@ class Game:
                     break
         return possible_pulses
 
-    def _update_nexuses_for_team(self, teamId):
-        """Checks for Nexus formations by delegating to the FormationManager."""
-        if 'nexuses' not in self.state: self.state['nexuses'] = {}
-        
-        team_point_ids = self.get_team_point_ids(teamId)
-        team_lines = self.get_team_lines(teamId)
-        
-        self.state['nexuses'][teamId] = self.formation_manager.check_nexuses(
-            team_point_ids, team_lines, self.state['points']
-        )
+
 
     def _get_all_actions_status(self, teamId):
         """
@@ -924,7 +915,9 @@ class Game:
         for teamId in active_teams:
             actions_queue.append({'teamId': teamId, 'is_bonus': False})
 
-            self._update_nexuses_for_team(teamId)
+            # Update structures to check for bonus-granting ones like Nexuses at the start of the turn.
+            self._update_structures_for_team(teamId)
+            
             num_nexuses = len(self.state.get('nexuses', {}).get(teamId, []))
             if num_nexuses > 0:
                 team_name = self.state['teams'][teamId]['name']
@@ -1001,14 +994,43 @@ class Game:
 
     def _update_structures_for_team(self, teamId):
         """
-        A helper to update all complex structures for a given team.
+        A helper to update all complex structures for a given team by delegating to the FormationManager.
         This is called before determining actions or executing an action to ensure
         the game state is based on the latest formations.
+        It uses the STRUCTURE_DEFINITIONS registry to determine which checks to run.
         """
+        # --- Pre-fetch common inputs for formation checkers ---
+        formation_inputs = {
+            'team_point_ids': self.get_team_point_ids(teamId),
+            'team_lines': self.get_team_lines(teamId),
+            'all_points': self.state['points'],
+            'team_territories': [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        }
+
+        # --- Update structures based on the registry ---
+        for definition in structure_data.STRUCTURE_DEFINITIONS.values():
+            checker_name = definition.get('formation_checker')
+            if not checker_name:
+                continue
+
+            state_key = definition['state_key']
+            
+            checker_func = getattr(self.formation_manager, checker_name, None)
+            if not checker_func or not callable(checker_func):
+                continue
+            
+            # Assemble arguments for the checker function
+            required_inputs = definition.get('formation_inputs', [])
+            args = [formation_inputs[key] for key in required_inputs]
+
+            # Call the checker and update the state
+            result = checker_func(*args)
+            
+            if definition['storage_type'] == 'team_dict_list':
+                self.state[state_key][teamId] = result
+        
+        # --- Update runes (special case for now) ---
         self._update_runes_for_team(teamId)
-        self._update_prisms_for_team(teamId)
-        self._update_trebuchets_for_team(teamId)
-        self._update_nexuses_for_team(teamId)
 
     def run_next_action(self):
         """Runs a single successful action for the next team in the current turn."""
@@ -1041,7 +1063,7 @@ class Game:
         is_bonus_action = action_info['is_bonus']
         
         # Update all special structures for the current team right before it acts.
-        # This ensures the team acts based on its most current state.
+        # This ensures the team acts based on its most current state after other teams' actions.
         self._update_structures_for_team(teamId)
 
         team_name = self.state['teams'][teamId]['name']
@@ -1214,24 +1236,7 @@ class Game:
         }
 
 
-    def _update_prisms_for_team(self, teamId):
-        """Checks for Prism formations by delegating to the FormationManager."""
-        if 'prisms' not in self.state: self.state['prisms'] = {}
-        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
-        self.state['prisms'][teamId] = self.formation_manager.check_prisms(team_territories)
 
-
-
-    def _update_trebuchets_for_team(self, teamId):
-        """Checks for Trebuchet formations by delegating to the FormationManager."""
-        if 'trebuchets' not in self.state: self.state['trebuchets'] = {}
-
-        team_point_ids = self.get_team_point_ids(teamId)
-        team_lines = self.get_team_lines(teamId)
-        
-        self.state['trebuchets'][teamId] = self.formation_manager.check_trebuchets(
-            team_point_ids, team_lines, self.state['points']
-        )
 
 
 # --- Global Game Instance ---
