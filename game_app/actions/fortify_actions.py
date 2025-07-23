@@ -20,8 +20,62 @@ class FortifyActionsHandler:
     def can_perform_create_anchor(self, teamId):
         return len(self.game.get_team_point_ids(teamId)) >= 3, "Requires at least 3 points to sacrifice one."
 
+    def _find_a_valid_mirror(self, teamId, num_attempts=5):
+        """
+        Tries to find a valid mirror operation by randomly selecting axes and points.
+        Returns a dictionary with operation details if successful, otherwise None.
+        """
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if len(team_point_ids) < 3:
+            return None
+
+        for _ in range(num_attempts):
+            # 1. Select axis
+            axis_p_ids = random.sample(team_point_ids, 2)
+            p_axis1 = self.state['points'][axis_p_ids[0]]
+            p_axis2 = self.state['points'][axis_p_ids[1]]
+            if distance_sq(p_axis1, p_axis2) < 4.0: continue
+
+            # 2. Select points to mirror
+            other_point_ids = [pid for pid in team_point_ids if pid not in axis_p_ids]
+            if not other_point_ids: continue
+            
+            num_to_mirror = min(len(other_point_ids), random.randint(1, 2))
+            points_to_mirror_ids = random.sample(other_point_ids, num_to_mirror)
+            
+            new_points_to_create = []
+            grid_size = self.state['grid_size']
+            all_reflections_valid = True
+
+            # 3. Reflect and validate
+            for pid in points_to_mirror_ids:
+                point_to_mirror = self.state['points'][pid]
+                reflected_p = reflect_point(point_to_mirror, p_axis1, p_axis2)
+                
+                if not reflected_p or not (0 <= reflected_p['x'] < grid_size and 0 <= reflected_p['y'] < grid_size):
+                    all_reflections_valid = False; break
+                
+                reflected_p_int = clamp_and_round_point_coords(reflected_p, grid_size)
+                is_valid, _ = self.game.is_spawn_location_valid(reflected_p_int, teamId)
+                if not is_valid:
+                    all_reflections_valid = False; break
+                
+                new_point_id = self.game._generate_id('p')
+                new_points_to_create.append({**reflected_p_int, "teamId": teamId, "id": new_point_id})
+            
+            if all_reflections_valid and new_points_to_create:
+                return {
+                    'axis_p_ids': axis_p_ids,
+                    'points_to_mirror_ids': points_to_mirror_ids,
+                    'new_points_to_create': new_points_to_create
+                }
+        
+        return None
+
     def can_perform_mirror_structure(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) >= 3, "Requires at least 3 points to mirror."
+        # The check is now more accurate: can we actually find a valid mirror operation?
+        can_perform = self._find_a_valid_mirror(teamId, num_attempts=3) is not None
+        return can_perform, "No valid mirror reflection found."
 
     def can_perform_form_bastion(self, teamId):
         can_perform = len(self._find_possible_bastions(teamId)) > 0
@@ -817,67 +871,27 @@ class FortifyActionsHandler:
 
     def mirror_structure(self, teamId):
         """[FORTIFY ACTION]: Reflects points to create symmetry. If not possible, reinforces the structure."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) < 3:
-            return {'success': False, 'reason': 'not enough points to mirror'}
+        valid_mirror_op = self._find_a_valid_mirror(teamId)
         
-        points_to_strengthen_ids = set()
-
-        # Try a few times to find a good axis and points to mirror
-        for _ in range(5):
-            # 1. Select two distinct points for the axis of symmetry
-            axis_p_ids = random.sample(team_point_ids, 2)
-            p_axis1 = self.state['points'][axis_p_ids[0]]
-            p_axis2 = self.state['points'][axis_p_ids[1]]
-
-            # Ensure axis points are not too close
-            if distance_sq(p_axis1, p_axis2) < 4.0:
-                continue
-
-            # 2. Select points to mirror
-            other_point_ids = [pid for pid in team_point_ids if pid not in axis_p_ids]
-            if not other_point_ids:
-                continue
+        if valid_mirror_op:
+            # --- Primary Effect: Create Mirrored Points ---
+            for p in valid_mirror_op['new_points_to_create']:
+                self.state['points'][p['id']] = p
             
-            num_to_mirror = min(len(other_point_ids), 2)
-            points_to_mirror_ids = random.sample(other_point_ids, num_to_mirror)
-            points_to_strengthen_ids.update(points_to_mirror_ids)
-            
-            new_points_to_create = []
-            grid_size = self.state['grid_size']
-            all_reflections_valid = True
-
-            # 3. Reflect points and check validity
-            for pid in points_to_mirror_ids:
-                point_to_mirror = self.state['points'][pid]
-                reflected_p = reflect_point(point_to_mirror, p_axis1, p_axis2)
-                
-                if not reflected_p or not (0 <= reflected_p['x'] < grid_size and 0 <= reflected_p['y'] < grid_size):
-                    all_reflections_valid = False; break
-                
-                reflected_p_int = clamp_and_round_point_coords(reflected_p, grid_size)
-                is_valid, _ = self.game.is_spawn_location_valid(reflected_p_int, teamId)
-                if not is_valid:
-                    all_reflections_valid = False; break
-                
-                new_point_id = self.game._generate_id('p')
-                new_points_to_create.append({**reflected_p_int, "teamId": teamId, "id": new_point_id})
-            
-            if all_reflections_valid and new_points_to_create:
-                # --- Primary Effect: Create Mirrored Points ---
-                for p in new_points_to_create:
-                    self.state['points'][p['id']] = p
-                
-                return {
-                    'success': True, 'type': 'mirror_structure',
-                    'new_points': new_points_to_create, 'axis_p1_id': axis_p_ids[0], 'axis_p2_id': axis_p_ids[1],
-                }
+            return {
+                'success': True, 'type': 'mirror_structure',
+                'new_points': valid_mirror_op['new_points_to_create'],
+                'axis_p1_id': valid_mirror_op['axis_p_ids'][0],
+                'axis_p2_id': valid_mirror_op['axis_p_ids'][1],
+            }
         
         # --- Fallback Effect: Strengthen Lines ---
-        if not points_to_strengthen_ids:
-            # Fallback failed because we couldn't even pick points to mirror.
-            return {'success': False, 'reason': 'could not select points to mirror'}
-
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if not team_point_ids:
+             return {'success': False, 'reason': 'no points to mirror or strengthen'}
+        
+        # Strengthen lines connected to a couple of random points
+        points_to_strengthen_ids = random.sample(team_point_ids, min(len(team_point_ids), 2))
         strengthened_lines = []
         all_team_lines = self.game.get_team_lines(teamId)
         
@@ -887,17 +901,18 @@ class FortifyActionsHandler:
                     strengthened_lines.append(line)
         
         if not strengthened_lines:
-            # This can happen if the chosen points have no lines or their lines are max strength.
-            # To be truly "never useless", we can add a line between the last chosen axis points.
-            last_axis_pids = random.sample(team_point_ids, 2)
-            existing_lines_keys = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in all_team_lines}
-            if tuple(sorted(last_axis_pids)) not in existing_lines_keys:
-                line_id = self.game._generate_id('l')
-                new_line = {"id": line_id, "p1_id": last_axis_pids[0], "p2_id": last_axis_pids[1], "teamId": teamId}
-                self.state['lines'].append(new_line)
-                return {'success': True, 'type': 'add_line', 'line': new_line} # Reuse add_line type
-            else:
-                return {'success': False, 'reason': 'mirroring failed and structure is already fully connected/strengthened'}
+            # To be truly "never useless", we can try to add a new line as a final fallback.
+            if len(team_point_ids) >= 2:
+                p1_id, p2_id = random.sample(team_point_ids, 2)
+                existing_lines_keys = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in all_team_lines}
+                if tuple(sorted((p1_id, p2_id))) not in existing_lines_keys:
+                    line_id = self.game._generate_id('l')
+                    new_line = {"id": line_id, "p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
+                    self.state['lines'].append(new_line)
+                    # For logging purposes, it's better to return a unique type
+                    return {'success': True, 'type': 'add_line', 'line': new_line}
+            
+            return {'success': False, 'reason': 'mirroring failed and structure is already fully connected/strengthened'}
 
         return {
             'success': True, 'type': 'mirror_fizzle_strengthen',

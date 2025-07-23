@@ -10,7 +10,12 @@ class SacrificeActionsHandler:
     # --- Action Precondition Checks ---
 
     def can_perform_nova_burst(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) > 2, "Requires more than 2 points to sacrifice one."
+        # Action is possible if either an "ideal" target exists (guaranteeing primary effect)
+        # or if a "non-critical" point exists to sacrifice for the fallback effect.
+        has_ideal_target = len(self._find_possible_nova_bursts(teamId)) > 0
+        has_fallback_target = self.game._find_non_critical_sacrificial_point(teamId) is not None
+        can_perform = has_ideal_target or has_fallback_target
+        return can_perform, "No suitable point to sacrifice for Nova Burst."
 
     def can_perform_create_whirlpool(self, teamId):
         return len(self.game.get_team_point_ids(teamId)) > 1, "Requires more than 1 point to sacrifice one."
@@ -66,21 +71,18 @@ class SacrificeActionsHandler:
 
     def nova_burst(self, teamId):
         """[SACRIFICE ACTION]: A point is destroyed. If near enemy lines, it destroys them. Otherwise, it pushes all nearby points away."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) <= 2:
-            return {'success': False, 'reason': 'not enough points to sacrifice'}
-
-        # Use the existing helper to find IDEAL sacrifice points (those that will destroy lines)
+        # Find ideal sacrifice points (guarantee primary effect)
         ideal_sac_points = self._find_possible_nova_bursts(teamId)
-
+        
         sac_point_id = None
         if ideal_sac_points:
             sac_point_id = random.choice(ideal_sac_points)
         else:
-            # If no ideal point, pick any non-critical point for the fallback effect.
+            # If no ideal point, find a non-critical point for the fallback effect.
             sac_point_id = self.game._find_non_critical_sacrificial_point(teamId)
-            if not sac_point_id:
-                return {'success': False, 'reason': 'no non-critical points to sacrifice'}
+
+        if not sac_point_id or sac_point_id not in self.state['points']:
+            return {'success': False, 'reason': 'no suitable point found to sacrifice'}
 
         sac_point_coords = self.state['points'][sac_point_id].copy()
         blast_radius_sq = (self.state['grid_size'] * 0.25)**2
