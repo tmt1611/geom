@@ -3,6 +3,7 @@ import math
 import uuid
 
 from .geometry import distance_sq, is_spawn_location_valid
+from . import structure_data
 
 class TurnProcessor:
     def __init__(self, game):
@@ -15,25 +16,19 @@ class TurnProcessor:
 
     def process_turn_start_effects(self):
         """
-        Processes all effects that happen at the start of a turn.
+        Processes all effects that happen at the start of a turn, in a defined order.
         Returns True if the game ended as a result of these effects (e.g., Wonder victory).
         """
-        self._process_shields_and_stasis()
-        self._process_isolated_points()
-        self._process_rift_traps()
-        self._process_anchors()
-        self._process_heartwoods()
-        self._process_whirlpools()
-        self._process_monoliths()
-        self._process_scorched_zones()
-        self._process_attuned_nexuses()
-        self._process_ley_lines()
-        
-        game_ended = self._process_wonders()
-        if game_ended:
-            return True
-
-        self._process_spires_fissures_barricades()
+        for method_name in structure_data.TURN_PROCESSING_ORDER:
+            method = getattr(self, method_name, None)
+            if method:
+                # The Wonder processor is the only one that can end the game here.
+                if method_name == '_process_wonders':
+                    game_ended = method()
+                    if game_ended:
+                        return True
+                else:
+                    method()
         return False
 
     def _process_attuned_nexuses(self):

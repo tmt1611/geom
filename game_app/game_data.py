@@ -1,5 +1,10 @@
 # game_app/game_data.py
 
+DEFAULT_TEAMS = {
+    'team_alpha_default': {'id': 'team_alpha_default', 'name': 'Team Alpha', 'color': '#ff4b4b', 'trait': 'Aggressive'},
+    'team_beta_default': {'id': 'team_beta_default', 'name': 'Team Beta', 'color': '#4b4bff', 'trait': 'Defensive'}
+}
+
 ACTION_GROUPS = {
     'Expand': ['expand_add', 'expand_extend', 'expand_grow', 'expand_fracture', 'expand_spawn', 'expand_orbital'],
     'Fight': ['fight_attack', 'fight_convert', 'fight_pincer_attack', 'fight_territory_strike', 'fight_bastion_pulse', 'fight_sentry_zap', 'fight_chain_lightning', 'fight_refraction_beam', 'fight_launch_payload', 'fight_purify_territory', 'fight_isolate_point'],

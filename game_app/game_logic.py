@@ -9,6 +9,7 @@ from .geometry import (
 )
 from .formations import FormationManager
 from . import game_data
+from . import structure_data
 from .actions.expand_actions import ExpandActionsHandler
 from .actions.fortify_actions import FortifyActionsHandler
 from .actions.fight_actions import FightActionsHandler
@@ -110,10 +111,7 @@ class Game:
     def reset(self):
         """Initializes or resets the game state with default teams."""
         # Using fixed IDs for default teams ensures they can be referenced consistently.
-        default_teams = {
-            'team_alpha_default': {'id': 'team_alpha_default', 'name': 'Team Alpha', 'color': '#ff4b4b', 'trait': 'Aggressive'},
-            'team_beta_default': {'id': 'team_beta_default', 'name': 'Team Beta', 'color': '#4b4bff', 'trait': 'Defensive'}
-        }
+        default_teams = {tid: t.copy() for tid, t in game_data.DEFAULT_TEAMS.items()}
         self.state = {
             "grid_size": 10,
             "teams": default_teams,
@@ -453,47 +451,68 @@ class Game:
 
     def _cleanup_structures_for_point(self, point_id):
         """Helper to remove a point from all associated secondary structures after it has been deleted."""
-        # Remove connected lines (and their shields)
-        lines_before = self.state['lines'][:]
-        self.state['lines'] = []
-        for l in lines_before:
-            if point_id in (l['p1_id'], l['p2_id']):
-                self.state['shields'].pop(l.get('id'), None)
-                self.state.get('line_strengths', {}).pop(l.get('id'), None)
-            else:
-                self.state['lines'].append(l)
+        # Remove connected lines (and their shields/strength)
+        lines_to_remove = [l for l in self.state['lines'] if point_id in (l['p1_id'], l['p2_id'])]
+        self.state['lines'] = [l for l in self.state['lines'] if l not in lines_to_remove]
+        for l in lines_to_remove:
+            self.state['shields'].pop(l.get('id'), None)
+            self.state['line_strengths'].pop(l.get('id'), None)
 
-        # Remove territories that used this point
-        self.state['territories'] = [t for t in self.state['territories'] if point_id not in t['point_ids']]
+        # Handle simple statuses keyed by point_id
+        for key in ['stasis_points', 'isolated_points']:
+            if key in self.state:
+                self.state[key].pop(point_id, None)
 
-        # Handle anchors
-        self.state['anchors'].pop(point_id, None)
+        # --- Generic and Custom Structure Cleanup from Registry ---
+        for definition in structure_data.STRUCTURE_DEFINITIONS.values():
+            state_key = definition['state_key']
+            storage = self.state.get(state_key)
+            if not storage:
+                continue
 
-        # Handle bastions
-        bastions_to_dissolve = []
-        for bastion_id, bastion in list(self.state['bastions'].items()):
-            if bastion['core_id'] == point_id:
-                bastions_to_dissolve.append(bastion_id)
-            elif point_id in bastion['prong_ids']:
-                bastion['prong_ids'].remove(point_id)
-                if len(bastion['prong_ids']) < 2:
-                    bastions_to_dissolve.append(bastion_id)
-        
-        for bastion_id in bastions_to_dissolve:
-            if bastion_id in self.state['bastions']: del self.state['bastions'][bastion_id]
-        
-        # Handle Stasis
-        self.state.get('stasis_points', {}).pop(point_id, None)
+            # Handle custom logic first
+            if definition.get('cleanup_logic') == 'custom':
+                if state_key == 'bastions':
+                    bastions_to_dissolve = []
+                    for bastion_id, bastion in list(storage.items()):
+                        if bastion.get('core_id') == point_id:
+                            bastions_to_dissolve.append(bastion_id)
+                        elif point_id in bastion.get('prong_ids', []):
+                            bastion['prong_ids'].remove(point_id)
+                            if len(bastion['prong_ids']) < 2:
+                                bastions_to_dissolve.append(bastion_id)
+                    for bastion_id in bastions_to_dissolve:
+                        if bastion_id in storage: del storage[bastion_id]
+                continue
 
-        # Handle other structures that are just lists of point IDs
-        structures_to_clean = ['trebuchets', 'purifiers', 'nexuses', 'prisms']
-        for struct_key in structures_to_clean:
-            if self.state.get(struct_key):
-                for teamId in list(self.state[struct_key].keys()):
-                    # Filter out any structure that contained the deleted point
-                    self.state[struct_key][teamId] = [
-                        s for s in self.state[struct_key][teamId] if point_id not in s.get('point_ids', []) and point_id not in s.get('all_point_ids', [])
-                    ]
+            # Generic handling for other structures that dissolve if a point is lost
+            storage_type = definition['storage_type']
+
+            if storage_type == 'dict_keyed_by_pid':
+                storage.pop(point_id, None)
+                continue
+            
+            def structure_contains_point(struct_dict):
+                if not struct_dict: return False
+                for key_info in definition.get('point_id_keys', []):
+                    if isinstance(key_info, tuple):
+                        _, key_name = key_info
+                        if point_id in struct_dict.get(key_name, []):
+                            return True
+                    else: # It's a string
+                        if struct_dict.get(key_info) == point_id:
+                            return True
+                return False
+
+            if storage_type == 'list':
+                self.state[state_key] = [s for s in storage if not structure_contains_point(s)]
+            elif storage_type == 'dict':
+                ids_to_remove = [sid for sid, s in storage.items() if structure_contains_point(s)]
+                for sid in ids_to_remove:
+                    del storage[sid]
+            elif storage_type == 'team_dict_list':
+                for teamId in list(storage.keys()):
+                    storage[teamId] = [s for s in storage[teamId] if not structure_contains_point(s)]
 
     def _delete_point_and_connections(self, point_id, aggressor_team_id=None):
         """A robust helper to delete a point and handle all cascading effects."""
@@ -576,34 +595,43 @@ class Game:
         return rune_pids
 
     def _get_critical_structure_point_ids(self, teamId):
-        """Returns a set of point IDs that are part of critical structures for a team."""
+        """Returns a set of point IDs that are part of critical structures for a team, using the structure registry."""
         critical_pids = set()
-
-        # Fortified points (from territories)
-        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
-        for t in team_territories:
-            critical_pids.update(t['point_ids'])
-
-        # Bastions
-        team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId]
-        for b in team_bastions:
-            critical_pids.add(b['core_id'])
-            critical_pids.update(b['prong_ids'])
         
-        # Structures stored as {teamId: [list of dicts with point_ids]}
-        list_structure_keys = ['nexuses', 'trebuchets', 'purifiers']
-        for key in list_structure_keys:
-            for struct in self.state.get(key, {}).get(teamId, []):
-                critical_pids.update(struct.get('point_ids', []))
-        
-        # Structures stored as {id: dict with teamId and point_ids}
-        dict_structure_keys = ['monoliths']
-        for key in dict_structure_keys:
-            for struct in self.state.get(key, {}).values():
-                if struct.get('teamId') == teamId:
-                    critical_pids.update(struct.get('point_ids', []))
+        for definition in structure_data.STRUCTURE_DEFINITIONS.values():
+            if not definition.get('is_critical'):
+                continue
 
-        # Runes
+            state_key = definition['state_key']
+            storage = self.state.get(state_key)
+            if not storage:
+                continue
+                
+            structures_to_check = []
+            if definition['storage_type'] == 'list':
+                structures_to_check = [s for s in storage if s.get('teamId') == teamId]
+            elif definition['storage_type'] == 'dict':
+                structures_to_check = [s for s in storage.values() if s.get('teamId') == teamId]
+            elif definition['storage_type'] == 'team_dict_list':
+                structures_to_check = storage.get(teamId, [])
+            elif definition['storage_type'] == 'dict_keyed_by_pid':
+                for pid, data in storage.items():
+                    if data.get('teamId') == teamId:
+                        critical_pids.add(pid)
+                continue
+
+            for struct in structures_to_check:
+                for key_info in definition.get('point_id_keys', []):
+                    if isinstance(key_info, tuple):
+                        _, key_name = key_info
+                        pids = struct.get(key_name)
+                        if pids: critical_pids.update(pids)
+                    else: # It's a string
+                        point_id = struct.get(key_info)
+                        if point_id:
+                            critical_pids.add(point_id)
+
+        # Runes are handled separately as they are complex and already have a helper
         critical_pids.update(self._get_all_rune_point_ids(teamId))
         
         return critical_pids
