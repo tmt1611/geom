@@ -434,7 +434,7 @@ def is_spawn_location_valid(new_point_coords, new_point_teamId, grid_size, all_p
     if heartwoods:
         for teamId, heartwood in heartwoods.items():
             if teamId != new_point_teamId:
-                aura_radius_sq = (grid_size * 0.2)**2
+                aura_radius_sq = heartwood.get('aura_radius_sq', (grid_size * 0.2)**2) # Fallback for safety
                 if distance_sq(new_point_coords, heartwood['center_coords']) < aura_radius_sq:
                     return False, 'blocked by an enemy Heartwood aura'
 

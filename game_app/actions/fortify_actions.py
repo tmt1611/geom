@@ -474,6 +474,7 @@ class FortifyActionsHandler:
             'center_coords': {'x': center_coords['x'], 'y': center_coords['y']},
             'growth_counter': 0,
             'growth_interval': 3, # spawns a point every 3 turns
+            'aura_radius_sq': (self.state['grid_size'] * 0.2)**2
         }
         
         if 'heartwoods' not in self.state: self.state['heartwoods'] = {}
