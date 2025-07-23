@@ -1,29 +1,26 @@
-This iteration focuses on improving the user interface of the "Action Guide" tab, making it more visually appealing, compact, and informative by adding new illustrations.
+This iteration focuses on a significant code refactoring to improve the project's structure, maintainability, and overall code quality, aligning with the "clean code" objective.
 
-### 1. Action Guide Layout Redesign
-The layout of the Action Guide has been significantly refactored for better readability and space efficiency.
+### 1. Creation of a Dedicated `RuneActionsHandler`
+Previously, all logic for "Rune" actions was implemented directly within the main `game_logic.py` file, breaking the established pattern of using dedicated handlers for each action category.
 
-- **File**: `static/css/style.css`
+- **File Created**: `game_app/actions/rune_actions.py`
 - **Changes**:
-    - The grid now supports more compact cards (`minmax(300px, 1fr)`), allowing more actions to be visible on screen at once.
-    - Action cards now use a vertical layout (`flex-direction: column`), placing the illustration on top of the description. This creates a cleaner, more modern card design.
-    - The canvas for illustrations is now larger (`100%` width, `150px` height) to accommodate more detailed visuals.
-    - Paddings, gaps, and text styles within the cards were adjusted to reduce clutter and improve the presentation of information.
+    - A new `RuneActionsHandler` class was created to encapsulate all logic related to Rune actions.
+    - All `rune_action_*` methods and their corresponding `_can_perform_rune_*` precondition checks were moved from `game_logic.py` into this new handler.
+    - This change centralizes Rune logic and makes the `Game` class in `game_logic.py` cleaner.
 
-- **File**: `static/js/main.js`
+### 2. Refactoring of the Action Dispatch Mechanism
+The `Game` class contained numerous boilerplate wrapper methods (e.g., `expand_action_add_line`) whose only purpose was to call the corresponding method in a handler. This created unnecessary code and made the `Game` class excessively long.
+
+- **File**: `game_data.py`
 - **Changes**:
-    - The JavaScript function that dynamically creates the action cards has been updated to generate the new HTML structure (placing the `<canvas>` outside the `.action-card-text` div).
-    - The canvas resolution was increased to `300x150` to match the new aspect ratio and provide a sharper drawing surface for the illustrations.
+    - The `ACTION_MAP` data structure was completely redesigned. Instead of mapping an action name to a string method name on the `Game` class, it now maps to a tuple containing the **handler's attribute name** (e.g., `'expand_handler'`) and the **method name within that handler** (e.g., `'add_line'`).
+    - Example: `'expand_add': 'expand_action_add_line'` became `'expand_add': ('expand_handler', 'add_line')`.
 
-### 2. New Action Illustrations
-To make the guide more useful, several previously un-illustrated actions now have custom visuals.
-
-- **File**: `static/js/main.js`
+- **File**: `game_logic.py`
 - **Changes**:
-    - Added new drawing functions to the `illustrationDrawers` object for the following actions:
-        - `rune_starlight_cascade`: Shows a Star Rune sacrificing a point to create a damaging area-of-effect blast.
-        - `rune_focus_beam`: Depicts a Star Rune firing a concentrated beam at a high-value enemy structure.
-        - `rune_cardinal_pulse`: Illustrates the consumption of a Plus Rune to fire four destructive beams in cardinal directions.
-    - All illustration functions were updated to draw on the new, larger `300x150` canvas.
+    - The `_choose_action_for_team` method was updated to use the new `ACTION_MAP` structure. It now dynamically gets the correct handler instance and method from the `Game` object, creating a direct link between the action name and the code that executes it.
+    - **All wrapper methods** (like `expand_action_add_line`, `fight_action_attack_line`, etc.) have been **deleted**. This resulted in the removal of over 30 methods and approximately 250 lines of code from `game_logic.py`.
+    - The `Game` class's `__init__` and `_init_action_preconditions` methods were updated to correctly instantiate and reference the new `RuneActionsHandler`.
 
-These changes result in a more professional and user-friendly Action Guide that better communicates the function of each game mechanic.
+This refactoring significantly slims down the `game_logic.py` file, improves the separation of concerns by placing all action logic within dedicated handlers, and makes the system for adding or modifying actions much cleaner and less error-prone.

@@ -12,6 +12,7 @@ from .actions.expand_actions import ExpandActionsHandler
 from .actions.fortify_actions import FortifyActionsHandler
 from .actions.fight_actions import FightActionsHandler
 from .actions.sacrifice_actions import SacrificeActionsHandler
+from .actions.rune_actions import RuneActionsHandler
 from .turn_processor import TurnProcessor
 
 # --- Game Class ---
@@ -36,6 +37,7 @@ class Game:
         self.fortify_handler = FortifyActionsHandler(self)
         self.fight_handler = FightActionsHandler(self)
         self.sacrifice_handler = SacrificeActionsHandler(self)
+        self.rune_handler = RuneActionsHandler(self)
         self.turn_processor = TurnProcessor(self)
         self._init_action_preconditions()
 
@@ -79,16 +81,16 @@ class Game:
             'sacrifice_phase_shift': self.sacrifice_handler.can_perform_phase_shift,
             'sacrifice_rift_trap': self.sacrifice_handler.can_perform_rift_trap,
             # Rune Actions
-            'rune_shoot_bisector': self._can_perform_rune_shoot_bisector,
-            'rune_area_shield': self._can_perform_rune_area_shield,
-            'rune_shield_pulse': self._can_perform_rune_shield_pulse,
-            'rune_impale': self._can_perform_rune_impale,
-            'rune_hourglass_stasis': self._can_perform_rune_hourglass_stasis,
-            'rune_starlight_cascade': self._can_perform_rune_starlight_cascade,
-            'rune_focus_beam': self._can_perform_rune_focus_beam,
-            'rune_t_hammer_slam': self._can_perform_rune_t_hammer_slam,
-            'rune_cardinal_pulse': self._can_perform_rune_cardinal_pulse,
-            'rune_parallel_discharge': self._can_perform_rune_parallel_discharge,
+            'rune_shoot_bisector': self.rune_handler.can_perform_shoot_bisector,
+            'rune_area_shield': self.rune_handler.can_perform_area_shield,
+            'rune_shield_pulse': self.rune_handler.can_perform_shield_pulse,
+            'rune_impale': self.rune_handler.can_perform_impale,
+            'rune_hourglass_stasis': self.rune_handler.can_perform_hourglass_stasis,
+            'rune_starlight_cascade': self.rune_handler.can_perform_starlight_cascade,
+            'rune_focus_beam': self.rune_handler.can_perform_focus_beam,
+            'rune_t_hammer_slam': self.rune_handler.can_perform_t_hammer_slam,
+            'rune_cardinal_pulse': self.rune_handler.can_perform_cardinal_pulse,
+            'rune_parallel_discharge': self.rune_handler.can_perform_parallel_discharge,
         }
 
     def reset(self):
@@ -594,55 +596,6 @@ class Game:
         # All remaining candidates are articulation points. Don't sacrifice.
         return None
 
-    # --- Precondition Checks for Rune Actions (interim state before full refactor) ---
-
-    def _can_perform_rune_shoot_bisector(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('v_shape', []))
-        return can_perform, "Requires an active V-Rune."
-    
-    def _can_perform_rune_area_shield(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('shield', []))
-        return can_perform, "Requires an active Shield Rune."
-
-    def _can_perform_rune_shield_pulse(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('shield', []))
-        return can_perform, "Requires an active Shield Rune."
-
-    def _can_perform_rune_impale(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('trident', []))
-        return can_perform, "Requires an active Trident Rune."
-
-    def _can_perform_rune_hourglass_stasis(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('hourglass', []))
-        return can_perform, "Requires an active Hourglass Rune."
-
-    def _can_perform_rune_starlight_cascade(self, teamId):
-        can_perform = len(self._find_possible_starlight_cascades(teamId)) > 0
-        return can_perform, "No Star Rune has a valid target in range."
-
-    def _can_perform_rune_focus_beam(self, teamId):
-        has_star_rune = bool(self.state.get('runes', {}).get(teamId, {}).get('star', []))
-        num_enemy_points = len(self.state['points']) - len(self.get_team_point_ids(teamId))
-        can_perform = has_star_rune and num_enemy_points > 0
-        return can_perform, "Requires a Star Rune and an enemy point."
-
-    def _can_perform_rune_t_hammer_slam(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('t_shape', []))
-        return can_perform, "Requires an active T-Rune."
-
-    def _can_perform_rune_cardinal_pulse(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('plus_shape', []))
-        return can_perform, "Requires an active Plus-Rune."
-
-    def _can_perform_rune_parallel_discharge(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('parallel', []))
-        return can_perform, "Requires an active Parallelogram Rune."
-
-    # --- Game Actions ---
-
-    def expand_action_add_line(self, teamId):
-        return self.expand_handler.add_line(teamId)
-
     def _get_extended_border_point(self, p1, p2):
         """
         Extends a line segment p1-p2 from p1 outwards through p2 to the border.
@@ -680,13 +633,6 @@ class Game:
         iy = round(max(0, min(grid_size - 1, iy)))
         return {"x": ix, "y": iy}
 
-    def expand_action_extend_line(self, teamId):
-        return self.expand_handler.extend_line(teamId)
-
-    def expand_action_fracture_line(self, teamId):
-        return self.expand_handler.fracture_line(teamId)
-
-
     def _is_ray_blocked(self, p_start, p_end):
         """Checks if a segment is blocked by a fissure or barricade."""
         for fissure in self.state.get('fissures', []):
@@ -696,69 +642,6 @@ class Game:
             if get_segment_intersection_point(p_start, p_end, barricade['p1'], barricade['p2']):
                  return True
         return False
-
-    def fight_action_attack_line(self, teamId):
-        return self.fight_handler.attack_line(teamId)
-
-    def sacrifice_action_nova_burst(self, teamId):
-        return self.sacrifice_handler.nova_burst(teamId)
-
-    def sacrifice_action_create_whirlpool(self, teamId):
-        return self.sacrifice_handler.create_whirlpool(teamId)
-
-    def sacrifice_action_phase_shift(self, teamId):
-        return self.sacrifice_handler.phase_shift(teamId)
-
-    def sacrifice_action_rift_trap(self, teamId):
-        return self.sacrifice_handler.rift_trap(teamId)
-
-    def expand_action_spawn_point(self, teamId):
-        return self.expand_handler.spawn_point(teamId)
-
-    def expand_action_create_orbital(self, teamId):
-        return self.expand_handler.create_orbital(teamId)
-
-    def shield_action_protect_line(self, teamId):
-        return self.fortify_handler.protect_line(teamId)
-
-    def expand_action_grow_line(self, teamId):
-        return self.expand_handler.grow_line(teamId)
-
-    def fortify_action_claim_territory(self, teamId):
-        return self.fortify_handler.claim_territory(teamId)
-
-    def fortify_action_form_bastion(self, teamId):
-        return self.fortify_handler.form_bastion(teamId)
-
-    def fortify_action_form_monolith(self, teamId):
-        return self.fortify_handler.form_monolith(teamId)
-
-    def fortify_action_cultivate_heartwood(self, teamId):
-        return self.fortify_handler.cultivate_heartwood(teamId)
-
-    def fortify_action_form_rift_spire(self, teamId):
-        return self.fortify_handler.form_rift_spire(teamId)
-
-    def terraform_action_create_fissure(self, teamId):
-        return self.fortify_handler.create_fissure(teamId)
-
-    def terraform_action_raise_barricade(self, teamId):
-        return self.fortify_handler.raise_barricade(teamId)
-
-    def fortify_action_build_chronos_spire(self, teamId):
-        return self.fortify_handler.build_chronos_spire(teamId)
-
-    def fortify_action_mirror_structure(self, teamId):
-        return self.fortify_handler.mirror_structure(teamId)
-
-    def fortify_action_create_anchor(self, teamId):
-        return self.fortify_handler.create_anchor(teamId)
-
-    def fortify_action_form_purifier(self, teamId):
-        return self.fortify_handler.form_purifier(teamId)
-
-    def fight_action_convert_point(self, teamId):
-        return self.fight_handler.convert_point(teamId)
 
     def _find_possible_bastion_pulses(self, teamId):
         team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId and len(b['prong_ids']) > 0]
@@ -792,30 +675,6 @@ class Game:
                     break
         return possible_pulses
 
-    def fight_action_bastion_pulse(self, teamId):
-        return self.fight_handler.bastion_pulse(teamId)
-
-    def fight_action_launch_payload(self, teamId):
-        return self.fight_handler.launch_payload(teamId)
-
-    def fight_action_sentry_zap(self, teamId):
-        return self.fight_handler.sentry_zap(teamId)
-
-    def fight_action_chain_lightning(self, teamId):
-        return self.fight_handler.chain_lightning(teamId)
-
-    def fight_action_pincer_attack(self, teamId):
-        return self.fight_handler.pincer_attack(teamId)
-
-    def fight_action_territory_strike(self, teamId):
-        return self.fight_handler.territory_strike(teamId)
-
-    def fight_action_refraction_beam(self, teamId):
-        return self.fight_handler.refraction_beam(teamId)
-
-    def fight_action_purify_territory(self, teamId):
-        return self.fight_handler.purify_territory(teamId)
-
     def _update_nexuses_for_team(self, teamId):
         """Checks for Nexus formations by delegating to the FormationManager."""
         if 'nexuses' not in self.state: self.state['nexuses'] = {}
@@ -826,272 +685,6 @@ class Game:
         self.state['nexuses'][teamId] = self.formation_manager.check_nexuses(
             team_point_ids, team_lines, self.state['points']
         )
-
-    def rune_action_shoot_bisector(self, teamId):
-        """[RUNE ACTION]: Fires a powerful beam from a V-Rune. If it misses, it creates a fissure."""
-        active_v_runes = self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])
-        if not active_v_runes:
-            return {'success': False, 'reason': 'no active V-runes'}
-
-        rune = random.choice(active_v_runes)
-        points = self.state['points']
-        
-        p_vertex = points.get(rune['vertex_id'])
-        p_leg1 = points.get(rune['leg1_id'])
-        p_leg2 = points.get(rune['leg2_id'])
-
-        if not all([p_vertex, p_leg1, p_leg2]):
-            return {'success': False, 'reason': 'rune points no longer exist'}
-        
-        # Calculate bisector vector
-        v1 = {'x': p_leg1['x'] - p_vertex['x'], 'y': p_leg1['y'] - p_vertex['y']}
-        v2 = {'x': p_leg2['x'] - p_vertex['x'], 'y': p_leg2['y'] - p_vertex['y']}
-        mag1, mag2 = math.sqrt(v1['x']**2 + v1['y']**2), math.sqrt(v2['x']**2 + v2['y']**2)
-        if mag1 == 0 or mag2 == 0: return {'success': False, 'reason': 'invalid V-rune geometry'}
-
-        bisector_v = {'x': v1['x']/mag1 + v2['x']/mag2, 'y': v1['y']/mag1 + v2['y']/mag2}
-        mag_b = math.sqrt(bisector_v['x']**2 + bisector_v['y']**2)
-        if mag_b == 0: return {'success': False, 'reason': 'V-rune legs are opposing'}
-
-        p_end = {'x': p_vertex['x'] + bisector_v['x']/mag_b, 'y': p_vertex['y'] + bisector_v['y']/mag_b}
-        border_point = self._get_extended_border_point(p_vertex, p_end)
-        if not border_point: return {'success': False, 'reason': 'bisector attack path blocked'}
-        
-        attack_ray_p1, attack_ray_p2 = p_vertex, border_point
-
-        # Find first enemy line intersected by this ray
-        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        hits = []
-        for line in enemy_lines:
-            if line['p1_id'] not in points or line['p2_id'] not in points: continue
-            # This attack CAN destroy bastion lines, but not shielded lines.
-            if line.get('id') in self.state['shields']: continue
-            
-            ep1, ep2 = points[line['p1_id']], points[line['p2_id']]
-            if get_segment_intersection_point(attack_ray_p1, attack_ray_p2, ep1, ep2):
-                hits.append(line)
-        
-        rune_points_payload = [rune['vertex_id'], rune['leg1_id'], rune['leg2_id']]
-
-        if hits:
-            # --- Primary Effect: Destroy Line ---
-            target_line = random.choice(hits)
-            self.state['lines'].remove(target_line)
-            self.state['shields'].pop(target_line.get('id'), None)
-            return {
-                'success': True, 'type': 'rune_shoot_bisector', 'destroyed_line': target_line,
-                'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2}, 'rune_points': rune_points_payload
-            }
-        else:
-            # --- Fallback Effect: Create Fissure ---
-            fissure_id = f"f_{uuid.uuid4().hex[:6]}"
-            # The fissure is the segment from the vertex to the border
-            new_fissure = {'id': fissure_id, 'p1': p_vertex, 'p2': border_point, 'turns_left': 2}
-            self.state['fissures'].append(new_fissure)
-            return {
-                'success': True, 'type': 'vbeam_miss_fissure', 'fissure': new_fissure,
-                'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2}, 'rune_points': rune_points_payload
-            }
-
-    def rune_action_area_shield(self, teamId):
-        """[RUNE ACTION]: Uses a Shield Rune to protect internal lines, or de-clutter friendly points."""
-        active_shield_runes = self.state.get('runes', {}).get(teamId, {}).get('shield', [])
-        if not active_shield_runes:
-            return {'success': False, 'reason': 'no active Shield Runes'}
-
-        rune = random.choice(active_shield_runes)
-        points = self.state['points']
-        all_rune_pids = rune['triangle_ids'] + [rune['core_id']]
-        if not all(pid in points for pid in all_rune_pids):
-            return {'success': False, 'reason': 'rune points no longer exist'}
-            
-        tri_points = [points[pid] for pid in rune['triangle_ids']]
-        p1, p2, p3 = tri_points[0], tri_points[1], tri_points[2]
-        
-        # --- Find Primary Targets ---
-        lines_to_shield = []
-        for line in self.get_team_lines(teamId):
-            if line.get('id') in self.state['shields']: continue
-            line_p1, line_p2 = points.get(line['p1_id']), points.get(line['p2_id'])
-            if line_p1 and line_p2 and line_p1['id'] not in rune['triangle_ids'] and line_p2['id'] not in rune['triangle_ids']:
-                if self._is_point_inside_triangle(line_p1, p1, p2, p3) and self._is_point_inside_triangle(line_p2, p1, p2, p3):
-                    lines_to_shield.append(line)
-        
-        if lines_to_shield:
-            # --- Primary Effect: Shield Lines ---
-            for line in lines_to_shield:
-                self.state['shields'][line['id']] = 3 # Shield for 3 turns
-            return {
-                'success': True, 'type': 'rune_area_shield', 'shielded_lines_count': len(lines_to_shield),
-                'rune_points': all_rune_pids, 'rune_triangle_ids': rune['triangle_ids']
-            }
-        else:
-            # --- Fallback Effect: Push Friendly Points ---
-            pushed_points = []
-            rune_center = self._points_centroid(tri_points)
-            push_radius_sq = (self.state['grid_size'] * 0.2)**2
-            push_distance = 1.5
-            grid_size = self.state['grid_size']
-            
-            # Find friendly points inside the push radius (but not part of the rune itself)
-            for point in [p for p in points.values() if p['teamId'] == teamId and p['id'] not in all_rune_pids]:
-                if distance_sq(rune_center, point) < push_radius_sq:
-                    dx, dy = point['x'] - rune_center['x'], point['y'] - rune_center['y']
-                    dist = math.sqrt(dx**2 + dy**2)
-                    if dist < 0.1: continue
-
-                    point['x'] = round(max(0, min(grid_size - 1, point['x'] + (dx/dist) * push_distance)))
-                    point['y'] = round(max(0, min(grid_size - 1, point['y'] + (dy/dist) * push_distance)))
-                    pushed_points.append(point.copy())
-            
-            return {
-                'success': True, 'type': 'area_shield_fizzle_push', 'pushed_points_count': len(pushed_points),
-                'rune_points': all_rune_pids, 'pulse_center': rune_center, 'pulse_radius_sq': push_radius_sq
-            }
-
-    def rune_action_shield_pulse(self, teamId):
-        """[RUNE ACTION]: Uses a Shield Rune to push enemies away, or pull allies in."""
-        active_shield_runes = self.state.get('runes', {}).get(teamId, {}).get('shield', [])
-        if not active_shield_runes:
-            return {'success': False, 'reason': 'no active Shield Runes'}
-
-        rune = random.choice(active_shield_runes)
-        points = self.state['points']
-        all_rune_pids = rune['triangle_ids'] + [rune['core_id']]
-        if not all(pid in points for pid in all_rune_pids):
-            return {'success': False, 'reason': 'rune points no longer exist'}
-            
-        tri_points = [points[pid] for pid in rune['triangle_ids']]
-        rune_center = self._points_centroid(tri_points)
-        if not rune_center: return {'success': False, 'reason': 'could not calculate rune center'}
-
-        pulse_radius_sq = (self.state['grid_size'] * 0.3)**2
-        grid_size = self.state['grid_size']
-
-        # --- Find Primary Targets (Enemies) ---
-        enemy_points_in_range = [p for p in points.values() if p['teamId'] != teamId and distance_sq(rune_center, p) < pulse_radius_sq]
-
-        if enemy_points_in_range:
-            # --- Primary Effect: Push Enemies ---
-            pushed_points = []
-            push_distance = 3.0
-            for point in enemy_points_in_range:
-                dx, dy = point['x'] - rune_center['x'], point['y'] - rune_center['y']
-                dist = math.sqrt(dx**2 + dy**2)
-                if dist < 0.1: continue
-                
-                new_x = point['x'] + (dx / dist) * push_distance
-                new_y = point['y'] + (dy / dist) * push_distance
-                point['x'] = round(max(0, min(grid_size - 1, new_x)))
-                point['y'] = round(max(0, min(grid_size - 1, new_y)))
-                pushed_points.append(point.copy())
-
-            return {
-                'success': True, 'type': 'rune_shield_pulse', 'pushed_points_count': len(pushed_points),
-                'rune_points': all_rune_pids, 'pulse_center': rune_center, 'pulse_radius_sq': pulse_radius_sq
-            }
-        else:
-            # --- Fallback Effect: Pull Allies ---
-            pulled_points = []
-            pull_distance = 1.5
-            # Find friendly points inside the pulse radius (but not part of the rune itself)
-            for point in [p for p in points.values() if p['teamId'] == teamId and p['id'] not in all_rune_pids]:
-                if distance_sq(rune_center, point) < pulse_radius_sq:
-                    dx, dy = rune_center['x'] - point['x'], rune_center['y'] - point['y']
-                    dist = math.sqrt(dx**2 + dy**2)
-                    if dist < 0.1: continue
-                    
-                    new_x = point['x'] + (dx / dist) * pull_distance
-                    new_y = point['y'] + (dy / dist) * pull_distance
-                    point['x'] = round(max(0, min(grid_size - 1, new_x)))
-                    point['y'] = round(max(0, min(grid_size - 1, new_y)))
-                    pulled_points.append(point.copy())
-            
-            return {
-                'success': True, 'type': 'shield_pulse_fizzle_pull', 'pulled_points_count': len(pulled_points),
-                'rune_points': all_rune_pids, 'pulse_center': rune_center, 'pulse_radius_sq': pulse_radius_sq
-            }
-
-    def rune_action_impale(self, teamId):
-        """[RUNE ACTION]: Fires a powerful, shield-piercing beam from a Trident Rune. If it misses, it creates a temporary barricade."""
-        active_trident_runes = self.state.get('runes', {}).get(teamId, {}).get('trident', [])
-        if not active_trident_runes:
-            return {'success': False, 'reason': 'no active Trident Runes'}
-            
-        rune = random.choice(active_trident_runes)
-        points = self.state['points']
-        
-        p_handle = points.get(rune['handle_id'])
-        p_apex = points.get(rune['apex_id'])
-        
-        if not p_handle or not p_apex:
-            return {'success': False, 'reason': 'rune points no longer exist'}
-            
-        # The attack fires from the apex, directed by the handle
-        border_point = self._get_extended_border_point(p_handle, p_apex)
-        if not border_point:
-            return {'success': False, 'reason': 'impale attack does not hit border'}
-            
-        attack_ray_p1 = p_apex
-        attack_ray_p2 = border_point
-        
-        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        lines_to_destroy = []
-        intersection_points = []
-        bastion_line_ids = self._get_bastion_line_ids()
-        
-        for line in enemy_lines:
-            if line.get('id') in bastion_line_ids:
-                continue # Cannot impale bastion lines
-            if line['p1_id'] not in points or line['p2_id'] not in points:
-                continue
-            
-            ep1 = points[line['p1_id']]
-            ep2 = points[line['p2_id']]
-            
-            intersection_pt = get_segment_intersection_point(attack_ray_p1, attack_ray_p2, ep1, ep2)
-            if intersection_pt:
-                lines_to_destroy.append(line)
-                intersection_points.append(intersection_pt)
-
-        rune_points_payload = [rune['handle_id'], rune['apex_id']] + rune['prong_ids']
-
-        if lines_to_destroy:
-            # --- Primary Effect: Destroy Lines ---
-            for line in lines_to_destroy:
-                if line in self.state['lines']:
-                    self.state['lines'].remove(line)
-                    self.state['shields'].pop(line.get('id'), None) # Pierces shields
-                    self.state['line_strengths'].pop(line.get('id'), None) # Pierces monolith empowerment
-                    
-            return {
-                'success': True,
-                'type': 'rune_impale',
-                'destroyed_lines': lines_to_destroy,
-                'intersection_points': intersection_points,
-                'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2},
-                'rune_points': rune_points_payload
-            }
-        else:
-            # --- Fallback Effect: Create Barricade ---
-            barricade_id = f"bar_{uuid.uuid4().hex[:6]}"
-            new_barricade = {
-                'id': barricade_id,
-                'teamId': teamId,
-                'p1': {'x': attack_ray_p1['x'], 'y': attack_ray_p1['y']},
-                'p2': {'x': attack_ray_p2['x'], 'y': attack_ray_p2['y']},
-                'turns_left': 2 # A short-lived barricade
-            }
-            if 'barricades' not in self.state: self.state['barricades'] = []
-            self.state['barricades'].append(new_barricade)
-
-            return {
-                'success': True,
-                'type': 'impale_fizzle_barricade',
-                'barricade': new_barricade,
-                'attack_ray': {'p1': attack_ray_p1, 'p2': attack_ray_p2},
-                'rune_points': rune_points_payload
-            }
 
     def _get_all_actions_status(self, teamId):
         """
@@ -1239,8 +832,16 @@ class Game:
         chosen_action_name = random.choice(valid_actions_by_group[chosen_group])
         
         # --- 5. Return the chosen action name and its function ---
-        action_func_name = self.ACTION_MAP.get(chosen_action_name)
-        action_func = getattr(self, action_func_name) if action_func_name else None
+        action_map_entry = self.ACTION_MAP.get(chosen_action_name)
+        if not action_map_entry:
+            return chosen_action_name, None
+            
+        handler_name, method_name = action_map_entry
+        handler = getattr(self, handler_name, None)
+        if not handler:
+            return chosen_action_name, None
+            
+        action_func = getattr(handler, method_name, None)
         return chosen_action_name, action_func
 
 
