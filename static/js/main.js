@@ -3233,6 +3233,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Action Guide ---
 
     const illustrationHelpers = {
+        drawJaggedLine: (ctx, p1, p2, segments, jag_amount) => {
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            if (len < 1) return;
+            const angle = Math.atan2(dy, dx);
+            
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+        
+            for (let i = 1; i < segments; i++) {
+                const lateral = (Math.random() - 0.5) * jag_amount;
+                const along = (i / segments) * len;
+                const x = p1.x + Math.cos(angle) * along - Math.sin(angle) * lateral;
+                const y = p1.y + Math.sin(angle) * along + Math.cos(angle) * lateral;
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        },
         drawPoints: (ctx, points, color) => {
             points.forEach(p => {
                 ctx.beginPath();
@@ -3400,6 +3420,44 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('💥', hit.x, hit.y);
+        },
+        'fight_chain_lightning': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            
+            // I-Rune
+            const p1 = {x: w*0.2, y: h*0.5};
+            const p_sac = {x: w*0.4, y: h*0.5};
+            const p3 = {x: w*0.6, y: h*0.5};
+            illustrationHelpers.drawPoints(ctx, [p1, p_sac, p3], team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1:p1,p2:p_sac}, {p1:p_sac,p2:p3}], team1_color);
+
+            // Sacrifice center point
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
+            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
+            ctx.stroke();
+
+            // Enemy point
+            const ep1 = {x: w*0.8, y: h*0.3};
+            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+            
+            // Lightning - jump from nearest endpoint
+            const lightning_origin = p3;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(200, 230, 255, 0.9)';
+            ctx.lineWidth = 2;
+            illustrationHelpers.drawJaggedLine(ctx, lightning_origin, ep1, 7, 8);
+            ctx.restore();
+
+            // Blast on enemy
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('💥', ep1.x, ep1.y);
         },
         'fight_convert': (ctx, w, h) => {
             const team1_color = 'hsl(0, 70%, 50%)';

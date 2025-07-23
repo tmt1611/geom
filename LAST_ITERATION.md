@@ -1,20 +1,18 @@
-This iteration focuses on two main areas: continuing the visual enhancement of the Action Guide by adding new illustrations, and cleaning up the Python codebase by refactoring more game logic out of the main `game_logic.py` file into specialized handlers.
+This iteration focuses on improving the user interface and experience of the **Action Guide** tab. The layout has been redesigned to be more compact and visually appealing, and a new illustration has been added to further clarify game mechanics.
 
-### 1. New Illustrations for Action Guide
+### 1. Action Guide Layout Redesign
 
-To make the Action Guide more comprehensive and visually intuitive, illustrations for two more actions have been created:
+To address the suggestion of making the Action Guide more compact and less cluttered, the layout was changed from a single-column list to a responsive grid.
 
--   **`fight_chain_lightning`**: The new illustration depicts a friendly team's "I-Rune" (a straight line of three points) sacrificing its central point to launch a bolt of lightning that strikes and destroys a nearby enemy point. This clearly communicates the action's cost and effect.
--   **`rune_shield_pulse`**: This illustration shows a friendly "Shield-Rune" (a triangle with a point inside) emitting a circular shockwave that pushes enemy points away, demonstrating its defensive, area-denial capability.
+-   **CSS Grid Layout**: The action guide now uses a CSS grid that automatically arranges action cards into columns based on available screen space. This allows users to see many more actions at a glance.
+-   **Vertical Card Layout**: The individual action cards have been redesigned. The illustration canvas is now positioned above the text description, creating a more traditional and space-efficient card format that fits well within the new grid system.
+-   **Responsive Illustrations**: The illustration canvases are now responsive, scaling to fit the card width while maintaining a consistent 3:2 aspect ratio.
 
-These additions help users better understand the game's mechanics without needing to read lengthy descriptions.
+### 2. New Illustration & Code Cleanup
 
-### 2. Code Refactoring and Cleanup
+To enhance the visual guide, a new illustration has been created and the associated drawing code has been cleaned up.
 
-The main `game_logic.py` file was becoming overly long, containing implementations for many different types of actions. To improve code organization and adhere to the single-responsibility principle, the following refactoring was performed:
+-   **`fight_chain_lightning` Illustration**: A new illustration was added for the "Chain Lightning" action. It visually depicts an I-Rune sacrificing its central point to unleash a lightning strike on an enemy point.
+-   **Code De-duplication**: A `drawJaggedLine` helper function was added to the central `illustrationHelpers` object to be reused across multiple illustrations (like lightning and fissures), reducing code duplication.
 
--   **`FightActionsHandler` Integration**: The `game_logic.py` file was updated to properly use the existing `FightActionsHandler` class from `game_app/actions/fight_actions.py`.
--   **Method Migration**: The logic for four major "Fight" actions (`attack_line`, `convert_point`, `pincer_attack`, and `territory_strike`) was removed from `game_logic.py`. The `Game` class now calls the corresponding methods on the `fight_handler` instance, significantly shortening and simplifying the main game class.
--   **Code De-duplication**: A helper method, `_get_vulnerable_enemy_points`, was duplicated in both `game_logic.py` and `fight_actions.py`. The duplicate was removed from the handler, which now calls the single, authoritative version in the main `Game` class, reducing redundancy and centralizing the logic.
-
-These changes make the codebase cleaner, more modular, and easier to maintain and expand upon in the future.
+These changes result in a more user-friendly and informative Action Guide.
