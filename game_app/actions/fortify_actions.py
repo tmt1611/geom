@@ -2,7 +2,7 @@ import random
 import math
 import uuid
 from itertools import combinations
-from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, is_spawn_location_valid, points_centroid, clamp_and_round_point_coords, get_edges_by_distance
+from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, points_centroid, clamp_and_round_point_coords, get_edges_by_distance
 
 class FortifyActionsHandler:
     def __init__(self, game):
@@ -603,11 +603,7 @@ class FortifyActionsHandler:
             temp_points = self.state['points'].copy()
             del temp_points[point_to_move_id]
 
-            is_valid, _ = is_spawn_location_valid(
-                new_p_coords, teamId, self.state['grid_size'], temp_points,
-                self.state.get('fissures', []), self.state.get('heartwoods', {}), 
-                scorched_zones=self.state.get('scorched_zones', [])
-            )
+            is_valid, _ = self.game.is_spawn_location_valid(new_p_coords, teamId, points_override=temp_points)
             if not is_valid:
                 continue
 
@@ -851,10 +847,7 @@ class FortifyActionsHandler:
                     all_reflections_valid = False; break
                 
                 reflected_p_int = clamp_and_round_point_coords(reflected_p, grid_size)
-                is_valid, _ = is_spawn_location_valid(
-                    reflected_p_int, teamId, self.state['grid_size'], self.state['points'],
-                    self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', [])
-                )
+                is_valid, _ = self.game.is_spawn_location_valid(reflected_p_int, teamId)
                 if not is_valid:
                     all_reflections_valid = False; break
                 

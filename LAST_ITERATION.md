@@ -1,7 +1,11 @@
-This iteration focuses on two key areas of code cleaning: reducing duplication and optimizing a frequently used function.
+This iteration focuses on a significant code cleanup by refactoring a commonly used helper function.
 
-1.  **Code Duplication:** The `game_logic.py` file had identical blocks of code in both `run_next_action` and `get_action_probabilities` responsible for updating game structures like runes and prisms. I've consolidated this logic into a single new helper method, `_update_structures_for_team`, making the code cleaner and easier to maintain.
+The geometric helper function `is_spawn_location_valid` is called from almost every action file to verify if a new point can be created at a given coordinate. Each call required passing multiple slices of the game state (e.g., `grid_size`, `points`, `fissures`, `heartwoods`). This created repetitive, verbose code.
 
-2.  **Performance Optimization:** The `launch_payload` action in `fight_actions.py` was performing redundant calculations. It would fetch lists of fortified and bastion points to find high-value targets, and if none were found, it would call `_get_vulnerable_enemy_points`, which would *re-fetch* the same lists internally. To fix this, I've modified `_get_vulnerable_enemy_points` to optionally accept a pre-calculated set of immune point IDs. The `launch_payload` action now calculates this set once and reuses it for both target-finding steps, eliminating the redundant work.
+To address this, I have:
+1.  Created a new wrapper method, `Game.is_spawn_location_valid()`, in `game_logic.py`.
+2.  This new method automatically retrieves the necessary state slices and calls the underlying geometry function. This centralizes the logic and simplifies the call sites.
+3.  Updated all 15+ call sites across the action handlers (`expand`, `fight`, `fortify`, etc.) and the `turn_processor` to use this new, cleaner wrapper method.
+4.  The wrapper was designed to handle a few special cases where a modified list of points is needed for the check, ensuring the refactoring could be applied universally without losing functionality.
 
-These changes improve code quality and slightly enhance performance without altering any game mechanics.
+This change significantly improves code readability and maintainability by reducing boilerplate and abstracting the details of state management for this common task.

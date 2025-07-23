@@ -5,7 +5,8 @@ from itertools import combinations
 from .geometry import (
     distance_sq, on_segment, orientation, segments_intersect,
     get_segment_intersection_point, is_ray_blocked, get_extended_border_point,
-    polygon_area, points_centroid, polygon_perimeter, get_convex_hull
+    polygon_area, points_centroid, polygon_perimeter, get_convex_hull,
+    is_spawn_location_valid as geom_is_spawn_location_valid
 )
 from .formations import FormationManager
 from . import game_data
@@ -497,6 +498,17 @@ class Game:
                 bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
             )
         return [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
+
+    def is_spawn_location_valid(self, new_point_coords, teamId, min_dist_sq=1.0, points_override=None):
+        """A wrapper for the geometry function to pass game state automatically."""
+        points = points_override if points_override is not None else self.state['points']
+        return geom_is_spawn_location_valid(
+            new_point_coords, teamId, self.state['grid_size'], points,
+            self.state.get('fissures', []),
+            self.state.get('heartwoods', {}),
+            scorched_zones=self.state.get('scorched_zones', []),
+            min_dist_sq=min_dist_sq
+        )
 
     def _strengthen_line(self, line):
         """Helper to strengthen a single line, returns if it was strengthened."""

@@ -4,7 +4,7 @@ import uuid
 from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
-    get_extended_border_point, is_spawn_location_valid, is_point_inside_triangle,
+    get_extended_border_point, is_point_inside_triangle,
     points_centroid, clamp_and_round_point_coords, get_edges_by_distance
 )
 
@@ -386,14 +386,8 @@ class RuneActionsHandler:
             p1_coords = clamp_and_round_point_coords(mid1, grid_size)
             p2_coords = clamp_and_round_point_coords(mid2, grid_size)
             
-            is_valid1, _ = is_spawn_location_valid(
-                p1_coords, teamId, self.state['grid_size'], self.state['points'],
-                self.state.get('fissures', []), self.state.get('heartwoods', {})
-            )
-            is_valid2, _ = is_spawn_location_valid(
-                p2_coords, teamId, self.state['grid_size'], self.state['points'],
-                self.state.get('fissures', []), self.state.get('heartwoods', {})
-            )
+            is_valid1, _ = self.game.is_spawn_location_valid(p1_coords, teamId)
+            is_valid2, _ = self.game.is_spawn_location_valid(p2_coords, teamId)
             
             if not is_valid1 or not is_valid2:
                  return {'success': False, 'reason': 'center of parallelogram is blocked'}
@@ -739,10 +733,7 @@ class RuneActionsHandler:
                     lines_destroyed.append(line_to_destroy)
             else:
                 # Miss: create point on border
-                is_valid, _ = is_spawn_location_valid(
-                    border_point, teamId, self.state['grid_size'], self.state['points'],
-                    self.state.get('fissures', []), self.state.get('heartwoods', {})
-                )
+                is_valid, _ = self.game.is_spawn_location_valid(border_point, teamId)
                 if is_valid:
                     new_point_id = self.game._generate_id('p')
                     new_point = {**border_point, "teamId": teamId, "id": new_point_id}

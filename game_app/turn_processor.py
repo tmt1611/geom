@@ -2,7 +2,7 @@ import random
 import math
 import uuid
 
-from .geometry import distance_sq, is_spawn_location_valid
+from .geometry import distance_sq
 from . import structure_data
 
 class TurnProcessor:
@@ -130,10 +130,7 @@ class TurnProcessor:
 
             trap['turns_left'] -= 1
             if trap['turns_left'] <= 0:
-                is_valid, _ = is_spawn_location_valid(
-                    trap['coords'], trap['teamId'], self.state['grid_size'], self.state['points'],
-                    self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', [])
-                )
+                is_valid, _ = self.game.is_spawn_location_valid(trap['coords'], trap['teamId'])
                 if is_valid:
                     new_point_id = self.game._generate_id('p')
                     new_point = {"x": round(trap['coords']['x']), "y": round(trap['coords']['y']), "teamId": trap['teamId'], "id": new_point_id}
@@ -197,10 +194,7 @@ class TurnProcessor:
                     final_y = round(max(0, min(grid_size - 1, new_y)))
                     
                     new_p_coords = {'x': final_x, 'y': final_y}
-                    if not is_spawn_location_valid(
-                        new_p_coords, teamId, self.state['grid_size'], self.state['points'],
-                        self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', [])
-                    )[0]: continue
+                    if not self.game.is_spawn_location_valid(new_p_coords, teamId)[0]: continue
 
                     new_point_id = self.game._generate_id('p')
                     new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}

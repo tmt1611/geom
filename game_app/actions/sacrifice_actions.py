@@ -1,7 +1,7 @@
 import random
 import math
 import uuid
-from ..geometry import distance_sq, is_spawn_location_valid, clamp_and_round_point_coords
+from ..geometry import distance_sq, clamp_and_round_point_coords
 
 class SacrificeActionsHandler:
     def __init__(self, game):
@@ -271,10 +271,7 @@ class SacrificeActionsHandler:
         grid_size = self.state['grid_size']
         for _ in range(25): # Try several times
             candidate_coords = {'x': random.randint(0, grid_size - 1), 'y': random.randint(0, grid_size - 1)}
-            is_valid, _ = is_spawn_location_valid(
-                candidate_coords, teamId, self.state['grid_size'], self.state['points'],
-                self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', []), min_dist_sq=1.0
-            )
+            is_valid, _ = self.game.is_spawn_location_valid(candidate_coords, teamId, min_dist_sq=1.0)
             if is_valid:
                 new_coords = candidate_coords
                 break
