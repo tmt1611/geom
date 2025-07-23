@@ -135,7 +135,7 @@ class TurnProcessor:
                     self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', [])
                 )
                 if is_valid:
-                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                    new_point_id = self.game._generate_id('p')
                     new_point = {"x": round(trap['coords']['x']), "y": round(trap['coords']['y']), "teamId": trap['teamId'], "id": new_point_id}
                     self.state['points'][new_point_id] = new_point
                     
@@ -202,7 +202,7 @@ class TurnProcessor:
                         self.state.get('fissures', []), self.state.get('heartwoods', {}), scorched_zones=self.state.get('scorched_zones', [])
                     )[0]: continue
 
-                    new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                    new_point_id = self.game._generate_id('p')
                     new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
                     self.state['points'][new_point_id] = new_point
                     

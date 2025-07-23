@@ -52,61 +52,19 @@ class Game:
         self._init_action_preconditions()
 
     def _init_action_preconditions(self):
-        """Maps action names to their precondition check methods for cleaner validation."""
-        self.action_preconditions = {
-            # Expand Actions
-            'expand_add': self.expand_handler.can_perform_add_line,
-            'expand_extend': self.expand_handler.can_perform_extend_line,
-            'expand_grow': self.expand_handler.can_perform_grow_line,
-            'expand_fracture': self.expand_handler.can_perform_fracture_line,
-            'expand_spawn': self.expand_handler.can_perform_spawn_point,
-            'expand_orbital': self.expand_handler.can_perform_create_orbital,
-            # Fight Actions
-            'fight_attack': self.fight_handler.can_perform_attack_line,
-            'fight_convert': self.fight_handler.can_perform_convert_point,
-            'fight_pincer_attack': self.fight_handler.can_perform_pincer_attack,
-            'fight_territory_strike': self.fight_handler.can_perform_territory_strike,
-            'fight_bastion_pulse': self.fight_handler.can_perform_bastion_pulse,
-            'fight_sentry_zap': self.fight_handler.can_perform_sentry_zap,
-            'fight_chain_lightning': self.fight_handler.can_perform_chain_lightning,
-            'fight_refraction_beam': self.fight_handler.can_perform_refraction_beam,
-            'fight_launch_payload': self.fight_handler.can_perform_launch_payload,
-            'fight_purify_territory': self.fight_handler.can_perform_purify_territory,
-            'fight_isolate_point': self.fight_handler.can_perform_isolate_point,
-            # Fortify Actions
-            'fortify_shield': self.fortify_handler.can_perform_shield_line,
-            'fortify_claim': self.fortify_handler.can_perform_claim_territory,
-            'fortify_anchor': self.fortify_handler.can_perform_create_anchor,
-            'fortify_mirror': self.fortify_handler.can_perform_mirror_structure,
-            'fortify_form_bastion': self.fortify_handler.can_perform_form_bastion,
-            'fortify_form_monolith': self.fortify_handler.can_perform_form_monolith,
-            'fortify_form_purifier': self.fortify_handler.can_perform_form_purifier,
-            'fortify_cultivate_heartwood': self.fortify_handler.can_perform_cultivate_heartwood,
-            'fortify_form_rift_spire': self.fortify_handler.can_perform_form_rift_spire,
-            'terraform_create_fissure': self.fortify_handler.can_perform_create_fissure,
-            'terraform_raise_barricade': self.fortify_handler.can_perform_raise_barricade,
-            'fortify_build_wonder': self.fortify_handler.can_perform_build_chronos_spire,
-            'fortify_reposition_point': self.fortify_handler.can_perform_reposition_point,
-            'fortify_attune_nexus': self.fortify_handler.can_perform_attune_nexus,
-            'fortify_create_ley_line': self.fortify_handler.can_perform_create_ley_line,
-            # Sacrifice Actions
-            'sacrifice_nova': self.sacrifice_handler.can_perform_nova_burst,
-            'sacrifice_whirlpool': self.sacrifice_handler.can_perform_create_whirlpool,
-            'sacrifice_phase_shift': self.sacrifice_handler.can_perform_phase_shift,
-            'sacrifice_rift_trap': self.sacrifice_handler.can_perform_rift_trap,
-            'sacrifice_scorch_territory': self.sacrifice_handler.can_perform_scorch_territory,
-            # Rune Actions
-            'rune_shoot_bisector': self.rune_handler.can_perform_shoot_bisector,
-            'rune_area_shield': self.rune_handler.can_perform_area_shield,
-            'rune_shield_pulse': self.rune_handler.can_perform_shield_pulse,
-            'rune_impale': self.rune_handler.can_perform_impale,
-            'rune_hourglass_stasis': self.rune_handler.can_perform_hourglass_stasis,
-            'rune_starlight_cascade': self.rune_handler.can_perform_starlight_cascade,
-            'rune_focus_beam': self.rune_handler.can_perform_focus_beam,
-            'rune_t_hammer_slam': self.rune_handler.can_perform_t_hammer_slam,
-            'rune_cardinal_pulse': self.rune_handler.can_perform_cardinal_pulse,
-            'rune_parallel_discharge': self.rune_handler.can_perform_parallel_discharge,
-        }
+        """Dynamically maps action names to their precondition check methods based on ACTION_MAP."""
+        self.action_preconditions = {}
+        for action_name, (handler_name, method_name) in self.ACTION_MAP.items():
+            handler = getattr(self, handler_name, None)
+            if handler:
+                precondition_method_name = f"can_perform_{method_name}"
+                precondition_method = getattr(handler, precondition_method_name, None)
+                if precondition_method and callable(precondition_method):
+                    self.action_preconditions[action_name] = precondition_method
+                else:
+                    # This can be used for debugging missing precondition methods.
+                    # For now, we silently ignore missing ones.
+                    pass
 
     def reset(self):
         """Initializes or resets the game state with default teams."""
@@ -457,11 +415,6 @@ class Game:
         for l in lines_to_remove:
             self.state['shields'].pop(l.get('id'), None)
             self.state['line_strengths'].pop(l.get('id'), None)
-
-        # Handle simple statuses keyed by point_id
-        for key in ['stasis_points', 'isolated_points']:
-            if key in self.state:
-                self.state[key].pop(point_id, None)
 
         # --- Generic and Custom Structure Cleanup from Registry ---
         for definition in structure_data.STRUCTURE_DEFINITIONS.values():

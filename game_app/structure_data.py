@@ -67,6 +67,14 @@ STRUCTURE_DEFINITIONS = {
         'state_key': 'anchors', 'storage_type': 'dict_keyed_by_pid',
         'is_critical': True, # The point itself is critical while it's an anchor
     },
+    'stasis_points': {
+        'state_key': 'stasis_points', 'storage_type': 'dict_keyed_by_pid',
+        'is_critical': True, # A point in stasis cannot be used, so it's critical
+    },
+    'isolated_points': {
+        'state_key': 'isolated_points', 'storage_type': 'dict_keyed_by_pid',
+        'is_critical': False, # An isolated point is vulnerable, not necessarily critical
+    },
     'heartwoods': {
         'state_key': 'heartwoods', 'storage_type': 'dict', # keyed by teamId
         'is_critical': True, # It's a major team structure even without points

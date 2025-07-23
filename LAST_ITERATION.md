@@ -1,20 +1,15 @@
-This iteration focused on a code cleanup and simplification refactoring across all action handler modules. The goal was to reduce code duplication and improve robustness when handling point coordinates.
+This iteration focused on refactoring the codebase to be more data-driven and consistent, following the principles of clean code and reducing repetition. The key changes involved:
+1.  **Dynamically Generating Action Preconditions:** The large, manually maintained dictionary of action precondition checks in `game_logic.py` was replaced with a dynamic system that generates it from the existing `ACTION_MAP`. This reduces code duplication and simplifies the process of adding new actions.
+2.  **Centralizing Structure Definitions:** Simple point statuses like `stasis_points` and `isolated_points` were moved from hardcoded logic into the central `structure_data.py` registry. This allows their properties (e.g., whether they make a point "critical") and cleanup logic to be managed in one place.
+3.  **Consistent ID Generation:** Instances of manual `uuid` generation for new points were replaced with the centralized `game._generate_id()` helper method, ensuring all new game objects follow a consistent ID format.
 
-### 1. Centralized Coordinate Clamping and Rounding
+### Changes
+*   **Refactored `game_logic.py`:**
+    *   The `_init_action_preconditions` method now dynamically builds the precondition mapping from `ACTION_MAP`, eliminating over 50 lines of boilerplate code.
+    *   The `_cleanup_structures_for_point` method was simplified by removing hardcoded logic for `stasis_points` and `isolated_points`, which are now handled by the generic structure cleanup loop.
+*   **Updated `structure_data.py`:**
+    *   Added definitions for `stasis_points` and `isolated_points` to the `STRUCTURE_DEFINITIONS` registry, making them part of the data-driven system.
+*   **Standardized ID Generation:**
+    *   Corrected manual `uuid` calls in `fight_actions.py` and `turn_processor.py` to use the standard `self.game._generate_id()` method.
 
-A common pattern was identified across many action functions where new floating-point coordinates were calculated and then manually clamped to the grid boundaries and rounded to integers. This code was repetitive and slightly different in places, leading to potential inconsistencies.
-
-*   **Action:** A new helper function, `clamp_and_round_point_coords`, was created in `game_app/geometry.py`. This function takes a coordinate dictionary and a grid size, and reliably performs the clamping and rounding operations.
-
-*   **Benefit:** This centralizes the logic, ensuring that all new points are created using the exact same robust method.
-
-### 2. Refactoring Action Handlers
-
-All five action handler files (`expand_actions.py`, `fight_actions.py`, `fortify_actions.py`, `rune_actions.py`, and `sacrifice_actions.py`) were updated to import and use the new `clamp_and_round_point_coords` helper function.
-
-*   **Examples:**
-    *   In `expand_actions.py`, functions like `fracture_line`, `spawn_point`, and `create_orbital` were simplified.
-    *   In `fight_actions.py` and others, functions that "push" points away from an effect now use the helper for safer coordinate updates.
-    *   In `fortify_actions.py`, the `mirror_structure` action was made more robust. The original code had a check to see if a reflected point was in-bounds, but then rounded it, which could have pushed it out-of-bounds. The new logic uses the helper to safely round and clamp after the check.
-
-This refactoring reduces the line count, simplifies the logic within each action, and makes the codebase cleaner and easier to maintain.
+These changes make the codebase more robust, maintainable, and easier to extend with new game mechanics in the future.

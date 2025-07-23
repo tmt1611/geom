@@ -819,7 +819,7 @@ class FightActionsHandler:
                 self.state.get('fissures', []), self.state.get('heartwoods', {})
             )
             if is_valid:
-                new_point_id = f"p_{uuid.uuid4().hex[:6]}"
+                new_point_id = self.game._generate_id('p')
                 new_point = {**border_point, "teamId": teamId, "id": new_point_id}
                 self.state['points'][new_point_id] = new_point
                 return {
