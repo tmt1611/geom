@@ -4684,16 +4684,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 togglesContainer.innerHTML += `<button data-group="${group}">${group} (${groupCounts[group]})</button>`;
             });
 
-            const actionCards = [];
-
-            for (const action of allActions) {
+            // Group actions and create cards
+            const actionsByGroup = {};
+            allActions.forEach(action => {
+                if (!actionsByGroup[action.group]) actionsByGroup[action.group] = [];
                 const card = document.createElement('div');
                 card.className = 'action-card';
                 card.dataset.name = action.name;
                 card.dataset.group = action.group;
                 card.dataset.displayName = action.display_name;
                 card.dataset.description = action.description;
-
                 card.innerHTML = `
                     <canvas width="120" height="120"></canvas>
                     <div class="action-card-text">
@@ -4704,31 +4704,68 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="action-card-description">${action.description}</div>
                     </div>
                 `;
-                
-                actionGuideContent.appendChild(card);
-                actionCards.push(card);
-                
+                actionsByGroup[action.group].push(card);
+
                 const canvas = card.querySelector('canvas');
                 const ctx = canvas.getContext('2d');
-                
                 const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
-                drawer(ctx, 120, 120);
+                drawer(ctx, canvas.width, canvas.height);
+            });
+            
+            // Build the DOM with sections
+            for (const group of groups) {
+                const section = document.createElement('div');
+                section.className = 'guide-group-section';
+                section.dataset.group = group;
+                
+                const header = document.createElement('h3');
+                header.className = 'guide-group-header';
+                header.textContent = group;
+                section.appendChild(header);
+                
+                const grid = document.createElement('div');
+                grid.className = 'action-guide-grid';
+                actionsByGroup[group].forEach(card => grid.appendChild(card));
+                section.appendChild(grid);
+                
+                actionGuideContent.appendChild(section);
             }
+
 
             function filterActions() {
                 const searchTerm = searchInput.value.toLowerCase();
                 const activeGroup = togglesContainer.querySelector('button.active').dataset.group;
+                const sections = actionGuideContent.querySelectorAll('.guide-group-section');
+                
+                sections.forEach(section => {
+                    const sectionGroup = section.dataset.group;
+                    const groupMatch = activeGroup === 'All' || sectionGroup === activeGroup;
+                    
+                    if (!groupMatch) {
+                        section.style.display = 'none';
+                        return;
+                    }
+                    
+                    section.style.display = 'block';
+                    let hasVisibleCard = false;
+                    const cards = section.querySelectorAll('.action-card');
 
-                actionCards.forEach(card => {
-                    const groupMatch = activeGroup === 'All' || card.dataset.group === activeGroup;
-                    const nameMatch = card.dataset.displayName.toLowerCase().includes(searchTerm);
-                    const descMatch = card.dataset.description.toLowerCase().includes(searchTerm);
-                    const searchMatch = nameMatch || descMatch;
+                    cards.forEach(card => {
+                        const nameMatch = card.dataset.displayName.toLowerCase().includes(searchTerm);
+                        const descMatch = card.dataset.description.toLowerCase().includes(searchTerm);
+                        const searchMatch = nameMatch || descMatch;
 
-                    if (groupMatch && searchMatch) {
-                        card.style.display = 'flex';
-                    } else {
-                        card.style.display = 'none';
+                        if (searchMatch) {
+                            card.style.display = 'flex';
+                            hasVisibleCard = true;
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+
+                    // Hide the whole section if no cards match the search
+                    if (searchTerm && !hasVisibleCard) {
+                        section.style.display = 'none';
                     }
                 });
             }
