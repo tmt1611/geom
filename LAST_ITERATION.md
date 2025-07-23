@@ -1,15 +1,8 @@
-This iteration focuses on improving the user experience of the Action Guide tab and performing several code cleanup tasks in both the Python backend and JavaScript frontend.
-
-### UI/UX Improvements: Action Guide
-
-1.  **More Compact Layout:** The Action Guide has been made more space-efficient.
-    *   The action cards are now smaller (`120px` height vs `140px`).
-    *   The grid layout has been adjusted to allow more cards to fit on the screen at once (`minmax(350px, 1fr)` vs `380px`).
-    *   This was achieved by modifying `static/css/style.css` and updating the canvas dimensions in `static/js/main.js`.
-2.  **Improved Header Controls:** The search bar and group filter buttons in the Action Guide header are now arranged on a single, responsive row, making better use of horizontal space.
+This iteration focuses on code quality by fixing a critical bug and refactoring several methods for clarity and robustness.
 
 ### Code Cleanup and Refactoring
 
-1.  **DRY Principle in `expand_actions.py`:** The `_find_possible_extensions` method contained duplicated logic for checking valid line extensions. This has been refactored into a new helper method, `_check_and_add_extension`, simplifying the original method and improving maintainability.
-2.  **Consistent Logic in `fortify_actions.py`:** The fallback logic in the `claim_territory` action (for reinforcing an existing territory) was reimplementing code that already existed as a helper (`game._strengthen_line`). The code has been updated to use the shared helper, ensuring consistent behavior with other similar actions.
-3.  **JavaScript Cleanup:** A copy-paste error in `static/js/main.js` resulted in several duplicated illustration functions. These duplicates have been removed.
+1.  **Bug Fix (Missing Import):** A runtime error was prevented in `game_app/actions/rune_actions.py`. The `area_shield` action depends on the `is_point_inside_triangle` helper function from the geometry module, but it was not being imported. This has now been corrected.
+2.  **Code Refactoring in `game_logic.py`:**
+    *   Simplified the `_get_structure_point_ids_by_type` method by using `dict.get()` with a default value (`{}`). This removes unnecessary `if` checks, making the code cleaner and more robust against missing keys in the game state.
+    *   Improved readability in `_get_critical_structure_point_ids`. The logic now uses list comprehensions to pre-filter structures by team before iterating over them. This approach makes the intent of the code clearer by separating the filtering logic from the processing logic.

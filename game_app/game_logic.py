@@ -271,27 +271,24 @@ class Game:
             'nexus': set(), 'monolith': set(), 'trebuchet': set(), 'purifier': set()
         }
 
-        if self.state.get('runes'):
-            for team_runes in self.state['runes'].values():
-                for i_rune in team_runes.get('i_shape', []):
-                    ids['i_rune'].update(i_rune.get('point_ids', []))
-                    ids['i_rune_sentry_eye'].update(i_rune.get('internal_points', []))
-                    ids['i_rune_sentry_post'].update(i_rune.get('endpoints', []))
+        for team_runes in self.state.get('runes', {}).values():
+            for i_rune in team_runes.get('i_shape', []):
+                ids['i_rune'].update(i_rune.get('point_ids', []))
+                ids['i_rune_sentry_eye'].update(i_rune.get('internal_points', []))
+                ids['i_rune_sentry_post'].update(i_rune.get('endpoints', []))
         
         # Structures that are dicts of lists {teamId: [item, ...]}
         list_structures = {'nexus': 'nexuses', 'trebuchet': 'trebuchets', 'purifier': 'purifiers'}
         for key, state_key in list_structures.items():
-            if self.state.get(state_key):
-                for team_list in self.state[state_key].values():
-                    for struct in team_list:
-                        ids[key].update(struct.get('point_ids', []))
+            for team_list in self.state.get(state_key, {}).values():
+                for struct in team_list:
+                    ids[key].update(struct.get('point_ids', []))
 
         # Structures that are dicts of dicts {itemId: {..., point_ids: [...]}}
         dict_structures = {'monolith': 'monoliths'}
         for key, state_key in dict_structures.items():
-            if self.state.get(state_key):
-                for struct in self.state[state_key].values():
-                    ids[key].update(struct.get('point_ids', []))
+            for struct in self.state.get(state_key, {}).values():
+                ids[key].update(struct.get('point_ids', []))
 
         return ids
 
@@ -513,23 +510,25 @@ class Game:
         critical_pids = set()
 
         # Fortified points (from territories)
-        for t in self.state.get('territories', []):
-            if t['teamId'] == teamId:
-                critical_pids.update(t['point_ids'])
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        for t in team_territories:
+            critical_pids.update(t['point_ids'])
 
         # Bastions
-        for b in self.state.get('bastions', {}).values():
-            if b['teamId'] == teamId:
-                critical_pids.add(b['core_id'])
-                critical_pids.update(b['prong_ids'])
+        team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId]
+        for b in team_bastions:
+            critical_pids.add(b['core_id'])
+            critical_pids.update(b['prong_ids'])
         
         # Structures stored as {teamId: [list of dicts with point_ids]}
-        for key in ['nexuses', 'trebuchets', 'purifiers']:
+        list_structure_keys = ['nexuses', 'trebuchets', 'purifiers']
+        for key in list_structure_keys:
             for struct in self.state.get(key, {}).get(teamId, []):
                 critical_pids.update(struct.get('point_ids', []))
         
         # Structures stored as {id: dict with teamId and point_ids}
-        for key in ['monoliths']:
+        dict_structure_keys = ['monoliths']
+        for key in dict_structure_keys:
             for struct in self.state.get(key, {}).values():
                 if struct.get('teamId') == teamId:
                     critical_pids.update(struct.get('point_ids', []))

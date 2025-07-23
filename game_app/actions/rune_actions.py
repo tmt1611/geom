@@ -4,7 +4,7 @@ import uuid
 from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
-    get_extended_border_point, is_spawn_location_valid
+    get_extended_border_point, is_spawn_location_valid, is_point_inside_triangle
 )
 
 class RuneActionsHandler:
