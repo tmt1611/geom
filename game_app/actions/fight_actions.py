@@ -3,7 +3,8 @@ import math
 import uuid
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
-    get_extended_border_point, is_ray_blocked, is_spawn_location_valid
+    get_extended_border_point, is_ray_blocked, is_spawn_location_valid,
+    polygon_area, points_centroid
 )
 
 class FightActionsHandler:
@@ -278,7 +279,7 @@ class FightActionsHandler:
                     possible_targets.append(ep)
 
             if possible_targets:
-                midpoint = self.game._points_centroid([p1, p2])
+                midpoint = points_centroid([p1, p2])
                 target_point = min(possible_targets, key=lambda p: distance_sq(midpoint, p))
                 destroyed_point_data = self.game._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
                 if not destroyed_point_data: continue
@@ -301,7 +302,7 @@ class FightActionsHandler:
             p_ids = territory['point_ids']
             if all(pid in points_map for pid in p_ids):
                 triangle_points = [points_map[pid] for pid in p_ids]
-                if len(triangle_points) == 3 and self.game._polygon_area(triangle_points) >= MIN_AREA:
+                if len(triangle_points) == 3 and polygon_area(triangle_points) >= MIN_AREA:
                     large_territories.append(territory)
         return large_territories
 
@@ -317,7 +318,7 @@ class FightActionsHandler:
             return {'success': False, 'reason': 'territory points no longer exist'}
         
         triangle_points = [points_map[pid] for pid in territory['point_ids']]
-        centroid = self.game._points_centroid(triangle_points)
+        centroid = points_centroid(triangle_points)
 
         enemy_points = self.game._get_vulnerable_enemy_points(teamId)
         if enemy_points:
@@ -367,7 +368,7 @@ class FightActionsHandler:
             prong_points = [points_map[pid] for pid in current_bastion_state['prong_ids'] if pid in points_map]
             
             # Sort points angularly to form a correct simple polygon
-            centroid = self.game._points_centroid(prong_points)
+            centroid = points_centroid(prong_points)
             prong_points.sort(key=lambda p: math.atan2(p['y'] - centroid['y'], p['x'] - centroid['x']))
             
             enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
@@ -817,14 +818,14 @@ class FightActionsHandler:
             for purifier in team_purifiers:
                 if not all(pid in points_map for pid in purifier['point_ids']): continue
                 purifier_points = [points_map[pid] for pid in purifier['point_ids']]
-                purifier_center = self.game._points_centroid(purifier_points)
+                purifier_center = points_centroid(purifier_points)
                 if not purifier_center: continue
                 
                 for territory in enemy_territories:
                     if not all(pid in points_map for pid in territory['point_ids']): continue
                     territory_points = [points_map[pid] for pid in territory['point_ids']]
                     if len(territory_points) != 3: continue
-                    territory_center = self.game._points_centroid(territory_points)
+                    territory_center = points_centroid(territory_points)
 
                     dist_sq = distance_sq(purifier_center, territory_center)
                     if dist_sq < min_dist_sq:
@@ -848,7 +849,7 @@ class FightActionsHandler:
             return {'success': False, 'reason': 'purifier points for fallback no longer exist'}
         
         purifier_points = [points_map[pid] for pid in purifier_to_pulse_from['point_ids']]
-        pulse_center = self.game._points_centroid(purifier_points)
+        pulse_center = points_centroid(purifier_points)
         pulse_radius_sq = (self.state['grid_size'] * 0.25)**2
         
         pushed_points = []

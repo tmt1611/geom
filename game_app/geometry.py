@@ -311,6 +311,50 @@ def is_regular_pentagon(p1, p2, p3, p4, p5):
         
     return True
 
+def points_centroid(points):
+    """Calculates the geometric centroid of a list of points."""
+    if not points:
+        return None
+    num_points = len(points)
+    x_sum = sum(p['x'] for p in points)
+    y_sum = sum(p['y'] for p in points)
+    return {'x': x_sum / num_points, 'y': y_sum / num_points}
+
+
+def polygon_perimeter(points):
+    """Calculates the perimeter of a polygon."""
+    perimeter = 0.0
+    n = len(points)
+    for i in range(n):
+        p1 = points[i]
+        p2 = points[(i + 1) % n]
+        perimeter += math.sqrt(distance_sq(p1, p2))
+    return perimeter
+
+
+def get_convex_hull(points):
+    """Computes the convex hull of a set of points using Graham Scan."""
+    if len(points) < 3:
+        return points
+    
+    # Find pivot (lowest y, then lowest x)
+    pivot = min(points, key=lambda p: (p['y'], p['x']))
+    
+    # Sort points by polar angle with pivot
+    sorted_points = sorted(
+        [p for p in points if p != pivot], 
+        key=lambda p: (math.atan2(p['y'] - pivot['y'], p['x'] - pivot['x']), distance_sq(p, pivot))
+    )
+    
+    hull = [pivot]
+    for p in sorted_points:
+        while len(hull) >= 2 and orientation(hull[-2], hull[-1], p) != 2: # 2 = counter-clockwise
+            hull.pop()
+        hull.append(p)
+        
+    return hull
+
+
 def is_spawn_location_valid(new_point_coords, new_point_teamId, grid_size, all_points, fissures, heartwoods, min_dist_sq=1.0):
     """Checks if a new point can be spawned at the given coordinates."""
     # Check if point is within grid boundaries

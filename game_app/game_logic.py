@@ -5,7 +5,7 @@ from itertools import combinations
 from .geometry import (
     distance_sq, on_segment, orientation, segments_intersect,
     get_segment_intersection_point, is_ray_blocked, get_extended_border_point,
-    polygon_area
+    polygon_area, points_centroid, polygon_perimeter, get_convex_hull
 )
 from .formations import FormationManager
 from . import game_data
@@ -441,15 +441,6 @@ class Game:
         
         return deleted_point_data
 
-    def _points_centroid(self, points):
-        """Calculates the geometric centroid of a list of points."""
-        if not points:
-            return None
-        num_points = len(points)
-        x_sum = sum(p['x'] for p in points)
-        y_sum = sum(p['y'] for p in points)
-        return {'x': x_sum / num_points, 'y': y_sum / num_points}
-
     def _get_vulnerable_enemy_points(self, teamId):
         """Returns a list of enemy points that are not immune to standard attacks."""
         fortified_point_ids = self._get_fortified_point_ids()
@@ -612,7 +603,7 @@ class Game:
             prong_points = [points_map[pid] for pid in bastion['prong_ids'] if pid in points_map]
             if len(prong_points) < 2: continue
 
-            centroid = self._points_centroid(prong_points)
+            centroid = points_centroid(prong_points)
             prong_points.sort(key=lambda p: math.atan2(p['y'] - centroid['y'], p['x'] - centroid['x']))
             
             has_crossing_line = False
@@ -1057,12 +1048,12 @@ class Game:
             triangles = len(all_triangles)
             
             # 3. Convex Hull and its properties (using Graham Scan)
-            hull_points = self._get_convex_hull(team_points_list)
+            hull_points = get_convex_hull(team_points_list)
             hull_area = 0
             hull_perimeter = 0
             if len(hull_points) >= 3:
                 hull_area = polygon_area(hull_points)
-                hull_perimeter = self._polygon_perimeter(hull_points)
+                hull_perimeter = polygon_perimeter(hull_points)
 
             # 4. Total Controlled Area from territories
             controlled_area = 0
@@ -1088,38 +1079,6 @@ class Game:
             interpretation[teamId] = stats
             
         return interpretation
-
-    def _get_convex_hull(self, points):
-        """Computes the convex hull of a set of points using Graham Scan."""
-        if len(points) < 3:
-            return points
-        
-        # Find pivot (lowest y, then lowest x)
-        pivot = min(points, key=lambda p: (p['y'], p['x']))
-        
-        # Sort points by polar angle with pivot
-        sorted_points = sorted(
-            [p for p in points if p != pivot], 
-            key=lambda p: (math.atan2(p['y'] - pivot['y'], p['x'] - pivot['x']), distance_sq(p, pivot))
-        )
-        
-        hull = [pivot]
-        for p in sorted_points:
-            while len(hull) >= 2 and orientation(hull[-2], hull[-1], p) != 2: # 2 = counter-clockwise
-                hull.pop()
-            hull.append(p)
-            
-        return hull
-
-    def _polygon_perimeter(self, points):
-        """Calculates the perimeter of a polygon."""
-        perimeter = 0.0
-        n = len(points)
-        for i in range(n):
-            p1 = points[i]
-            p2 = points[(i + 1) % n]
-            perimeter += math.sqrt(distance_sq(p1, p2))
-        return perimeter
 
     # --- Rune System ---
     

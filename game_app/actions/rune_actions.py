@@ -4,7 +4,8 @@ import uuid
 from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
-    get_extended_border_point, is_spawn_location_valid, is_point_inside_triangle
+    get_extended_border_point, is_spawn_location_valid, is_point_inside_triangle,
+    points_centroid
 )
 
 class RuneActionsHandler:
@@ -166,7 +167,7 @@ class RuneActionsHandler:
         else:
             # --- Fallback Effect: Push Friendly Points ---
             pushed_points = []
-            rune_center = self.game._points_centroid(tri_points)
+            rune_center = points_centroid(tri_points)
             push_radius_sq = (self.state['grid_size'] * 0.2)**2
             push_distance = 1.5
             grid_size = self.state['grid_size']
@@ -200,7 +201,7 @@ class RuneActionsHandler:
             return {'success': False, 'reason': 'rune points no longer exist'}
             
         tri_points = [points[pid] for pid in rune['triangle_ids']]
-        rune_center = self.game._points_centroid(tri_points)
+        rune_center = points_centroid(tri_points)
         if not rune_center: return {'success': False, 'reason': 'could not calculate rune center'}
 
         pulse_radius_sq = (self.state['grid_size'] * 0.3)**2
@@ -380,8 +381,8 @@ class RuneActionsHandler:
         
         # --- Fallback Effect: Create central structure ---
         else:
-            mid1 = self.game._points_centroid([d1_p1, d1_p2])
-            mid2 = self.game._points_centroid([d2_p1, d2_p2])
+            mid1 = points_centroid([d1_p1, d1_p2])
+            mid2 = points_centroid([d2_p1, d2_p2])
             
             grid_size = self.state['grid_size']
             p1_coords = {
@@ -648,7 +649,7 @@ class RuneActionsHandler:
                 return {'success': False, 'reason': 'no enemies to target for focus beam fizzle'}
 
             largest_enemy_team_id = max(enemy_team_points, key=lambda tid: len(enemy_team_points[tid]))
-            enemy_centroid = self.game._points_centroid(enemy_team_points[largest_enemy_team_id])
+            enemy_centroid = points_centroid(enemy_team_points[largest_enemy_team_id])
 
             fissure_id = self.game._generate_id('f')
             fissure_len = self.state['grid_size'] * 0.2

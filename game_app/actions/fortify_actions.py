@@ -2,7 +2,7 @@ import random
 import math
 import uuid
 from itertools import combinations
-from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, is_spawn_location_valid
+from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, is_spawn_location_valid, points_centroid
 
 class FortifyActionsHandler:
     def __init__(self, game):
@@ -532,8 +532,8 @@ class FortifyActionsHandler:
         side1_pts = [id_to_point[pid] for pid in list(side1_ids)]
         side2_pts = [id_to_point[pid] for pid in list(side2_ids)]
         
-        mid1 = self.game._points_centroid(side1_pts)
-        mid2 = self.game._points_centroid(side2_pts)
+        mid1 = points_centroid(side1_pts)
+        mid2 = points_centroid(side2_pts)
 
         barricade_id = self.game._generate_id('bar')
         new_barricade = {
