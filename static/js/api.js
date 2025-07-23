@@ -21,21 +21,34 @@ const api = {
             // To ensure the Pyodide environment is as close to the server environment as possible,
             // we will reconstruct the package structure in the virtual filesystem by fetching all python files.
             console.log('Fetching Python source files for Pyodide...');
-            // We fetch all .py files except __init__.py, which has server-specific dependencies (Flask).
-            const pyFiles = ['game_logic.py', 'geometry.py', 'formations.py', 'routes.py', 'utils.py'];
-            this._pyodide.FS.mkdir('/game_app');
+            // We fetch all .py files needed for the game logic to run in the browser.
+            const pyodideFileStructure = {
+                'game_app': [
+                    'game_logic.py', 'geometry.py', 'formations.py', 'game_data.py',
+                    'turn_processor.py'
+                ],
+                'game_app/actions': [
+                    'expand_actions.py', 'fight_actions.py', 'fortify_actions.py'
+                ]
+            };
 
-            for (const file of pyFiles) {
-                const response = await fetch(`game_app/${file}`);
-                if (!response.ok) throw new Error(`Failed to fetch ${file}: ${response.statusText}`);
-                const code = await response.text();
-                this._pyodide.FS.writeFile(`/game_app/${file}`, code, { encoding: 'utf8' });
+            for (const dir in pyodideFileStructure) {
+                const pyodidePath = `/${dir}`;
+                this._pyodide.FS.mkdir(pyodidePath);
+                 // Create an __init__.py file in each directory to make it a package
+                this._pyodide.FS.writeFile(`${pyodidePath}/__init__.py`, '', { encoding: 'utf8' });
+
+                for (const file of pyodideFileStructure[dir]) {
+                    const response = await fetch(`${dir}/${file}`);
+                    if (!response.ok) throw new Error(`Failed to fetch ${dir}/${file}: ${response.statusText}`);
+                    const code = await response.text();
+                    this._pyodide.FS.writeFile(`${pyodidePath}/${file}`, code, { encoding: 'utf8' });
+                }
             }
-            
-            // Create a pyodide-specific __init__.py to make `game_app` a package.
-            // Its only job is to import game_logic, which creates the singleton `game` instance.
-            console.log('Creating Pyodide package initializer...');
+
+            // A custom __init__.py for the root game_app package to ensure game instance is created.
             this._pyodide.FS.writeFile('/game_app/__init__.py', 'from . import game_logic', { encoding: 'utf8' });
+            console.log('Pyodide filesystem populated.');
 
             console.log('Importing Python game logic and getting instance...');
             // Add root to path, import the module, and expose the 'game' instance globally for JS.

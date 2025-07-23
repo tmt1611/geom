@@ -1,13 +1,14 @@
-This iteration focused on significantly improving the layout and content of the "Action Guide" tab.
+This iteration focused on a mix of code cleanup, a critical bug fix for the static deployment mode, and expanding the visual content in the Action Guide.
 
-### 1. Compact Grid Layout
-The Action Guide has been refactored from a single-column list into a responsive, multi-column grid. This makes the layout much more compact, allowing users to see many more actions at a glance without excessive scrolling. Key changes include:
-- The `action-guide-grid` now uses `grid-template-columns: repeat(auto-fill, minmax(280px, 1fr))` for a flexible card layout.
-- Individual action cards (`.action-card`) now stack their content vertically (illustration on top, text below) to fit the new grid format.
-- The illustration canvas within each card is now responsive, scaling to fit the card's width while maintaining a 3:2 aspect ratio.
-- A subtle hover effect was added to the cards to improve interactivity.
+### 1. Code Cleanup & Refactoring
+- **`game_logic.py`**: An unused helper function (`_reflect_point`) and an unused import (`is_regular_pentagon`) were removed from the main game logic file to reduce code duplication and improve clarity.
 
-### 2. New Illustrations
-To continue filling out the visual guide, new illustrations have been developed for two previously un-illustrated actions:
-- **Fortify: Form Rift Spire:** The artwork shows three friendly territories converging on a single point, which is then sacrificed to create the powerful Rift Spire structure.
-- **Rune: Starlight Cascade:** This illustration depicts a Star-Rune formation sacrificing one of its outer points to unleash a damaging area-of-effect blast on nearby enemy lines.
+### 2. Pyodide Bug Fix
+- **`static/js/api.js`**: A significant bug in the Pyodide (static/WebAssembly) mode has been fixed. The previous implementation failed to load several essential Python files (`game_data.py`, `turn_processor.py`, and all action handlers in `game_app/actions/`). This prevented the game from running when deployed as a static site (e.g., on GitHub Pages). The file loading logic has been rewritten to correctly construct the entire `game_app` package in Pyodide's virtual filesystem, ensuring the static version now functions as intended.
+
+### 3. New Illustrations for Action Guide
+To further enhance the user experience and visual clarity of the game's mechanics, I have developed and implemented illustrations for three previously un-illustrated, high-impact Rune actions:
+
+- **Rune: Focus Beam:** Depicts a Star-Rune firing a concentrated beam from its center to destroy a high-value enemy structure.
+- **Rune: Cardinal Pulse:** Shows a Plus-Rune being consumed to unleash four beams in cardinal directions, illustrating one beam destroying an enemy line and another creating a new friendly point.
+- **Rune: Parallel Discharge:** Illustrates a Parallelogram-Rune emitting an energy blast that destroys an enemy line crossing its interior.

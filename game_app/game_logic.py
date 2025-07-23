@@ -5,7 +5,7 @@ from itertools import combinations
 from .geometry import (
     distance_sq, on_segment, orientation, segments_intersect,
     get_segment_intersection_point, is_rectangle, is_parallelogram,
-    get_isosceles_triangle_info, is_regular_pentagon
+    get_isosceles_triangle_info
 )
 from .formations import FormationManager
 from . import game_data
@@ -944,31 +944,6 @@ class Game:
 
     def fortify_action_build_chronos_spire(self, teamId):
         return self.fortify_handler.build_chronos_spire(teamId)
-
-    def _reflect_point(self, point, p1_axis, p2_axis):
-        """Reflects a point across the line defined by p1_axis and p2_axis."""
-        px, py = point['x'], point['y']
-        x1, y1 = p1_axis['x'], p1_axis['y']
-        x2, y2 = p2_axis['x'], p2_axis['y']
-
-        # Line equation ax + by + c = 0
-        a = y2 - y1
-        b = x1 - x2
-        
-        if a == 0 and b == 0: # The axis points are the same, no line.
-            return None
-
-        c = -a * x1 - b * y1
-        
-        den = a**2 + b**2
-        if den == 0: return None
-        
-        val = -2 * (a * px + b * py + c) / den
-        
-        rx = px + val * a
-        ry = py + val * b
-        
-        return {'x': rx, 'y': ry}
 
     def fortify_action_mirror_structure(self, teamId):
         return self.fortify_handler.mirror_structure(teamId)

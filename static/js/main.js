@@ -4416,6 +4416,131 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillText('💥', w*0.8, h*0.5);
             ctx.fillText('💥', w*0.75, h*0.1);
         },
+        'rune_focus_beam': (ctx, w, h) => {
+            const team1_color = 'hsl(50, 80%, 60%)'; // Gold for star
+            const team2_color = 'hsl(240, 70%, 50%)';
+
+            // Star rune
+            const center = {x: w*0.3, y: h*0.5};
+            const radius = w * 0.2;
+            const num_points = 5;
+            const cycle_points = [];
+            for (let i = 0; i < num_points; i++) {
+                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
+                cycle_points.push({
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y + Math.sin(angle) * radius,
+                });
+            }
+            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
+            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
+            for (let i = 0; i < num_points; i++) {
+                illustrationHelpers.drawLines(ctx, [{p1: cycle_points[i], p2: cycle_points[(i+1)%num_points]}], team1_color);
+            }
+
+            // High-value enemy target (bastion core)
+            const target = {x: w*0.8, y: h*0.5};
+            ctx.save();
+            ctx.fillStyle = team2_color;
+            const size = 12;
+            ctx.translate(target.x, target.y);
+            ctx.beginPath();
+            ctx.moveTo(0, -size); ctx.lineTo(size, 0); ctx.lineTo(0, size); ctx.lineTo(-size, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+
+            // Beam
+            illustrationHelpers.drawArrow(ctx, center, target, 'rgba(255, 255, 150, 1.0)');
+
+            // Explosion
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('💥', target.x, target.y);
+        },
+        'rune_cardinal_pulse': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+
+            // Plus rune
+            const center = {x: w*0.5, y: h*0.5};
+            const arms = [
+                {x: w*0.5, y: h*0.2}, // top
+                {x: w*0.8, y: h*0.5}, // right
+                {x: w*0.5, y: h*0.8}, // bottom
+                {x: w*0.2, y: h*0.5}  // left
+            ];
+            const rune_points = [center, ...arms];
+            illustrationHelpers.drawPoints(ctx, rune_points, team1_color);
+            arms.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
+            
+            // Show consumption
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            rune_points.forEach(p => {
+                ctx.beginPath();
+                ctx.moveTo(p.x - 4, p.y - 4); ctx.lineTo(p.x + 4, p.y + 4);
+                ctx.moveTo(p.x - 4, p.y + 4); ctx.lineTo(p.x + 4, p.y - 4);
+                ctx.stroke();
+            });
+
+            // Beams
+            // 1. Right beam hits enemy line
+            const ep1 = {x: w*0.9, y: h*0.3};
+            const ep2 = {x: w*0.9, y: h*0.7};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color);
+            const hit_point = {x: w*0.9, y: h*0.5};
+            illustrationHelpers.drawArrow(ctx, center, hit_point, team1_color);
+            ctx.font = '24px Arial'; ctx.fillStyle = 'red'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('💥', hit_point.x, hit_point.y);
+
+            // 2. Top beam misses, creates point
+            const new_point = {x: w*0.5, y: h*0.05};
+            illustrationHelpers.drawDashedLine(ctx, center, new_point, team1_color);
+            illustrationHelpers.drawPoints(ctx, [new_point], team1_color);
+            
+            // 3 & 4. Other beams just flying off
+            illustrationHelpers.drawArrow(ctx, center, {x:w*0.05, y:h*0.5}, team1_color);
+            illustrationHelpers.drawArrow(ctx, center, {x:w*0.5, y:h*0.95}, team1_color);
+        },
+        'rune_parallel_discharge': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            
+            // Parallelogram rune
+            const p1 = {x: w*0.2, y: h*0.2};
+            const p2 = {x: w*0.6, y: h*0.2};
+            const p3 = {x: w*0.8, y: h*0.8};
+            const p4 = {x: w*0.4, y: h*0.8};
+            const points = [p1, p2, p3, p4];
+            illustrationHelpers.drawPoints(ctx, points, team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p4},{p1:p4,p2:p1}], team1_color);
+            
+            // Crossing enemy line
+            const ep1 = {x: w*0.5, y: h*0.1};
+            const ep2 = {x: w*0.5, y: h*0.9};
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color);
+            
+            // Discharge effect
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255, 255, 150, 0.7)'; // Yellowish glow
+            ctx.fill();
+            ctx.restore();
+
+            // Blast on enemy line
+            ctx.font = '24px Arial';
+            ctx.fillStyle = 'red';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('💥', w*0.5, h*0.5);
+        },
     };
 
     async function initActionGuide() {
