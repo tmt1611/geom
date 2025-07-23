@@ -19,24 +19,29 @@ STRUCTURE_DEFINITIONS = {
         'state_key': 'territories', 'storage_type': 'list',
         'point_id_keys': [('list', 'point_ids')],
         'is_critical': True,
+        'frontend_flag_key': 'is_fortified',
     },
     'bastions': {
         'state_key': 'bastions', 'storage_type': 'dict',
         'point_id_keys': ['core_id', ('list', 'prong_ids')],
         'is_critical': True,
         'cleanup_logic': 'custom', # Requires special handling in _cleanup_structures_for_point
+        'frontend_flag_keys': {
+            'core_id': 'is_bastion_core',
+            'prong_ids': 'is_bastion_prong'
+        },
     },
     'monoliths': {
         'state_key': 'monoliths', 'storage_type': 'dict',
         'point_id_keys': [('list', 'point_ids')],
         'is_critical': True,
-        'frontend_flag_key': 'monolith',
+        'frontend_flag_key': 'is_monolith_point',
     },
     'purifiers': {
         'state_key': 'purifiers', 'storage_type': 'team_dict_list',
         'point_id_keys': [('list', 'point_ids')],
         'is_critical': True,
-        'frontend_flag_key': 'purifier',
+        'frontend_flag_key': 'is_purifier_point',
     },
     'nexuses': {
         'state_key': 'nexuses', 'storage_type': 'team_dict_list',
@@ -44,7 +49,7 @@ STRUCTURE_DEFINITIONS = {
         'is_critical': True,
         'formation_checker': 'check_nexuses',
         'formation_inputs': ['team_point_ids', 'team_lines', 'all_points'],
-        'frontend_flag_key': 'nexus',
+        'frontend_flag_key': 'is_nexus_point',
     },
     'attuned_nexuses': {
         'state_key': 'attuned_nexuses', 'storage_type': 'dict',
@@ -64,7 +69,7 @@ STRUCTURE_DEFINITIONS = {
         'is_critical': True,
         'formation_checker': 'check_trebuchets',
         'formation_inputs': ['team_point_ids', 'team_lines', 'all_points'],
-        'frontend_flag_key': 'trebuchet',
+        'frontend_flag_key': 'is_trebuchet_point',
     },
     'ley_lines': {
         'state_key': 'ley_lines', 'storage_type': 'dict',
@@ -76,14 +81,17 @@ STRUCTURE_DEFINITIONS = {
     'anchors': {
         'state_key': 'anchors', 'storage_type': 'dict_keyed_by_pid',
         'is_critical': True, # The point itself is critical while it's an anchor
+        'frontend_flag_key': 'is_anchor',
     },
     'stasis_points': {
         'state_key': 'stasis_points', 'storage_type': 'dict_keyed_by_pid',
         'is_critical': True, # A point in stasis cannot be used, so it's critical
+        'frontend_flag_key': 'is_in_stasis',
     },
     'isolated_points': {
         'state_key': 'isolated_points', 'storage_type': 'dict_keyed_by_pid',
         'is_critical': False, # An isolated point is vulnerable, not necessarily critical
+        'frontend_flag_key': 'is_isolated',
     },
     'heartwoods': {
         'state_key': 'heartwoods', 'storage_type': 'dict', # keyed by teamId
@@ -175,9 +183,9 @@ STRUCTURE_DEFINITIONS = {
         'formation_inputs': ['team_point_ids', 'team_lines', 'all_points'],
         'point_id_keys': [('list', 'point_ids'), ('list', 'internal_points'), ('list', 'endpoints')],
         'frontend_flag_keys': {
-            'point_ids': 'i_rune', # used for is_i_rune_point and is_conduit_point
-            'internal_points': 'i_rune_sentry_eye',
-            'endpoints': 'i_rune_sentry_post'
+            'point_ids': ['is_i_rune_point', 'is_conduit_point'],
+            'internal_points': 'is_sentry_eye',
+            'endpoints': 'is_sentry_post'
         },
     },
     'rune_parallel': {

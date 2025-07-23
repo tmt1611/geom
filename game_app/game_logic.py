@@ -125,44 +125,18 @@ class Game:
 
     def _augment_points_for_frontend(self, points):
         """Adds transient frontend-specific data to points."""
-        # Pre-fetch data sets
-        data_sets = {
-            'fortified_ids': self._get_fortified_point_ids(),
-            'bastion_ids': self._get_bastion_point_ids(),
-            'structure_pids': self._get_structure_point_ids_by_type(),
-            'state': self.state,
-        }
-
-        # Define augmentations in a data-driven way: flag -> (data_set_key, sub_key or None)
-        POINT_AUGMENTATIONS = {
-            'is_anchor': ('state', 'anchors'),
-            'is_fortified': ('fortified_ids', None),
-            'is_bastion_core': ('bastion_ids', 'cores'),
-            'is_bastion_prong': ('bastion_ids', 'prongs'),
-            'is_i_rune_point': ('structure_pids', 'i_rune'),
-            'is_sentry_eye': ('structure_pids', 'i_rune_sentry_eye'),
-            'is_sentry_post': ('structure_pids', 'i_rune_sentry_post'),
-            'is_conduit_point': ('structure_pids', 'i_rune'),
-            'is_nexus_point': ('structure_pids', 'nexus'),
-            'is_monolith_point': ('structure_pids', 'monolith'),
-            'is_trebuchet_point': ('structure_pids', 'trebuchet'),
-            'is_purifier_point': ('structure_pids', 'purifier'),
-            'is_in_stasis': ('state', 'stasis_points'),
-            'is_isolated': ('state', 'isolated_points'),
-        }
+        point_flags = self._get_all_point_flags()
+        
+        # Get all unique flag names that can be applied to a point
+        all_flag_names = list(point_flags.keys())
 
         augmented_points = {}
         for pid, point in points.items():
             augmented_point = point.copy()
-            for flag, (data_key, sub_key) in POINT_AUGMENTATIONS.items():
-                source_container = data_sets.get(data_key, {})
-                
-                target_collection = source_container
-                if sub_key:
-                    # sub_key collections are either dicts of sets, or dicts in the main state
-                    target_collection = source_container.get(sub_key, {})
-                
-                augmented_point[flag] = pid in target_collection
+            for flag_name in all_flag_names:
+                # Set the flag to true if the point ID is in the set for that flag
+                if pid in point_flags[flag_name]:
+                    augmented_point[flag_name] = True
             augmented_points[pid] = augmented_point
         return augmented_points
 
@@ -282,13 +256,14 @@ class Game:
             'grid_size': grid_size
         }
 
-    def _get_structure_point_ids_by_type(self):
+    def _get_all_point_flags(self):
         """
-        Returns a dictionary mapping structure types to sets of point IDs for frontend augmentation.
-        This version is driven by the STRUCTURE_DEFINITIONS registry.
+        Returns a dictionary mapping frontend flag names to sets of point IDs that have that flag.
+        This is driven by the STRUCTURE_DEFINITIONS registry.
+        e.g., {'is_anchor': {'p1', 'p2'}, 'is_fortified': {'p3'}}
         """
         from collections import defaultdict
-        ids = defaultdict(set)
+        flags = defaultdict(set)
 
         for definition in structure_data.STRUCTURE_DEFINITIONS.values():
             flag_key = definition.get('frontend_flag_key')
@@ -301,9 +276,13 @@ class Game:
             if not storage:
                 continue
             
-            structures_to_process = []
             storage_type = definition['storage_type']
 
+            if storage_type == 'dict_keyed_by_pid':
+                flags[flag_key].update(storage.keys())
+                continue
+            
+            structures_to_process = []
             if storage_type == 'list':
                 structures_to_process = storage
             elif storage_type == 'dict':
@@ -315,27 +294,35 @@ class Game:
                 subtype_key = definition['structure_subtype_key']
                 for team_structs in storage.values():
                     structures_to_process.extend(team_structs.get(subtype_key, []))
-            
-            if not structures_to_process:
-                continue
 
             for struct in structures_to_process:
-                if flag_key: # Simple case: one flag for the whole structure
+                if flag_key:
+                    pids_to_flag = set()
                     for key_info in definition.get('point_id_keys', []):
                         if isinstance(key_info, tuple):
-                            _, key_name = key_info
-                            point_ids = struct.get(key_name, [])
-                            ids[flag_key].update(point_ids)
-                        else: # string
+                            key_type, key_name = key_info
+                            if key_name:
+                                point_ids = struct.get(key_name, [])
+                                pids_to_flag.update(point_ids)
+                            elif key_type == 'list_of_lists':
+                                if isinstance(struct, list):
+                                    pids_to_flag.update(struct)
+                        else:
                             point_id = struct.get(key_info)
                             if point_id:
-                                ids[flag_key].add(point_id)
-                elif flag_keys_map: # Complex case: different flags for different point lists
-                    for internal_key, generated_flag_key in flag_keys_map.items():
-                        point_ids = struct.get(internal_key, [])
-                        ids[generated_flag_key].update(point_ids)
-        
-        return ids
+                                pids_to_flag.add(point_id)
+                    flags[flag_key].update(pids_to_flag)
+
+                elif flag_keys_map:
+                    for internal_key, generated_keys in flag_keys_map.items():
+                        point_ids_val = struct.get(internal_key, [])
+                        pids_to_flag = set(point_ids_val) if isinstance(point_ids_val, list) else {point_ids_val} if point_ids_val else set()
+                        
+                        flag_names = [generated_keys] if isinstance(generated_keys, str) else generated_keys
+                        for name in flag_names:
+                            if name:
+                                flags[name].update(pids_to_flag)
+        return flags
 
     def get_team_point_ids(self, teamId):
         """Returns IDs of points belonging to a team."""
