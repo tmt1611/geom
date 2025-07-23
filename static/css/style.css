@@ -924,25 +924,25 @@ body.game-running .game-column {
 
 .action-guide-grid {
     display: grid;
-    /* More compact cards, allowing for more columns */
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    /* Wider cards for side-by-side layout, but more can fit vertically */
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 15px;
     flex-grow: 1;
     overflow-y: auto;
-    padding: 10px; /* Reduced padding */
-    background-color: #f0f2f5; /* Slightly different bg for the grid area */
+    padding: 10px;
+    background-color: #f0f2f5;
 }
 .action-card {
     border: 1px solid #dfe4ea;
     border-radius: 6px;
-    background-color: #fff; /* White cards */
+    background-color: #fff;
     box-shadow: 0 2px 4px rgba(0,0,0,0.06);
     display: flex;
-    flex-direction: column; /* Stack illustration on top of text */
-    gap: 0; /* Gaps handled by padding inside children */
-    padding: 0; /* Padding is now inside */
+    flex-direction: row; /* Illustration and text side-by-side */
+    gap: 0;
+    padding: 0;
     transition: box-shadow 0.2s, transform 0.2s;
-    overflow: hidden; /* Important for border-radius on children */
+    overflow: hidden;
 }
 .action-card:hover {
     box-shadow: 0 5px 12px rgba(0,0,0,0.1);
@@ -984,11 +984,11 @@ body.game-running .game-column {
 .action-card-header .action-group--sacrifice { background-color: #d35400; }
 .action-card-header .action-group--rune { background-color: #8e44ad; }
 .action-card canvas {
-    width: 100%;
-    height: 150px; /* Taller canvas for better illustrations */
-    background-color: #fff;
-    border-bottom: 1px solid #dfe4ea; /* Separator */
-    border-radius: 0; /* Top part of card, no radius needed */
+    width: 150px; /* Fixed width for illustration */
+    height: 120px; /* Fixed height */
+    background-color: #fdfdfd;
+    border-right: 1px solid #dfe4ea; /* Separator */
+    border-radius: 0;
     flex-shrink: 0;
 }
 .action-card-description {
