@@ -1,13 +1,9 @@
-This iteration introduces a significant code cleanup, a bug fix, and a new illustration for the Action Guide.
+This iteration focuses on improving the user interface and expanding the visual documentation in the "Action Guide" tab.
 
-### 1. Refactored Turn Processing Logic
+### 1. Redesigned Action Guide Layout
 
-To improve code organization and make the core `game_logic.py` file more manageable, all start-of-turn effect processing logic has been extracted into a new, dedicated `TurnProcessor` class in `game_app/turn_processor.py`. This includes methods for handling the decay of shields and traps, the effects of anchors and whirlpools, and the passive abilities of structures like Heartwoods and Monoliths. This refactoring cleans up the main `Game` class, making its responsibilities clearer and the overall codebase easier to maintain.
+The layout of the "Action Guide" tab has been significantly improved for better readability and compactness. The previous multi-column grid has been replaced with a single-column list view. Action cards now feature a side-by-side layout, with the illustration on the left and the descriptive text on the right. This change makes better use of horizontal space, reduces vertical scrolling, and presents the information in a more organized and less cluttered manner.
 
-### 2. Fixed ID Generation Bug
+### 2. New Illustration for "Raise Barricade"
 
-A latent bug was discovered in `fight_actions.py` where two actions (`attack_line` and the fallback for `pincer_attack`) were calling a non-existent `_generate_id` method. This would have caused a crash if those specific code paths were executed. I have replaced these calls with the correct `uuid`-based ID generation, ensuring consistency and preventing future errors.
-
-### 3. New Illustration for "Build Wonder"
-
-To continue expanding the visual documentation of game mechanics, a new illustration has been created for the powerful `fortify_build_wonder` action. The illustration depicts a team sacrificing a complex Star-Rune formation, which then transforms into the Chronos Spire wonder, visually explaining the high cost and significant outcome of this game-changing action.
+To further enhance the visual guide, a new illustration has been developed for the `terraform_raise_barricade` action. The artwork clearly depicts the process: a four-point "Barricade Rune" is shown being consumed, which then results in the creation of a jagged, wall-like structure. This visual aid helps users quickly understand the cause-and-effect of this powerful terrain-altering action.

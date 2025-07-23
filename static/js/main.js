@@ -4181,6 +4181,38 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.stroke();
             ctx.restore();
         },
+        'terraform_raise_barricade': (ctx, w, h) => {
+            const team1_color = 'hsl(30, 70%, 50%)'; // Brownish for earth/wall
+            
+            // 1. Draw Barricade Rune (rectangle)
+            const p1 = {x: w*0.2, y: h*0.2};
+            const p2 = {x: w*0.8, y: h*0.2};
+            const p3 = {x: w*0.8, y: h*0.8};
+            const p4 = {x: w*0.2, y: h*0.8};
+            const points = [p1, p2, p3, p4];
+            illustrationHelpers.drawPoints(ctx, points, team1_color);
+            illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p4},{p1:p4,p2:p1}], team1_color);
+            
+            // 2. Show consumption
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            points.forEach(p => {
+                ctx.beginPath();
+                ctx.moveTo(p.x - 4, p.y - 4); ctx.lineTo(p.x + 4, p.y + 4);
+                ctx.moveTo(p.x - 4, p.y + 4); ctx.lineTo(p.x + 4, p.y - 4);
+                ctx.stroke();
+            });
+
+            // 3. Draw the resulting barricade
+            const mid1 = {x: (p1.x+p4.x)/2, y: (p1.y+p4.y)/2};
+            const mid2 = {x: (p2.x+p3.x)/2, y: (p2.y+p3.y)/2};
+            ctx.save();
+            ctx.strokeStyle = team1_color;
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            illustrationHelpers.drawJaggedLine(ctx, mid1, mid2, 10, 4);
+            ctx.restore();
+        },
     };
 
     async function initActionGuide() {
