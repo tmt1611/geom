@@ -4,7 +4,8 @@ import uuid  # For unique point IDs
 from itertools import combinations
 from .geometry import (
     distance_sq, on_segment, orientation, segments_intersect,
-    get_segment_intersection_point, is_ray_blocked, get_extended_border_point
+    get_segment_intersection_point, is_ray_blocked, get_extended_border_point,
+    polygon_area
 )
 from .formations import FormationManager
 from . import game_data
@@ -205,7 +206,7 @@ class Game:
                 if all(pid in all_points for pid in triangle_point_ids):
                     triangle_points = [all_points[pid] for pid in triangle_point_ids]
                     if len(triangle_points) == 3:
-                        controlled_area += self._polygon_area(triangle_points)
+                        controlled_area += polygon_area(triangle_points)
 
             live_stats[teamId] = {
                 'point_count': len(team_point_ids),
@@ -1042,7 +1043,7 @@ class Game:
             hull_area = 0
             hull_perimeter = 0
             if len(hull_points) >= 3:
-                hull_area = self._polygon_area(hull_points)
+                hull_area = polygon_area(hull_points)
                 hull_perimeter = self._polygon_perimeter(hull_points)
 
             # 4. Total Controlled Area from territories
@@ -1052,7 +1053,7 @@ class Game:
                 if all(pid in all_points for pid in triangle_point_ids):
                     triangle_points = [all_points[pid] for pid in triangle_point_ids]
                     if len(triangle_points) == 3:
-                        controlled_area += self._polygon_area(triangle_points)
+                        controlled_area += polygon_area(triangle_points)
 
 
             stats = {
@@ -1091,29 +1092,6 @@ class Game:
             hull.append(p)
             
         return hull
-
-    def _is_point_inside_triangle(self, point, tri_p1, tri_p2, tri_p3):
-        """Checks if a point is inside a triangle defined by three other points."""
-        main_area = self._polygon_area([tri_p1, tri_p2, tri_p3])
-        if main_area < 0.01: # Degenerate triangle
-            return False
-
-        area1 = self._polygon_area([point, tri_p2, tri_p3])
-        area2 = self._polygon_area([tri_p1, point, tri_p3])
-        area3 = self._polygon_area([tri_p1, tri_p2, point])
-        
-        # Check if sum of sub-triangle areas equals the main triangle area (with tolerance)
-        return abs((area1 + area2 + area3) - main_area) < 0.01
-
-    def _polygon_area(self, points):
-        """Calculates area of a polygon using Shoelace formula."""
-        area = 0.0
-        n = len(points)
-        for i in range(n):
-            j = (i + 1) % n
-            area += points[i]['x'] * points[j]['y']
-            area -= points[j]['x'] * points[i]['y']
-        return abs(area) / 2.0
 
     def _polygon_perimeter(self, points):
         """Calculates the perimeter of a polygon."""

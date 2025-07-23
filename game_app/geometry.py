@@ -254,6 +254,31 @@ def get_isosceles_triangle_info(p1, p2, p3):
     
     return None
 
+def polygon_area(points):
+    """Calculates area of a polygon using Shoelace formula."""
+    if len(points) < 3:
+        return 0
+    area = 0.0
+    n = len(points)
+    for i in range(n):
+        j = (i + 1) % n
+        area += points[i]['x'] * points[j]['y']
+        area -= points[j]['x'] * points[i]['y']
+    return abs(area) / 2.0
+
+def is_point_inside_triangle(point, tri_p1, tri_p2, tri_p3):
+    """Checks if a point is inside a triangle defined by three other points."""
+    main_area = polygon_area([tri_p1, tri_p2, tri_p3])
+    if main_area < 0.01: # Degenerate triangle
+        return False
+
+    area1 = polygon_area([point, tri_p2, tri_p3])
+    area2 = polygon_area([tri_p1, point, tri_p3])
+    area3 = polygon_area([tri_p1, tri_p2, point])
+    
+    # Check if sum of sub-triangle areas equals the main triangle area (with tolerance)
+    return abs((area1 + area2 + area3) - main_area) < 0.01
+
 def is_regular_pentagon(p1, p2, p3, p4, p5):
     """Checks if five points form a regular pentagon."""
     points = [p1, p2, p3, p4, p5]

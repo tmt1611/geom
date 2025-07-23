@@ -1,7 +1,7 @@
 import math
 from itertools import combinations
 from .geometry import (distance_sq, get_isosceles_triangle_info, is_rectangle,
-                       is_parallelogram, orientation)
+                       is_parallelogram, orientation, is_point_inside_triangle)
 
 class FormationManager:
     """
@@ -168,19 +168,6 @@ class FormationManager:
                     v_runes.append({'vertex_id': vertex_id, 'leg1_id': leg1_id, 'leg2_id': leg2_id})
         return v_runes
 
-    def _is_point_inside_triangle(self, point, tri_p1, tri_p2, tri_p3):
-        def _polygon_area(points):
-            area = 0.0
-            for i in range(len(points)):
-                j = (i + 1) % len(points)
-                area += points[i]['x'] * points[j]['y']
-                area -= points[j]['x'] * points[i]['y']
-            return abs(area) / 2.0
-            
-        main_area = _polygon_area([tri_p1, tri_p2, tri_p3])
-        if main_area < 0.01: return False
-        return abs((_polygon_area([point, tri_p2, tri_p3]) + _polygon_area([tri_p1, point, tri_p3]) + _polygon_area([tri_p1, tri_p2, point])) - main_area) < 0.01
-
     def check_shield_rune(self, team_point_ids, team_lines, all_points):
         """Finds Shield Runes: a triangle with another friendly point inside."""
         if len(team_point_ids) < 4: return []
@@ -198,7 +185,7 @@ class FormationManager:
             
             for core_id in other_point_ids:
                 if core_id not in all_points: continue
-                if self._is_point_inside_triangle(all_points[core_id], p1, p2, p3):
+                if is_point_inside_triangle(all_points[core_id], p1, p2, p3):
                     rune_points = set(tri_ids) | {core_id}
                     shield_runes.append({'triangle_ids': list(tri_ids), 'core_id': core_id})
                     used_points.update(rune_points)
