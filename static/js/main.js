@@ -4720,7 +4720,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="action-card-text">
                          <div class="action-card-header">
                             <h4>${action.display_name}</h4>
-                            <span class="action-group">${action.group}</span>
+                            <span class="action-group action-group--${action.group.toLowerCase()}">${action.group}</span>
                         </div>
                         <div class="action-card-description">${action.description}</div>
                     </div>

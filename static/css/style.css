@@ -978,6 +978,11 @@ body.game-running .game-column {
     text-transform: uppercase;
     font-weight: 500;
 }
+.action-card-header .action-group--expand { background-color: #27ae60; }
+.action-card-header .action-group--fight { background-color: #c0392b; }
+.action-card-header .action-group--fortify { background-color: #2980b9; }
+.action-card-header .action-group--sacrifice { background-color: #d35400; }
+.action-card-header .action-group--rune { background-color: #8e44ad; }
 .action-card canvas {
     width: 100%;
     height: 150px; /* Taller canvas for better illustrations */
