@@ -2,8 +2,8 @@
 
 ACTION_GROUPS = {
     'Expand': ['expand_add', 'expand_extend', 'expand_grow', 'expand_fracture', 'expand_spawn', 'expand_orbital'],
-    'Fight': ['fight_attack', 'fight_convert', 'fight_pincer_attack', 'fight_territory_strike', 'fight_bastion_pulse', 'fight_sentry_zap', 'fight_chain_lightning', 'fight_refraction_beam', 'fight_launch_payload', 'fight_purify_territory'],
-    'Fortify': ['fortify_claim', 'fortify_anchor', 'fortify_mirror', 'fortify_form_bastion', 'fortify_form_monolith', 'fortify_form_purifier', 'fortify_cultivate_heartwood', 'fortify_form_rift_spire', 'terraform_create_fissure', 'terraform_raise_barricade', 'fortify_build_wonder', 'fortify_shield', 'fortify_reposition_point'],
+    'Fight': ['fight_attack', 'fight_convert', 'fight_pincer_attack', 'fight_territory_strike', 'fight_bastion_pulse', 'fight_sentry_zap', 'fight_chain_lightning', 'fight_refraction_beam', 'fight_launch_payload', 'fight_purify_territory', 'fight_isolate_point'],
+    'Fortify': ['fortify_claim', 'fortify_anchor', 'fortify_mirror', 'fortify_form_bastion', 'fortify_form_monolith', 'fortify_form_purifier', 'fortify_cultivate_heartwood', 'fortify_form_rift_spire', 'terraform_create_fissure', 'terraform_raise_barricade', 'fortify_build_wonder', 'fortify_shield', 'fortify_reposition_point', 'fortify_attune_nexus'],
     'Sacrifice': ['sacrifice_nova', 'sacrifice_whirlpool', 'sacrifice_phase_shift', 'sacrifice_rift_trap', 'sacrifice_scorch_territory'],
     'Rune': ['rune_shoot_bisector', 'rune_area_shield', 'rune_shield_pulse', 'rune_impale', 'rune_hourglass_stasis', 'rune_t_hammer_slam', 'rune_starlight_cascade', 'rune_focus_beam', 'rune_cardinal_pulse', 'rune_parallel_discharge']
 }
@@ -28,9 +28,9 @@ TRAIT_GROUP_MULTIPLIERS = {
 ACTION_DESCRIPTIONS = {
     'expand_add': "Add Line", 'expand_extend': "Extend Line", 'expand_grow': "Grow Vine", 'expand_fracture': "Fracture Line", 'expand_spawn': "Spawn Point",
     'expand_orbital': "Create Orbital",
-    'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory",
+    'fight_attack': "Attack Line", 'fight_convert': "Convert Point", 'fight_pincer_attack': "Pincer Attack", 'fight_territory_strike': "Territory Strike", 'fight_bastion_pulse': "Bastion Pulse", 'fight_sentry_zap': "Sentry Zap", 'fight_chain_lightning': "Chain Lightning", 'fight_refraction_beam': "Refraction Beam", 'fight_launch_payload': "Launch Payload", 'fight_purify_territory': "Purify Territory", 'fight_isolate_point': "Isolate Point",
     'fortify_claim': "Claim Territory", 'fortify_anchor': "Create Anchor", 'fortify_mirror': "Mirror Structure", 'fortify_form_bastion': "Form Bastion", 'fortify_form_monolith': "Form Monolith", 'fortify_form_purifier': "Form Purifier", 'fortify_cultivate_heartwood': "Cultivate Heartwood", 'fortify_form_rift_spire': "Form Rift Spire", 'terraform_create_fissure': "Create Fissure", 'fortify_build_wonder': "Build Wonder", 'fortify_reposition_point': "Reposition Point",
-    'fortify_shield': "Shield Line / Overcharge",
+    'fortify_shield': "Shield Line / Overcharge", 'fortify_attune_nexus': "Attune Nexus",
     'sacrifice_nova': "Nova Burst", 'sacrifice_whirlpool': "Create Whirlpool", 'sacrifice_phase_shift': "Phase Shift", 'sacrifice_rift_trap': "Create Rift Trap", 'sacrifice_scorch_territory': "Scorch Territory",
     'rune_shoot_bisector': "Rune: V-Beam", 'rune_area_shield': "Rune: Area Shield", 'rune_shield_pulse': "Rune: Shield Pulse", 'rune_impale': "Rune: Impale", 'rune_hourglass_stasis': "Rune: Time Stasis", 'rune_starlight_cascade': "Rune: Starlight Cascade", 'rune_focus_beam': "Rune: Focus Beam", 'rune_cardinal_pulse': "Rune: Cardinal Pulse", 'rune_parallel_discharge': "Rune: Parallel Discharge", 'rune_t_hammer_slam': "Rune: T-Hammer Slam",
     'terraform_raise_barricade': "Raise Barricade"
@@ -102,6 +102,7 @@ ACTION_MAP = {
     'fight_launch_payload': ('fight_handler', 'launch_payload'),
     'fight_sentry_zap': ('fight_handler', 'sentry_zap'),
     'fight_purify_territory': ('fight_handler', 'purify_territory'),
+    'fight_isolate_point': ('fight_handler', 'isolate_point'),
     'fortify_claim': ('fortify_handler', 'claim_territory'),
     'fortify_anchor': ('fortify_handler', 'create_anchor'),
     'fortify_mirror': ('fortify_handler', 'mirror_structure'),
@@ -159,6 +160,8 @@ ACTION_LOG_GENERATORS = {
     'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
     'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION!]"),
     'attune_nexus': lambda r: ("attuned a Nexus, sacrificing a line to energize its surroundings.", "[ATTUNED!]"),
+    'isolate_point': lambda r: (f"isolated a critical point from Team {r['target_team_name']}, cutting their supply lines.", "[ISOLATE!]"),
+    'isolate_fizzle_barricade': lambda r: ("failed to find a critical enemy point to isolate and instead formed a defensive barricade.", "[ISOLATE->WALL]"),
     'monolith_fizzle_reinforce': lambda r: (f"failed to form a Monolith and instead reinforced the {len(r['strengthened_lines'])} lines of a potential structure.", "[MONOLITH->REINFORCE]"),
     'form_monolith': lambda r: ("erected a resonant Monolith from a pillar of light.", "[MONOLITH]"),
     'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),

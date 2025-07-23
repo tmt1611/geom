@@ -19,6 +19,7 @@ class TurnProcessor:
         Returns True if the game ended as a result of these effects (e.g., Wonder victory).
         """
         self._process_shields_and_stasis()
+        self._process_isolated_points()
         self._process_rift_traps()
         self._process_anchors()
         self._process_heartwoods()
@@ -57,6 +58,38 @@ class TurnProcessor:
         self.state['shields'] = {lid: turns - 1 for lid, turns in self.state['shields'].items() if turns - 1 > 0}
         if self.state.get('stasis_points'):
             self.state['stasis_points'] = {pid: turns - 1 for pid, turns in self.state['stasis_points'].items() if turns - 1 > 0}
+
+    def _process_isolated_points(self):
+        """Handles isolated points decay and destruction chance."""
+        if not self.state.get('isolated_points'):
+            return
+
+        expired_points = []
+        points_to_destroy = []
+
+        for point_id, turns_left in list(self.state['isolated_points'].items()):
+            turns_left -= 1
+            if turns_left <= 0:
+                expired_points.append(point_id)
+            else:
+                self.state['isolated_points'][point_id] = turns_left
+                # 25% chance to be destroyed each turn it's isolated
+                if random.random() < 0.25:
+                    points_to_destroy.append(point_id)
+                    expired_points.append(point_id) # also remove from isolation if destroyed
+
+        for point_id in set(expired_points): # use set to avoid duplicates
+             if point_id in self.state['isolated_points']:
+                del self.state['isolated_points'][point_id]
+
+        for point_id in points_to_destroy:
+            if point_id in self.state['points']:
+                point_data = self.state['points'][point_id]
+                team_name = self.state['teams'][point_data['teamId']]['name']
+                self.game._delete_point_and_connections(point_id, aggressor_team_id=None) # No aggressor, it's decay
+                log_msg = {'teamId': point_data['teamId'], 'message': f"An isolated point from Team {team_name} collapsed under pressure.", 'short_message': '[ISOLATED->COLLAPSE]'}
+                self.state['game_log'].append(log_msg)
+                self.state['new_turn_events'].append({'type': 'point_collapse', 'point': point_data})
 
     def _process_rift_traps(self):
         """Handles rift trap triggers, expiration, and spawning."""

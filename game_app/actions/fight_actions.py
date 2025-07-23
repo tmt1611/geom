@@ -56,6 +56,18 @@ class FightActionsHandler:
         can_perform = has_purifier and has_enemy_territory
         return can_perform, "Requires a Purifier and an enemy territory."
 
+    def can_perform_isolate_point(self, teamId):
+        # Requires a line to sacrifice and an enemy articulation point to target.
+        if len(self.game.get_team_lines(teamId)) == 0:
+            return False, "Requires a line to sacrifice."
+        
+        enemy_team_ids = [tid for tid in self.game.state['teams'] if tid != teamId]
+        for enemy_team_id in enemy_team_ids:
+            if self.game._find_articulation_points(enemy_team_id):
+                return True, ""
+                
+        return False, "No enemy articulation points found to isolate."
+
     # --- End Precondition Checks ---
 
     @property
@@ -891,3 +903,69 @@ class FightActionsHandler:
             'purifier_point_ids': purifier_to_pulse_from['point_ids'], 'pulse_center': pulse_center,
             'pushed_points_count': len(pushed_points)
         }
+
+    def isolate_point(self, teamId):
+        """[FIGHT ACTION]: Sacrifices a line to isolate a critical enemy connection point. Fallback to create a barricade."""
+        team_lines = self.game.get_team_lines(teamId)
+        if not team_lines:
+            return {'success': False, 'reason': 'no lines to sacrifice'}
+
+        # Find a target
+        target_point_id = None
+        enemy_team_ids = [tid for tid in self.game.state['teams'] if tid != teamId]
+        random.shuffle(enemy_team_ids)
+        
+        possible_targets = []
+        for enemy_team_id in enemy_team_ids:
+            # Don't isolate points that are already isolated or in stasis
+            articulation_points = self.game._find_articulation_points(enemy_team_id)
+            for pid in articulation_points:
+                if pid not in self.state.get('isolated_points', {}) and pid not in self.state.get('stasis_points', {}):
+                     possible_targets.append(self.state['points'][pid])
+
+        if possible_targets:
+            # Prioritize closest target to any of our lines
+            line_to_sac = random.choice(team_lines)
+            p1 = self.state['points'][line_to_sac['p1_id']]
+            p2 = self.state['points'][line_to_sac['p2_id']]
+            midpoint = points_centroid([p1,p2])
+            
+            target_point = min(possible_targets, key=lambda p: distance_sq(midpoint, p))
+            target_point_id = target_point['id']
+
+            # --- Primary Effect: Isolate Point ---
+            self.state['lines'].remove(line_to_sac)
+            self.state['shields'].pop(line_to_sac.get('id'), None)
+
+            if 'isolated_points' not in self.state:
+                self.state['isolated_points'] = {}
+            
+            self.state['isolated_points'][target_point_id] = 4 # Isolated for 4 turns
+            
+            target_team_name = self.state['teams'][target_point['teamId']]['name']
+            return {
+                'success': True, 'type': 'isolate_point',
+                'isolated_point': target_point,
+                'sacrificed_line': line_to_sac,
+                'target_team_name': target_team_name
+            }
+        else:
+            # --- Fallback: Create barricade ---
+            line_to_sac = random.choice(team_lines)
+            p1 = self.state['points'][line_to_sac['p1_id']]
+            p2 = self.state['points'][line_to_sac['p2_id']]
+            
+            self.state['lines'].remove(line_to_sac)
+            self.state['shields'].pop(line_to_sac.get('id'), None)
+
+            barricade_id = self.game._generate_id('bar')
+            new_barricade = {
+                'id': barricade_id, 'teamId': teamId,
+                'p1': {'x': p1['x'], 'y': p1['y']}, 'p2': {'x': p2['x'], 'y': p2['y']},
+                'turns_left': 2
+            }
+            self.state['barricades'].append(new_barricade)
+            return {
+                'success': True, 'type': 'isolate_fizzle_barricade',
+                'barricade': new_barricade, 'sacrificed_line': line_to_sac
+            }

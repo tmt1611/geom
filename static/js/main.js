@@ -1829,6 +1829,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     const actionVisualsMap = {
+        'isolate_point': (details, gameState) => {
+            lastActionHighlights.points.add(details.isolated_point.id);
+            const line = details.sacrificed_line;
+            const p1 = gameState.points[line.p1_id];
+            const p2 = gameState.points[line.p2_id];
+            if (p1 && p2) {
+                visualEffects.push({
+                    type: 'point_pull',
+                    center: details.isolated_point,
+                    points: [p1, p2],
+                    startTime: Date.now(),
+                    duration: 1000
+                });
+            }
+        },
+        'isolate_fizzle_barricade': (details, gameState) => {
+            lastActionHighlights.structures.add(details.barricade.id);
+            visualEffects.push({
+                type: 'growing_wall',
+                barricade: details.barricade,
+                color: gameState.teams[details.barricade.teamId].color,
+                startTime: Date.now(),
+                duration: 800
+            });
+        },
         'nova_burst': (details, gameState) => {
             lastActionHighlights.points.add(details.sacrificed_point.id);
             // Pre-calculate particle directions for the effect
@@ -2431,7 +2456,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Process turn start events for visuals
         if (gameState.new_turn_events && gameState.new_turn_events.length > 0) {
             gameState.new_turn_events.forEach(event => {
-                if (event.type === 'heartwood_growth') {
+                if (event.type === 'point_collapse') {
+                    visualEffects.push({
+                        type: 'point_implosion',
+                        x: event.point.x,
+                        y: event.point.y,
+                        startTime: Date.now(),
+                        duration: 800,
+                        color: 'rgba(100, 100, 100, 0.9)' // Grey collapse
+                    });
+                } else if (event.type === 'heartwood_growth') {
                     visualEffects.push({
                         type: 'heartwood_growth_ray',
                         heartwood: gameState.heartwoods[event.new_point.teamId],

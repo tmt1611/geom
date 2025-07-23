@@ -71,6 +71,7 @@ class Game:
             'fight_refraction_beam': self.fight_handler.can_perform_refraction_beam,
             'fight_launch_payload': self.fight_handler.can_perform_launch_payload,
             'fight_purify_territory': self.fight_handler.can_perform_purify_territory,
+            'fight_isolate_point': self.fight_handler.can_perform_isolate_point,
             # Fortify Actions
             'fortify_shield': self.fortify_handler.can_perform_shield_line,
             'fortify_claim': self.fortify_handler.can_perform_claim_territory,
@@ -85,6 +86,7 @@ class Game:
             'terraform_raise_barricade': self.fortify_handler.can_perform_raise_barricade,
             'fortify_build_wonder': self.fortify_handler.can_perform_build_chronos_spire,
             'fortify_reposition_point': self.fortify_handler.can_perform_reposition_point,
+            'fortify_attune_nexus': self.fortify_handler.can_perform_attune_nexus,
             # Sacrifice Actions
             'sacrifice_nova': self.sacrifice_handler.can_perform_nova_burst,
             'sacrifice_whirlpool': self.sacrifice_handler.can_perform_create_whirlpool,
@@ -119,6 +121,7 @@ class Game:
             "shields": {}, # {line_id: turns_left}
             "anchors": {}, # {point_id: {teamId: teamId, turns_left: N}}
             "stasis_points": {}, # {point_id: turns_left}
+            "isolated_points": {}, # {point_id: turns_left}
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
             "runes": {}, # {teamId: {'cross': [], 'v_shape': [], 'shield': [], 'trident': [], 'hourglass': [], 'star': [], 'barricade': [], 't_shape': [], 'plus_shape': [], 'i_shape': [], 'parallel': []}}
@@ -200,6 +203,7 @@ class Game:
             augmented_point['is_trebuchet_point'] = pid in structure_pids['trebuchet']
             augmented_point['is_purifier_point'] = pid in structure_pids['purifier']
             augmented_point['is_in_stasis'] = pid in self.state.get('stasis_points', {})
+            augmented_point['is_isolated'] = pid in self.state.get('isolated_points', {})
             augmented_points[pid] = augmented_point
         return augmented_points
 
@@ -611,6 +615,51 @@ class Game:
 
         # All remaining candidates are articulation points. Don't sacrifice.
         return None
+
+    def _find_articulation_points(self, teamId):
+        """Finds all articulation points (cut vertices) for a team's graph."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if len(team_point_ids) < 3:
+            return []
+
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+
+        # Standard algorithm for finding articulation points using DFS
+        tin = {}  # discovery times
+        low = {}  # lowest discovery time reachable
+        timer = 0
+        visited = set()
+        articulation_points = set()
+
+        def dfs(v, p=None):
+            nonlocal timer
+            visited.add(v)
+            tin[v] = low[v] = timer
+            timer += 1
+            children = 0
+            for to in adj.get(v, set()):
+                if to == p:
+                    continue
+                if to in visited:
+                    low[v] = min(low[v], tin[to])
+                else:
+                    dfs(to, v)
+                    low[v] = min(low[v], low[to])
+                    if low[to] >= tin[v] and p is not None:
+                        articulation_points.add(v)
+                    children += 1
+            if p is None and children > 1:
+                articulation_points.add(v)
+
+        for pid in team_point_ids:
+            if pid not in visited:
+                dfs(pid)
+        
+        return list(articulation_points)
 
     def _find_possible_bastion_pulses(self, teamId):
         team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId and len(b['prong_ids']) > 0]
