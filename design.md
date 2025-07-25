@@ -91,7 +91,8 @@ A 10×10 grid-based auto-battle sandbox where users place multiple points belong
 **Action Design Rules:**
 
 * Stronger structures yield stronger actions.
-* Sacrifice actions form their own group.
+* Any actions containing sacrifice must be counted as sacrifice action.
+* Action that does not generate points or deal damage (like rotations, push, pull, etc) must not cost points.
 
 **Sacrifice Action Rules:**
 
