@@ -20,7 +20,20 @@ class FortifyActionsHandler:
         return can_perform, reason
 
     def can_perform_create_anchor(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) >= 3, "Requires at least 3 points to sacrifice one."
+        # Action is possible if there is at least one "free" point that is not already an anchor.
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if not team_point_ids:
+            return False, "Requires at least one point."
+
+        critical_pids = self.game._get_critical_structure_point_ids(teamId)
+        articulation_pids = set(self.game._find_articulation_points(teamId))
+        anchor_pids = set(self.state.get('anchors', {}).keys())
+
+        has_candidate = any(
+            pid not in critical_pids and pid not in articulation_pids and pid not in anchor_pids
+            for pid in team_point_ids
+        )
+        return has_candidate, "No available non-critical points to turn into an anchor."
 
     def _find_a_valid_mirror(self, teamId, num_attempts=5):
         """
@@ -996,21 +1009,31 @@ class FortifyActionsHandler:
         }
 
     def create_anchor(self, teamId):
-        """[FORTIFY ACTION]: Sacrifice a point to turn another into a gravity well."""
+        """[FORTIFY ACTION]: Turns a non-critical point into a gravity well. This action does not cost a point."""
+        # Find a point that can be turned into an anchor.
+        # It must not be part of a critical structure or an articulation point, and not already an anchor.
         team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) < 3: # Requires at least 3 points to not cripple the team.
-            return {'success': False, 'reason': 'not enough points to create anchor'}
-
-        # Find a point to sacrifice and a point to turn into an anchor
-        # Ensure they are not the same point
-        p_to_sac_id, p_to_anchor_id = random.sample(team_point_ids, 2)
+        if not team_point_ids:
+            return {'success': False, 'reason': 'no points to create anchor from'}
         
-        # 1. Sacrifice the first point using the robust helper
-        sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
-        if not sacrificed_point_data:
-             return {'success': False, 'reason': 'failed to sacrifice point'}
+        critical_pids = self.game._get_critical_structure_point_ids(teamId)
+        articulation_pids = set(self.game._find_articulation_points(teamId))
+        anchor_pids = set(self.state.get('anchors', {}).keys())
+        
+        candidate_pids = [
+            pid for pid in team_point_ids 
+            if pid not in critical_pids and pid not in articulation_pids and pid not in anchor_pids
+        ]
 
-        # 2. Create the anchor
+        if not candidate_pids:
+            return {'success': False, 'reason': 'no non-critical points available to become an anchor'}
+
+        p_to_anchor_id = random.choice(candidate_pids)
+        
+        if p_to_anchor_id not in self.state['points']:
+            return {'success': False, 'reason': 'chosen anchor point does not exist'}
+
+        # Create the anchor
         anchor_duration = 5 # turns
         self.state['anchors'][p_to_anchor_id] = {'teamId': teamId, 'turns_left': anchor_duration}
 
@@ -1019,8 +1042,7 @@ class FortifyActionsHandler:
         return {
             'success': True, 
             'type': 'create_anchor', 
-            'anchor_point': anchor_point,
-            'sacrificed_point': sacrificed_point_data
+            'anchor_point': anchor_point
         }
 
     def form_purifier(self, teamId):

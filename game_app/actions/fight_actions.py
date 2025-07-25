@@ -56,16 +56,25 @@ class FightActionsHandler:
         return can_perform, "Requires a Purifier and an enemy territory."
 
     def can_perform_isolate_point(self, teamId):
-        # Requires a line to sacrifice and an enemy articulation point to target.
-        if len(self.game.get_team_lines(teamId)) == 0:
-            return False, "Requires a line to sacrifice."
-        
+        # Primary effect needs >= 1 point and a valid target.
+        # Fallback effect needs >= 2 points.
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if len(team_point_ids) < 1:
+            return False, "Requires at least one point to act."
+
+        if len(team_point_ids) >= 2:
+            return True, ""  # Can always perform the fallback barricade.
+
+        # If only 1 point exists, check if the primary action is possible.
         enemy_team_ids = [tid for tid in self.game.state['teams'] if tid != teamId]
         for enemy_team_id in enemy_team_ids:
-            if self.game._find_articulation_points(enemy_team_id):
-                return True, ""
-                
-        return False, "No enemy articulation points found to isolate."
+            articulation_points = self.game._find_articulation_points(enemy_team_id)
+            for pid in articulation_points:
+                # Check if this potential target is not already isolated or in stasis
+                if pid not in self.state.get('isolated_points', {}) and pid not in self.state.get('stasis_points', {}):
+                    return True, ""
+        
+        return False, "No valid enemy target to isolate and not enough points for fallback barricade."
 
     # --- End Precondition Checks ---
 
@@ -820,13 +829,12 @@ class FightActionsHandler:
         }
 
     def isolate_point(self, teamId):
-        """[FIGHT ACTION]: Sacrifices a line to isolate a critical enemy connection point. Fallback to create a barricade."""
-        team_lines = self.game.get_team_lines(teamId)
-        if not team_lines:
-            return {'success': False, 'reason': 'no lines to sacrifice'}
+        """[FIGHT ACTION]: Uses a point to project an isolation field onto a critical enemy point. Fallback to create a barricade."""
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if not team_point_ids:
+            return {'success': False, 'reason': 'no points to project from'}
 
         # Find a target
-        target_point_id = None
         enemy_team_ids = [tid for tid in self.game.state['teams'] if tid != teamId]
         random.shuffle(enemy_team_ids)
         
@@ -835,22 +843,20 @@ class FightActionsHandler:
             # Don't isolate points that are already isolated or in stasis
             articulation_points = self.game._find_articulation_points(enemy_team_id)
             for pid in articulation_points:
-                if pid not in self.state.get('isolated_points', {}) and pid not in self.state.get('stasis_points', {}):
+                if pid in self.state['points'] and \
+                   pid not in self.state.get('isolated_points', {}) and \
+                   pid not in self.state.get('stasis_points', {}):
                      possible_targets.append(self.state['points'][pid])
 
         if possible_targets:
-            # Prioritize closest target to any of our lines
-            line_to_sac = random.choice(team_lines)
-            p1 = self.state['points'][line_to_sac['p1_id']]
-            p2 = self.state['points'][line_to_sac['p2_id']]
-            midpoint = points_centroid([p1,p2])
+            # Use a random friendly point as the 'projector' of the effect
+            projector_point_id = random.choice(team_point_ids)
+            projector_point = self.state['points'][projector_point_id]
             
-            target_point = min(possible_targets, key=lambda p: distance_sq(midpoint, p))
+            target_point = min(possible_targets, key=lambda p: distance_sq(projector_point, p))
             target_point_id = target_point['id']
 
             # --- Primary Effect: Isolate Point ---
-            self.game._delete_line(line_to_sac)
-
             if 'isolated_points' not in self.state:
                 self.state['isolated_points'] = {}
             
@@ -860,19 +866,20 @@ class FightActionsHandler:
             return {
                 'success': True, 'type': 'isolate_point',
                 'isolated_point': target_point,
-                'sacrificed_line': line_to_sac,
+                'projector_point': projector_point,
                 'target_team_name': target_team_name
             }
         else:
             # --- Fallback: Create barricade ---
-            line_to_sac = random.choice(team_lines)
-            p1 = self.state['points'][line_to_sac['p1_id']]
-            p2 = self.state['points'][line_to_sac['p2_id']]
-            
-            self.game._delete_line(line_to_sac)
+            if len(team_point_ids) < 2:
+                return {'success': False, 'reason': 'not enough points for fallback barricade'}
+                
+            p1_id, p2_id = random.sample(team_point_ids, 2)
+            p1 = self.state['points'][p1_id]
+            p2 = self.state['points'][p2_id]
 
             new_barricade = self.game._create_temporary_barricade(teamId, p1, p2, 2)
             return {
                 'success': True, 'type': 'isolate_fizzle_barricade',
-                'barricade': new_barricade, 'sacrificed_line': line_to_sac
+                'barricade': new_barricade
             }

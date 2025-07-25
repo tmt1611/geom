@@ -172,7 +172,7 @@ ACTIONS = {
     'fight_isolate_point': {
         'group': 'Fight', 'handler': 'fight_handler', 'method': 'isolate_point',
         'display_name': 'Isolate Point',
-        'description': "Sacrifices a line to isolate a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. If no such point is found, it creates a defensive barricade instead.",
+        'description': "Projects an isolation field onto a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. This action has no cost. If no such point is found, it creates a defensive barricade instead.",
         'log_generators': {
             'isolate_point': lambda r: (f"isolated a critical point from {r['target_team_name']}", "[ISOLATE!]"),
             'isolate_fizzle_barricade': lambda r: ("failed to find a critical enemy point to isolate and instead formed a defensive barricade.", "[ISOLATE->WALL]"),
@@ -201,9 +201,9 @@ ACTIONS = {
     'fortify_anchor': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'create_anchor',
         'display_name': 'Create Anchor',
-        'description': "Sacrifices one point to turn another into a gravitational anchor, which pulls nearby enemy points towards it for several turns.",
+        'description': "Turns a non-critical point into a gravitational anchor, which pulls nearby enemy points towards it for several turns. This action has no cost.",
         'log_generators': {
-            'create_anchor': lambda r: ("sacrificed a point to create a gravitational anchor.", "[ANCHOR]"),
+            'create_anchor': lambda r: ("turned one of its points into a gravitational anchor.", "[ANCHOR]"),
         }
     },
     'fortify_mirror': {
