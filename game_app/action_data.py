@@ -79,10 +79,10 @@ ACTIONS = {
         'description': "Extends a line outwards. If it intersects an enemy line, the enemy line is destroyed. If it misses, a new point is created on the border.",
         'log_generators': {
             'attack_line': lambda r: (
-                f"attacked and destroyed a line from Team {r['destroyed_team']}{', bypassing its shield with a Cross Rune!' if r.get('bypassed_shield') else '.'}",
+                f"attacked and destroyed a line from {r['destroyed_team']}{', bypassing its shield with a Cross Rune!' if r.get('bypassed_shield') else '.'}",
                 "[PIERCE!]" if r.get('bypassed_shield') else "[ATTACK]"
             ),
-            'attack_line_energized': lambda r: (f"unleashed an energized attack, obliterating a line and its {len(r['destroyed_points'])} endpoints from Team {r['destroyed_team']}.", "[OBLITERATE!]"),
+            'attack_line_energized': lambda r: (f"unleashed an energized attack, obliterating a line and its {len(r['destroyed_points'])} endpoints from {r['destroyed_team']}.", "[OBLITERATE!]"),
             'attack_miss_spawn': lambda r: ("launched an attack that missed, but the energy coalesced into a new point on the border.", "[ATTACK->SPAWN]"),
             'attack_line_strengthened': lambda r: ("attacked a strengthened line, weakening its defenses.", "[DAMAGE]"),
         }
@@ -92,7 +92,7 @@ ACTIONS = {
         'display_name': 'Convert Point',
         'description': "Sacrifices a friendly line to convert the nearest vulnerable enemy point to its team. If no target is in range, it creates a repulsive pulse that pushes enemies away.",
         'log_generators': {
-            'convert_point': lambda r: (f"sacrificed a line to convert a point from Team {r['original_team_name']}.", "[CONVERT]"),
+            'convert_point': lambda r: (f"sacrificed a line to convert a point from {r['original_team_name']}.", "[CONVERT]"),
             'convert_fizzle_push': lambda r: (f"attempted to convert a point but found no targets, instead unleashing a pulse that pushed back {r['pushed_points_count']} enemies.", "[CONVERT->PUSH]"),
         }
     },
@@ -101,7 +101,7 @@ ACTIONS = {
         'display_name': 'Pincer Attack',
         'description': "Two friendly points flank and destroy a vulnerable enemy point between them. If no target is found, they form a temporary defensive barricade instead.",
         'log_generators': {
-            'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from Team {r['destroyed_team_name']}.", "[PINCER!]"),
+            'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from {r['destroyed_team_name']}.", "[PINCER!]"),
             'pincer_fizzle_barricade': lambda r: ("failed to find a pincer target and instead formed a temporary defensive barricade.", "[PINCER->WALL]"),
         }
     },
@@ -110,7 +110,7 @@ ACTIONS = {
         'display_name': 'Territory Strike',
         'description': "Launches an attack from the center of a large claimed territory, destroying the nearest vulnerable enemy point. If no targets exist, it reinforces its own territory's borders.",
         'log_generators': {
-            'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from Team {r['destroyed_team_name']}.", "[TERRITORY!]"),
+            'territory_strike': lambda r: (f"launched a strike from its territory, destroying a point from {r['destroyed_team_name']}.", "[TERRITORY!]"),
             'territory_fizzle_reinforce': lambda r: ("could not find a target for a territory strike, and instead reinforced its own boundaries.", "[TERRITORY->REINFORCE]"),
         }
     },
@@ -128,7 +128,7 @@ ACTIONS = {
         'display_name': 'Sentry Zap',
         'description': "An I-Rune (Sentry) fires a precise beam that destroys the first enemy point it hits. If it misses, it creates a new point on the border.",
         'log_generators': {
-            'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from Team {r['destroyed_team_name']}.", "[ZAP!]"),
+            'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from {r['destroyed_team_name']}.", "[ZAP!]"),
             'sentry_zap_miss_spawn': lambda r: ("a Sentry fired a beam that missed all targets, creating a new point on the border.", "[ZAP->SPAWN]"),
         }
     },
@@ -137,7 +137,7 @@ ACTIONS = {
         'display_name': 'Chain Lightning',
         'description': "An I-Rune (Conduit) sacrifices an internal point to destroy the nearest enemy point. If it fizzles, the point explodes in a mini-nova, destroying nearby lines.",
         'log_generators': {
-            'chain_lightning': lambda r: (f"unleashed Chain Lightning from a Conduit, destroying a point from Team {r['destroyed_team_name']}.", "[LIGHTNING!]"),
+            'chain_lightning': lambda r: (f"unleashed Chain Lightning from a Conduit, destroying a point from {r['destroyed_team_name']}.", "[LIGHTNING!]"),
             'chain_lightning_fizzle_nova': lambda r: (f"attempted to use Chain Lightning which fizzled, instead unleashing a mini-nova that destroyed {r['lines_destroyed_count']} lines.", "[LIGHTNING->NOVA]"),
         }
     },
@@ -155,8 +155,8 @@ ACTIONS = {
         'display_name': 'Launch Payload',
         'description': "A Trebuchet structure launches a projectile to destroy a high-value enemy point (e.g., a fortified point). If none exist, it targets a regular point. If no targets exist, it creates a fissure.",
         'log_generators': {
-            'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from Team {r['destroyed_team_name']}.", "[TREBUCHET!]"),
-            'launch_payload_fallback_hit': lambda r: (f"found no high-value targets and instead launched a payload from a Trebuchet at a standard point from Team {r['destroyed_team_name']}.", "[TREBUCHET]"),
+            'launch_payload': lambda r: (f"launched a payload from a Trebuchet, obliterating a fortified point from {r['destroyed_team_name']}.", "[TREBUCHET!]"),
+            'launch_payload_fallback_hit': lambda r: (f"found no high-value targets and instead launched a payload from a Trebuchet at a standard point from {r['destroyed_team_name']}.", "[TREBUCHET]"),
             'launch_payload_fizzle_fissure': lambda r: ("found no enemy targets and instead launched a payload from a Trebuchet that impacted the battlefield, creating a temporary fissure.", "[TREBUCHET->FIZZLE]"),
         }
     },
@@ -165,7 +165,7 @@ ACTIONS = {
         'display_name': 'Purify Territory',
         'description': "A Purifier structure neutralizes the nearest enemy territory, removing its fortified status. If no enemy territories exist, it pushes nearby enemy points away.",
         'log_generators': {
-            'purify_territory': lambda r: (f"unleashed its Purifier, cleansing a territory from Team {r['cleansed_team_name']}.", "[PURIFY!]"),
+            'purify_territory': lambda r: (f"unleashed its Purifier, cleansing a territory from {r['cleansed_team_name']}.", "[PURIFY!]"),
             'purify_fizzle_push': lambda r: (f"found no territories to cleanse, and instead emitted a pulse that pushed back {r['pushed_points_count']} enemies.", "[PURIFY->PUSH]"),
         }
     },
@@ -174,7 +174,7 @@ ACTIONS = {
         'display_name': 'Isolate Point',
         'description': "Sacrifices a line to isolate a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. If no such point is found, it creates a defensive barricade instead.",
         'log_generators': {
-            'isolate_point': lambda r: (f"isolated a critical point from Team {r['target_team_name']}", "[ISOLATE!]"),
+            'isolate_point': lambda r: (f"isolated a critical point from {r['target_team_name']}", "[ISOLATE!]"),
             'isolate_fizzle_barricade': lambda r: ("failed to find a critical enemy point to isolate and instead formed a defensive barricade.", "[ISOLATE->WALL]"),
         }
     },
@@ -395,7 +395,7 @@ ACTIONS = {
         'display_name': 'Rune: Time Stasis',
         'description': "An Hourglass-Rune freezes a nearby enemy point in time for several turns, making it immune but unable to be used. If no target is found, it creates an anchor.",
         'log_generators': {
-            'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from Team {r['target_team_name']} in time.", "[STASIS!]"),
+            'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from {r['target_team_name']} in time.", "[STASIS!]"),
             'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead sacrificed a rune point to create a temporary anchor.", "[STASIS->ANCHOR]"),
         }
     },
@@ -412,8 +412,8 @@ ACTIONS = {
         'display_name': 'Rune: Focus Beam',
         'description': "A Star-Rune fires a beam from its center to destroy a high-value enemy structure (like a Wonder or Bastion core). If none exist, it targets a regular point. If no targets exist at all, it creates a fissure.",
         'log_generators': {
-            'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from Team {r['destroyed_team_name']}.", "[FOCUS BEAM!]"),
-            'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from Team {r['destroyed_team_name']}.", "[FOCUS BEAM]"),
+            'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from {r['destroyed_team_name']}.", "[FOCUS BEAM!]"),
+            'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from {r['destroyed_team_name']}.", "[FOCUS BEAM]"),
             'focus_beam_fizzle_fissure': lambda r: ("found no targets for its Focus Beam and instead scarred the enemy's heartland with a temporary fissure.", "[FOCUS->FIZZLE]"),
         }
     },

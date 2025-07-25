@@ -3,8 +3,8 @@ from .action_data import ACTIONS
 from collections import defaultdict
 
 DEFAULT_TEAMS = [
-    {'id': 'team_alpha_default', 'name': 'Team Alpha', 'color': '#ff4b4b', 'trait': 'Aggressive'},
-    {'id': 'team_beta_default', 'name': 'Team Beta', 'color': '#4b4bff', 'trait': 'Defensive'}
+    {'id': 'team_alpha_default', 'name': 'Alpha', 'color': '#ff4b4b', 'trait': 'Aggressive'},
+    {'id': 'team_beta_default', 'name': 'Beta', 'color': '#4b4bff', 'trait': 'Defensive'}
 ]
 
 # --- Static Game Data ---

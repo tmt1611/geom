@@ -429,7 +429,7 @@ class Game:
         nexus_owner_name = self.state['teams'][nexus_owner_teamId]['name']
         aggressor_name = self.state['teams'][aggressor_team_id]['name'] if aggressor_team_id and aggressor_team_id in self.state['teams'] else "an unknown force"
 
-        log_msg = f"The destruction of a Nexus from Team {nexus_owner_name} by Team {aggressor_name} caused a violent energy discharge!"
+        log_msg = f"The destruction of a Nexus from {nexus_owner_name} by {aggressor_name} caused a violent energy discharge!"
         self.state['game_log'].append({'message': log_msg, 'short_message': '[NEXUS BOOM!]', 'teamId': nexus_owner_teamId})
         self.state['action_events'].append({
             'type': 'nexus_detonation',
@@ -1032,7 +1032,7 @@ class Game:
             if num_nexuses > 0:
                 team_name = self.state['teams'][teamId]['name']
                 plural = "s" if num_nexuses > 1 else ""
-                self.state['game_log'].append({'message': f"Team {team_name} gains {num_nexuses} bonus action{plural} from its Nexus{plural}.", 'short_message': f'[NEXUS:+{num_nexuses}ACT]'})
+                self.state['game_log'].append({'message': f"{team_name} gains {num_nexuses} bonus action{plural} from its Nexus{plural}.", 'short_message': f'[NEXUS:+{num_nexuses}ACT]'})
                 for _ in range(num_nexuses):
                     actions_queue.append({'teamId': teamId, 'is_bonus': True})
 
@@ -1040,7 +1040,7 @@ class Game:
             if num_wonders > 0:
                 team_name = self.state['teams'][teamId]['name']
                 plural = "s" if num_wonders > 1 else ""
-                self.state['game_log'].append({'message': f"Team {team_name} gains {num_wonders} bonus action{plural} from its Wonder{plural}.", 'short_message': f'[WONDER:+{num_wonders}ACT]'})
+                self.state['game_log'].append({'message': f"{team_name} gains {num_wonders} bonus action{plural} from its Wonder{plural}.", 'short_message': f'[WONDER:+{num_wonders}ACT]'})
                 for _ in range(num_wonders):
                     actions_queue.append({'teamId': teamId, 'is_bonus': True})
 
@@ -1071,7 +1071,7 @@ class Game:
             winner_id = teams_with_points[0]
             self.state['game_phase'] = 'FINISHED'
             team_name = self.state['teams'][winner_id]['name']
-            self.state['victory_condition'] = f"Team '{team_name}' is the sole survivor."
+            self.state['victory_condition'] = f"'{team_name}' is the sole survivor."
             self.state['game_log'].append({'message': self.state['victory_condition'], 'short_message': '[VICTORY]'})
             return
 
@@ -1209,11 +1209,11 @@ class Game:
             self.state['last_action_details'] = {}
         
         # --- Log the final result using the new helper method ---
-        log_message = f"Team {team_name} "
+        log_message = f"{team_name} "
         short_log_message = "[ACTION]"
 
         if is_bonus_action:
-            log_message = f"[BONUS] Team {team_name} "
+            log_message = f"[BONUS] {team_name} "
 
         if result.get('success'):
             long_msg_part, short_log_message = self._get_action_log_messages(result)

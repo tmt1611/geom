@@ -2678,11 +2678,12 @@ document.addEventListener('DOMContentLoaded', () => {
         logDiv.innerHTML = ''; // Clear previous logs
         if (!log) return;
 
-        let lastMessage = 'Game log is empty.';
+        let lastMessageEntry = null;
         // Find the last message from a team for the status bar
-        for(let i = log.length - 1; i >= 0; i--) {
-            if (log[i].teamId) {
-                lastMessage = log[i].message;
+        for (let i = log.length - 1; i >= 0; i--) {
+            const entry = log[i];
+            if (entry.teamId && teams[entry.teamId]) {
+                lastMessageEntry = entry;
                 break;
             }
         }
@@ -2692,22 +2693,43 @@ document.addEventListener('DOMContentLoaded', () => {
             logEntryDiv.className = 'log-entry';
 
             const message = (debugOptions.compactLog && entry.short_message) ? entry.short_message : entry.message;
-            logEntryDiv.textContent = message;
 
             if (entry.teamId && teams[entry.teamId]) {
-                logEntryDiv.style.borderLeftColor = teams[entry.teamId].color;
+                const team = teams[entry.teamId];
+                const teamName = team.name;
+                logEntryDiv.style.borderLeftColor = team.color;
+
+                if (!debugOptions.compactLog && message.includes(teamName)) {
+                    // This is a simple replacement; for more complex cases, more logic is needed.
+                    // It's designed to work with messages like "Alpha did action" or "Beta vs Alpha".
+                    // The regex finds the team name as a whole word to avoid replacing parts of words.
+                    const coloredMessage = message.replace(new RegExp(`\\b${teamName}\\b`, 'g'), `<strong style="color: ${team.color};">${teamName}</strong>`);
+                    
+                    // A simple heuristic to find other team names in the message and color them too.
+                    let finalMessage = coloredMessage;
+                    for (const otherTeamId in teams) {
+                        if (otherTeamId !== entry.teamId) {
+                            const otherTeam = teams[otherTeamId];
+                            finalMessage = finalMessage.replace(new RegExp(`\\b${otherTeam.name}\\b`, 'g'), `<strong style="color: ${otherTeam.color};">${otherTeam.name}</strong>`);
+                        }
+                    }
+                    logEntryDiv.innerHTML = finalMessage;
+                } else {
+                    logEntryDiv.textContent = message;
+                }
+                
                 if (debugOptions.compactLog) {
-                    // In compact mode, add team color to text for visibility
-                    logEntryDiv.style.color = teams[entry.teamId].color;
+                    logEntryDiv.style.color = team.color;
                     logEntryDiv.style.fontWeight = 'bold';
                 }
             } else { // Non-team messages (Turn counter, etc)
-                 logEntryDiv.style.textAlign = 'center';
-                 logEntryDiv.style.borderLeftColor = '#ccc';
-                 logEntryDiv.style.background = '#f0f0f0';
-                 if (debugOptions.compactLog) {
-                     logEntryDiv.style.fontWeight = 'bold';
-                 }
+                logEntryDiv.textContent = message;
+                logEntryDiv.style.textAlign = 'center';
+                logEntryDiv.style.borderLeftColor = '#ccc';
+                logEntryDiv.style.background = '#f0f0f0';
+                if (debugOptions.compactLog) {
+                    logEntryDiv.style.fontWeight = 'bold';
+                }
             }
             logDiv.prepend(logEntryDiv); // Prepend to put new entries on top
         });
@@ -2715,7 +2737,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update status bar
         if (currentGameState.game_phase === 'RUNNING') {
-            statusBar.textContent = lastMessage;
+            if (lastMessageEntry) {
+                const message = lastMessageEntry.message;
+                let finalMessage = message;
+                // Color all team names found in the status bar message
+                for (const teamId in teams) {
+                    const team = teams[teamId];
+                    finalMessage = finalMessage.replace(new RegExp(`\\b${team.name}\\b`, 'g'), `<strong style="color: ${team.color};">${team.name}</strong>`);
+                }
+                statusBar.innerHTML = finalMessage;
+            } else {
+                statusBar.textContent = 'Starting game...';
+            }
             statusBar.style.opacity = '1';
         } else {
             statusBar.style.opacity = '0';
