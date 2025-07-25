@@ -91,7 +91,6 @@ class Game:
             "max_turns": 100,
             "game_phase": "SETUP", # SETUP, RUNNING, FINISHED
             "victory_condition": None,
-            "sole_survivor_tracker": {'teamId': None, 'turns': 0},
             "interpretation": {},
             "last_action_details": {}, # For frontend visualization
             "initial_state": None, # Store the setup config for restarts
@@ -1063,30 +1062,27 @@ class Game:
         
     def _check_end_of_turn_victory_conditions(self):
         """Checks for victory conditions that are evaluated at the end of a full turn."""
-        # Get unique team IDs that had actions this turn
-        active_teams = list(set(info['teamId'] for info in self.state['actions_queue_this_turn'] if info))
         
-        # 1. Dominance Victory
-        DOMINANCE_TURNS_REQUIRED = 3
-        if len(active_teams) == 1:
-            sole_survivor_id = active_teams[0]
-            tracker = self.state['sole_survivor_tracker']
-            if tracker['teamId'] == sole_survivor_id:
-                tracker['turns'] += 1
-            else:
-                tracker['teamId'] = sole_survivor_id
-                tracker['turns'] = 1
-            
-            if tracker['turns'] >= DOMINANCE_TURNS_REQUIRED:
-                self.state['game_phase'] = 'FINISHED'
-                team_name = self.state['teams'][sole_survivor_id]['name']
-                self.state['victory_condition'] = f"Team '{team_name}' achieved dominance."
-                self.state['game_log'].append({'message': self.state['victory_condition'], 'short_message': '[VICTORY]'})
-                return
-        else:
-            self.state['sole_survivor_tracker'] = {'teamId': None, 'turns': 0}
+        # Check based on current point counts, not the action queue from the start of the turn.
+        teams_with_points = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
+        
+        # 1. Sole Survivor Victory (triggers immediately when only one team is left)
+        if len(teams_with_points) == 1:
+            winner_id = teams_with_points[0]
+            self.state['game_phase'] = 'FINISHED'
+            team_name = self.state['teams'][winner_id]['name']
+            self.state['victory_condition'] = f"Team '{team_name}' is the sole survivor."
+            self.state['game_log'].append({'message': self.state['victory_condition'], 'short_message': '[VICTORY]'})
+            return
 
-        # 2. Max Turns Reached
+        # 2. Extinction (mutual destruction)
+        if len(teams_with_points) == 0:
+            self.state['game_phase'] = 'FINISHED'
+            self.state['victory_condition'] = "Extinction"
+            self.state['game_log'].append({'message': "All teams have been eliminated. Game over.", 'short_message': '[EXTINCTION]'})
+            return
+
+        # 3. Max Turns Reached
         if self.state['turn'] >= self.state['max_turns']:
             self.state['game_phase'] = 'FINISHED'
             self.state['victory_condition'] = "Max turns reached."

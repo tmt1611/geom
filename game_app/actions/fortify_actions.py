@@ -103,6 +103,9 @@ class FortifyActionsHandler:
             if any(pid in existing_monolith_points for pid in p_ids_tuple):
                 continue
             
+            if not all(pid in points for pid in p_ids_tuple):
+                continue
+            
             p_list = [points[pid] for pid in p_ids_tuple]
             is_rect, aspect_ratio = is_rectangle(*p_list)
 
@@ -142,6 +145,10 @@ class FortifyActionsHandler:
         possible_purifiers = []
         for p_ids_tuple in combinations(team_point_ids, 5):
             if any(pid in existing_purifier_points for pid in p_ids_tuple):
+                continue
+
+            # Defensive check to ensure all points exist before creating the list.
+            if not all(pid in points for pid in p_ids_tuple):
                 continue
 
             p_list = [points[pid] for pid in p_ids_tuple]
