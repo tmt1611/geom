@@ -1,14 +1,17 @@
-This iteration focuses on improving the action design by replacing a less-defined action with a more geometrically sound one, in line with `design.md` principles.
+This iteration focuses on streamlining the structure system as outlined in `design.md`. I've made the conceptual framework cleaner by consolidating all passive, auto-detected geometric formations under the "Rune" category in the documentation. This improves clarity for the user and aligns the rules more closely with the implementation.
 
-1.  **Replaced Action: `Grow Vine` -> `Bisect Angle`**
-    *   **Old Action (`Grow Vine`):** This action created a new point by growing a branch from an existing point at a random angle. This was functionally effective but lacked clear geometric intent.
-    *   **New Action (`Bisect Angle`):** This new `Expand` action is more deterministic and strategic. It identifies a vertex (a point with at least two connected lines forming an angle), calculates the angle's bisector, and spawns a new point along that bisector.
-    *   **Geometric Principle:** This change aligns better with the design goal of using "constructs: points, lines, shapes, hulls, rotations, mirrors" and avoids generic effects. It gives purpose to simple 'V' shapes on the grid.
+1.  **Streamlined Structure/Rune Categories:**
+    *   Identified that several structures (`Nexus`, `Prism`, `Trebuchet`) were passive formations detected automatically, just like the existing "Runes".
+    *   To make the terminology consistent, these have been re-categorized as `Nexus-Rune`, `Prism-Rune`, and `Trebuchet-Rune` in `rules.md`.
+    *   This clarifies the distinction between passive "Runes" and actively built "Structures" (like Bastions or Monoliths).
 
-2.  **Implementation Details**
-    *   Replaced `expand_grow` with `expand_bisect_angle` in `game_app/action_data.py`, including new user-facing descriptions and log messages.
-    *   Implemented `bisect_angle` and its precondition check `can_perform_bisect_angle` in `game_app/actions/expand_actions.py`. The new action correctly utilizes the existing `get_angle_bisector_vector` helper.
-    *   The fallback logic was also improved: if bisecting fails, it attempts to strengthen one of the two lines forming the angle, making the fallback more context-aware. A final, generic fallback to strengthen any random line remains as a failsafe.
+2.  **Updated `rules.md` for Clarity and Consistency:**
+    *   Moved the descriptions for `Nexus`, `Prism`, and `Trebuchet` into the main `Runes` section, removing their old "Form X" entries from the `Actions` list.
+    *   Moved `Star-Rune` out of the `Wonders` section and into the `Runes` section, as it is a prerequisite formation, not the wonder itself.
+    *   Rewrote the `Wonders` section to focus solely on the `Chronos Spire` and its prerequisites, improving clarity.
+    *   Updated the descriptions for actions like `Attune Nexus` and `Launch Payload` to refer to the new `Nexus-Rune` and `Trebuchet-Rune` names.
 
-3.  **Documentation**
-    *   Updated `rules.md` to remove the "Grow Line (Vine)" action and add the new "Bisect Angle" action with its description.
+3.  **Corrected Action Description:**
+    *   The description for `Isolate Point` in `rules.md` stated that it cost a line, which was inconsistent with the implementation and `design.md`'s principles for no-cost actions. I have corrected the description to reflect that it is a no-cost projection action.
+
+These changes primarily affect the documentation (`rules.md`) to create a more coherent and streamlined conceptual model for players, without requiring major backend code changes.

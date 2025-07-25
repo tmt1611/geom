@@ -42,6 +42,20 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
 *   **Parallelogram-Rune:**
     *   **Formation:** Four points that form a non-rectangular parallelogram, with all four of its sides existing as connected lines.
     *   **Bonus:** Unlocks the **[RUNE] Parallel Discharge** action.
+*   **Star-Rune:**
+    *   **Formation:** A central point connected to a cycle of 5 or 6 other points, where the cycle points are also connected to each other sequentially. All required lines must exist.
+    *   **Bonus 1:** Unlocks the **[RUNE] Starlight Cascade** action.
+    *   **Bonus 2:** Unlocks the **[RUNE] Focus Beam** action.
+    *   **Bonus 3:** This formation is a prerequisite for building the **Chronos Spire** wonder.
+*   **Nexus-Rune (Square):**
+    *   **Formation:** Four points that form a perfect square, with all four outer edge lines and at least one of the two inner diagonals connected. This is a passive formation detected automatically.
+    *   **Bonus:** For each Nexus-Rune a team controls at the start of a turn, that team gains **one bonus action**. Unlocks the **[FORTIFY] Attune Nexus** action.
+*   **Prism-Rune:**
+    *   **Formation:** A passive formation created when two of a team's claimed territories (triangles) share a common edge line.
+    *   **Bonus:** Unlocks the **[FIGHT] Refraction Beam** action.
+*   **Trebuchet-Rune (Kite):**
+    *   **Formation:** A passive formation of four points in a kite shape. Requires a tight, isosceles triangle connected to a "counterweight" point along its axis of symmetry, with all 5 lines forming the outer kite shape.
+    *   **Bonus:** Unlocks the **[FIGHT] Launch Payload** action.
 
 ## Actions
 On its turn, a team will perform one of the following actions, with the choice being influenced by its trait.
@@ -66,9 +80,9 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Sentry Zap:** _(Requires an active I-Rune)_ Fires a short, high-energy beam from an internal point of an I-Rune along its perpendicular axis. Destroys the first enemy **point** it hits within range. This is a powerful, precision attack capable of removing fortified points. If the beam misses, it creates a new point for the team where it hits the border.
 *   **[FIGHT] Chain Lightning:** _(Requires an I-Rune with internal points)_ Sacrifices one of the I-Rune's internal points to fire a bolt of energy at the nearest enemy point, destroying it. If the attack fizzles (e.g., no target in range), the sacrificed point explodes in a **mini-nova**, destroying any nearby enemy lines.
 *   **[FIGHT] Refraction Beam:** _(Requires an active Prism)_ Fires a beam from one of its lines that refracts off the Prism's shared edge, changing direction to hit an enemy line around obstacles. If the refracted beam misses, it creates a new friendly point where it hits the border.
-*   **[FIGHT] Launch Payload:** _(Requires an active Trebuchet)_ Fires an arcing projectile. It prioritizes destroying a random enemy high-value point (e.g., a fortified point, bastion core, or monolith point). If none exist, it targets any vulnerable enemy point. If there are no targets at all, the payload impacts a random spot on the battlefield, creating a small, temporary fissure.
+*   **[FIGHT] Launch Payload:** _(Requires an active Trebuchet-Rune)_ Fires an arcing projectile. It prioritizes destroying a random enemy high-value point (e.g., a fortified point, bastion core, or monolith point). If none exist, it targets any vulnerable enemy point. If there are no targets at all, the payload impacts a random spot on the battlefield, creating a small, temporary fissure.
 *   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. If there are no enemy territories to cleanse, it instead emits a defensive pulse that pushes all nearby enemy points away from it.
-*   **[FIGHT] Isolate Point:** Sacrifices a line to isolate a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. If no such point is found, it creates a defensive barricade instead.
+*   **[FIGHT] Isolate Point:** Projects an isolation field onto a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. This action has no cost. If no such point is found, it creates a defensive barricade instead.
 *   **[FIGHT] Parallel Strike:** From a friendly point, projects a beam parallel to a friendly line. Destroys the first enemy point it hits, or creates a new point on the border if it misses.
 *   **[RUNE] Cardinal Pulse:** _(Requires an active Plus-Rune)_ The rune is consumed. Four energy beams are fired from the central point through the four arm points. Beams destroy the first enemy line they hit (bypassing shields). Any beam that misses creates a new point on the border.
 *   **[RUNE] Parallel Discharge:** _(Requires an active Parallelogram-Rune)_ Destroys all enemy lines crossing the interior of the parallelogram. If no lines are hit, it creates a new central structure of two points and a line inside the rune instead.
@@ -96,9 +110,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FORTIFY] Form Purifier:** A high-level strategic structure for countering area-control strategies.
     *   **Formation:** Requires five points to form a perfect, regular pentagon, with all 5 outer lines connected. This is a difficult and resource-intensive shape to create.
     *   **Bonus:** Unlocks the **[FIGHT] Purify Territory** action.
-*   **[FORTIFY] Form Trebuchet:** Forms a powerful siege engine from a kite-shaped formation of four points.
-    *   **Formation:** Requires a tight, isosceles triangle (the "base") connected to a "counterweight" point along its axis of symmetry. All 5 lines that form the outer kite shape must exist.
-    *   **Bonus:** Unlocks the **[FIGHT] Launch Payload** action.
+
 *   **[FORTIFY] Create Anchor:** Sacrifice one of its own points to turn another into a gravitational anchor. For a few turns, the anchor will slowly pull nearby enemy points towards it.
 *   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns. If no valid reflections can be found, it instead reinforces the lines of the structure it was attempting to mirror.
 *   **[FORTIFY] Reposition Point:** Moves a single 'free' (non-structural) point to a better tactical position nearby. A subtle but important move for setting up future formations. If it fails, a line is strengthened instead.
@@ -115,11 +127,9 @@ On its turn, a team will perform one of the following actions, with the choice b
 ## Wonders
 Wonders are unique, game-changing structures that require immense investment and provide a path to an alternative victory. Only one Wonder can be controlled by each team.
 
-*   **Star-Rune:**
-    *   **Formation:** A central point connected to a cycle of 5 or 6 other points, where the cycle points are also connected to each other sequentially. All required lines must exist.
-    *   **Bonus 1:** Unlocks the **[RUNE] Starlight Cascade** action.
-    *   **Bonus 2:** Unlocks the **[RUNE] Focus Beam** action.
-    *   **Bonus 3:** This formation is a prerequisite for building the **Chronos Spire** wonder.
-    *   **Cost:** The central point and all points in the cycle are sacrificed to create the Spire.
-    *   **Bonus 1 (Temporal Distortion):** The Spire grants its owner **one bonus action** every turn. This stacks with other sources of bonus actions like Nexuses.
+*   **Chronos Spire:**
+    *   **Prerequisite:** A team must have an active **Star-Rune**.
+    *   **Action:** The **[FORTIFY] Build Wonder** action becomes available.
+    *   **Cost:** The entire Star-Rune formation is sacrificed.
+    *   **Bonus 1 (Temporal Distortion):** The Spire grants its owner **one bonus action** every turn. This stacks with other sources of bonus actions.
     *   **Bonus 2 (Victory Countdown):** The Spire is indestructible. If it remains on the field for **10 turns** after its creation, its owner immediately wins the game.
