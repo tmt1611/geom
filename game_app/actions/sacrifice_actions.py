@@ -37,8 +37,13 @@ class SacrificeActionsHandler:
         return self.game.state
 
     def _find_possible_nova_bursts(self, teamId):
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) <= 2:
+        """Finds non-critical points that are also 'ideal' for a nova burst (i.e., have an enemy line in range)."""
+        # First, find all points that are eligible for sacrifice at all.
+        critical_pids = self.game._get_critical_structure_point_ids(teamId)
+        all_team_pids = self.game.get_team_point_ids(teamId)
+        non_critical_pids = [pid for pid in all_team_pids if pid not in critical_pids]
+
+        if len(non_critical_pids) == 0:
             return []
 
         blast_radius_sq = (self.state['grid_size'] * 0.25)**2
@@ -49,10 +54,11 @@ class SacrificeActionsHandler:
         points = self.state['points']
         bastion_line_ids = self.game._get_bastion_line_ids()
         
-        potential_sac_points = []
-        for pid in team_point_ids:
+        ideal_sac_points = []
+        for pid in non_critical_pids:
+            if pid not in points: continue # Defensive check
             sac_point_coords = points[pid]
-            has_target = False
+            
             for line in enemy_lines:
                 if line.get('id') in bastion_line_ids: continue
                 if not (line['p1_id'] in points and line['p2_id'] in points): continue
@@ -61,12 +67,10 @@ class SacrificeActionsHandler:
                 p2 = points[line['p2_id']]
 
                 if distance_sq(sac_point_coords, p1) < blast_radius_sq or distance_sq(sac_point_coords, p2) < blast_radius_sq:
-                    potential_sac_points.append(pid)
-                    has_target = True
-                    break
-            if has_target:
-                continue
-        return potential_sac_points
+                    ideal_sac_points.append(pid)
+                    # Found a target for this point, no need to check other lines for it.
+                    break 
+        return ideal_sac_points
 
     def nova_burst(self, teamId):
         """[SACRIFICE ACTION]: A point is destroyed. If near enemy lines, it destroys them. Otherwise, it pushes all nearby points away."""
