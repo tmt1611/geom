@@ -1,7 +1,7 @@
 import random
 import math
 from itertools import combinations
-from ..geometry import distance_sq, get_extended_border_point, clamp_and_round_point_coords
+from ..geometry import distance_sq, get_extended_border_point, clamp_and_round_point_coords, get_angle_bisector_vector
 
 class ExpandActionsHandler:
     def __init__(self, game):
@@ -33,10 +33,26 @@ class ExpandActionsHandler:
             return True, ""
         return False, "No lines to extend or strengthen."
 
-    def can_perform_grow_line(self, teamId):
-        # Primary needs a line, fallback needs a line. So one check is enough.
-        can_perform = len(self.game.get_team_lines(teamId)) > 0
-        return can_perform, "Requires at least 1 line to grow from or strengthen."
+    def can_perform_bisect_angle(self, teamId):
+        # Action needs a point with at least 2 lines connected to it.
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if len(team_point_ids) < 3: # Need at least a V shape
+            return False, "Requires at least 3 points to form an angle."
+        
+        # Check if primary is possible
+        adj = {pid: 0 for pid in team_point_ids}
+        for line in self.game.get_team_lines(teamId):
+            if line['p1_id'] in adj: adj[line['p1_id']] += 1
+            if line['p2_id'] in adj: adj[line['p2_id']] += 1
+        
+        if any(degree >= 2 for degree in adj.values()):
+            return True, ""
+
+        # Check if fallback is possible (any line to strengthen)
+        if self.game.get_team_lines(teamId):
+            return True, ""
+
+        return False, "No angles to bisect and no lines to strengthen."
 
     def can_perform_fracture_line(self, teamId):
         # Primary needs a fracturable line. Fallback needs any line.
@@ -422,59 +438,84 @@ class ExpandActionsHandler:
             'center_point_id': p_center_id_fallback, 'strengthened_lines': strengthened_lines_info
         }
 
-    def grow_line(self, teamId):
-        """[EXPAND ACTION]: Grows a new short line from an existing point. If not possible, strengthens a random friendly line."""
+    def bisect_angle(self, teamId):
+        """[EXPAND ACTION]: Creates a new point by bisecting an angle. If not possible, strengthens a line."""
+        team_point_ids = self.game.get_team_point_ids(teamId)
         team_lines = self.game.get_team_lines(teamId)
-        if not team_lines:
-            return {'success': False, 'reason': 'no lines to grow from'}
-
-        shuffled_lines = random.sample(team_lines, len(team_lines))
-        points_map = self.state['points']
         
-        for line in shuffled_lines:
-            if not (line['p1_id'] in points_map and line['p2_id'] in points_map):
-                continue
-            
-            # Try to grow from this line
-            for _ in range(2): # Try both endpoints
-                p_origin_id, p_other_id = random.choice([(line['p1_id'], line['p2_id']), (line['p2_id'], line['p1_id'])])
-                p_origin = points_map[p_origin_id]
-                p_other = points_map[p_other_id]
+        # Build adjacency list to find vertices
+        adj = {pid: [] for pid in team_point_ids}
+        for line in team_lines:
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].append(line['p2_id'])
+                adj[line['p2_id']].append(line['p1_id'])
+        
+        possible_vertices = [pid for pid, neighbors in adj.items() if len(neighbors) >= 2]
+        random.shuffle(possible_vertices)
+        
+        points_map = self.state['points']
 
-                vx = p_origin['x'] - p_other['x']
-                vy = p_origin['y'] - p_other['y']
-                angle = random.uniform(-math.pi * 2/3, math.pi * 2/3)
-                new_vx = vx * math.cos(angle) - vy * math.sin(angle)
-                new_vy = vx * math.sin(angle) + vy * math.cos(angle)
-                mag = math.sqrt(new_vx**2 + new_vy**2)
-                if mag == 0: continue
-                
+        for vertex_id in possible_vertices:
+            p_vertex = points_map.get(vertex_id)
+            if not p_vertex: continue
+
+            # Try a few combinations of legs from this vertex
+            neighbor_pairs = list(combinations(adj[vertex_id], 2))
+            random.shuffle(neighbor_pairs)
+
+            for leg1_id, leg2_id in neighbor_pairs[:3]:
+                p_leg1 = points_map.get(leg1_id)
+                p_leg2 = points_map.get(leg2_id)
+                if not p_leg1 or not p_leg2: continue
+
+                bisector_v = get_angle_bisector_vector(p_vertex, p_leg1, p_leg2)
+                if not bisector_v: continue
+
+                # Spawn point a short distance along the bisector
                 growth_length = self.state['grid_size'] * random.uniform(0.1, 0.2)
-                new_x = p_origin['x'] + (new_vx / mag) * growth_length
-                new_y = p_origin['y'] + (new_vy / mag) * growth_length
+                new_x = p_vertex['x'] + bisector_v['x'] * growth_length
+                new_y = p_vertex['y'] + bisector_v['y'] * growth_length
 
                 new_point_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
                 is_valid, _ = self.game.is_spawn_location_valid(new_point_coords, teamId)
-                if not is_valid:
-                    continue
+                if not is_valid: continue
 
-                # --- Primary Effect: Grow Line ---
+                # --- Primary Effect: Create Bisected Point ---
                 new_point_id = self.game._generate_id('p')
                 new_point = {**new_point_coords, "teamId": teamId, "id": new_point_id}
                 self.state['points'][new_point_id] = new_point
 
-                # Check for Ley Line bonus
                 bonus_line = self.game._check_and_apply_ley_line_bonus(new_point)
 
+                # Create a line connecting the new point to the vertex
                 line_id = self.game._generate_id('l')
-                new_line = {"id": line_id, "p1_id": p_origin_id, "p2_id": new_point_id, "teamId": teamId}
+                new_line = {"id": line_id, "p1_id": vertex_id, "p2_id": new_point_id, "teamId": teamId}
                 self.state['lines'].append(new_line)
                 
-                result_payload = {'success': True, 'type': 'grow_line', 'new_point': new_point, 'new_line': new_line}
+                result_payload = {'success': True, 'type': 'bisect_angle', 'new_point': new_point, 'new_line': new_line}
                 if bonus_line:
                     result_payload['bonus_line'] = bonus_line
                 
                 return result_payload
 
-        # --- Fallback: Strengthen a line ---
-        return self.game._fallback_strengthen_random_line(teamId, 'grow')
+        # --- Fallback: Strengthen one of the lines of a random angle ---
+        if possible_vertices:
+            vertex_id = random.choice(possible_vertices)
+            leg_ids = adj.get(vertex_id, [])
+            if not leg_ids:
+                return self.game._fallback_strengthen_random_line(teamId, 'bisect')
+            
+            lines_of_angle = []
+            all_team_lines = self.game.get_team_lines(teamId)
+            for l in all_team_lines:
+                if (l['p1_id'] == vertex_id and l['p2_id'] in leg_ids) or \
+                   (l['p2_id'] == vertex_id and l['p1_id'] in leg_ids):
+                    lines_of_angle.append(l)
+
+            if lines_of_angle:
+                line_to_strengthen = random.choice(lines_of_angle)
+                if self.game._strengthen_line(line_to_strengthen):
+                     return {'success': True, 'type': 'bisect_fizzle_strengthen', 'strengthened_line': line_to_strengthen}
+        
+        # Final fallback if even strengthening a specific line fails (e.g., they are all maxed out)
+        return self.game._fallback_strengthen_random_line(teamId, 'bisect')

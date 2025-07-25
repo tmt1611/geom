@@ -35,13 +35,13 @@ ACTIONS = {
             'extend_fizzle_strengthen': lambda r: ("tried to extend a line but couldn't, so it reinforced an existing line instead.", "[EXTEND->REINFORCE]"),
         }
     },
-    'expand_grow': {
-        'group': 'Expand', 'handler': 'expand_handler', 'method': 'grow_line',
-        'display_name': 'Grow Vine',
-        'description': "Grows a new, short line segment from an existing point at an angle. If it fails, it strengthens an existing line.",
+    'expand_bisect_angle': {
+        'group': 'Expand', 'handler': 'expand_handler', 'method': 'bisect_angle',
+        'display_name': 'Bisect Angle',
+        'description': "Finds a vertex point with two connected lines ('V' shape) and creates a new point along the angle's bisector. If it fails, it strengthens one of the angle's lines.",
         'log_generators': {
-            'grow_line': lambda r: ("grew a new branch, creating a new point.", "[GROW]"),
-            'grow_fizzle_strengthen': lambda r: ("failed to grow a new branch and instead reinforced an existing line.", "[GROW->REINFORCE]"),
+            'bisect_angle': lambda r: ("bisected an angle, creating a new point.", "[BISECT]"),
+            'bisect_fizzle_strengthen': lambda r: ("failed to bisect an angle and instead reinforced a line.", "[BISECT->REINFORCE]"),
         }
     },
     'expand_fracture': {

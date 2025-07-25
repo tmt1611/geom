@@ -48,7 +48,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 
 *   **[EXPAND] Add Line:** Connect two of its own points with a new line. If not possible, it will reinforce an existing friendly line.
 *   **[EXPAND] Extend Line:** Extend an existing line to the border of the grid, creating a new point. If no valid extensions can be found, it reinforces an existing friendly line.
-*   **[EXPAND] Grow Line (Vine):** Grow a new, short line segment from an existing point. If it cannot find a valid position, it reinforces the line it was trying to grow from.
+*   **[EXPAND] Bisect Angle:** Finds a point with at least two connected lines (a 'V' shape) and creates a new point along the angle's bisector, also connecting it to the vertex. If it fails, it reinforces one of the lines forming the angle.
 *   **[EXPAND] Fracture Line:** Splits an existing line into two, creating a new point along the line's original path. If no lines are long enough to fracture, it reinforces an existing friendly line.
 *   **[EXPAND] Spawn Point:** Creates a new point near an existing one. If it cannot find a valid position, it reinforces an existing friendly line instead.
 *   **[EXPAND] Mirror Point:** Reflects a friendly point through another friendly point to create a new symmetrical point. If no valid reflection is found, it strengthens the line between them (if it exists).

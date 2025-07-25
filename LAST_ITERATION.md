@@ -1,14 +1,14 @@
-This iteration focuses on adding a new, geometry-rich action to the Expand group, as suggested by the design principles in `design.md`.
+This iteration focuses on improving the action design by replacing a less-defined action with a more geometrically sound one, in line with `design.md` principles.
 
-1.  **New Action: `Mirror Point`**
-    *   Designed and implemented a new `Expand` action called `expand_mirror_point`.
-    *   **Mechanic:** This action reflects a friendly point through another friendly point to create a new point symmetrically, e.g., given points A and B, it creates a new point C such that B is the midpoint of AC. This provides a clean, predictable way to generate points based on existing geometry.
-    *   **Fallback Logic:** To ensure the action is robust, it includes layered fallbacks. If no valid location for a mirrored point can be found, it first attempts to strengthen the line between the two points it was trying to use. If that also fails, it falls back to strengthening a random friendly line, ensuring the action is never wasted.
+1.  **Replaced Action: `Grow Vine` -> `Bisect Angle`**
+    *   **Old Action (`Grow Vine`):** This action created a new point by growing a branch from an existing point at a random angle. This was functionally effective but lacked clear geometric intent.
+    *   **New Action (`Bisect Angle`):** This new `Expand` action is more deterministic and strategic. It identifies a vertex (a point with at least two connected lines forming an angle), calculates the angle's bisector, and spawns a new point along that bisector.
+    *   **Geometric Principle:** This change aligns better with the design goal of using "constructs: points, lines, shapes, hulls, rotations, mirrors" and avoids generic effects. It gives purpose to simple 'V' shapes on the grid.
 
 2.  **Implementation Details**
-    *   Added the new action's metadata to `game_app/action_data.py`.
-    *   Implemented the core logic and precondition check in `game_app/actions/expand_actions.py`.
-    *   The new action correctly integrates with other game systems, such as checking for the Ley Line bonus upon point creation.
+    *   Replaced `expand_grow` with `expand_bisect_angle` in `game_app/action_data.py`, including new user-facing descriptions and log messages.
+    *   Implemented `bisect_angle` and its precondition check `can_perform_bisect_angle` in `game_app/actions/expand_actions.py`. The new action correctly utilizes the existing `get_angle_bisector_vector` helper.
+    *   The fallback logic was also improved: if bisecting fails, it attempts to strengthen one of the two lines forming the angle, making the fallback more context-aware. A final, generic fallback to strengthen any random line remains as a failsafe.
 
 3.  **Documentation**
-    *   Updated `rules.md` to include a description of the new "Mirror Point" action for players.
+    *   Updated `rules.md` to remove the "Grow Line (Vine)" action and add the new "Bisect Angle" action with its description.
