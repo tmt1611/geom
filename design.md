@@ -93,12 +93,12 @@ A 10×10 grid-based auto-battle sandbox where users place multiple points belong
 * Stronger structures yield stronger actions.
 * Any actions containing sacrifice must be counted as sacrifice action.
 * Action that does not generate points or deal damage (like rotations, push, pull, etc) must not cost points.
+* Action pool should NEVER be empty, there should always be available actions even in extreme cases (only one point left, only 2 points far away, only a line left, etc)
 
 **Sacrifice Action Rules:**
 
 * Never cause negative net gain.
 * Must return at least:
-
   * 2× cost for points
   * 3× for lines
   * 4× for runes
