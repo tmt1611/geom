@@ -159,6 +159,20 @@ def get_edges_by_distance(point_list):
     return {'sides': sides, 'diagonals': diagonals, 'distances_sq': all_pair_dists}
 
 
+def rotate_point(point_to_rotate, center_point, angle_rad):
+    """Rotates a point around a center point by a given angle in radians."""
+    px, py = point_to_rotate['x'], point_to_rotate['y']
+    cx, cy = center_point['x'], center_point['y']
+    
+    cos_a = math.cos(angle_rad)
+    sin_a = math.sin(angle_rad)
+    
+    new_x = cx + (px - cx) * cos_a - (py - cy) * sin_a
+    new_y = cy + (px - cx) * sin_a + (py - cy) * cos_a
+    
+    return {'x': new_x, 'y': new_y}
+
+
 def reflect_point(point, p1_axis, p2_axis):
     """Reflects a point across the line defined by p1_axis and p2_axis."""
     px, py = point['x'], point['y']

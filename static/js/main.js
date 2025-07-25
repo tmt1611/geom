@@ -2340,6 +2340,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 duration: 800,
             });
         },
+        'rotate_point': (details, gameState) => {
+            lastActionHighlights.points.add(details.moved_point.id);
+            if (details.pivot_point && !details.is_grid_center) {
+                // If another point was the pivot, highlight it too
+                lastActionHighlights.points.add(details.pivot_point.id);
+            }
+        },
         'impale_fizzle_barricade': (details, gameState) => {
             details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
             // Animate the beam first

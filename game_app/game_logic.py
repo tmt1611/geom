@@ -1148,24 +1148,34 @@ class Game:
 
         self.state['action_events'] = [] # Clear events from the previous action
 
-        # If the current turn is over, start a new one. This might change game state.
+        # If the current turn's action queue is exhausted, it's the end of the turn.
         if (not self.state.get('actions_queue_this_turn') or
                 self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn'])):
+            # 1. Check for victory conditions based on the state at the end of the turn.
+            self._check_end_of_turn_victory_conditions()
+            if self.state['game_phase'] != 'RUNNING':
+                return
+            
+            # 2. Start the next turn (which includes start-of-turn effects and building a new action queue).
             self._start_new_turn()
+            # 3. Check if start-of-turn effects ended the game (e.g., Wonder victory).
+            if self.state['game_phase'] != 'RUNNING':
+                return
 
-        # After any potential state change from starting a new turn, we perform final checks.
-        # If the game is no longer running, or if there are no more actions, we stop.
-        if self.state['game_phase'] != 'RUNNING':
-            return
-
-        if not self.state.get('actions_queue_this_turn') or \
-           self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
-            # This handles extinction or other end-of-game scenarios where no actions are possible.
-            if self.state['game_phase'] == 'RUNNING': # Only log if not already ended by another condition
+        # If, after starting a new turn, the action queue is *still* empty, it means no teams had points.
+        # This is the definitive condition for extinction.
+        if not self.state.get('actions_queue_this_turn'):
+            if self.state['game_phase'] == 'RUNNING':
+                # This should only happen if no teams had points when _build_action_queue was called.
                 self.state['game_phase'] = 'FINISHED'
                 self.state['victory_condition'] = "Extinction"
                 self.state['game_log'].append({'message': "All teams have been eliminated. Game over.", 'short_message': '[EXTINCTION]'})
             return
+        
+        # If action_in_turn is out of bounds for the new queue, it means the turn just started
+        # and we should proceed with the first action. This can happen in rare edge cases.
+        if self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
+             self.state['action_in_turn'] = 0
 
         action_info = self.state['actions_queue_this_turn'][self.state['action_in_turn']]
         teamId = action_info['teamId']

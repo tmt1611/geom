@@ -1,7 +1,7 @@
 import random
 import math
 from itertools import combinations
-from ..geometry import distance_sq, reflect_point, is_rectangle, is_regular_pentagon, points_centroid, clamp_and_round_point_coords, get_edges_by_distance
+from ..geometry import distance_sq, reflect_point, rotate_point, is_rectangle, is_regular_pentagon, points_centroid, clamp_and_round_point_coords, get_edges_by_distance
 
 class FortifyActionsHandler:
     def __init__(self, game):
@@ -187,6 +187,13 @@ class FortifyActionsHandler:
         can_strengthen = len(self.game.get_team_lines(teamId)) > 0
         can_perform = can_reposition or can_strengthen
         reason = "" if can_perform else "No free points to reposition and no lines to strengthen."
+        return can_perform, reason
+
+    def can_perform_rotate_point(self, teamId):
+        can_rotate = bool(self.game._find_non_critical_sacrificial_point(teamId))
+        can_strengthen = len(self.game.get_team_lines(teamId)) > 0
+        can_perform = can_rotate or can_strengthen
+        reason = "" if can_perform else "No free points to rotate and no lines to strengthen."
         return can_perform, reason
     
     def can_perform_build_chronos_spire(self, teamId):
@@ -699,6 +706,59 @@ class FortifyActionsHandler:
 
         # Fallback: Strengthen a random line
         return self.game._fallback_strengthen_random_line(teamId, 'reposition')
+
+    def rotate_point(self, teamId):
+        """[FORTIFY ACTION]: Rotates a free point around a pivot. Falls back to strengthening a line."""
+        point_to_move_id = self.game._find_non_critical_sacrificial_point(teamId)
+        
+        if not point_to_move_id or point_to_move_id not in self.state['points']:
+            return self.game._fallback_strengthen_random_line(teamId, 'rotate')
+
+        p_origin = self.state['points'][point_to_move_id]
+        original_coords = {'x': p_origin['x'], 'y': p_origin['y'], 'id': p_origin['id'], 'teamId': p_origin['teamId']}
+
+        team_point_ids = self.game.get_team_point_ids(teamId)
+
+        # Try a few times to find a valid rotation
+        for _ in range(10):
+            # Choose pivot: 50% grid center, 50% another friendly point
+            if random.random() < 0.5 or len(team_point_ids) <= 1:
+                grid_size = self.state['grid_size']
+                pivot = {'x': (grid_size - 1) / 2, 'y': (grid_size - 1) / 2}
+                is_grid_center = True
+            else:
+                other_point_ids = [pid for pid in team_point_ids if pid != point_to_move_id]
+                pivot_id = random.choice(other_point_ids)
+                pivot = self.state['points'][pivot_id]
+                is_grid_center = False
+
+            # Choose angle
+            angle = random.choice([math.pi / 4, math.pi / 2, math.pi, -math.pi / 2, -math.pi/4]) # 45, 90, 180 deg
+            
+            new_p_coords_float = rotate_point(p_origin, pivot, angle)
+            new_p_coords = clamp_and_round_point_coords(new_p_coords_float, self.state['grid_size'])
+
+            # Temporarily remove the point to validate its new spot
+            temp_points = self.state['points'].copy()
+            del temp_points[point_to_move_id]
+            is_valid, _ = self.game.is_spawn_location_valid(new_p_coords, teamId, points_override=temp_points)
+            if not is_valid:
+                continue
+
+            # We found a valid move
+            p_origin['x'] = new_p_coords['x']
+            p_origin['y'] = new_p_coords['y']
+
+            return {
+                'success': True, 
+                'type': 'rotate_point', 
+                'moved_point': p_origin,
+                'original_coords': original_coords,
+                'pivot_point': pivot,
+                'is_grid_center': is_grid_center,
+            }
+
+        return self.game._fallback_strengthen_random_line(teamId, 'rotate')
 
     def build_chronos_spire(self, teamId):
         """[WONDER ACTION]: Build the Chronos Spire."""

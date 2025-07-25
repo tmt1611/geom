@@ -853,6 +853,40 @@ const illustrationDrawers = {
         // Explosion on target
         illustrationHelpers.drawExplosion(ctx, target.x, target.y);
     },
+    'fortify_rotate_point': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const pivot = {x: w*0.5, y: h*0.5};
+        const p_orig = {x: w*0.7, y: h*0.3};
+        
+        // Pivot point (grid center)
+        ctx.strokeStyle = '#aaa';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(pivot.x - 6, pivot.y); ctx.lineTo(pivot.x + 6, pivot.y);
+        ctx.moveTo(pivot.x, pivot.y - 6); ctx.lineTo(pivot.x, pivot.y + 6);
+        ctx.stroke();
+
+        // Original point
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        illustrationHelpers.drawPoints(ctx, [p_orig], team1_color);
+        ctx.restore();
+
+        const p_new = {x: w*0.3, y: h*0.7}; // Rotated
+        
+        // Arc path
+        ctx.beginPath();
+        const radius = Math.sqrt((p_orig.x - pivot.x)**2 + (p_orig.y - pivot.y)**2);
+        const startAngle = Math.atan2(p_orig.y - pivot.y, p_orig.x - pivot.x);
+        const endAngle = Math.atan2(p_new.y - pivot.y, p_new.x - pivot.x);
+        ctx.arc(pivot.x, pivot.y, radius, startAngle, endAngle);
+        ctx.setLineDash([3, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        
+        // New point
+        illustrationHelpers.drawPoints(ctx, [p_new], team1_color);
+    },
     'rune_hourglass_stasis': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';

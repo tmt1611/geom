@@ -290,6 +290,15 @@ ACTIONS = {
             'reposition_fizzle_strengthen': lambda r: ("could not find a better position for any point, and instead reinforced a line.", "[REPOSITION->REINFORCE]"),
         }
     },
+    'fortify_rotate_point': {
+        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'rotate_point',
+        'display_name': 'Rotate Point',
+        'description': "Rotates a single 'free' (non-structural) point around the grid center or another friendly point. If no valid rotation is found, it strengthens a line instead.",
+        'log_generators': {
+            'rotate_point': lambda r: (f"rotated a point around {'the grid center.' if r.get('is_grid_center') else 'another point.'}", "[ROTATE]"),
+            'rotate_fizzle_strengthen': lambda r: ("could not find a valid rotation for any point, and instead reinforced a line.", "[ROTATE->REINFORCE]"),
+        }
+    },
     'fortify_attune_nexus': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'attune_nexus',
         'display_name': 'Attune Nexus',
