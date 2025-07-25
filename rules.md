@@ -51,6 +51,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[EXPAND] Grow Line (Vine):** Grow a new, short line segment from an existing point. If it cannot find a valid position, it reinforces the line it was trying to grow from.
 *   **[EXPAND] Fracture Line:** Splits an existing line into two, creating a new point along the line's original path. If no lines are long enough to fracture, it reinforces an existing friendly line.
 *   **[EXPAND] Spawn Point:** Creates a new point near an existing one. If it cannot find a valid position, it reinforces an existing friendly line instead.
+*   **[EXPAND] Mirror Point:** Reflects a friendly point through another friendly point to create a new symmetrical point. If no valid reflection is found, it strengthens the line between them (if it exists).
 *   **[EXPAND] Create Orbital:** Creates a constellation of 3-5 new "satellite" points in a circle around one of its existing points. If no valid formation can be made, it instead reinforces all lines connected to the chosen center point.
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is destroyed. If it misses, it creates a new friendly point on the border.
 *   **[FIGHT] Pincer Attack:** If two of a team's points are flanking a single enemy point (creating a wide angle), they can perform a joint attack to destroy it. This does not work on fortified or bastion points. If no suitable target is found, the points instead form a small, temporary barricade between them.

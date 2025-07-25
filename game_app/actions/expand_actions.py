@@ -64,6 +64,14 @@ class ExpandActionsHandler:
 
         return False, "Requires at least 5 points, or at least 1 point and 1 line for fallback."
 
+    def can_perform_mirror_point(self, teamId):
+        # Primary needs >= 2 points. Fallback needs any line.
+        has_points = len(self.game.get_team_point_ids(teamId)) >= 2
+        has_lines = len(self.game.get_team_lines(teamId)) > 0
+        can_perform = has_points or has_lines
+        reason = "" if can_perform else "Requires at least 2 points to mirror or a line to strengthen."
+        return can_perform, reason
+
     # --- End Precondition Checks ---
 
     @property
@@ -274,6 +282,62 @@ class ExpandActionsHandler:
 
         # Fallback: Strengthen a random line
         return self.game._fallback_strengthen_random_line(teamId, 'spawn')
+
+    def mirror_point(self, teamId):
+        """[EXPAND ACTION]: Reflects a friendly point through another to create a new symmetrical point."""
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if len(team_point_ids) < 2:
+            return self.game._fallback_strengthen_random_line(teamId, 'mirror_point')
+
+        points = self.state['points']
+        possible_pairs = list(combinations(team_point_ids, 2))
+        random.shuffle(possible_pairs)
+
+        for p1_id, p2_id in possible_pairs:
+            # Try reflecting p1 through p2, and p2 through p1
+            for p_source_id, p_pivot_id in [(p1_id, p2_id), (p2_id, p1_id)]:
+                p_source = points[p_source_id]
+                p_pivot = points[p_pivot_id]
+
+                # Calculate reflected point: P_new = P_pivot + (P_pivot - P_source)
+                new_x = p_pivot['x'] + (p_pivot['x'] - p_source['x'])
+                new_y = p_pivot['y'] + (p_pivot['y'] - p_source['y'])
+
+                new_point_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
+                is_valid, _ = self.game.is_spawn_location_valid(new_point_coords, teamId)
+
+                if is_valid:
+                    # --- Primary Effect: Create Mirrored Point ---
+                    new_point_id = self.game._generate_id('p')
+                    new_point = {**new_point_coords, "teamId": teamId, "id": new_point_id}
+                    self.state['points'][new_point_id] = new_point
+
+                    # Check for Ley Line bonus
+                    bonus_line = self.game._check_and_apply_ley_line_bonus(new_point)
+
+                    result_payload = {
+                        'success': True, 'type': 'mirror_point', 'new_point': new_point,
+                        'source_point_id': p_source_id, 'pivot_point_id': p_pivot_id
+                    }
+                    if bonus_line:
+                        result_payload['bonus_line'] = bonus_line
+                    
+                    return result_payload
+        
+        # --- Fallback: Strengthen the line between a pair ---
+        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+        for p1_id, p2_id in possible_pairs:
+            line_key = tuple(sorted((p1_id, p2_id)))
+            if line_key in all_lines_by_points:
+                line_to_strengthen = all_lines_by_points[line_key]
+                if self.game._strengthen_line(line_to_strengthen):
+                    return {
+                        'success': True, 'type': 'mirror_point_fizzle_strengthen',
+                        'strengthened_line': line_to_strengthen
+                    }
+        
+        # Final fallback if no lines existed between pairs
+        return self.game._fallback_strengthen_random_line(teamId, 'mirror_point')
 
     def create_orbital(self, teamId):
         """[EXPAND ACTION]: Creates a new orbital structure. If not possible, strengthens lines around a potential center."""

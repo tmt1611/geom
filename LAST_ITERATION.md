@@ -1,15 +1,14 @@
-This iteration focuses on implementing a new, geometry-rich action for Territories as specified in `design.md`.
+This iteration focuses on adding a new, geometry-rich action to the Expand group, as suggested by the design principles in `design.md`.
 
-1.  **New Geometry Helper:**
-    *   Created a new reusable helper function `get_angle_bisector_vector` in `game_app/geometry.py`. This function calculates the normalized vector of an angle's bisector given three points forming the angle.
-    *   Refactored the existing `rune_shoot_bisector` action (for V-Runes) in `game_app/actions/rune_actions.py` to use this new, more robust helper function.
+1.  **New Action: `Mirror Point`**
+    *   Designed and implemented a new `Expand` action called `expand_mirror_point`.
+    *   **Mechanic:** This action reflects a friendly point through another friendly point to create a new point symmetrically, e.g., given points A and B, it creates a new point C such that B is the midpoint of AC. This provides a clean, predictable way to generate points based on existing geometry.
+    *   **Fallback Logic:** To ensure the action is robust, it includes layered fallbacks. If no valid location for a mirrored point can be found, it first attempts to strengthen the line between the two points it was trying to use. If that also fails, it falls back to strengthening a random friendly line, ensuring the action is never wasted.
 
-2.  **New Territory Action: `Territory Tri-Beam`**
-    *   Added a new action, `fight_territory_bisector_strike`, as described in `design.md`. This action allows a claimed territory (a triangle) to fire three beams along its angle bisectors.
-    *   The action was added to `game_app/action_data.py` with a display name, description, and log generators.
-    *   The core logic was implemented in `game_app/actions/fight_actions.py`, including a `can_perform_territory_bisector_strike` precondition check.
-    *   The action's logic reuses the `_find_closest_attack_hit` helper, allowing it to correctly interact with shields (and Cross-Runes) and find the nearest target.
-    *   If a beam misses, it creates a new point on the border, providing a fallback consistent with other ranged attacks.
+2.  **Implementation Details**
+    *   Added the new action's metadata to `game_app/action_data.py`.
+    *   Implemented the core logic and precondition check in `game_app/actions/expand_actions.py`.
+    *   The new action correctly integrates with other game systems, such as checking for the Ley Line bonus upon point creation.
 
-3.  **Documentation:**
-    *   The new "Territory Tri-Beam" action has been added to `rules.md` to keep the documentation in sync with the game's mechanics.
+3.  **Documentation**
+    *   Updated `rules.md` to include a description of the new "Mirror Point" action for players.

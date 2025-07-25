@@ -62,6 +62,15 @@ ACTIONS = {
             'spawn_fizzle_strengthen': lambda r: ("could not find a place to spawn a new point, and instead reinforced an existing line.", "[SPAWN->REINFORCE]"),
         }
     },
+    'expand_mirror_point': {
+        'group': 'Expand', 'handler': 'expand_handler', 'method': 'mirror_point',
+        'display_name': 'Mirror Point',
+        'description': "Reflects a friendly point through another friendly point to create a new symmetrical point. If no valid reflection is found, it strengthens the line between them (if it exists).",
+        'log_generators': {
+            'mirror_point': lambda r: (f"mirrored a point through another, creating a new point.", "[MIRROR PT]"),
+            'mirror_point_fizzle_strengthen': lambda r: ("could not find a valid reflection and instead reinforced a line.", "[MIRROR PT->REINFORCE]"),
+        }
+    },
     'expand_orbital': {
         'group': 'Expand', 'handler': 'expand_handler', 'method': 'create_orbital',
         'display_name': 'Create Orbital',
