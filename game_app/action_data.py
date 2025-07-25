@@ -187,6 +187,15 @@ ACTIONS = {
             'isolate_fizzle_barricade': lambda r: ("failed to find a critical enemy point to isolate and instead formed a defensive barricade.", "[ISOLATE->WALL]"),
         }
     },
+    'fight_parallel_strike': {
+        'group': 'Fight', 'handler': 'fight_handler', 'method': 'parallel_strike',
+        'display_name': 'Parallel Strike',
+        'description': "From a friendly point, projects a beam parallel to a friendly line. Destroys the first enemy point it hits, or creates a new point on the border if it misses.",
+        'log_generators': {
+            'parallel_strike_hit': lambda r: (f"executed a parallel strike, destroying a point from {r['destroyed_team_name']}.", "[PARALLEL!]"),
+            'parallel_strike_miss': lambda r: ("launched a parallel strike that missed, creating a new point on the border.", "[PARALLEL->SPAWN]"),
+        }
+    },
     
     # --- FORTIFY ACTIONS ---
     'fortify_shield': {

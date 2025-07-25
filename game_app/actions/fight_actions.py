@@ -81,6 +81,18 @@ class FightActionsHandler:
         
         return False, "No valid enemy target to isolate and not enough points for fallback barricade."
 
+    def can_perform_parallel_strike(self, teamId):
+        has_line = len(self.game.get_team_lines(teamId)) > 0
+        has_point = len(self.game.get_team_point_ids(teamId)) > 0
+        num_enemy_points = len(self.state['points']) - len(self.game.get_team_point_ids(teamId))
+        
+        # A bit more strict: needs a point that is NOT on the line to be useful.
+        # This is implicitly handled by the action logic, but a simple count check is good enough here.
+        if has_point and has_line:
+            return num_enemy_points > 0, "Requires an enemy point to target."
+        
+        return False, "Requires at least one point and one line."
+
     # --- End Precondition Checks ---
 
     @property
@@ -962,3 +974,91 @@ class FightActionsHandler:
                 'success': True, 'type': 'isolate_fizzle_barricade',
                 'barricade': new_barricade
             }
+
+    def parallel_strike(self, teamId):
+        """[FIGHT ACTION]: From a point, draw a line parallel to a friendly line. If it hits an enemy point, destroy it. If it hits the border, generate a point."""
+        team_lines = self.game.get_team_lines(teamId)
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+
+        if not team_lines or not team_point_ids or not enemy_points:
+            return {'success': False, 'reason': 'missing required elements for parallel strike'}
+
+        points = self.state['points']
+        
+        # Create a list of potential origins and reference lines to try
+        potential_actions = []
+        for p_origin_id in team_point_ids:
+            for l_ref in team_lines:
+                # To be a true parallel strike, the origin point shouldn't be part of the reference line
+                if l_ref['p1_id'] != p_origin_id and l_ref['p2_id'] != p_origin_id:
+                    potential_actions.append({'p_id': p_origin_id, 'l_ref': l_ref})
+        
+        if not potential_actions:
+            return {'success': False, 'reason': 'no valid origin point / reference line pairs found'}
+
+        random.shuffle(potential_actions)
+        
+        # Try a few combinations
+        for action_combo in potential_actions[:15]:
+            p_origin = points.get(action_combo['p_id'])
+            l_ref = action_combo['l_ref']
+            
+            if not p_origin or not (l_ref['p1_id'] in points and l_ref['p2_id'] in points):
+                continue
+
+            p_ref1 = points[l_ref['p1_id']]
+            p_ref2 = points[l_ref['p2_id']]
+            
+            ref_vx = p_ref2['x'] - p_ref1['x']
+            ref_vy = p_ref2['y'] - p_ref1['y']
+            
+            if ref_vx == 0 and ref_vy == 0: continue
+
+            # We check both parallel directions from the origin
+            for strike_vx, strike_vy in [(ref_vx, ref_vy), (-ref_vx, -ref_vy)]:
+                
+                possible_targets = []
+                for enemy_p in enemy_points:
+                    enemy_vx = enemy_p['x'] - p_origin['x']
+                    enemy_vy = enemy_p['y'] - p_origin['y']
+                    
+                    # Collinearity check using cross-product (with tolerance)
+                    if abs(strike_vx * enemy_vy - strike_vy * enemy_vx) > 0.5: continue
+                    # Direction check using dot-product
+                    if (strike_vx * enemy_vx + strike_vy * enemy_vy) <= 0: continue
+                    
+                    possible_targets.append(enemy_p)
+                
+                if possible_targets:
+                    target_point = min(possible_targets, key=lambda p: distance_sq(p_origin, p))
+                    
+                    if is_ray_blocked(p_origin, target_point, self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])):
+                        continue
+
+                    destroyed_point_data = self.game._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+                    if not destroyed_point_data: continue
+                    
+                    destroyed_team_name = self.state['teams'][destroyed_point_data['teamId']]['name']
+                    return {
+                        'success': True, 'type': 'parallel_strike_hit',
+                        'destroyed_point': destroyed_point_data, 'destroyed_team_name': destroyed_team_name,
+                        'attack_ray': {'p1': p_origin, 'p2': target_point}, 'ref_line': l_ref
+                    }
+
+                # If no targets were hit, try spawning on border
+                dummy_end = {'x': p_origin['x'] + strike_vx, 'y': p_origin['y'] + strike_vy}
+                border_point = get_extended_border_point(
+                    p_origin, dummy_end, self.state['grid_size'],
+                    self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
+                )
+                if border_point:
+                    new_point = self.game._helper_spawn_on_border(teamId, border_point)
+                    if new_point:
+                        return {
+                            'success': True, 'type': 'parallel_strike_miss',
+                            'new_point': new_point,
+                            'attack_ray': {'p1': p_origin, 'p2': border_point}, 'ref_line': l_ref
+                        }
+
+        return {'success': False, 'reason': 'no valid parallel strike could be found'}
