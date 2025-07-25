@@ -95,6 +95,36 @@ def is_ray_blocked(p_start, p_end, fissures, barricades, scorched_zones=None):
     return False
 
 
+def get_angle_bisector_vector(p_vertex, p_leg1, p_leg2):
+    """
+    Calculates the unit vector for the angle bisector at p_vertex.
+    The vector points "out" of the triangle.
+    """
+    v1 = {'x': p_leg1['x'] - p_vertex['x'], 'y': p_leg1['y'] - p_vertex['y']}
+    v2 = {'x': p_leg2['x'] - p_vertex['x'], 'y': p_leg2['y'] - p_vertex['y']}
+    
+    mag1 = math.sqrt(v1['x']**2 + v1['y']**2)
+    mag2 = math.sqrt(v2['x']**2 + v2['y']**2)
+    
+    if mag1 == 0 or mag2 == 0:
+        return None
+
+    # Normalized vectors along the legs
+    v1_norm = {'x': v1['x'] / mag1, 'y': v1['y'] / mag1}
+    v2_norm = {'x': v2['x'] / mag2, 'y': v2['y'] / mag2}
+
+    # The bisector is the sum of the normalized vectors
+    bisector_v = {'x': v1_norm['x'] + v2_norm['x'], 'y': v1_norm['y'] + v2_norm['y']}
+    
+    mag_b = math.sqrt(bisector_v['x']**2 + bisector_v['y']**2)
+    if mag_b < 0.001:
+        # This happens if the legs are opposite, i.e. a straight line.
+        # The angle is 180 deg, so the bisector is perpendicular.
+        return {'x': -v1_norm['y'], 'y': v1_norm['x']}
+
+    return {'x': bisector_v['x'] / mag_b, 'y': bisector_v['y'] / mag_b}
+
+
 def get_extended_border_point(p1, p2, grid_size, fissures, barricades, scorched_zones=None):
     """
     Extends a line segment p1-p2 from p1 outwards through p2 to the border.

@@ -105,6 +105,15 @@ ACTIONS = {
             'pincer_fizzle_barricade': lambda r: ("failed to find a pincer target and instead formed a temporary defensive barricade.", "[PINCER->WALL]"),
         }
     },
+    'fight_territory_bisector_strike': {
+        'group': 'Fight', 'handler': 'fight_handler', 'method': 'territory_bisector_strike',
+        'display_name': 'Territory Tri-Beam',
+        'description': "A claimed territory fires three beams of energy along the bisectors of its angles. Each beam destroys the first enemy line it hits. If a beam misses, it creates a new point on the border.",
+        'log_generators': {
+            'territory_bisector_strike': lambda r: (f"unleashed a Tri-Beam from a territory, destroying {len(r['destroyed_lines'])} lines and creating {len(r['created_points'])} points.", "[TRI-BEAM!]"),
+            'territory_bisector_strike_fizzle': lambda r: ("attempted a Tri-Beam strike, but all paths were blocked.", "[TRI-BEAM->FIZZLE]"),
+        }
+    },
     'fight_territory_strike': {
         'group': 'Fight', 'handler': 'fight_handler', 'method': 'territory_strike',
         'display_name': 'Territory Strike',

@@ -4,7 +4,8 @@ from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
     get_extended_border_point, is_ray_blocked,
-    polygon_area, points_centroid, clamp_and_round_point_coords
+    polygon_area, points_centroid, clamp_and_round_point_coords,
+    get_angle_bisector_vector
 )
 
 class FightActionsHandler:
@@ -24,6 +25,10 @@ class FightActionsHandler:
 
     def can_perform_territory_strike(self, teamId):
         return len(self._get_large_territories(teamId)) > 0, "No large territories available."
+
+    def can_perform_territory_bisector_strike(self, teamId):
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        return len(team_territories) > 0, "No claimed territories available."
 
     def can_perform_bastion_pulse(self, teamId):
         can_perform = len(self.game._find_possible_bastion_pulses(teamId)) > 0
@@ -349,6 +354,80 @@ class FightActionsHandler:
                 'success': True, 'type': 'territory_fizzle_reinforce',
                 'territory_point_ids': territory['point_ids'], 'strengthened_lines': strengthened_lines
             }
+
+    def territory_bisector_strike(self, teamId):
+        """[FIGHT ACTION]: A claimed territory fires three beams along its angle bisectors."""
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        if not team_territories:
+            return {'success': False, 'reason': 'no territories to strike from'}
+
+        territory = random.choice(team_territories)
+        points_map = self.state['points']
+        p_ids = territory['point_ids']
+        if not all(pid in points_map for pid in p_ids):
+            return {'success': False, 'reason': 'territory points no longer exist'}
+        
+        p1, p2, p3 = points_map[p_ids[0]], points_map[p_ids[1]], points_map[p_ids[2]]
+        vertices = [(p1, p2, p3), (p2, p1, p3), (p3, p1, p2)]
+
+        destroyed_lines = []
+        created_points = []
+        attack_rays = []
+        
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        team_has_cross_rune = len(self.state.get('runes', {}).get(teamId, {}).get('cross', [])) > 0
+        bastion_line_ids = self.game._get_bastion_line_ids()
+
+        for p_vertex, p_leg1, p_leg2 in vertices:
+            bisector_v = get_angle_bisector_vector(p_vertex, p_leg1, p_leg2)
+            if not bisector_v:
+                continue
+
+            dummy_end_point = {'x': p_vertex['x'] + bisector_v['x'], 'y': p_vertex['y'] + bisector_v['y']}
+            border_point = get_extended_border_point(
+                p_vertex, dummy_end_point, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
+            )
+            if not border_point:
+                continue
+            
+            attack_ray_p1 = p_vertex
+            attack_ray_p2 = border_point
+
+            closest_hit = self._find_closest_attack_hit(attack_ray_p1, attack_ray_p2, enemy_lines, team_has_cross_rune, bastion_line_ids)
+
+            if closest_hit:
+                # To prevent destroying the same line twice.
+                if closest_hit['target_line'] in destroyed_lines:
+                    continue
+
+                self.game._delete_line(closest_hit['target_line'])
+                destroyed_lines.append(closest_hit['target_line'])
+                attack_rays.append({'p1': attack_ray_p1, 'p2': closest_hit['intersection_point']})
+                # After destroying a line, it's no longer an enemy line for subsequent beams.
+                enemy_lines.remove(closest_hit['target_line'])
+            else:
+                new_point = self.game._helper_spawn_on_border(teamId, border_point)
+                if new_point:
+                    created_points.append(new_point)
+                    attack_rays.append({'p1': attack_ray_p1, 'p2': border_point})
+
+        if not destroyed_lines and not created_points:
+            return {
+                'success': False, 
+                'type': 'territory_bisector_strike_fizzle',
+                'territory_point_ids': territory['point_ids'],
+                'reason': 'all beams were blocked'
+            }
+
+        return {
+            'success': True,
+            'type': 'territory_bisector_strike',
+            'territory_point_ids': territory['point_ids'],
+            'destroyed_lines': destroyed_lines,
+            'created_points': created_points,
+            'attack_rays': attack_rays
+        }
 
     def bastion_pulse(self, teamId):
         """[FIGHT ACTION]: A bastion sacrifices a prong to destroy crossing enemy lines. If it fizzles, it creates a shockwave."""

@@ -4,7 +4,8 @@ from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
     get_extended_border_point, is_point_inside_triangle,
-    points_centroid, clamp_and_round_point_coords, get_edges_by_distance
+    points_centroid, clamp_and_round_point_coords, get_edges_by_distance,
+    get_angle_bisector_vector
 )
 
 class RuneActionsHandler:
@@ -78,17 +79,11 @@ class RuneActionsHandler:
         if not all([p_vertex, p_leg1, p_leg2]):
             return {'success': False, 'reason': 'rune points no longer exist'}
         
-        # Calculate bisector vector
-        v1 = {'x': p_leg1['x'] - p_vertex['x'], 'y': p_leg1['y'] - p_vertex['y']}
-        v2 = {'x': p_leg2['x'] - p_vertex['x'], 'y': p_leg2['y'] - p_vertex['y']}
-        mag1, mag2 = math.sqrt(v1['x']**2 + v1['y']**2), math.sqrt(v2['x']**2 + v2['y']**2)
-        if mag1 == 0 or mag2 == 0: return {'success': False, 'reason': 'invalid V-rune geometry'}
-
-        bisector_v = {'x': v1['x']/mag1 + v2['x']/mag2, 'y': v1['y']/mag1 + v2['y']/mag2}
-        mag_b = math.sqrt(bisector_v['x']**2 + bisector_v['y']**2)
-        if mag_b == 0: return {'success': False, 'reason': 'V-rune legs are opposing'}
-
-        p_end = {'x': p_vertex['x'] + bisector_v['x']/mag_b, 'y': p_vertex['y'] + bisector_v['y']/mag_b}
+        bisector_v = get_angle_bisector_vector(p_vertex, p_leg1, p_leg2)
+        if not bisector_v:
+            return {'success': False, 'reason': 'invalid V-rune geometry'}
+        
+        p_end = {'x': p_vertex['x'] + bisector_v['x'], 'y': p_vertex['y'] + bisector_v['y']}
         border_point = get_extended_border_point(
             p_vertex, p_end, self.state['grid_size'],
             self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
