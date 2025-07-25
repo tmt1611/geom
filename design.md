@@ -6,15 +6,11 @@ A 10×10 grid-based auto-battle sandbox where users place multiple points belong
 * As a battle game.
 * As a divination-style pattern analysis.
 
----
-
 ## **Objectives**
 
 * Build a highly random, visually engaging auto-battle sandbox.
 * Enable divination-style interpretation of results.
   Example: Users input two sets of points (e.g., birthdate and today’s date); simulation resolves; grid is interpreted similar to a horoscope or star chart.
-
----
 
 ## **Phases**
 
@@ -58,8 +54,6 @@ A 10×10 grid-based auto-battle sandbox where users place multiple points belong
 * Use scores (sandbox) or structural/visual metrics (divination).
 * Metrics may include: triangle count, occupied area, line count, etc.
 
----
-
 ## **Structures and Complexity**
 
 **Complexity hierarchy:**
@@ -74,8 +68,6 @@ A 10×10 grid-based auto-battle sandbox where users place multiple points belong
 * Line-based fight: extend line to attack or create up to 2 points.
 * Triangle territory fight: extend 3 bisectors, potentially affecting more targets.
 
----
-
 ## **Status System**
 
 * Statuses (e.g., reinforced, fortified, enhanced, protected) allowed.
@@ -85,8 +77,6 @@ A 10×10 grid-based auto-battle sandbox where users place multiple points belong
   * Fortified: adds 1 hitpoint to a point or line.
 
     * Via fortify action or placing a point on an occupied location.
-
----
 
 ## **Action System**
 
@@ -127,8 +117,6 @@ A 10×10 grid-based auto-battle sandbox where users place multiple points belong
 
      * Deals 1 damage on first enemy hit or creates point if border is hit.
   3. The other point on the line can trigger same effect without being sacrificed.
-
----
 
 ## **Rules Management**
 
