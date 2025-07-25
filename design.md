@@ -40,13 +40,14 @@ A 10×10 grid-based auto-battle sandbox where users place multiple points belong
 
 **Geometric constraints:**
 
-* All actions must be geometric and visually clear.
+* All actions must be geometry-based and visually clear and impressive.
 * Use constructs: points, lines, shapes, hulls, rotations, mirrors.
 * Avoid generic effects. Prefer specific designs, e.g.:
 
-  * From a point, draw line parallel to a friendly line. If it hits enemy point, destroy. If it hits border, generate a point.
-  * Mirror a friendly point through another.
-  * Rotate a point around grid center or another point.
+  * Instead of make a point from a point, try : From a point, draw line parallel to a friendly line. If it hits enemy point, destroy. If it hits border, generate a point.
+  * Instead of make a point from a point, try : Mirror a friendly point through another.
+  * Instead of move a point, try : Rotate a point around grid center or another point.
+  * Instead of convert a point, try : convert a point that is contained in the hull of the team (with proper visual display of the hull for user to see)
 
 ### 3. **Interpret Phase**
 
