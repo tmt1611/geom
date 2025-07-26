@@ -202,40 +202,6 @@ class TurnProcessor:
                 expired_anchors.append(anchor_pid)
         for anchor_pid in expired_anchors:
             if anchor_pid in self.state['anchors']: del self.state['anchors'][anchor_pid]
-    
-    def _process_heartwoods(self):
-        """Handles Heartwood point generation."""
-        if not self.state.get('heartwoods'):
-            return
-
-        for teamId, heartwood in self.state['heartwoods'].items():
-            heartwood['growth_counter'] += 1
-            if heartwood['growth_counter'] >= heartwood['growth_interval']:
-                heartwood['growth_counter'] = 0
-                
-                for _ in range(10):
-                    angle = random.uniform(0, 2 * math.pi)
-                    radius = self.state['grid_size'] * random.uniform(0.05, 0.15)
-                    
-                    new_x = heartwood['center_coords']['x'] + math.cos(angle) * radius
-                    new_y = heartwood['center_coords']['y'] + math.sin(angle) * radius
-                    
-                    grid_size = self.state['grid_size']
-                    final_x = round(max(0, min(grid_size - 1, new_x)))
-                    final_y = round(max(0, min(grid_size - 1, new_y)))
-                    
-                    new_p_coords = {'x': final_x, 'y': final_y}
-                    if not self.game.is_spawn_location_valid(new_p_coords, teamId)[0]: continue
-
-                    new_point_id = self.game._generate_id('p')
-                    new_point = {"x": final_x, "y": final_y, "teamId": teamId, "id": new_point_id}
-                    self.state['points'][new_point_id] = new_point
-                    
-                    team_name = self.state['teams'][teamId]['name']
-                    log_msg = {'teamId': teamId, 'message': f"The Heartwood of {team_name} birthed a new point.", 'short_message': '[HW:GROWTH]'}
-                    self.state['game_log'].append(log_msg)
-                    self.state['new_turn_events'].append({'type': 'heartwood_growth', 'new_point': new_point, 'heartwood_id': heartwood['id']})
-                    break
 
     def _process_whirlpools(self):
         """Handles whirlpool pulls and expiration."""
