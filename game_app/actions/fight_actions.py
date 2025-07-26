@@ -69,16 +69,20 @@ class FightActionsHandler:
         return False, "No valid enemy target to isolate and not enough points for fallback barricade."
 
     def can_perform_parallel_strike(self, teamId):
-        has_line = len(self.game.get_team_lines(teamId)) > 0
-        has_point = len(self.game.get_team_point_ids(teamId)) > 0
-        num_enemy_points = len(self.state['points']) - len(self.game.get_team_point_ids(teamId))
+        team_lines = self.game.get_team_lines(teamId)
+        team_point_ids = self.game.get_team_point_ids(teamId)
         
-        # A bit more strict: needs a point that is NOT on the line to be useful.
-        # This is implicitly handled by the action logic, but a simple count check is good enough here.
-        if has_point and has_line:
-            return num_enemy_points > 0, "Requires an enemy point to target."
+        if not team_lines or not team_point_ids:
+            return False, "Requires at least one point and one line."
+
+        # Since the action can create a point if it misses, we don't need to check for enemy points.
+        # We just need to check if a valid geometric setup exists: a point and a line it is not part of.
+        for p_id in team_point_ids:
+            for line in team_lines:
+                if p_id != line['p1_id'] and p_id != line['p2_id']:
+                    return True, "" # Found a valid combination, so action is possible.
         
-        return False, "Requires at least one point and one line."
+        return False, "No valid point/line combination found for a parallel strike."
 
     def can_perform_hull_breach(self, teamId):
         # Primary or fallback effect is possible if team has >= 3 points.

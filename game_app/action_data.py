@@ -185,10 +185,7 @@ ACTIONS = {
         'description': "Projects the team's convex hull as an energy field, converting the most central enemy point found inside. If no enemy points are inside, it reinforces the hull's boundary lines.",
         'log_generators': {
             'hull_breach_convert': lambda r: (f"breached its hull, converting a point from {r['original_team_name']}.", "[BREACH!]"),
-            'hull_breach_fizzle_reinforce': lambda r: (
-    f"found no enemy points within its hull and instead reinforced {len(r.get('strengthened_lines',[]))} and created {len(r.get('created_lines',[]))} boundary lines.", 
-    "[BREACH->FORTIFY]"
-),
+            'hull_breach_fizzle_reinforce': lambda r: (f"found no enemy points within its hull and instead fortified its boundary lines.", "[BREACH->FORTIFY]"),
         }
     },
     
