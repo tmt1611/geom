@@ -4,7 +4,7 @@ from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
     get_extended_border_point, is_point_in_polygon,
-    points_centroid, get_angle_bisector_vector
+    points_centroid, get_angle_bisector_vector, clamp_and_round_point_coords
 )
 
 class RuneActionsHandler:
