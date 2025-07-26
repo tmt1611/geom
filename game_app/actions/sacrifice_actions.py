@@ -62,10 +62,6 @@ class SacrificeActionsHandler:
         
         return False, "All active Nexuses are already attuned."
 
-    def can_perform_starlight_cascade(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('star', []))
-        return can_perform, "Requires an active Star Rune."
-
     def can_perform_t_hammer_slam(self, teamId):
         can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('t_shape', []))
         return can_perform, "Requires an active T-Rune."
@@ -753,45 +749,6 @@ class SacrificeActionsHandler:
         return {
             'success': True, 'type': 'attune_nexus',
             'nexus_id': nexus_id, 'sacrificed_line': line_to_sac, 'attuned_nexus': attuned_nexus
-        }
-
-    def starlight_cascade(self, teamId):
-        """[SACRIFICE ACTION]: A Star Rune sacrifices an outer point to damage nearby lines."""
-        team_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
-        if not team_star_runes: return {'success': False, 'reason': 'no active star runes'}
-        
-        rune = random.choice(team_star_runes)
-        outer_point_ids = rune['cycle_ids']
-        if not outer_point_ids: return {'success': False, 'reason': 'star rune has no outer points'}
-
-        p_to_sac_id = random.choice(outer_point_ids)
-        if p_to_sac_id not in self.state['points']: return {'success': False, 'reason': 'point to sacrifice no longer exists'}
-        
-        sac_point_coords = self.state['points'][p_to_sac_id].copy()
-        self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId, allow_regeneration=True)
-        
-        blast_radius_sq = (self.state['grid_size'] * 0.15)**2
-        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        points = self.state['points']
-        lines_to_damage = []
-
-        for line in enemy_lines:
-            if line.get('id') in self.state['shields']: continue
-            if not (line['p1_id'] in points and line['p2_id'] in points): continue
-            
-            p1 = points[line['p1_id']]
-            p2 = points[line['p2_id']]
-            midpoint = points_centroid([p1, p2])
-
-            if distance_sq(sac_point_coords, midpoint) < blast_radius_sq:
-                lines_to_damage.append(line)
-        
-        for line in lines_to_damage:
-            self.game._delete_line(line)
-            
-        return {
-            'success': True, 'type': 'rune_starlight_cascade',
-            'sacrificed_point': sac_point_coords, 'damaged_lines': lines_to_damage, 'rune_points': rune['all_points']
         }
 
     def t_hammer_slam(self, teamId):

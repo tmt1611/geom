@@ -408,14 +408,6 @@ ACTIONS = {
             'attune_nexus': lambda r: ("attuned a Nexus, sacrificing a line to energize its surroundings.", "[ATTUNED!]"),
         }
     },
-    'sacrifice_starlight_cascade': {
-        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'starlight_cascade',
-        'display_name': 'Sacrifice: Starlight Cascade',
-        'description': "A Star-Rune sacrifices one of its outer points to damage or destroy all nearby unshielded enemy lines.",
-        'log_generators': {
-            'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),
-        }
-    },
     'sacrifice_t_hammer_slam': {
         'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 't_hammer_slam',
         'display_name': 'Sacrifice: T-Hammer Slam',
@@ -488,6 +480,24 @@ ACTIONS = {
             'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from {r['destroyed_team_name']}.", "[FOCUS BEAM!]"),
             'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from {r['destroyed_team_name']}.", "[FOCUS BEAM]"),
             'focus_beam_fizzle_fissure': lambda r: ("found no targets for its Focus Beam and instead scarred the enemy's heartland with a temporary fissure.", "[FOCUS->FIZZLE]"),
+        }
+    },
+    'rune_starlight_cascade': {
+        'group': 'Rune', 'handler': 'rune_handler', 'method': 'starlight_cascade',
+        'display_name': 'Rune: Starlight Cascade',
+        'description': "A Star-Rune unleashes a cascade of energy from its center, damaging or destroying all nearby unshielded enemy lines.",
+        'log_generators': {
+            'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, destroying {len(r['destroyed_lines'])} enemy lines and damaging {len(r['damaged_lines'])} others.", "[CASCADE!]"),
+            'rune_starlight_cascade_fizzle': lambda r: ("unleashed a Starlight Cascade from a Star Rune, but found no targets in range.", "[CASCADE->FIZZLE]"),
+        }
+    },
+    'rune_gravity_well': {
+        'group': 'Rune', 'handler': 'rune_handler', 'method': 'gravity_well',
+        'display_name': 'Rune: Gravity Well', 'no_cost': True,
+        'description': "A Star-Rune creates a powerful gravitational field, pushing all non-friendly points away from its center. If no points are in range, it gently pulls friendly points towards its center to consolidate.",
+        'log_generators': {
+            'rune_gravity_well_push': lambda r: (f"unleashed a gravity well from a Star Rune, pushing back {r['pushed_points_count']} non-friendly points.", "[GRAV WELL!]"),
+            'gravity_well_fizzle_pull': lambda r: (f"activated a Star Rune's gravity well with no targets, and instead pulled in {r['pulled_points_count']} friendly points.", "[GRAV WELL->PULL]"),
         }
     },
     'rune_parallel_discharge': {

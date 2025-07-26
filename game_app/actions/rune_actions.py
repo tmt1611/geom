@@ -53,6 +53,14 @@ class RuneActionsHandler:
         can_perform = has_star_rune and num_enemy_points > 0
         return can_perform, "Requires a Star Rune and an enemy point."
 
+    def can_perform_starlight_cascade(self, teamId):
+        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('star', []))
+        return can_perform, "Requires an active Star Rune."
+
+    def can_perform_gravity_well(self, teamId):
+        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('star', []))
+        return can_perform, "Requires an active Star Rune."
+
     def can_perform_parallel_discharge(self, teamId):
         can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('parallel', []))
         return can_perform, "Requires an active Parallelogram Rune."
@@ -532,4 +540,117 @@ class RuneActionsHandler:
                 'rune_points': rune['all_points'],
                 'beam_origin': center_point,
                 'beam_target': enemy_centroid
+            }
+
+    def starlight_cascade(self, teamId):
+        """[RUNE ACTION]: A Star Rune unleashes a cascade of energy, damaging or destroying nearby lines."""
+        team_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
+        if not team_star_runes: return {'success': False, 'reason': 'no active star runes'}
+        
+        rune = random.choice(team_star_runes)
+        points = self.state['points']
+        center_point = points.get(rune['center_id'])
+        if not center_point: return {'success': False, 'reason': 'rune center point no longer exists'}
+        
+        blast_radius_sq = (self.state['grid_size'] * 0.25)**2
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        
+        lines_to_destroy = []
+        lines_to_damage = []
+
+        for line in enemy_lines:
+            if line.get('id') in self.state['shields']: continue
+            if not (line['p1_id'] in points and line['p2_id'] in points): continue
+            
+            p1 = points[line['p1_id']]
+            p2 = points[line['p2_id']]
+            midpoint = points_centroid([p1, p2])
+
+            if distance_sq(center_point, midpoint) < blast_radius_sq:
+                line_strength = self.state.get('line_strengths', {}).get(line['id'], 0)
+                if line_strength > 0:
+                    lines_to_damage.append(line)
+                else:
+                    lines_to_destroy.append(line)
+        
+        if not lines_to_destroy and not lines_to_damage:
+            return {
+                'success': True, 'type': 'rune_starlight_cascade_fizzle',
+                'rune_points': rune['all_points'], 'blast_center': center_point
+            }
+
+        for line in lines_to_destroy:
+            self.game._delete_line(line)
+        
+        for line in lines_to_damage:
+            self.state['line_strengths'][line['id']] -= 1
+            if self.state['line_strengths'][line['id']] <= 0:
+                del self.state['line_strengths'][line['id']]
+            
+        return {
+            'success': True, 'type': 'rune_starlight_cascade',
+            'destroyed_lines': lines_to_destroy, 'damaged_lines': lines_to_damage,
+            'rune_points': rune['all_points'], 'blast_center': center_point
+        }
+
+    def gravity_well(self, teamId):
+        """[RUNE ACTION]: Uses a Star Rune to push enemies away, or pull allies in."""
+        active_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
+        if not active_star_runes:
+            return {'success': False, 'reason': 'no active Star Runes'}
+
+        rune = random.choice(active_star_runes)
+        points = self.state['points']
+        center_point = points.get(rune['center_id'])
+        if not center_point:
+            return {'success': False, 'reason': 'rune center point no longer exists'}
+
+        pulse_radius_sq = (self.state['grid_size'] * 0.4)**2
+        grid_size = self.state['grid_size']
+
+        # --- Find Primary Targets (Non-friendly points) ---
+        non_friendly_points_in_range = [
+            p for p in points.values() 
+            if p['teamId'] != teamId and distance_sq(center_point, p) < pulse_radius_sq
+        ]
+
+        if non_friendly_points_in_range:
+            # --- Primary Effect: Push Enemies ---
+            pushed_points_count = 0
+            push_distance = 3.0
+            for point in non_friendly_points_in_range:
+                dx, dy = point['x'] - center_point['x'], point['y'] - center_point['y']
+                dist = math.sqrt(dx**2 + dy**2)
+                if dist < 0.1: continue
+                
+                new_x = point['x'] + (dx / dist) * push_distance
+                new_y = point['y'] + (dy / dist) * push_distance
+                point['x'] = round(max(0, min(grid_size - 1, new_x)))
+                point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                pushed_points_count += 1
+
+            return {
+                'success': True, 'type': 'rune_gravity_well_push', 'pushed_points_count': pushed_points_count,
+                'rune_points': rune['all_points'], 'pulse_center': center_point, 'pulse_radius_sq': pulse_radius_sq
+            }
+        else:
+            # --- Fallback Effect: Pull Allies ---
+            pulled_points_count = 0
+            pull_distance = 1.5
+            # Find friendly points inside the pulse radius (but not part of the rune itself)
+            for point in [p for p in points.values() if p['teamId'] == teamId and p['id'] not in rune['all_points']]:
+                if distance_sq(center_point, p) < pulse_radius_sq:
+                    dx, dy = center_point['x'] - point['x'], center_point['y'] - point['y']
+                    dist = math.sqrt(dx**2 + dy**2)
+                    if dist < 0.1: continue
+                    
+                    new_x = point['x'] + (dx / dist) * pull_distance
+                    new_y = point['y'] + (dy / dist) * pull_distance
+                    point['x'] = round(max(0, min(grid_size - 1, new_x)))
+                    point['y'] = round(max(0, min(grid_size - 1, new_y)))
+                    pulled_points_count += 1
+            
+            return {
+                'success': True, 'type': 'gravity_well_fizzle_pull', 'pulled_points_count': pulled_points_count,
+                'rune_points': rune['all_points'], 'pulse_center': center_point, 'pulse_radius_sq': pulse_radius_sq
             }
