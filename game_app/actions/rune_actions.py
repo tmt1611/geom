@@ -3,7 +3,7 @@ import math
 from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
-    get_extended_border_point, is_point_inside_triangle,
+    get_extended_border_point, is_point_in_polygon,
     points_centroid, get_angle_bisector_vector
 )
 
@@ -188,7 +188,7 @@ class RuneActionsHandler:
             if line.get('id') in self.state['shields']: continue
             line_p1, line_p2 = points.get(line['p1_id']), points.get(line['p2_id'])
             if line_p1 and line_p2 and line_p1['id'] not in rune['triangle_ids'] and line_p2['id'] not in rune['triangle_ids']:
-                if is_point_inside_triangle(line_p1, p1, p2, p3) and is_point_inside_triangle(line_p2, p1, p2, p3):
+                if is_point_in_polygon(line_p1, [p1, p2, p3]) and is_point_in_polygon(line_p2, [p1, p2, p3]):
                     lines_to_shield.append(line)
         
         if lines_to_shield:
