@@ -1,3 +1,6 @@
-*   **Improved Documentation:** Updated the descriptions of several actions (`fight_hull_breach`, `fight_pincer_attack`, `fortify_mirror_structure`) in `action_data.py` to more accurately reflect their in-game fallback behaviors and implementation logic.
-*   **Security Hardening:** Added a check to the `/game_app/` file-serving route in `routes.py` to ensure it is only active in debug/development mode, preventing potential exposure of source files in a non-debug environment.
-*   **Code Review:** Performed a general code review for consistency with `design.md`. Confirmed that the "no cost" action implementation (granting a bonus action) aligns with the design document's intent.
+*   **Implemented Sacrifice Actions:** Added the logic and preconditions for two missing sacrifice actions: `chain_lightning` and `cultivate_heartwood`, as defined in `action_data.py`.
+*   **New Structure: Heartwood:** Implemented the "Heartwood" structure, a unique team structure created by the `cultivate_heartwood` action.
+*   **Heartwood Turn Logic:** Added turn-based processing for Heartwoods, allowing them to passively generate new points for their team.
+*   **Heartwood Gameplay Logic:** Integrated the Heartwood's defensive aura into the game's point placement validation, preventing enemies from spawning nearby.
+*   **Code Refinement:** Added a helper method `_find_heartwood_candidates` to the `SacrificeActionsHandler` to centralize the logic for finding valid formations.
+*   **Sacrifice Mechanic:** Updated the sacrifice logic for `chain_lightning` to use the `allow_regeneration` flag, allowing the sacrificed point to potentially respawn later.

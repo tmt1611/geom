@@ -63,6 +63,42 @@ class SacrificeActionsHandler:
         
         return False, "All active Nexuses are already attuned."
 
+    def can_perform_chain_lightning(self, teamId):
+        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
+        # Check if there's any I-Rune with an internal point that can be sacrificed.
+        # The point must also exist.
+        possible_sacrifices = False
+        for r in team_i_runes:
+            for pid in r.get('internal_points', []):
+                if pid in self.state['points']:
+                    possible_sacrifices = True
+                    break
+            if possible_sacrifices:
+                break
+        return possible_sacrifices, "Requires an I-Rune (Conduit) with a sacrificial internal point."
+
+    def _find_heartwood_candidates(self, teamId):
+        """Helper to find points suitable to become the center of a Heartwood."""
+        if teamId in self.state.get('heartwoods', {}):
+            return [] # Can only have one heartwood
+
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.game.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+        
+        candidates = []
+        for pid, neighbors in adj.items():
+            if len(neighbors) >= 5:
+                candidates.append({'center_id': pid, 'branch_ids': list(neighbors)})
+        return candidates
+
+    def can_perform_cultivate_heartwood(self, teamId):
+        can_perform = len(self._find_heartwood_candidates(teamId)) > 0
+        return can_perform, "Requires a central point connected to at least 5 other points, and team cannot have an existing Heartwood."
+
 
 
     def can_perform_build_chronos_spire(self, teamId):
@@ -739,4 +775,120 @@ class SacrificeActionsHandler:
             'wonder': new_wonder,
             'sacrificed_points_count': len(sacrificed_points_data),
             'sacrificed_points': sacrificed_points_data,
+        }
+
+    def chain_lightning(self, teamId):
+        """[SACRIFICE ACTION]: An I-Rune sacrifices an internal point to destroy the nearest enemy point."""
+        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
+        possible_runes = [r for r in team_i_runes if r.get('internal_points')]
+        if not possible_runes:
+            return {'success': False, 'reason': 'no I-Runes with an internal point found'}
+
+        rune = random.choice(possible_runes)
+        # Ensure the point to be sacrificed exists
+        sac_candidates = [pid for pid in rune.get('internal_points', []) if pid in self.state['points']]
+        if not sac_candidates:
+            return {'success': False, 'reason': 'I-Rune internal point for sacrifice no longer exists'}
+        
+        p_to_sac_id = random.choice(sac_candidates)
+        p_to_sac = self.state['points'][p_to_sac_id]
+
+        # --- Find Target ---
+        vulnerable_enemies = self.game._get_vulnerable_enemy_points(teamId)
+        if vulnerable_enemies:
+            target_point = min(vulnerable_enemies, key=lambda p: distance_sq(p_to_sac, p))
+            
+            # --- Sacrifice and Primary Effect ---
+            sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId, allow_regeneration=True)
+            if not sacrificed_point_data:
+                return {'success': False, 'reason': 'failed to sacrifice point for chain lightning'}
+            
+            destroyed_point_data = self.game._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+            if not destroyed_point_data:
+                # Sacrifice happened, but target disappeared.
+                return {
+                    'success': True, 'type': 'chain_lightning', 'destroyed_team_name': 'Unknown (target vanished)',
+                    'sacrificed_point': sacrificed_point_data, 'destroyed_point': None
+                }
+
+            destroyed_team_name = self.state['teams'][destroyed_point_data['teamId']]['name']
+            return {
+                'success': True, 'type': 'chain_lightning',
+                'destroyed_team_name': destroyed_team_name,
+                'sacrificed_point': sacrificed_point_data,
+                'destroyed_point': destroyed_point_data
+            }
+        else:
+            # --- Sacrifice and Fizzle Effect (Mini-Nova) ---
+            sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId, allow_regeneration=True)
+            if not sacrificed_point_data:
+                return {'success': False, 'reason': 'failed to sacrifice point for fizzle effect'}
+
+            blast_radius_sq = (self.state['grid_size'] * 0.15)**2 # Smaller radius for mini-nova
+            
+            lines_to_destroy = []
+            points_map = self.state['points']
+            enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+            
+            for line in enemy_lines:
+                if not (line['p1_id'] in points_map and line['p2_id'] in points_map): continue
+                p1, p2 = points_map[line['p1_id']], points_map[line['p2_id']]
+                if distance_sq(sacrificed_point_data, p1) < blast_radius_sq or distance_sq(sacrificed_point_data, p2) < blast_radius_sq:
+                    lines_to_destroy.append(line)
+            
+            for line in lines_to_destroy:
+                self.game._delete_line(line)
+                
+            return {
+                'success': True, 'type': 'chain_lightning_fizzle_nova',
+                'sacrificed_point': sacrificed_point_data,
+                'lines_destroyed_count': len(lines_to_destroy)
+            }
+
+    def cultivate_heartwood(self, teamId):
+        """[SACRIFICE ACTION]: Sacrifices a central point and its branches to create a Heartwood."""
+        candidates = self._find_heartwood_candidates(teamId)
+        if not candidates:
+            return {'success': False, 'reason': 'no valid formation for Heartwood found'}
+
+        formation = random.choice(candidates)
+        center_id = formation['center_id']
+        branch_ids = formation['branch_ids']
+        
+        # We only need 5 branches, if there are more, pick 5.
+        if len(branch_ids) > 5:
+            branch_ids = random.sample(branch_ids, 5)
+
+        points_to_sac_ids = [center_id] + branch_ids
+        
+        # --- Perform Sacrifice ---
+        sacrificed_points_data = []
+        points_map = self.state['points']
+        center_coords_before_sac = points_map[center_id].copy()
+
+        for pid in points_to_sac_ids:
+            sac_data = self.game._delete_point_and_connections(pid, aggressor_team_id=teamId)
+            if sac_data:
+                sacrificed_points_data.append(sac_data)
+        
+        if len(sacrificed_points_data) == 0:
+            return {'success': False, 'reason': 'failed to sacrifice any points for the heartwood'}
+
+        # --- Create Heartwood ---
+        heartwood_id = self.game._generate_id('hw')
+        new_heartwood = {
+            'id': heartwood_id,
+            'center_coords': center_coords_before_sac,
+            'growth_counter': 0,
+            'growth_interval': 5, # Generate a point every 5 turns
+            'aura_radius_sq': (self.state['grid_size'] * 0.2)**2
+        }
+        
+        self.state.setdefault('heartwoods', {})[teamId] = new_heartwood
+        
+        return {
+            'success': True,
+            'type': 'cultivate_heartwood',
+            'heartwood': new_heartwood,
+            'sacrificed_points': sacrificed_points_data
         }
