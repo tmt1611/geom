@@ -1,14 +1,13 @@
-This iteration focused on improving the action design for the Star-Rune to better align with the principles in `design.md`. The goal was to ensure the Star-Rune offers more non-sacrificial actions than sacrificial ones.
+This iteration focused on cleaning up documentation and ensuring consistency between the `rules.md` file, the `action_data.py` definitions, and the actual implementation in `game_logic.py` and its handlers. This improves clarity for players and maintainability for developers.
 
-1.  **Re-classified `Starlight Cascade` Action**:
-    *   The `sacrifice_starlight_cascade` action was identified as a violation of two rules: it sacrificed a rune point, and it made the Star-Rune's action ratio unbalanced (1 non-sac vs 2 sac).
-    *   The action was removed from the `Sacrifice` group and `sacrifice_actions.py`.
-    *   It was re-implemented as a non-sacrificial `rune_starlight_cascade` action in `rune_actions.py`. The new version unleashes an energy cascade from the rune's center without destroying any friendly points, damaging or destroying nearby enemy lines. This aligns it with other non-sacrificial rune abilities.
-    *   The `action_data.py` entry was updated to reflect this change in group, handler, description, and log messages.
+1.  **Corrected `rules.md` for `no_cost` Actions**: Updated several actions in `rules.md` (`Create Anchor`, `Reposition Point`) to reflect their `no_cost` status and remove inaccurate descriptions of sacrifice or fallback behavior.
 
-2.  **Added New `Gravity Well` Action**:
-    *   To further improve the Star-Rune's versatility and ensure it has a clear majority of non-sacrificial actions, a new action, `rune_gravity_well`, was designed and implemented.
-    *   This is a `no_cost` control action that pushes non-friendly points away from the rune's center, with a fallback to pull friendly points closer, making it always useful.
-    *   The action was added to `action_data.py`, and its logic was implemented in `rune_actions.py`.
+2.  **Documented New/Missing Actions**: Added descriptions for `Rotate Point` and `Gravity Well` to `rules.md`, as they were implemented but not yet documented for players.
 
-With these changes, the Star-Rune now enables three non-sacrificial actions (`Focus Beam`, `Starlight Cascade`, `Gravity Well`) and one sacrificial action (`Build Wonder`), bringing its design in line with the rule: "Structures must offer more non-sacrifice actions than sacrifice actions."
+3.  **Standardized `no_cost` Tag**: Ensured all `no_cost` actions (`Purify Territory`, `Area Shield`, `Shield Pulse`, etc.) explicitly state "This action has no cost." in `rules.md` for consistency.
+
+4.  **Action Group Correction**: Moved `Convert Point` from the `[FIGHT]` group to the `[SACRIFICE]` group in `rules.md`, to correctly categorize it as a sacrifice action per `design.md`.
+
+5.  **Updated Star-Rune Rules**: Corrected the `Starlight Cascade` description to remove the mention of sacrifice and added the new `Gravity Well` action to the list of Star-Rune bonuses.
+
+6.  **Clarified Action Description**: Refined the description for `fight_purify_territory` in `action_data.py` to more accurately state that it removes the entire territory, not just the "fortified" status.

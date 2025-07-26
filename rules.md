@@ -45,8 +45,9 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
 *   **Star-Rune:**
     *   **Formation:** A central point connected to a cycle of 5 or 6 other points, where the cycle points are also connected to each other sequentially. All required lines must exist.
     *   **Bonus 1:** Unlocks the **[RUNE] Starlight Cascade** action.
-    *   **Bonus 2:** Unlocks the **[RUNE] Focus Beam** action.
-    *   **Bonus 3:** This formation is a prerequisite for building the **Chronos Spire** wonder.
+    *   **Bonus 2:** Unlocks the **[RUNE] Gravity Well** action.
+    *   **Bonus 3:** Unlocks the **[RUNE] Focus Beam** action.
+    *   **Bonus 4:** This formation is a prerequisite for building the **Chronos Spire** wonder.
 *   **Nexus-Rune (Square):**
     *   **Formation:** Four points that form a perfect square, with all four outer edge lines and at least one of the two inner diagonals connected. This is a passive formation detected automatically.
     *   **Bonus:** For each Nexus-Rune a team controls at the start of a turn, that team gains **one bonus action**. Unlocks the **[FORTIFY] Attune Nexus** action.
@@ -74,7 +75,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Pincer Attack:** If two of a team's points are flanking a single enemy point (creating a wide angle), they can perform a joint attack to destroy it. This does not work on fortified or bastion points. If no suitable target is found, the points instead form a small, temporary barricade between them.
 *   **[FIGHT] Territory Strike:** _(Requires a large territory)_ Launches a bolt of energy from the center of a large claimed territory, destroying the nearest vulnerable enemy point. This makes controlling large areas of the map an offensive advantage. If no vulnerable enemies exist, the territory's boundary lines are reinforced instead.
 *   **[FIGHT] Territory Tri-Beam:** _(Requires a claimed territory)_ A claimed territory fires three beams of energy along the bisectors of its angles. Each beam destroys the first enemy line it hits. If a beam misses, it creates a new point on the border.
-*   **[FIGHT] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range. If no target is found, it instead emits a repulsive pulse from the sacrifice location, pushing nearby enemies away.
+*   **[SACRIFICE] Convert Point:** Sacrifice one of its own lines to convert the nearest enemy point to its team, if it's within range. If no target is found, it instead emits a repulsive pulse from the sacrifice location, pushing nearby enemies away.
 *   **[SACRIFICE] Nova Burst:** Sacrifice one of its own points to destroy all nearby enemy lines in a radius. If no enemy lines are in range, it pushes all nearby points away instead.
 *   **[SACRIFICE] Create Whirlpool:** Sacrifices a point to create a vortex that pulls nearby points toward its center. If no points are nearby when created, the action instead creates a small, temporary fissure on the map.
 *   **[SACRIFICE] Create Rift Trap:** Sacrifices a point to create a temporary, invisible trap. If an enemy point moves into its small radius, the trap triggers, destroying the enemy point and itself. If the trap is not triggered after a few turns, it safely collapses and transforms into a new point for its owner.
@@ -84,7 +85,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Chain Lightning:** _(Requires an I-Rune with internal points)_ Sacrifices one of the I-Rune's internal points to fire a bolt of energy at the nearest enemy point, destroying it. If the attack fizzles (e.g., no target in range), the sacrificed point explodes in a **mini-nova**, destroying any nearby enemy lines.
 *   **[FIGHT] Refraction Beam:** _(Requires an active Prism)_ Fires a beam from one of its lines that refracts off the Prism's shared edge, changing direction to hit an enemy line around obstacles. If the refracted beam misses, it creates a new friendly point where it hits the border.
 *   **[FIGHT] Launch Payload:** _(Requires an active Trebuchet-Rune)_ Fires an arcing projectile. It prioritizes destroying a random enemy high-value point (e.g., a fortified point, bastion core, or monolith point). If none exist, it targets any vulnerable enemy point. If there are no targets at all, the payload impacts a random spot on the battlefield, creating a small, temporary fissure.
-*   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. If there are no enemy territories to cleanse, it instead emits a defensive pulse that pushes all nearby enemy points away from it.
+*   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. If there are no enemy territories to cleanse, it instead emits a defensive pulse that pushes all nearby enemy points away from it. This action has no cost.
 *   **[FIGHT] Isolate Point:** Projects an isolation field onto a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. This action has no cost. If no such point is found, it creates a defensive barricade instead.
 *   **[FIGHT] Parallel Strike:** From a friendly point, projects a beam parallel to a friendly line. Destroys the first enemy point it hits, or creates a new point on the border if it misses.
 *   **[RUNE] Cardinal Pulse:** _(Requires an active Plus-Rune)_ The rune is consumed. Four energy beams are fired from the central point through the four arm points. Beams destroy the first enemy line they hit (bypassing shields). Any beam that misses creates a new point on the border.
@@ -92,10 +93,11 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[RUNE] T-Hammer Slam:** _(Requires an active T-Rune)_ The rune sacrifices its 'head' point to create a shockwave emanating from its 'stem' line, pushing all nearby points away perpendicularly. If no points are in range, it instead reinforces the two lines that form the stem.
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits. If it misses, it creates a temporary fissure along its path.
 *   **[RUNE] Impale:** _(Requires an active Trident-Rune)_ Fires a devastating, long-range beam that pierces through all enemy lines in its path, ignoring shields. If the beam hits no targets, it instead creates a temporary defensive barricade along its path.
-*   **[RUNE] Area Shield:** _(Requires an active Shield-Rune)_ Creates a temporary shield on all friendly lines contained within the rune's triangular boundary. If no lines are found inside, it instead emits a gentle pulse that pushes friendly points outwards to de-clutter the area.
-*   **[RUNE] Shield Pulse:** _(Requires an active Shield-Rune)_ Emits a defensive shockwave from the rune's center, pushing all nearby enemy points outwards. If no enemies are in range, it instead gently pulls nearby friendly points inwards to consolidate the formation.
-*   **[RUNE] Starlight Cascade:** _(Requires a Star-Rune)_ Sacrifices one of the outer cycle points to damage or destroy nearby unshielded/unfortified enemy lines in a small radius.
+*   **[RUNE] Area Shield:** _(Requires an active Shield-Rune)_ Creates a temporary shield on all friendly lines contained within the rune's triangular boundary. If no lines are found inside, it instead emits a gentle pulse that pushes friendly points outwards to de-clutter the area. This action has no cost.
+*   **[RUNE] Shield Pulse:** _(Requires an active Shield-Rune)_ Emits a defensive shockwave from the rune's center, pushing all nearby enemy points outwards. If no enemies are in range, it instead gently pulls nearby friendly points inwards to consolidate the formation. This action has no cost.
+*   **[RUNE] Starlight Cascade:** _(Requires a Star-Rune)_ Unleashes a cascade of energy from its center, damaging or destroying all nearby unshielded enemy lines.
 *   **[RUNE] Focus Beam:** _(Requires a Star-Rune)_ Fires a beam from the central point to destroy a high-value enemy structure (Wonder, Bastion core, etc). If no high-value targets exist, it targets a regular point. If no targets exist at all, it creates a small fissure in the heart of the enemy's territory.
+*   **[RUNE] Gravity Well:** _(Requires a Star-Rune)_ Creates a powerful gravitational field, pushing all non-friendly points away from its center. If no points are in range, it gently pulls friendly points towards its center to consolidate. This action has no cost.
 *   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field. If no valid targets are in range, it instead sacrifices one of its own points to turn another of its rune-points into a temporary gravitational **anchor**.
 *   **[FORTIFY] Attune Nexus:** Sacrifices a diagonal line from one of its Nexuses to supercharge it. For several turns, the Attuned Nexus energizes all nearby friendly lines, causing their attacks to also destroy the target line's endpoints.
 *   **[FORTIFY] Shield Line:** Applies a temporary shield to one of its lines. If all lines are already shielded, it will instead **overcharge** an existing shield, extending its duration.
@@ -114,9 +116,10 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Formation:** Requires five points to form a perfect, regular pentagon, with all 5 outer lines connected. This is a difficult and resource-intensive shape to create.
     *   **Bonus:** Unlocks the **[FIGHT] Purify Territory** action.
 
-*   **[FORTIFY] Create Anchor:** Sacrifice one of its own points to turn another into a gravitational anchor. For a few turns, the anchor will slowly pull nearby enemy points towards it.
+*   **[FORTIFY] Create Anchor:** Turns a non-critical point into a gravitational anchor, which pulls nearby enemy points towards it for several turns. This action has no cost.
 *   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns. If no valid reflections can be found, it instead reinforces the lines of the structure it was attempting to mirror.
-*   **[FORTIFY] Reposition Point:** Moves a single 'free' (non-structural) point to a better tactical position nearby. A subtle but important move for setting up future formations. If it fails, a line is strengthened instead.
+*   **[FORTIFY] Reposition Point:** Moves a single 'free' (non-structural) point to a better tactical position nearby. A subtle but important move for setting up future formations. This action has no cost.
+*   **[FORTIFY] Rotate Point:** Rotates a single 'free' (non-structural) point around the grid center or another friendly point. This action has no cost.
 *   **[SACRIFICE] Cultivate Heartwood:** A unique, powerful structure. Requires a central point connected to at least 5 other "branch" points.
     *   **Cost:** The central point and all branch points are sacrificed. This action can only be performed once per team.
     *   **Bonus 1 (Passive Growth):** Every few turns, the Heartwood automatically creates a new point for its team nearby.

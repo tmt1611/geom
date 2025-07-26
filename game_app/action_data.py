@@ -155,7 +155,7 @@ ACTIONS = {
     'fight_purify_territory': {
         'group': 'Fight', 'handler': 'fight_handler', 'method': 'purify_territory',
         'display_name': 'Purify Territory', 'no_cost': True,
-        'description': "A Purifier structure neutralizes the nearest enemy territory, removing its fortified status. If no enemy territories exist, it pushes nearby enemy points away. This action has no cost.",
+        'description': "A Purifier structure neutralizes the nearest enemy territory, removing it from play and un-fortifying its points. If no enemy territories exist, it pushes nearby enemy points away. This action has no cost.",
         'log_generators': {
             'purify_territory': lambda r: (f"unleashed its Purifier, cleansing a territory from {r['cleansed_team_name']}.", "[PURIFY!]"),
             'purify_fizzle_push': lambda r: (f"found no territories to cleanse, and instead emitted a pulse that pushed back {r['pushed_points_count']} enemies.", "[PURIFY->PUSH]"),
