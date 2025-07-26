@@ -939,10 +939,12 @@ class Game:
                 if num_valid_actions > 0:
                     action_prob = group_prob / num_valid_actions
                     for action_name in valid_actions:
+                        action_info = action_data.ACTIONS[action_name]
                         action_list.append({
                             'name': action_name,
-                            'display_name': action_data.ACTIONS[action_name].get('display_name', action_name),
-                            'probability': round(action_prob, 1)
+                            'display_name': action_info.get('display_name', action_name),
+                            'probability': round(action_prob, 1),
+                            'no_cost': action_info.get('no_cost', False)
                         })
 
                 if action_list:
@@ -954,11 +956,13 @@ class Game:
         if include_invalid:
             for name, status in all_action_statuses.items():
                 if not status['valid']:
+                    action_info = action_data.ACTIONS[name]
                     response['invalid'].append({
                         'name': name,
-                        'display_name': action_data.ACTIONS[name].get('display_name', name),
+                        'display_name': action_info.get('display_name', name),
                         'reason': status['reason'],
-                        'group': action_data.ACTIONS[name].get('group', 'Other')
+                        'group': action_info.get('group', 'Other'),
+                        'no_cost': action_info.get('no_cost', False)
                     })
             response['invalid'].sort(key=lambda x: (x['group'], x['display_name']))
 
@@ -1232,6 +1236,17 @@ class Game:
             if self.state['action_events']:
                 result['action_events'] = self.state['action_events'][:]
             self.state['last_action_details'] = result
+
+            # Check if the executed action was a "no cost" action and grant a bonus
+            is_no_cost_action = action_data.ACTIONS.get(action_name, {}).get('no_cost', False)
+            if is_no_cost_action and not is_bonus_action:
+                log_message_bonus = f"The 'no cost' action grants {team_name} an extra action this turn."
+                short_log_bonus = "[+1 ACT]"
+                self.state['game_log'].append({'teamId': teamId, 'message': log_message_bonus, 'short_message': short_log_bonus})
+                
+                # Insert a bonus action for the same team right after the current one
+                bonus_action = {'teamId': teamId, 'is_bonus': True}
+                self.state['actions_queue_this_turn'].insert(self.state['action_in_turn'] + 1, bonus_action)
         else:
             self.state['last_action_details'] = {}
         

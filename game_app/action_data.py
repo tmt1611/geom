@@ -162,7 +162,7 @@ ACTIONS = {
     },
     'fight_isolate_point': {
         'group': 'Fight', 'handler': 'fight_handler', 'method': 'isolate_point',
-        'display_name': 'Isolate Point',
+        'display_name': 'Isolate Point', 'no_cost': True,
         'description': "Projects an isolation field onto a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. This action has no cost. If no such point is found, it creates a defensive barricade instead.",
         'log_generators': {
             'isolate_point': lambda r: (f"isolated a critical point from {r['target_team_name']}", "[ISOLATE!]"),
@@ -212,7 +212,7 @@ ACTIONS = {
     },
     'fortify_anchor': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'create_anchor',
-        'display_name': 'Create Anchor',
+        'display_name': 'Create Anchor', 'no_cost': True,
         'description': "Turns a non-critical point into a gravitational anchor, which pulls nearby enemy points towards it for several turns. This action has no cost.",
         'log_generators': {
             'create_anchor': lambda r: ("turned one of its points into a gravitational anchor.", "[ANCHOR]"),
@@ -263,7 +263,7 @@ ACTIONS = {
     },
     'fortify_reposition_point': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'reposition_point',
-        'display_name': 'Reposition Point',
+        'display_name': 'Reposition Point', 'no_cost': True,
         'description': "Moves a single 'free' (non-structural) point to a better tactical position nearby. A subtle but important move for setting up future formations. If it fails, a line is strengthened instead.",
         'log_generators': {
             'reposition_point': lambda r: ("subtly repositioned a point for a better tactical advantage.", "[REPOSITION]"),
@@ -272,7 +272,7 @@ ACTIONS = {
     },
     'fortify_rotate_point': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'rotate_point',
-        'display_name': 'Rotate Point',
+        'display_name': 'Rotate Point', 'no_cost': True,
         'description': "Rotates a single 'free' (non-structural) point around the grid center or another friendly point. If no valid rotation is found, it strengthens a line instead.",
         'log_generators': {
             'rotate_point': lambda r: (f"rotated a point around {'the grid center.' if r.get('is_grid_center') else 'another point.'}", "[ROTATE]"),
