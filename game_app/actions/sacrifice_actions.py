@@ -74,6 +74,10 @@ class SacrificeActionsHandler:
         return can_perform, "Requires an active Plus-Rune."
 
     def can_perform_build_chronos_spire(self, teamId):
+        # A team can only have one wonder.
+        if any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()):
+            return False, "Team already has a Wonder."
+        
         can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('star', []))
         return can_perform, "Requires an active Star Rune to build a Wonder."
 
@@ -887,4 +891,55 @@ class SacrificeActionsHandler:
             'success': True, 'type': 'rune_cardinal_pulse',
             'lines_destroyed': destroyed_lines, 'points_created': created_points,
             'attack_rays': attack_rays, 'sacrificed_points': sacrificed_points
+        }
+
+    def build_chronos_spire(self, teamId):
+        """[SACRIFICE ACTION]: Sacrifices a Star Rune to build the Chronos Spire Wonder."""
+        # A team can only have one wonder.
+        if any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()):
+            return {'success': False, 'reason': 'team already has a Wonder'}
+
+        team_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
+        if not team_star_runes:
+            return {'success': False, 'reason': 'no active star runes to sacrifice'}
+        
+        rune_to_sacrifice = random.choice(team_star_runes)
+        points_map = self.state['points']
+        
+        # Check if all points of the rune exist before trying to use them
+        if not all(pid in points_map for pid in rune_to_sacrifice['all_points']):
+            return {'success': False, 'reason': 'star rune points for sacrifice no longer exist'}
+        
+        # Calculate center for the wonder
+        rune_points = [points_map[pid] for pid in rune_to_sacrifice['all_points']]
+        wonder_coords = points_centroid(rune_points)
+
+        # --- Sacrifice the rune ---
+        sacrificed_points_data = []
+        for pid in rune_to_sacrifice['all_points']:
+            # The _delete_point_and_connections will also remove connected lines.
+            sac_data = self.game._delete_point_and_connections(pid, aggressor_team_id=teamId)
+            if sac_data:
+                sacrificed_points_data.append(sac_data)
+
+        if len(sacrificed_points_data) == 0:
+             return {'success': False, 'reason': 'failed to sacrifice any points for the wonder'}
+
+        # --- Create the Wonder ---
+        wonder_id = self.game._generate_id('w')
+        new_wonder = {
+            'id': wonder_id,
+            'teamId': teamId,
+            'type': 'ChronosSpire',
+            'coords': wonder_coords,
+            'turns_to_victory': 10
+        }
+        self.state['wonders'][wonder_id] = new_wonder
+
+        return {
+            'success': True,
+            'type': 'build_chronos_spire',
+            'wonder': new_wonder,
+            'sacrificed_points_count': len(sacrificed_points_data),
+            'sacrificed_points': sacrificed_points_data,
         }

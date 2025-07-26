@@ -1,5 +1,5 @@
-This iteration focused on minor code cleanup and improving consistency.
+This iteration implemented a missing high-level feature from the design documents.
 
-1.  **Code Deduplication**: In `game_logic.py`, a block of code responsible for granting bonus actions from Wonders was duplicated. One of the blocks has been removed, making the `_build_action_queue` method cleaner and less redundant.
-
-2.  **Precondition Consistency**: In `fortify_actions.py`, the precondition check for the `mirror_structure` action (`can_perform_mirror_structure`) used a different number of attempts to find a valid operation than the action's implementation. The precondition has been updated to use the same number of attempts as the action, ensuring the check is as accurate as possible and preventing cases where an action might be possible but deemed invalid by its precondition.
+1.  **Implemented Wonder Construction**: The `build_chronos_spire` action, defined in `action_data.py` but missing an implementation, has been added to `sacrifice_actions.py`.
+2.  **New Action Logic**: This new sacrifice action allows a team with a Star-Rune to sacrifice the entire rune formation to create a "Chronos Spire" wonder. This introduces an alternative victory condition as specified in `rules.md`.
+3.  **Added Precondition**: A corresponding `can_perform_build_chronos_spire` check was added to ensure the action is only available to teams that have a Star-Rune and do not already control a wonder.
