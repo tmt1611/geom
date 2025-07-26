@@ -5,7 +5,7 @@ from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
     get_extended_border_point, is_ray_blocked,
     polygon_area, points_centroid, clamp_and_round_point_coords,
-    get_angle_bisector_vector
+    get_angle_bisector_vector, get_convex_hull, is_point_in_polygon
 )
 
 class FightActionsHandler:
@@ -80,6 +80,10 @@ class FightActionsHandler:
             return num_enemy_points > 0, "Requires an enemy point to target."
         
         return False, "Requires at least one point and one line."
+
+    def can_perform_hull_breach(self, teamId):
+        # Primary or fallback effect is possible if team has >= 3 points.
+        return len(self.game.get_team_point_ids(teamId)) >= 3, "Requires at least 3 points to form a hull."
 
     # --- End Precondition Checks ---
 
@@ -887,3 +891,79 @@ class FightActionsHandler:
                         }
 
         return {'success': False, 'reason': 'no valid parallel strike could be found'}
+
+    def hull_breach(self, teamId):
+        """[FIGHT ACTION]: Converts an enemy point inside the team's hull. If none, reinforces the hull."""
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if len(team_point_ids) < 3:
+            return {'success': False, 'reason': 'not enough points to form a hull'}
+
+        all_points_map = self.state['points']
+        team_points_list = [all_points_map[pid] for pid in team_point_ids if pid in all_points_map]
+        
+        hull_points = get_convex_hull(team_points_list)
+        if len(hull_points) < 3:
+            return {'success': False, 'reason': 'could not form a valid hull polygon'}
+
+        vulnerable_enemies = self.game._get_vulnerable_enemy_points(teamId)
+        
+        targets_inside_hull = [
+            p for p in vulnerable_enemies 
+            if is_point_in_polygon(p, hull_points)
+        ]
+
+        if targets_inside_hull:
+            # --- Primary Effect: Convert Point ---
+            hull_centroid = points_centroid(hull_points)
+            # Target the enemy point closest to the hull's center
+            target_point = min(targets_inside_hull, key=lambda p: distance_sq(hull_centroid, p))
+
+            original_team_id = target_point['teamId']
+            original_team_name = self.state['teams'][original_team_id]['name']
+            
+            # Change team
+            target_point['teamId'] = teamId
+            
+            # The point might have been part of enemy structures. Clean them up.
+            self.game._cleanup_structures_for_point(target_point['id'])
+            
+            return {
+                'success': True,
+                'type': 'hull_breach_convert',
+                'converted_point': target_point,
+                'original_team_name': original_team_name,
+                'hull_points': hull_points
+            }
+        else:
+            # --- Fallback Effect: Reinforce or Create Hull Lines ---
+            strengthened_lines = []
+            created_lines = []
+            team_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+            
+            for i in range(len(hull_points)):
+                p1 = hull_points[i]
+                p2 = hull_points[(i + 1) % len(hull_points)]
+                line_key = tuple(sorted((p1['id'], p2['id'])))
+                
+                line_to_strengthen = team_lines_by_points.get(line_key)
+                if line_to_strengthen:
+                    if self.game._strengthen_line(line_to_strengthen):
+                        strengthened_lines.append(line_to_strengthen)
+                else:
+                    # Line does not exist, create it
+                    line_id = self.game._generate_id('l')
+                    new_line = {"id": line_id, "p1_id": p1['id'], "p2_id": p2['id'], "teamId": teamId}
+                    self.state['lines'].append(new_line)
+                    created_lines.append(new_line)
+            
+            # Only count as a success if something actually happened
+            if not strengthened_lines and not created_lines:
+                return {'success': False, 'reason': 'hull already fully reinforced and connected'}
+
+            return {
+                'success': True,
+                'type': 'hull_breach_fizzle_reinforce',
+                'strengthened_lines': strengthened_lines,
+                'created_lines': created_lines,
+                'hull_points': hull_points
+            }

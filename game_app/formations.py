@@ -1,7 +1,7 @@
 import math
 from itertools import combinations
 from .geometry import (distance_sq, get_isosceles_triangle_info, is_rectangle,
-                       is_parallelogram, orientation, is_point_inside_triangle,
+                       is_parallelogram, orientation, is_point_in_polygon,
                        get_edges_by_distance)
 
 class FormationManager:
@@ -180,7 +180,7 @@ class FormationManager:
             
             for core_id in other_point_ids:
                 if core_id not in all_points: continue
-                if is_point_inside_triangle(all_points[core_id], p1, p2, p3):
+                if is_point_in_polygon(all_points[core_id], [p1, p2, p3]):
                     rune_points = set(tri_ids) | {core_id}
                     shield_runes.append({'triangle_ids': list(tri_ids), 'core_id': core_id})
                     used_points.update(rune_points)

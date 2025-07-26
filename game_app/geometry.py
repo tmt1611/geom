@@ -346,18 +346,32 @@ def polygon_area(points):
         area -= points[j]['x'] * points[i]['y']
     return abs(area) / 2.0
 
-def is_point_inside_triangle(point, tri_p1, tri_p2, tri_p3):
-    """Checks if a point is inside a triangle defined by three other points."""
-    main_area = polygon_area([tri_p1, tri_p2, tri_p3])
-    if main_area < 0.01: # Degenerate triangle
+def is_point_in_polygon(point, polygon_points):
+    """
+    Checks if a point is inside a polygon using the Ray Casting algorithm.
+    The polygon must be a list of points in order. Handles convex and non-convex polygons.
+    Returns True if the point is inside, False otherwise.
+    """
+    n = len(polygon_points)
+    if n < 3:
         return False
 
-    area1 = polygon_area([point, tri_p2, tri_p3])
-    area2 = polygon_area([tri_p1, point, tri_p3])
-    area3 = polygon_area([tri_p1, tri_p2, point])
-    
-    # Check if sum of sub-triangle areas equals the main triangle area (with tolerance)
-    return abs((area1 + area2 + area3) - main_area) < 0.01
+    px, py = point['x'], point['y']
+    is_inside = False
+
+    p1 = polygon_points[0]
+    for i in range(1, n + 1):
+        p2 = polygon_points[i % n]
+        # Check if the horizontal ray from the point at (-inf, py) intersects with the edge (p1, p2)
+        if (p1['y'] > py) != (p2['y'] > py):
+            # Calculate the x-coordinate of the intersection of the ray and the edge
+            x_intersection = (p2['x'] - p1['x']) * (py - p1['y']) / (p2['y'] - p1['y']) + p1['x']
+            # If the point is to the left of the intersection, we have a crossing
+            if px < x_intersection:
+                is_inside = not is_inside
+        p1 = p2
+        
+    return is_inside
 
 def is_regular_pentagon(p1, p2, p3, p4, p5):
     """Checks if five points form a regular pentagon."""
@@ -485,8 +499,8 @@ def is_spawn_location_valid(new_point_coords, new_point_teamId, grid_size, all_p
     # Check against scorched zones
     if scorched_zones:
         for zone in scorched_zones:
-            if len(zone['points']) == 3:
-                if is_point_inside_triangle(new_point_coords, zone['points'][0], zone['points'][1], zone['points'][2]):
+            if len(zone['points']) >= 3:
+                if is_point_in_polygon(new_point_coords, zone['points']):
                     return False, 'inside a scorched zone'
     
     return True, 'valid'
