@@ -201,6 +201,7 @@ STRUCTURE_DEFINITIONS = {
 # Order in which start-of-turn effects should be processed.
 # This list contains the method names from TurnProcessor.
 TURN_PROCESSING_ORDER = [
+    '_process_regenerating_points',
     '_process_shields_and_stasis',
     '_process_isolated_points',
     '_process_rift_traps',

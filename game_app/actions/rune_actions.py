@@ -416,7 +416,7 @@ class RuneActionsHandler:
             # Sacrifice one point from the rune to make another an anchor.
             p_to_sac_id, p_to_anchor_id = random.sample(rune_pids, 2)
             
-            sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
+            sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId, allow_regeneration=True)
             if not sacrificed_point_data:
                 return {'success': False, 'reason': 'failed to sacrifice rune point for fallback'}
             

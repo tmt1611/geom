@@ -57,6 +57,9 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
     *   **Formation:** A passive formation of four points in a kite shape. Requires a tight, isosceles triangle connected to a "counterweight" point along its axis of symmetry, with all 5 lines forming the outer kite shape.
     *   **Bonus:** Unlocks the **[FIGHT] Launch Payload** action.
 
+## Sacrifice Mechanics
+When a point is sacrificed as a cost for an action (e.g., Nova Burst, Create Whirlpool), it may not be gone forever. If the point was part of a simple line and not a critical structural weak point (an articulation point), its energy will coalesce. The point will be **removed from play for 3 turns, disabling any lines it was connected to**. After 3 turns, it will attempt to regenerate at its original location if the space is not blocked.
+
 ## Actions
 On its turn, a team will perform one of the following actions, with the choice being influenced by its trait.
 

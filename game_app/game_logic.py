@@ -86,6 +86,7 @@ class Game:
             "wonders": {}, # {wonder_id: {teamId, type, turns_to_victory, ...}}
             "ley_lines": {}, # {ley_line_id: {teamId, point_ids, turns_left, bonus_radius_sq}}
             "line_strengths": {}, # {line_id: strength}
+            "regenerating_points": {}, # {point_id: {data: point_data, turns_left: N}}
             "game_log": [{'message': "Welcome! Default teams Alpha and Beta are ready. Place points to begin.", 'short_message': '[READY]'}],
             "turn": 0,
             "max_turns": 100,
@@ -595,10 +596,35 @@ class Game:
                 for teamId in list(storage.keys()):
                     storage[teamId] = [s for s in storage[teamId] if not structure_contains_point(s)]
 
-    def _delete_point_and_connections(self, point_id, aggressor_team_id=None):
+    def _delete_point_and_connections(self, point_id, aggressor_team_id=None, allow_regeneration=False):
         """A robust helper to delete a point and handle all cascading effects."""
         if point_id not in self.state['points']:
             return None # Point already gone
+
+        point_data = self.state['points'][point_id]
+
+        # Check for regeneration condition.
+        # A point can regenerate if it's being sacrificed (allow_regeneration=True),
+        # is not a critical articulation point, and is part of at least one line.
+        is_articulation = point_id in self._find_articulation_points(point_data['teamId'])
+        is_on_line = any(point_id in (l['p1_id'], l['p2_id']) for l in self.get_team_lines(point_data['teamId']))
+        
+        if allow_regeneration and is_on_line and not is_articulation:
+            # Point will be regenerated. Move it from `points` to `regenerating_points`.
+            # Lines and structures are not cleaned up; they just become temporarily inactive
+            # because the frontend/logic won't find the point in the main `points` dict.
+            deleted_point_data = self.state['points'].pop(point_id)
+            self.state['regenerating_points'][point_id] = {
+                'data': deleted_point_data,
+                'turns_left': 3
+            }
+            team_name = self.state['teams'][deleted_point_data['teamId']]['name']
+            log_msg = f"A point from {team_name} was sacrificed and will attempt to regenerate in 3 turns."
+            self.state['game_log'].append({'message': log_msg, 'short_message': '[SAC->REGEN]', 'teamId': deleted_point_data['teamId']})
+            self.state['action_events'].append({'type': 'point_regenerate_start', 'point': deleted_point_data})
+            return deleted_point_data
+
+        # --- Standard (permanent) Deletion Logic ---
 
         # 1. Pre-deletion checks for cascades (e.g., Nexus detonation)
         nexus_to_detonate = None

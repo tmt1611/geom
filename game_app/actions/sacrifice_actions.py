@@ -91,7 +91,7 @@ class SacrificeActionsHandler:
         blast_radius_sq = (self.state['grid_size'] * 0.25)**2
 
         # --- Perform Sacrifice ---
-        self.game._delete_point_and_connections(sac_point_id, aggressor_team_id=teamId)
+        self.game._delete_point_and_connections(sac_point_id, aggressor_team_id=teamId, allow_regeneration=True)
         
         # --- Check for Primary Effect (Line Destruction) ---
         lines_to_remove_by_proximity = []
@@ -150,7 +150,7 @@ class SacrificeActionsHandler:
         )
 
         # --- Perform Sacrifice ---
-        sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
+        sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId, allow_regeneration=True)
         if not sacrificed_point_data:
             return {'success': False, 'reason': 'failed to sacrifice point'}
 
@@ -280,7 +280,7 @@ class SacrificeActionsHandler:
         sac_point_coords = self.state['points'][p_to_sac_id].copy()
         
         # Perform Sacrifice
-        sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
+        sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId, allow_regeneration=True)
         if not sacrificed_point_data:
             return {'success': False, 'reason': 'failed to sacrifice point for trap'}
 

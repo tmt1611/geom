@@ -31,6 +31,37 @@ class TurnProcessor:
                     method()
         return False
 
+    def _process_regenerating_points(self):
+        """Handles countdown and respawning of regenerating points."""
+        if not self.state.get('regenerating_points'):
+            return
+
+        respawned_points = []
+        for point_id, regen_data in list(self.state['regenerating_points'].items()):
+            regen_data['turns_left'] -= 1
+            if regen_data['turns_left'] <= 0:
+                respawned_points.append(point_id)
+            else:
+                self.state['regenerating_points'][point_id] = regen_data
+
+        for point_id in respawned_points:
+            regen_data = self.state['regenerating_points'].pop(point_id)
+            point_data = regen_data['data']
+            
+            # Check if spawn location is still valid
+            is_valid, _ = self.game.is_spawn_location_valid(point_data, point_data['teamId'])
+            if is_valid:
+                self.state['points'][point_id] = point_data
+                team_name = self.state['teams'][point_data['teamId']]['name']
+                log_msg = {'teamId': point_data['teamId'], 'message': f"A point for {team_name} regenerated from a past sacrifice.", 'short_message': '[REGEN]'}
+                self.state['game_log'].append(log_msg)
+                self.state['new_turn_events'].append({'type': 'point_regenerate', 'point': point_data})
+            else:
+                # Point failed to regenerate
+                team_name = self.state['teams'][point_data['teamId']]['name']
+                log_msg = {'teamId': point_data['teamId'], 'message': f"A point for {team_name} failed to regenerate as its location was blocked.", 'short_message': '[REGEN->FAIL]'}
+                self.state['game_log'].append(log_msg)
+
     def _process_attuned_nexuses(self):
         """Handles decay of attuned nexuses."""
         if 'attuned_nexuses' not in self.state:
