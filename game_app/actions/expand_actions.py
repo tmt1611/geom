@@ -62,11 +62,9 @@ class ExpandActionsHandler:
         return False, "No lines to fracture or strengthen."
 
     def can_perform_spawn_point(self, teamId):
-        # Primary needs a point. Fallback needs a line.
-        can_spawn = len(self.game.get_team_point_ids(teamId)) > 0
-        can_strengthen = len(self.game.get_team_lines(teamId)) > 0
-        can_perform = can_spawn or can_strengthen
-        reason = "" if can_perform else "No points to spawn from and no lines to strengthen."
+        # With the new border-spawn fallback, this action is always possible if a point exists.
+        can_perform = len(self.game.get_team_point_ids(teamId)) > 0
+        reason = "" if can_perform else "Requires at least one point to spawn from."
         return can_perform, reason
 
     def can_perform_create_orbital(self, teamId):
@@ -260,44 +258,61 @@ class ExpandActionsHandler:
         return result_payload
 
     def spawn_point(self, teamId):
-        """[EXPAND ACTION]: Creates a new point near an existing one. If not possible, strengthens a line."""
+        """[EXPAND ACTION]: Creates a new point near an existing one. If not possible, strengthens a line or spawns on border."""
         team_point_ids = self.game.get_team_point_ids(teamId)
         if not team_point_ids:
             return {'success': False, 'reason': 'no points to spawn from'}
 
-        # Try a few times to find a valid empty spot
+        # --- Primary Effect: Try to spawn nearby ---
         for _ in range(10):
             p_origin_id = random.choice(team_point_ids)
             p_origin = self.state['points'][p_origin_id]
 
-            # Spawn in a small radius
             angle = random.uniform(0, 2 * math.pi)
             radius = self.state['grid_size'] * random.uniform(0.05, 0.15)
             
             new_x = p_origin['x'] + math.cos(angle) * radius
             new_y = p_origin['y'] + math.sin(angle) * radius
             
-            # Clamp to grid and round to integer
             new_p_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
-            is_valid, reason = self.game.is_spawn_location_valid(new_p_coords, teamId)
+            is_valid, _ = self.game.is_spawn_location_valid(new_p_coords, teamId)
             if not is_valid:
                 continue
 
-            # We found a valid spawn, create the new point
             new_point_id = self.game._generate_id('p')
             new_point = {**new_p_coords, "teamId": teamId, "id": new_point_id}
             self.state['points'][new_point_id] = new_point
-
-            # Check for Ley Line bonus
             bonus_line = self.game._check_and_apply_ley_line_bonus(new_point)
             result_payload = {'success': True, 'type': 'spawn_point', 'new_point': new_point}
-            if bonus_line:
-                result_payload['bonus_line'] = bonus_line
-            
+            if bonus_line: result_payload['bonus_line'] = bonus_line
             return result_payload
 
-        # Fallback: Strengthen a random line
-        return self.game._fallback_strengthen_random_line(teamId, 'spawn')
+        # --- Fallback 1: Strengthen a random line ---
+        strengthen_result = self.game._fallback_strengthen_random_line(teamId, 'spawn')
+        if strengthen_result.get('success'):
+            return strengthen_result
+        
+        # --- Fallback 2: Spawn on border from a random point ---
+        # This case is reached if spawn failed and there are no lines to strengthen.
+        p_origin_id = random.choice(team_point_ids)
+        p_origin = self.state['points'][p_origin_id]
+
+        for _ in range(10): # try 10 random directions
+            angle = random.uniform(0, 2 * math.pi)
+            p_dummy_end = {
+                'x': p_origin['x'] + math.cos(angle) * self.state['grid_size'] * 2,
+                'y': p_origin['y'] + math.sin(angle) * self.state['grid_size'] * 2
+            }
+            border_point = get_extended_border_point(
+                p_origin, p_dummy_end, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
+            )
+            if border_point:
+                new_point = self.game._helper_spawn_on_border(teamId, border_point)
+                if new_point:
+                    return {'success': True, 'type': 'spawn_fizzle_border_spawn', 'new_point': new_point}
+
+        return {'success': False, 'reason': 'all spawn strategies, including fallbacks, failed'}
 
     def mirror_point(self, teamId):
         """[EXPAND ACTION]: Reflects a friendly point through another to create a new symmetrical point."""

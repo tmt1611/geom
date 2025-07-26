@@ -56,10 +56,11 @@ ACTIONS = {
     'expand_spawn': {
         'group': 'Expand', 'handler': 'expand_handler', 'method': 'spawn_point',
         'display_name': 'Spawn Point',
-        'description': "Creates a new point in a random empty space near an existing friendly point. If no valid space is found, it strengthens a line.",
+        'description': "Creates a new point in a random empty space near an existing friendly point. If it fails, it strengthens a line, and if that also fails, it creates a new point on the border.",
         'log_generators': {
             'spawn_point': lambda r: ("spawned a new point from an existing one.", "[SPAWN]"),
             'spawn_fizzle_strengthen': lambda r: ("could not find a place to spawn a new point, and instead reinforced an existing line.", "[SPAWN->REINFORCE]"),
+            'spawn_fizzle_border_spawn': lambda r: ("had no other option and projected its energy to the border, creating a new point.", "[SPAWN->BORDER]"),
         }
     },
     'expand_mirror_point': {

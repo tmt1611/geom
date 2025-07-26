@@ -1,19 +1,17 @@
-This iteration focused on implementing the "no cost" action rule from `design.md`.
+This iteration focused on improving action robustness to better respect the `design.md` rule: "Action pool should NEVER be empty".
 
-1.  **Identified No-Cost Actions**: Based on the rule "Action that does not generate points or deal damage (like rotations, push, pull, etc) must not cost points.", I identified the following actions as candidates:
-    *   `fight_isolate_point`
-    *   `fortify_anchor`
-    *   `fortify_reposition_point`
-    *   `fortify_rotate_point`
+1.  **Identified Brittle Action**: The `expand_spawn` action was identified as a potential point of failure. If a team had only one point and no lines, `can_perform_spawn_point` would return true, but the action itself could fail if the local area was crowded, causing the team to pass its turn unnecessarily.
 
-2.  **Updated Action Metadata**:
-    *   Added a `'no_cost': True` flag to the definitions of these four actions in `game_app/action_data.py`. This provides a central, declarative way to mark such actions.
+2.  **Refactored `spawn_point` Action**:
+    *   In `game_app/actions/expand_actions.py`, the `spawn_point` method was refactored to include a hierarchy of fallbacks.
+    *   **Primary Effect:** Tries to spawn a point near an existing friendly point.
+    *   **Fallback 1:** If the primary effect fails, it attempts to strengthen a friendly line (the original fallback).
+    *   **Fallback 2:** If strengthening a line is not possible (e.g., no lines exist), it now attempts to project a ray from a random friendly point to the border and create a new point there. This provides a robust last-resort option.
+    *   This change makes the action significantly more likely to succeed, preventing a team from passing its turn when it has at least one point.
 
-3.  **Implemented "No Cost" Logic**:
-    *   Modified `game_logic.py` in the `run_next_action` method.
-    *   After a successful action, the logic now checks if the action had the `no_cost` flag.
-    *   If it did (and wasn't already a bonus action), it grants the team an immediate bonus action by inserting it into the current turn's action queue.
-    *   This ensures that using a positional or utility action doesn't consume the team's main action for the turn, directly implementing the rule from `design.md`.
+3.  **Simplified Precondition Check**:
+    *   The `can_perform_spawn_point` method was simplified. Since the action is now guaranteed to have a possible outcome if at least one point exists, the check no longer needs to consider the existence of lines.
 
-4.  **Updated API Data**:
-    *   Adjusted `get_action_probabilities` in `game_logic.py` to include the `no_cost` flag in the data sent to the frontend, enabling future UI enhancements to visualize these special actions.
+4.  **Updated Action Metadata**:
+    *   The description for `expand_spawn` in `game_app/action_data.py` was updated to reflect its new multi-level fallback logic.
+    *   A new log generator for `'spawn_fizzle_border_spawn'` was added to provide clear feedback to the user when the new fallback is triggered.
