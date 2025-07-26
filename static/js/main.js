@@ -2,32 +2,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // This global 'api' object is defined in api.js
     const canvas = document.getElementById('grid');
     const ctx = canvas.getContext('2d');
-    let gridSize = 10; // This will be updated from backend state
-    let cellSize = canvas.width / gridSize;
+    let cellSize; // Calculated based on canvas size and grid size
 
-    // Game state - The single source of truth will be the backend
-    let localTeams = {};
-    let initialPoints = []; // Still a list for setup phase
-    let selectedTeamId = null;
-    let autoPlayInterval = null;
-    let debugOptions = {
-        showPointIds: false,
-        showLineIds: false,
-        highlightLastAction: false,
-        showHulls: false,
-        compactLog: false
+    // --- State Management ---
+    // Centralized object for frontend-specific state.
+    const uiState = {
+        localTeams: {},
+        initialPoints: [], // For setup phase
+        selectedTeamId: null,
+        autoPlayInterval: null,
+        debugOptions: {
+            showPointIds: false,
+            showLineIds: false,
+            highlightLastAction: false,
+            showHulls: false,
+            compactLog: false
+        },
+        visualEffects: [], // For temporary animations
+        lastActionHighlights: { // For highlighting the last action's components
+            points: new Set(),
+            lines: new Set(),
+            structures: new Set(),
+            clearTimeout: null
+        }
     };
-    let currentGameState = {}; // Cache the latest game state
-    let hasResizedInitially = false;
-    let visualEffects = []; // For temporary animations
-    let lastActionHighlights = {
-        points: new Set(),
-        lines: new Set(),
-        structures: new Set(), // For non-point/line elements like fissures, wonders
-        clearTimeout: null
-    };
+    let currentGameState = {}; // Cache of the latest game state from the backend
 
-    // UI Elements
+    // --- UI Elements ---
     const teamsList = document.getElementById('teams-list');
     const newTeamNameInput = document.getElementById('new-team-name');
     const newTeamColorInput = document.getElementById('new-team-color');
@@ -54,26 +55,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const actionPreviewPanel = document.getElementById('action-preview-panel');
     const compactLogToggle = document.getElementById('compact-log-toggle');
     const copyLogBtn = document.getElementById('copy-log-btn');
-
-    // Tab elements
     const tabLinks = document.querySelectorAll('.tab-link');
     const tabContents = document.querySelectorAll('.tab-content');
     const actionGuideContent = document.getElementById('action-guide-content');
-
-    // --- Helper Functions ---
-    function getRandomHslColor() {
-        const hue = Math.floor(Math.random() * 360);
-        // Using 70% saturation and 50% lightness for bright, but not neon, colors.
-        return `hsl(${hue}, 70%, 50%)`;
-    }
-
-    function setNewTeamDefaults() {
-        newTeamNameInput.value = '';
-        newTeamColorInput.value = getRandomHslColor();
-        newTeamTraitSelect.value = 'Random'; // Set default trait
-    }
-
-    // Debug Toggles
     const debugPointIdsToggle = document.getElementById('debug-point-ids');
     const debugLineIdsToggle = document.getElementById('debug-line-ids');
     const debugLastActionToggle = document.getElementById('debug-last-action');
@@ -82,51 +66,1146 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyStateBtn = document.getElementById('copy-state-btn');
     const restartServerBtn = document.getElementById('restart-server-btn');
 
-    // --- API Abstraction ---
-    // The `api` object is defined in `api.js` and handles the communication
-    // with either the Flask backend (HTTP) or the in-browser Python (Pyodide).
+    // --- Drawing & Illustration Helpers ---
+    const illustrationHelpers = {
+        drawJaggedLine: (ctx, p1, p2, segments, jag_amount) => {
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len < 1) return;
+            const angle = Math.atan2(dy, dx);
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+
+            for (let i = 1; i < segments; i++) {
+                const lateral = (Math.random() - 0.5) * jag_amount;
+                const along = (i / segments) * len;
+                const x = p1.x + Math.cos(angle) * along - Math.sin(angle) * lateral;
+                const y = p1.y + Math.sin(angle) * along + Math.cos(angle) * lateral;
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+        },
+        drawPoints: (ctx, points, color) => {
+            points.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = color;
+                ctx.fill();
+            });
+        },
+        drawLines: (ctx, lines, color, width = 2) => {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            lines.forEach(line => {
+                ctx.beginPath();
+                ctx.moveTo(line.p1.x, line.p1.y);
+                ctx.lineTo(line.p2.x, line.p2.y);
+                ctx.stroke();
+            });
+        },
+        drawArrow: (ctx, p1, p2, color) => {
+            const headlen = 15;
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const angle = Math.atan2(dy, dx);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p2.x - headlen * Math.cos(angle - Math.PI / 6), p2.y - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(p2.x, p2.y);
+            ctx.lineTo(p2.x - headlen * Math.cos(angle + Math.PI / 6), p2.y - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        },
+        drawDashedLine: (ctx, p1, p2, color) => {
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+            ctx.restore();
+        },
+        drawExplosion: (ctx, x, y, color = 'red', radius = 15) => {
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.strokeStyle = 'rgba(255, 255, 150, 0.8)'; // yellow
+            ctx.lineWidth = 2;
+            const spikes = 8;
+            ctx.beginPath();
+            for (let i = 0; i < spikes; i++) {
+                const angle = (i / spikes) * 2 * Math.PI;
+                const outerX = x + Math.cos(angle) * radius;
+                const outerY = y + Math.sin(angle) * radius;
+                ctx.lineTo(outerX, outerY);
+                const innerAngle = angle + Math.PI / spikes;
+                const innerRadius = radius * 0.5;
+                const innerX = x + Math.cos(innerAngle) * innerRadius;
+                const innerY = y + Math.sin(innerAngle) * innerRadius;
+                ctx.lineTo(innerX, innerY);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        },
+        drawFortifiedPoint: (ctx, p, color) => {
+            ctx.fillStyle = color;
+            const radius = 5;
+            const size = radius * 1.7;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y - size);
+            ctx.lineTo(p.x + size, p.y);
+            ctx.lineTo(p.x, p.y + size);
+            ctx.lineTo(p.x - size, p.y);
+            ctx.closePath();
+            ctx.fill();
+        }
+    };
+
+    const illustrationDrawers = {
+        'default': (ctx, w, h) => {
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#ccc';
+            ctx.font = '16px Arial';
+            ctx.fillText('No Illustration', w / 2, h / 2);
+        },
+        'fortify_shield': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = { x: w * 0.3, y: h * 0.5 };
+            const p2 = { x: w * 0.7, y: h * 0.5 };
+
+            illustrationHelpers.drawLines(ctx, [{ p1, p2 }], team1_color);
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)';
+            ctx.lineWidth = 12;
+            ctx.stroke();
+            ctx.restore();
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+        },
+        'expand_add': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = { x: w * 0.3, y: h * 0.5 };
+            const p2 = { x: w * 0.7, y: h * 0.5 };
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+            illustrationHelpers.drawDashedLine(ctx, p1, p2, team1_color);
+        },
+        'expand_extend': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = { x: w * 0.2, y: h * 0.5 };
+            const p2 = { x: w * 0.5, y: h * 0.5 };
+            const p3 = { x: w * 0.9, y: h * 0.5 };
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1, p2 }], team1_color);
+            illustrationHelpers.drawDashedLine(ctx, p2, p3, team1_color);
+            illustrationHelpers.drawPoints(ctx, [p3], team1_color);
+        },
+        'expand_fracture': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = { x: w * 0.2, y: h * 0.5 };
+            const p2 = { x: w * 0.8, y: h * 0.5 };
+            const p_new = { x: w * 0.5, y: h * 0.5 };
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1, p2 }], team1_color);
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(p_new.x, p_new.y, 15, 0, 2 * Math.PI);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 6;
+            ctx.stroke();
+            ctx.fillStyle = team1_color;
+            ctx.fill();
+            ctx.restore();
+        },
+        'expand_orbital': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const center = { x: w * 0.5, y: h * 0.5 };
+            illustrationHelpers.drawPoints(ctx, [center], team1_color);
+
+            const radius = w * 0.3;
+            const num_satellites = 5;
+            const satellites = [];
+            for (let i = 0; i < num_satellites; i++) {
+                const angle = (i / num_satellites) * 2 * Math.PI;
+                const p = {
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y + Math.sin(angle) * radius,
+                };
+                satellites.push(p);
+                illustrationHelpers.drawDashedLine(ctx, center, p, team1_color);
+            }
+            illustrationHelpers.drawPoints(ctx, satellites, team1_color);
+        },
+        'expand_spawn': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = { x: w * 0.4, y: h * 0.5 };
+            const p2 = { x: w * 0.6, y: h * 0.5 };
+            illustrationHelpers.drawPoints(ctx, [p1], team1_color);
+            illustrationHelpers.drawDashedLine(ctx, p1, p2, team1_color);
+            illustrationHelpers.drawPoints(ctx, [p2], team1_color);
+        },
+        'fight_attack': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p1 = { x: w * 0.1, y: h * 0.3 };
+            const p2 = { x: w * 0.4, y: h * 0.3 };
+            const ep1 = { x: w * 0.7, y: h * 0.1 };
+            const ep2 = { x: w * 0.7, y: h * 0.9 };
+            const hit = { x: w * 0.7, y: h * 0.3 };
+
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1, p2 }], team1_color);
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: ep1, p2: ep2 }], team2_color);
+            illustrationHelpers.drawArrow(ctx, p2, hit, team1_color);
+
+            illustrationHelpers.drawExplosion(ctx, hit.x, hit.y);
+        },
+        'fight_chain_lightning': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p1 = { x: w * 0.2, y: h * 0.5 };
+            const p_sac = { x: w * 0.4, y: h * 0.5 };
+            const p3 = { x: w * 0.6, y: h * 0.5 };
+            illustrationHelpers.drawPoints(ctx, [p1, p_sac, p3], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: p1, p2: p_sac }, { p1: p_sac, p2: p3 }], team1_color);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p_sac.x - 8, p_sac.y - 8);
+            ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
+            ctx.moveTo(p_sac.x - 8, p_sac.y + 8);
+            ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
+            ctx.stroke();
+            const ep1 = { x: w * 0.8, y: h * 0.3 };
+            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+            ctx.save();
+            ctx.strokeStyle = 'rgba(200, 230, 255, 0.9)';
+            ctx.lineWidth = 2;
+            illustrationHelpers.drawJaggedLine(ctx, p3, ep1, 7, 12);
+            ctx.restore();
+            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
+        },
+        'sacrifice_convert_point': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+
+            const p1 = { x: w * 0.2, y: h * 0.5 };
+            const p2 = { x: w * 0.4, y: h * 0.5 };
+            const ep1 = { x: w * 0.7, y: h * 0.5 };
+
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1, p2 }], team1_color, 1);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(w * 0.25, h * 0.4);
+            ctx.lineTo(w * 0.35, h * 0.6);
+            ctx.moveTo(w * 0.25, h * 0.6);
+            ctx.lineTo(w * 0.35, h * 0.4);
+            ctx.stroke();
+            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+            illustrationHelpers.drawArrow(ctx, { x: w * 0.5, y: h * 0.5 }, { x: w * 0.65, y: h * 0.5 }, '#f1c40f');
+            ctx.beginPath();
+            ctx.arc(ep1.x, ep1.y, 12, 0, 2 * Math.PI);
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.5;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        },
+        'fight_bastion_pulse': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const core = { x: w * 0.3, y: h * 0.5 };
+            const p_sac = { x: w * 0.5, y: h * 0.2 };
+            const prongs = [p_sac, { x: w * 0.5, y: h * 0.8 }, { x: w * 0.1, y: h * 0.5 }];
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(prongs[0].x, prongs[0].y);
+            ctx.lineTo(prongs[1].x, prongs[1].y);
+            ctx.lineTo(prongs[2].x, prongs[2].y);
+            ctx.closePath();
+            ctx.strokeStyle = team1_color;
+            ctx.lineWidth = 4;
+            ctx.globalAlpha = 0.4;
+            ctx.stroke();
+            ctx.restore();
+            illustrationHelpers.drawPoints(ctx, [core, ...prongs], team1_color);
+            prongs.forEach(p => illustrationHelpers.drawLines(ctx, [{ p1: core, p2: p }], team1_color));
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p_sac.x - 8, p_sac.y - 8);
+            ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
+            ctx.moveTo(p_sac.x - 8, p_sac.y + 8);
+            ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
+            ctx.stroke();
+            const ep1 = { x: w * 0.8, y: h * 0.1 };
+            const ep2 = { x: w * 0.2, y: h * 0.9 };
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: ep1, p2: ep2 }], team2_color, 1);
+            illustrationHelpers.drawExplosion(ctx, w * 0.4, h * 0.7);
+        },
+        'fight_pincer_attack': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p1 = { x: w * 0.3, y: h * 0.3 };
+            const p2 = { x: w * 0.3, y: h * 0.7 };
+            const ep1 = { x: w * 0.7, y: h * 0.5 };
+
+            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+            illustrationHelpers.drawArrow(ctx, p1, ep1, team1_color);
+            illustrationHelpers.drawArrow(ctx, p2, ep1, team1_color);
+            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
+        },
+        'fight_sentry_zap': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p1 = { x: w * 0.2, y: h * 0.5 };
+            const p2 = { x: w * 0.4, y: h * 0.5 };
+            const p3 = { x: w * 0.6, y: h * 0.5 };
+            const ep1 = { x: w * 0.4, y: h * 0.2 };
+
+            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1, p2 }, { p1: p2, p2: p3 }], team1_color);
+            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+            const beam_end = { x: w * 0.4, y: h * 0.05 };
+            illustrationHelpers.drawArrow(ctx, p2, beam_end, 'rgba(255, 100, 100, 1.0)');
+            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
+        },
+        'fight_refraction_beam': (ctx, w, h) => {
+            const team1_color = 'hsl(240, 70%, 50%)';
+            const team2_color = 'hsl(0, 70%, 50%)';
+            const pA = { x: w * 0.3, y: h * 0.5 };
+            const pB = { x: w * 0.5, y: h * 0.2 };
+            const pC = { x: w * 0.5, y: h * 0.8 };
+            const pD = { x: w * 0.7, y: h * 0.5 };
+            const prism_points = [pA, pB, pC, pD];
+            ctx.save();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.2;
+            ctx.beginPath();
+            ctx.moveTo(pA.x, pA.y);
+            ctx.lineTo(pB.x, pB.y);
+            ctx.lineTo(pC.x, pC.y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(pD.x, pD.y);
+            ctx.lineTo(pB.x, pB.y);
+            ctx.lineTo(pC.x, pC.y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            illustrationHelpers.drawPoints(ctx, prism_points, team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: pA, p2: pB }, { p1: pA, p2: pC }, { p1: pB, p2: pC }], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: pD, p2: pB }, { p1: pD, p2: pC }], team1_color);
+            const ep1 = { x: w * 0.9, y: h * 0.2 };
+            const ep2 = { x: w * 0.9, y: h * 0.8 };
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: ep1, p2: ep2 }], team2_color);
+            const source_point = { x: w * 0.1, y: h * 0.3 };
+            const hit_prism = { x: w * 0.5, y: h * 0.4 };
+            const hit_enemy = { x: w * 0.9, y: h * 0.5 };
+            illustrationHelpers.drawArrow(ctx, source_point, hit_prism, 'rgba(255, 255, 150, 1.0)');
+            illustrationHelpers.drawArrow(ctx, hit_prism, hit_enemy, 'rgba(255, 100, 100, 1.0)');
+            illustrationHelpers.drawExplosion(ctx, hit_enemy.x, hit_enemy.y);
+        },
+        'fight_territory_strike': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p1 = { x: w * 0.5, y: h * 0.2 };
+            const p2 = { x: w * 0.2, y: h * 0.8 };
+            const p3 = { x: w * 0.8, y: h * 0.8 };
+            const center = { x: (p1.x + p2.x + p3.x) / 3, y: (p1.y + p2.y + p3.y) / 3 };
+            const ep1 = { x: w * 0.8, y: h * 0.2 };
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.3;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
+            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+            illustrationHelpers.drawArrow(ctx, center, ep1, 'rgba(100, 255, 100, 1.0)');
+            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
+        },
+        'fortify_anchor': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p_sac = { x: w * 0.2, y: h * 0.5 };
+            const p_anchor = { x: w * 0.4, y: h * 0.5 };
+            const ep1 = { x: w * 0.8, y: h * 0.3 };
+            const ep2 = { x: w * 0.8, y: h * 0.7 };
+            illustrationHelpers.drawPoints(ctx, [p_sac], team1_color);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p_sac.x - 8, p_sac.y - 8);
+            ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
+            ctx.moveTo(p_sac.x - 8, p_sac.y + 8);
+            ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
+            ctx.stroke();
+            ctx.fillStyle = team1_color;
+            ctx.fillRect(p_anchor.x - 8, p_anchor.y - 8, 16, 16);
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawArrow(ctx, ep1, p_anchor, '#aaa');
+            illustrationHelpers.drawArrow(ctx, ep2, p_anchor, '#aaa');
+        },
+        'fortify_claim': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = { x: w * 0.5, y: h * 0.2 };
+            const p2 = { x: w * 0.2, y: h * 0.8 };
+            const p3 = { x: w * 0.8, y: h * 0.8 };
+            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: p1, p2: p2 }, { p1: p2, p2: p3 }, { p1: p3, p2: p1 }], team1_color);
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.3;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        },
+        'fortify_form_bastion': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const core = { x: w * 0.5, y: h * 0.5 };
+            const prongs = [{ x: w * 0.7, y: h * 0.3 }, { x: w * 0.7, y: h * 0.7 }, { x: w * 0.3, y: h * 0.5 }];
+            ctx.save();
+            ctx.fillStyle = team1_color;
+            const size = 18;
+            ctx.translate(core.x, core.y);
+            ctx.beginPath();
+            ctx.moveTo(0, -size);
+            ctx.lineTo(size, 0);
+            ctx.lineTo(0, size);
+            ctx.lineTo(-size, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            illustrationHelpers.drawPoints(ctx, prongs, team1_color);
+            prongs.forEach(p => illustrationHelpers.drawLines(ctx, [{ p1: core, p2: p }], team1_color));
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(prongs[0].x, prongs[0].y);
+            ctx.lineTo(prongs[1].x, prongs[1].y);
+            ctx.lineTo(prongs[2].x, prongs[2].y);
+            ctx.closePath();
+            ctx.strokeStyle = team1_color;
+            ctx.lineWidth = 4;
+            ctx.globalAlpha = 0.4;
+            ctx.stroke();
+            ctx.restore();
+        },
+        'fortify_form_monolith': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1 = { x: w * 0.4, y: h * 0.1 };
+            const p2 = { x: w * 0.6, y: h * 0.1 };
+            const p3 = { x: w * 0.6, y: h * 0.9 };
+            const p4 = { x: w * 0.4, y: h * 0.9 };
+            const points = [p1, p2, p3, p4];
+            illustrationHelpers.drawPoints(ctx, points, team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1, p2 }, { p1: p2, p2: p3 }, { p1: p3, p2: p4 }, { p1: p4, p2: p1 }], team1_color);
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.lineTo(p4.x, p4.y);
+            ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.2;
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        },
+        'fortify_mirror': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const axis1 = { x: w * 0.5, y: h * 0.1 };
+            const axis2 = { x: w * 0.5, y: h * 0.9 };
+            const p_orig = { x: w * 0.3, y: h * 0.3 };
+            const p_refl = { x: w * 0.7, y: h * 0.3 };
+            illustrationHelpers.drawPoints(ctx, [axis1, axis2], team1_color);
+            illustrationHelpers.drawDashedLine(ctx, axis1, axis2, '#aaa');
+            illustrationHelpers.drawPoints(ctx, [p_orig], team1_color);
+            illustrationHelpers.drawDashedLine(ctx, p_orig, p_refl, '#aaa');
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+            illustrationHelpers.drawPoints(ctx, [p_refl], team1_color);
+            ctx.restore();
+        },
+        'rune_area_shield': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const t1 = { x: w * 0.5, y: h * 0.1 };
+            const t2 = { x: w * 0.1, y: h * 0.9 };
+            const t3 = { x: w * 0.9, y: h * 0.9 };
+            const core = { x: w * 0.5, y: h * 0.6 };
+            illustrationHelpers.drawPoints(ctx, [t1, t2, t3, core], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: t1, p2: t2 }, { p1: t2, p2: t3 }, { p1: t3, p2: t1 }], team1_color);
+            ctx.beginPath();
+            ctx.moveTo(t1.x, t1.y);
+            ctx.lineTo(t2.x, t2.y);
+            ctx.lineTo(t3.x, t3.y);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(173, 216, 230, 0.5)';
+            ctx.fill();
+            const l1 = { x: w * 0.4, y: h * 0.5 };
+            const l2 = { x: w * 0.6, y: h * 0.7 };
+            illustrationHelpers.drawPoints(ctx, [l1, l2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: l1, p2: l2 }], team1_color);
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(l1.x, l1.y);
+            ctx.lineTo(l2.x, l2.y);
+            ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)';
+            ctx.lineWidth = 12;
+            ctx.stroke();
+            ctx.restore();
+        },
+        'rune_shield_pulse': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const t1 = { x: w * 0.3, y: h * 0.2 };
+            const t2 = { x: w * 0.1, y: h * 0.8 };
+            const t3 = { x: w * 0.5, y: h * 0.8 };
+            const core = { x: w * 0.3, y: h * 0.6 };
+            const center = { x: (t1.x + t2.x + t3.x) / 3, y: (t1.y + t2.y + t3.y) / 3 };
+            illustrationHelpers.drawPoints(ctx, [t1, t2, t3, core], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: t1, p2: t2 }, { p1: t2, p2: t3 }, { p1: t3, p2: t1 }], team1_color);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, w * 0.3, 0, 2 * Math.PI);
+            ctx.strokeStyle = 'rgba(173, 216, 230, 0.7)';
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+            const ep1 = { x: w * 0.8, y: h * 0.3 };
+            const ep2 = { x: w * 0.7, y: h * 0.7 };
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawArrow(ctx, ep1, { x: w * 0.9, y: h * 0.2 }, '#aaa');
+            illustrationHelpers.drawArrow(ctx, ep2, { x: w * 0.8, y: h * 0.8 }, '#aaa');
+        },
+        'rune_impale': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p_handle = { x: w * 0.1, y: h * 0.5 };
+            const p_apex = { x: w * 0.3, y: h * 0.5 };
+            const p_p1 = { x: w * 0.4, y: h * 0.3 };
+            const p_p2 = { x: w * 0.4, y: h * 0.7 };
+            illustrationHelpers.drawPoints(ctx, [p_handle, p_apex, p_p1, p_p2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: p_handle, p2: p_apex }, { p1: p_apex, p2: p_p1 }, { p1: p_apex, p2: p_p2 }], team1_color);
+            const hit_point = { x: w * 0.9, y: h * 0.5 };
+            illustrationHelpers.drawArrow(ctx, p_apex, hit_point, 'rgba(255, 100, 255, 1.0)');
+            const ep1 = { x: w * 0.7, y: h * 0.2 };
+            const ep2 = { x: w * 0.7, y: h * 0.8 };
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: ep1, p2: ep2 }], team2_color, 1);
+        },
+        'rune_shoot_bisector': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p_v = { x: w * 0.2, y: h * 0.5 };
+            const p_l1 = { x: w * 0.4, y: h * 0.2 };
+            const p_l2 = { x: w * 0.4, y: h * 0.8 };
+            illustrationHelpers.drawPoints(ctx, [p_v, p_l1, p_l2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: p_v, p2: p_l1 }, { p1: p_v, p2: p_l2 }], team1_color);
+            const hit_point = { x: w * 0.9, y: h * 0.5 };
+            illustrationHelpers.drawArrow(ctx, p_v, hit_point, 'rgba(100, 255, 255, 1.0)');
+            const ep1 = { x: w * 0.7, y: h * 0.3 };
+            const ep2 = { x: w * 0.7, y: h * 0.7 };
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: ep1, p2: ep2 }], team2_color, 1);
+        },
+        'rune_t_hammer_slam': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p_mid = { x: w * 0.3, y: h * 0.5 };
+            const p_head = { x: w * 0.5, y: h * 0.5 };
+            const p_s1 = { x: w * 0.3, y: h * 0.2 };
+            const p_s2 = { x: w * 0.3, y: h * 0.8 };
+            illustrationHelpers.drawPoints(ctx, [p_mid, p_head, p_s1, p_s2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: p_s1, p2: p_mid }, { p1: p_mid, p2: p_s2 }, { p1: p_mid, p2: p_head }], team1_color);
+            const ep1 = { x: w * 0.7, y: h * 0.3 };
+            const ep2 = { x: w * 0.7, y: h * 0.7 };
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawArrow(ctx, ep1, { x: w * 0.9, y: h * 0.3 }, '#aaa');
+            illustrationHelpers.drawArrow(ctx, ep2, { x: w * 0.9, y: h * 0.7 }, '#aaa');
+        },
+        'sacrifice_nova': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const center = { x: w * 0.5, y: h * 0.5 };
+            illustrationHelpers.drawPoints(ctx, [center], team1_color);
+            illustrationHelpers.drawExplosion(ctx, center.x, center.y, 'red', 15);
+            const ep1 = { x: w * 0.8, y: h * 0.3 };
+            const ep2 = { x: w * 0.8, y: h * 0.7 };
+            const ep3 = { x: w * 0.2, y: h * 0.2 };
+            const ep4 = { x: w * 0.3, y: h * 0.8 };
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2, ep3, ep4], team2_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: ep1, p2: ep2 }, { p1: ep3, p2: ep4 }], team2_color, 1);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, w * 0.3, 0, 2 * Math.PI);
+            ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        },
+        'sacrifice_phase_shift': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const p1_orig = { x: w * 0.2, y: h * 0.5 };
+            const p2 = { x: w * 0.5, y: h * 0.5 };
+            const p1_new = { x: w * 0.8, y: h * 0.3 };
+            illustrationHelpers.drawLines(ctx, [{ p1: p1_orig, p2: p2 }], team1_color, 1);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(w * 0.3, h * 0.4);
+            ctx.lineTo(w * 0.4, h * 0.6);
+            ctx.moveTo(w * 0.3, h * 0.6);
+            ctx.lineTo(w * 0.4, h * 0.4);
+            ctx.stroke();
+            illustrationHelpers.drawPoints(ctx, [p1_orig, p2], team1_color);
+            ctx.globalAlpha = 0.3;
+            illustrationHelpers.drawPoints(ctx, [p1_orig], team1_color);
+            ctx.globalAlpha = 1.0;
+            illustrationHelpers.drawDashedLine(ctx, p1_orig, p1_new, '#aaa');
+            illustrationHelpers.drawPoints(ctx, [p1_new], team1_color);
+        },
+        'sacrifice_whirlpool': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const center = { x: w * 0.5, y: h * 0.5 };
+            illustrationHelpers.drawExplosion(ctx, center.x, center.y);
+            const pointsToPull = [{ x: w * 0.2, y: h * 0.2 }, { x: w * 0.8, y: h * 0.3 }, { x: w * 0.7, y: h * 0.8 }, { x: w * 0.3, y: h * 0.7 }];
+            illustrationHelpers.drawPoints(ctx, pointsToPull, team2_color);
+            pointsToPull.forEach(p => {
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+                ctx.quadraticCurveTo((p.x + center.x) / 2 + (p.y - center.y) * 0.3, (p.y + center.y) / 2 - (p.x - center.x) * 0.3, center.x, center.y);
+                ctx.strokeStyle = '#aaa';
+                ctx.setLineDash([3, 3]);
+                ctx.stroke();
+            });
+            ctx.setLineDash([]);
+        },
+        'sacrifice_cultivate_heartwood': (ctx, w, h) => {
+            const team1_color = 'hsl(120, 70%, 50%)';
+            const center = { x: w * 0.5, y: h * 0.5 };
+            const branches = [];
+            const num_branches = 5;
+            const radius = w * 0.3;
+            for (let i = 0; i < num_branches; i++) {
+                const angle = (i / num_branches) * 2 * Math.PI;
+                branches.push({ x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius });
+            }
+            illustrationHelpers.drawPoints(ctx, [center, ...branches], team1_color);
+            branches.forEach(b => illustrationHelpers.drawLines(ctx, [{ p1: center, p2: b }], team1_color));
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            [center, ...branches].forEach(p => {
+                ctx.beginPath();
+                ctx.moveTo(p.x - 6, p.y - 6);
+                ctx.lineTo(p.x + 6, p.y + 6);
+                ctx.moveTo(p.x - 6, p.y + 6);
+                ctx.lineTo(p.x + 6, p.y - 6);
+                ctx.stroke();
+            });
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, 15, 0, 2 * Math.PI);
+            ctx.fillStyle = team1_color;
+            ctx.fill();
+            ctx.font = 'bold 24px Arial';
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('❤', center.x, center.y + 1);
+        },
+        'fortify_form_purifier': (ctx, w, h) => {
+            const team1_color = 'hsl(50, 80%, 60%)';
+            const center = { x: w * 0.5, y: h * 0.5 };
+            const radius = w * 0.35;
+            const num_points = 5;
+            const points = [];
+            for (let i = 0; i < num_points; i++) {
+                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
+                points.push({ x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius });
+            }
+            illustrationHelpers.drawPoints(ctx, points, team1_color);
+            for (let i = 0; i < num_points; i++) {
+                illustrationHelpers.drawLines(ctx, [{ p1: points[i], p2: points[(i + 1) % num_points] }], team1_color);
+            }
+        },
+        'fight_launch_payload': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const apex = { x: w * 0.2, y: h * 0.3 };
+            const b1 = { x: w * 0.3, y: h * 0.5 };
+            const b2 = { x: w * 0.3, y: h * 0.1 };
+            const cw = { x: w * 0.4, y: h * 0.3 };
+            const target = { x: w * 0.8, y: h * 0.7 };
+            illustrationHelpers.drawPoints(ctx, [apex, b1, b2, cw], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: apex, p2: b1 }, { p1: b1, p2: cw }, { p1: cw, p2: b2 }, { p1: b2, p2: apex }, { p1: b1, p2: b2 }], team1_color);
+            illustrationHelpers.drawFortifiedPoint(ctx, target, team2_color);
+            ctx.beginPath();
+            ctx.moveTo(apex.x, apex.y);
+            ctx.quadraticCurveTo(w * 0.5, h * 0.1, target.x, target.y);
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = 'red';
+            ctx.stroke();
+            ctx.setLineDash([]);
+            illustrationHelpers.drawExplosion(ctx, target.x, target.y);
+        },
+        'fortify_rotate_point': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const pivot = { x: w * 0.5, y: h * 0.5 };
+            const p_orig = { x: w * 0.7, y: h * 0.3 };
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(pivot.x - 6, pivot.y);
+            ctx.lineTo(pivot.x + 6, pivot.y);
+            ctx.moveTo(pivot.x, pivot.y - 6);
+            ctx.lineTo(pivot.x, pivot.y + 6);
+            ctx.stroke();
+            ctx.save();
+            ctx.globalAlpha = 0.4;
+            illustrationHelpers.drawPoints(ctx, [p_orig], team1_color);
+            ctx.restore();
+            const p_new = { x: w * 0.3, y: h * 0.7 };
+            ctx.beginPath();
+            const radius = Math.sqrt((p_orig.x - pivot.x) ** 2 + (p_orig.y - pivot.y) ** 2);
+            const startAngle = Math.atan2(p_orig.y - pivot.y, p_orig.x - pivot.x);
+            const endAngle = Math.atan2(p_new.y - pivot.y, p_new.x - pivot.x);
+            ctx.arc(pivot.x, pivot.y, radius, startAngle, endAngle);
+            ctx.setLineDash([3, 3]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            illustrationHelpers.drawPoints(ctx, [p_new], team1_color);
+        },
+        'rune_hourglass_stasis': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const v = { x: w * 0.4, y: h * 0.5 };
+            const t1 = [{ x: w * 0.2, y: h * 0.2 }, { x: w * 0.2, y: h * 0.8 }];
+            const t2 = [{ x: w * 0.6, y: h * 0.3 }, { x: w * 0.6, y: h * 0.7 }];
+            const ep = { x: w * 0.8, y: h * 0.5 };
+            illustrationHelpers.drawPoints(ctx, [v, ...t1, ...t2], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: t1[0], p2: v }, { p1: v, p2: t1[1] }, { p1: t1[0], p2: t1[1] }], team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: t2[0], p2: v }, { p1: v, p2: t2[1] }, { p1: t2[0], p2: t2[1] }], team1_color);
+            illustrationHelpers.drawPoints(ctx, [ep], team2_color);
+            const cage_r = 15;
+            ctx.strokeStyle = 'rgba(150, 220, 255, 0.9)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(ep.x - cage_r, ep.y);
+            ctx.lineTo(ep.x + cage_r, ep.y);
+            ctx.moveTo(ep.x, ep.y - cage_r);
+            ctx.lineTo(ep.x, ep.y + cage_r);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(ep.x, ep.y, cage_r, 0, 2 * Math.PI);
+            ctx.stroke();
+        },
+        'sacrifice_rift_trap': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const center = { x: w * 0.5, y: h * 0.5 };
+            illustrationHelpers.drawPoints(ctx, [center], team1_color);
+            illustrationHelpers.drawExplosion(ctx, center.x - 20, center.y - 20);
+            const radius = 12;
+            ctx.strokeStyle = team1_color;
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, radius, 0.2, Math.PI - 0.2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, radius, Math.PI + 0.2, 2 * Math.PI - 0.2);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+        },
+        'fight_purify_territory': (ctx, w, h) => {
+            const team1_color = 'hsl(50, 80%, 60%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const purifier_center = { x: w * 0.3, y: h * 0.5 };
+            const purifier_radius = w * 0.2;
+            const purifier_points = [];
+            for (let i = 0; i < 5; i++) {
+                const angle = (i / 5) * 2 * Math.PI - (Math.PI / 2);
+                purifier_points.push({ x: purifier_center.x + Math.cos(angle) * purifier_radius, y: purifier_center.y + Math.sin(angle) * purifier_radius });
+            }
+            illustrationHelpers.drawPoints(ctx, purifier_points, team1_color);
+            for (let i = 0; i < 5; i++) {
+                illustrationHelpers.drawLines(ctx, [{ p1: purifier_points[i], p2: purifier_points[(i + 1) % 5] }], team1_color);
+            }
+            const p1 = { x: w * 0.8, y: h * 0.2 };
+            const p2 = { x: w * 0.6, y: h * 0.8 };
+            const p3 = { x: w * 0.95, y: h * 0.8 };
+            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team2_color);
+            illustrationHelpers.drawLines(ctx, [{ p1, p2 }, { p1: p2, p2: p3 }, { p1: p3, p2: p1 }], team2_color);
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.closePath();
+            ctx.fillStyle = team2_color;
+            ctx.globalAlpha = 0.3;
+            ctx.fill();
+            ctx.save();
+            ctx.globalAlpha = 1.0;
+            ctx.beginPath();
+            ctx.arc(purifier_center.x, purifier_center.y, w * 0.4, 0, 2 * Math.PI);
+            ctx.strokeStyle = team1_color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.stroke();
+            ctx.restore();
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fill();
+        },
+        'sacrifice_build_wonder': (ctx, w, h) => {
+            const team1_color = 'hsl(50, 80%, 60%)';
+            const center = { x: w * 0.5, y: h * 0.5 };
+            const radius = w * 0.3;
+            const num_points = 5;
+            const cycle_points = [];
+            for (let i = 0; i < num_points; i++) {
+                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
+                cycle_points.push({ x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius });
+            }
+            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
+            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{ p1: center, p2: p }], team1_color));
+            for (let i = 0; i < num_points; i++) {
+                illustrationHelpers.drawLines(ctx, [{ p1: cycle_points[i], p2: cycle_points[(i + 1) % num_points] }], team1_color);
+            }
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            [center, ...cycle_points].forEach(p => {
+                ctx.beginPath();
+                ctx.moveTo(p.x - 4, p.y - 4);
+                ctx.lineTo(p.x + 4, p.y + 4);
+                ctx.moveTo(p.x - 4, p.y + 4);
+                ctx.lineTo(p.x + 4, p.y - 4);
+                ctx.stroke();
+            });
+            ctx.save();
+            ctx.fillStyle = team1_color;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            const spire_base_w = 18;
+            const spire_h = 37;
+            ctx.beginPath();
+            ctx.moveTo(center.x - spire_base_w, center.y + spire_h / 2);
+            ctx.lineTo(center.x, center.y - spire_h / 2);
+            ctx.lineTo(center.x + spire_base_w, center.y + spire_h / 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        },
+        'rune_raise_barricade': (ctx, w, h) => {
+            const team1_color = 'hsl(30, 70%, 50%)';
+            const p1 = { x: w * 0.2, y: h * 0.2 };
+            const p2 = { x: w * 0.8, y: h * 0.2 };
+            const p3 = { x: w * 0.8, y: h * 0.8 };
+            const p4 = { x: w * 0.2, y: h * 0.8 };
+            const points = [p1, p2, p3, p4];
+            illustrationHelpers.drawPoints(ctx, points, team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1, p2 }, { p1: p2, p2: p3 }, { p1: p3, p2: p4 }, { p1: p4, p2: p1 }], team1_color);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            points.forEach(p => {
+                ctx.beginPath();
+                ctx.moveTo(p.x - 4, p.y - 4);
+                ctx.lineTo(p.x + 4, p.y + 4);
+                ctx.moveTo(p.x - 4, p.y + 4);
+                ctx.lineTo(p.x + 4, p.y - 4);
+                ctx.stroke();
+            });
+            const mid1 = { x: (p1.x + p4.x) / 2, y: (p1.y + p4.y) / 2 };
+            const mid2 = { x: (p2.x + p3.x) / 2, y: (p2.y + p3.y) / 2 };
+            ctx.save();
+            ctx.strokeStyle = team1_color;
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            illustrationHelpers.drawJaggedLine(ctx, mid1, mid2, 10, 4);
+            ctx.restore();
+        },
+        'terraform_create_fissure': (ctx, w, h) => {
+            const team1_color = 'hsl(280, 70%, 60%)';
+            const spire_center = { x: w * 0.2, y: h * 0.5 };
+            ctx.save();
+            ctx.translate(spire_center.x, spire_center.y);
+            ctx.beginPath();
+            const spikes = 7;
+            const outerRadius = 12;
+            const innerRadius = 6;
+            for (let i = 0; i < spikes * 2; i++) {
+                const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                const angle = (i * Math.PI) / spikes;
+                ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+            }
+            ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+            const fissure_start = { x: w * 0.4, y: h * 0.3 };
+            illustrationHelpers.drawDashedLine(ctx, spire_center, fissure_start, team1_color);
+            const fissure_end = { x: w * 0.9, y: h * 0.7 };
+            ctx.save();
+            ctx.strokeStyle = 'rgba(30, 30, 30, 0.8)';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            illustrationHelpers.drawJaggedLine(ctx, fissure_start, fissure_end, 15, 6);
+            ctx.restore();
+        },
+        'fortify_form_rift_spire': (ctx, w, h) => {
+            const team1_color = 'hsl(280, 70%, 60%)';
+            const center = { x: w * 0.5, y: h * 0.5 };
+            const t1_p2 = { x: w * 0.2, y: h * 0.2 };
+            const t1_p3 = { x: w * 0.8, y: h * 0.2 };
+            const t2_p3 = { x: w * 0.2, y: h * 0.8 };
+            const t3_p3 = { x: w * 0.8, y: h * 0.8 };
+            ctx.save();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.2;
+            ctx.beginPath();
+            ctx.moveTo(center.x, center.y);
+            ctx.lineTo(t1_p2.x, t1_p2.y);
+            ctx.lineTo(t1_p3.x, t1_p3.y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(center.x, center.y);
+            ctx.lineTo(t1_p2.x, t1_p2.y);
+            ctx.lineTo(t2_p3.x, t2_p3.y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(center.x, center.y);
+            ctx.lineTo(t1_p3.x, t1_p3.y);
+            ctx.lineTo(t3_p3.x, t3_p3.y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            illustrationHelpers.drawPoints(ctx, [center, t1_p2, t1_p3, t2_p3, t3_p3], team1_color);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(center.x - 5, center.y - 5);
+            ctx.lineTo(center.x + 5, center.y + 5);
+            ctx.moveTo(center.x - 5, center.y + 5);
+            ctx.lineTo(center.x + 5, center.y - 5);
+            ctx.stroke();
+            ctx.save();
+            ctx.translate(center.x, center.y);
+            ctx.beginPath();
+            const spikes = 7;
+            const outerRadius = 12;
+            const innerRadius = 6;
+            for (let i = 0; i < spikes * 2; i++) {
+                const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                const angle = (i * Math.PI) / spikes;
+                ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+            }
+            ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.globalAlpha = 0.8;
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+        },
+        'rune_starlight_cascade': (ctx, w, h) => {
+            const team1_color = 'hsl(50, 80%, 60%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const center = { x: w * 0.35, y: h * 0.5 };
+            const radius = w * 0.25;
+            const num_points = 5;
+            const cycle_points = [];
+            for (let i = 0; i < num_points; i++) {
+                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
+                cycle_points.push({ x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius });
+            }
+            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
+            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{ p1: center, p2: p }], team1_color));
+            for (let i = 0; i < num_points; i++) {
+                illustrationHelpers.drawLines(ctx, [{ p1: cycle_points[i], p2: cycle_points[(i + 1) % num_points] }], team1_color);
+            }
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, w * 0.3, 0, 2 * Math.PI);
+            ctx.strokeStyle = 'rgba(255, 255, 150, 0.7)';
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+            const ep1 = { x: w * 0.8, y: h * 0.2 };
+            const ep2 = { x: w * 0.8, y: h * 0.8 };
+            const ep3 = { x: w * 0.6, y: h * 0.1 };
+            const ep4 = { x: w * 0.9, y: h * 0.1 };
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2, ep3, ep4], team2_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: ep1, p2: ep2 }, { p1: ep3, p2: ep4 }], team2_color, 1);
+            illustrationHelpers.drawExplosion(ctx, w * 0.8, h * 0.5, 'red', 12);
+            illustrationHelpers.drawExplosion(ctx, w * 0.75, h * 0.1, 'red', 12);
+        },
+        'rune_focus_beam': (ctx, w, h) => {
+            const team1_color = 'hsl(50, 80%, 60%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const center = { x: w * 0.3, y: h * 0.5 };
+            const radius = w * 0.2;
+            const num_points = 5;
+            const cycle_points = [];
+            for (let i = 0; i < num_points; i++) {
+                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
+                cycle_points.push({ x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius });
+            }
+            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
+            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{ p1: center, p2: p }], team1_color));
+            for (let i = 0; i < num_points; i++) {
+                illustrationHelpers.drawLines(ctx, [{ p1: cycle_points[i], p2: cycle_points[(i + 1) % num_points] }], team1_color);
+            }
+            const target = { x: w * 0.8, y: h * 0.5 };
+            ctx.save();
+            ctx.fillStyle = team2_color;
+            const size = 12;
+            ctx.translate(target.x, target.y);
+            ctx.beginPath();
+            ctx.moveTo(0, -size);
+            ctx.lineTo(size, 0);
+            ctx.lineTo(0, size);
+            ctx.lineTo(-size, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            illustrationHelpers.drawArrow(ctx, center, target, 'rgba(255, 255, 150, 1.0)');
+            illustrationHelpers.drawExplosion(ctx, target.x, target.y, 'red', 20);
+        },
+        'rune_cardinal_pulse': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const center = { x: w * 0.5, y: h * 0.5 };
+            const arms = [{ x: w * 0.5, y: h * 0.2 }, { x: w * 0.8, y: h * 0.5 }, { x: w * 0.5, y: h * 0.8 }, { x: w * 0.2, y: h * 0.5 }];
+            const rune_points = [center, ...arms];
+            illustrationHelpers.drawPoints(ctx, rune_points, team1_color);
+            arms.forEach(p => illustrationHelpers.drawLines(ctx, [{ p1: center, p2: p }], team1_color));
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            rune_points.forEach(p => {
+                ctx.beginPath();
+                ctx.moveTo(p.x - 4, p.y - 4);
+                ctx.lineTo(p.x + 4, p.y + 4);
+                ctx.moveTo(p.x - 4, p.y + 4);
+                ctx.lineTo(p.x + 4, p.y - 4);
+                ctx.stroke();
+            });
+            const ep1 = { x: w * 0.9, y: h * 0.3 };
+            const ep2 = { x: w * 0.9, y: h * 0.7 };
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: ep1, p2: ep2 }], team2_color);
+            const hit_point = { x: w * 0.9, y: h * 0.5 };
+            illustrationHelpers.drawArrow(ctx, center, hit_point, team1_color);
+            illustrationHelpers.drawExplosion(ctx, hit_point.x, hit_point.y, 'red', 12);
+            const new_point = { x: w * 0.5, y: h * 0.05 };
+            illustrationHelpers.drawDashedLine(ctx, center, new_point, team1_color);
+            illustrationHelpers.drawPoints(ctx, [new_point], team1_color);
+            illustrationHelpers.drawArrow(ctx, center, { x: w * 0.05, y: h * 0.5 }, team1_color);
+            illustrationHelpers.drawArrow(ctx, center, { x: w * 0.5, y: h * 0.95 }, team1_color);
+        },
+        'rune_parallel_discharge': (ctx, w, h) => {
+            const team1_color = 'hsl(0, 70%, 50%)';
+            const team2_color = 'hsl(240, 70%, 50%)';
+            const p1 = { x: w * 0.2, y: h * 0.2 };
+            const p2 = { x: w * 0.6, y: h * 0.2 };
+            const p3 = { x: w * 0.8, y: h * 0.8 };
+            const p4 = { x: w * 0.4, y: h * 0.8 };
+            const points = [p1, p2, p3, p4];
+            illustrationHelpers.drawPoints(ctx, points, team1_color);
+            illustrationHelpers.drawLines(ctx, [{ p1, p2 }, { p1: p2, p2: p3 }, { p1: p3, p2: p4 }, { p1: p4, p2: p1 }], team1_color);
+            const ep1 = { x: w * 0.5, y: h * 0.1 };
+            const ep2 = { x: w * 0.5, y: h * 0.9 };
+            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+            illustrationHelpers.drawLines(ctx, [{ p1: ep1, p2: ep2 }], team2_color);
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.lineTo(p4.x, p4.y);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255, 255, 150, 0.7)';
+            ctx.fill();
+            ctx.restore();
+            illustrationHelpers.drawExplosion(ctx, w * 0.5, h * 0.5);
+        },
+    };
+
+    // --- Helper Functions ---
+    function getRandomHslColor() {
+        const hue = Math.floor(Math.random() * 360);
+        return `hsl(${hue}, 70%, 50%)`;
+    }
+
+    function setNewTeamDefaults() {
+        newTeamNameInput.value = '';
+        newTeamColorInput.value = getRandomHslColor();
+        newTeamTraitSelect.value = 'Random';
+    }
+
+    function showTemporaryButtonFeedback(button, message, duration = 1500) {
+        const originalText = button.innerHTML;
+        button.innerHTML = message;
+        button.disabled = true;
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }, duration);
+    }
 
     // --- Core Functions ---
-
-    function drawJaggedLine(p1_coords, p2_coords, segments, jag_amount) {
-        const dx = p2_coords.x - p1_coords.x;
-        const dy = p2_coords.y - p1_coords.y;
-        const len = Math.sqrt(dx*dx + dy*dy);
-        if (len < 1) return; // Avoid issues with zero-length lines
-        const angle = Math.atan2(dy, dx);
-        
-        ctx.beginPath();
-        ctx.moveTo(p1_coords.x, p1_coords.y);
-    
-        // Only draw internal segments to avoid going past endpoints
-        for (let i = 1; i < segments; i++) {
-            const lateral = (Math.random() - 0.5) * jag_amount;
-            const along = (i / segments) * len;
-            const x = p1_coords.x + Math.cos(angle) * along - Math.sin(angle) * lateral;
-            const y = p1_coords.y + Math.sin(angle) * along + Math.cos(angle) * lateral;
-            ctx.lineTo(x, y);
-        }
-        ctx.lineTo(p2_coords.x, p2_coords.y);
-        ctx.stroke();
-    }
 
     function drawGrid() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.strokeStyle = '#e0e0e0';
-        gridSize = currentGameState.grid_size || 10;
+        const gridSize = currentGameState.grid_size || 10;
         cellSize = canvas.width / gridSize;
-        const totalGridSize = gridSize * cellSize; // This should be equal to canvas.width
+        const totalGridSize = gridSize * cellSize;
 
         for (let i = 0; i <= gridSize; i++) {
-            // Vertical lines
+            const pos = i * cellSize;
             ctx.beginPath();
-            ctx.moveTo(i * cellSize, 0);
-            ctx.lineTo(i * cellSize, totalGridSize); // Use calculated size to ensure squareness
+            ctx.moveTo(pos, 0);
+            ctx.lineTo(pos, totalGridSize);
             ctx.stroke();
-            // Horizontal lines
             ctx.beginPath();
-            ctx.moveTo(0, i * cellSize);
-            ctx.lineTo(totalGridSize, i * cellSize); // Use calculated size
+            ctx.moveTo(0, pos);
+            ctx.lineTo(totalGridSize, pos);
             ctx.stroke();
         }
     }
@@ -213,7 +1292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.values(pointsDict).forEach(p => {
             const team = teams[p.teamId];
             if (team) {
-                const isHighlighted = lastActionHighlights.points.has(p.id);
+                const isHighlighted = uiState.lastActionHighlights.points.has(p.id);
 
                 ctx.save();
                 if (isHighlightingActive && !isHighlighted) {
@@ -274,7 +1353,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.beginPath(); ctx.arc(cx, cy, cage_radius, 0, 2 * Math.PI); ctx.stroke();
                 }
 
-                if (debugOptions.showPointIds) {
+                if (uiState.debugOptions.showPointIds) {
                     ctx.fillStyle = '#000'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                     ctx.fillText(p.id, cx, cy - (radius + 2));
                 }
@@ -289,7 +1368,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lines.forEach(line => {
             const team = teams[line.teamId];
             if (team) {
-                const isHighlighted = lastActionHighlights.lines.has(line.id);
+                const isHighlighted = uiState.lastActionHighlights.lines.has(line.id);
 
                 ctx.save();
                 if (isHighlightingActive && !isHighlighted) {
@@ -330,7 +1409,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     let base_width = line.is_bastion_line ? 4 : 2;
                     if (line.strength > 0) {
                         base_width += line.strength * 1.5;
-                        // Add a subtle glow/pulse to empowered lines
                         const pulse = Math.abs(Math.sin(Date.now() / 400));
                         ctx.strokeStyle = `rgba(255,255,255, ${pulse * 0.5})`;
                         ctx.lineWidth = base_width + 2;
@@ -346,8 +1424,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.lineTo(x2, y2);
                     ctx.stroke();
 
-                    // Draw Line ID
-                    if (debugOptions.showLineIds && line.id) {
+                    if (uiState.debugOptions.showLineIds && line.id) {
                         ctx.save();
                         ctx.translate((x1 + x2) / 2, (y1 + y2) / 2);
                         ctx.fillStyle = '#000';
@@ -367,7 +1444,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function drawHulls(interpretation, teams) {
-        if (!interpretation || !debugOptions.showHulls) return;
+        if (!interpretation || !uiState.debugOptions.showHulls) return;
 
         Object.values(teams).forEach(team => {
             const teamInterp = interpretation[team.id];
@@ -382,16 +1459,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.lineTo((p.x + 0.5) * cellSize, (p.y + 0.5) * cellSize);
                 }
                 
-                // Close the hull
                 if (hullPoints.length > 2) {
                     ctx.closePath();
                 }
 
                 ctx.strokeStyle = team.color;
                 ctx.lineWidth = 3;
-                ctx.setLineDash([5, 5]); // Dashed line for hull
+                ctx.setLineDash([5, 5]);
                 ctx.stroke();
-                ctx.setLineDash([]); // Reset line dash
+                ctx.setLineDash([]);
             }
         });
     }
@@ -399,7 +1475,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawTerritories(pointsDict, territories, teams, isHighlightingActive = false) {
         if (!pointsDict || !territories) return;
         territories.forEach(territory => {
-            const isHighlighted = territory.point_ids.every(pid => lastActionHighlights.points.has(pid));
+            const isHighlighted = territory.point_ids.every(pid => uiState.lastActionHighlights.points.has(pid));
             
             ctx.save();
             const team = teams[territory.teamId];
@@ -409,13 +1485,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.fillStyle = team.color;
                     
                     if (isHighlightingActive) {
-                        if(isHighlighted) {
-                           ctx.globalAlpha = 0.5; // More prominent
-                        } else {
-                           ctx.globalAlpha = 0.1; // Dimmed
-                        }
+                        ctx.globalAlpha = isHighlighted ? 0.5 : 0.1;
                     } else {
-                        ctx.globalAlpha = 0.3; // Default
+                        ctx.globalAlpha = 0.3;
                     }
 
                     ctx.beginPath();
@@ -435,7 +1507,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (const monolithId in gameState.monoliths) {
             const monolith = gameState.monoliths[monolithId];
-            const isHighlighted = monolith.point_ids.every(pid => lastActionHighlights.points.has(pid));
+            const isHighlighted = monolith.point_ids.every(pid => uiState.lastActionHighlights.points.has(pid));
 
             ctx.save();
             if (isHighlightingActive && !isHighlighted) {
@@ -453,11 +1525,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const points = monolith.point_ids.map(pid => gameState.points[pid]).filter(p => p);
             if (points.length !== 4) continue;
 
-            // Sort points to draw polygon correctly
             const center = monolith.center_coords;
-            points.sort((a, b) => {
-                return Math.atan2(a.y - center.y, a.x - center.x) - Math.atan2(b.y - center.y, b.x - center.x);
-            });
+            points.sort((a, b) => Math.atan2(a.y - center.y, a.x - center.x) - Math.atan2(b.y - center.y, b.x - center.x));
 
             ctx.beginPath();
             ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
@@ -470,13 +1539,11 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.globalAlpha = 0.15;
             ctx.fill();
 
-            // Add some "energy" effect inside
             const pulse = Math.abs(Math.sin(Date.now() / 600));
             ctx.globalAlpha = 0.1 + pulse * 0.2;
             ctx.lineWidth = 1 + pulse;
             ctx.strokeStyle = '#fff';
             ctx.stroke();
-
             ctx.restore();
         }
     }
@@ -490,7 +1557,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!team || !teamTrebuchets) continue;
 
             teamTrebuchets.forEach(trebuchet => {
-                const isHighlighted = trebuchet.point_ids.every(pid => lastActionHighlights.points.has(pid));
+                const isHighlighted = trebuchet.point_ids.every(pid => uiState.lastActionHighlights.points.has(pid));
                 ctx.save();
                 if (isHighlightingActive && !isHighlighted) {
                     ctx.globalAlpha = 0.2;
@@ -502,7 +1569,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cw = gameState.points[trebuchet.counterweight_id];
 
                 if (apex && cw) {
-                    // Draw the arm of the trebuchet
                     ctx.beginPath();
                     ctx.moveTo((apex.x + 0.5) * cellSize, (apex.y + 0.5) * cellSize);
                     ctx.lineTo((cw.x + 0.5) * cellSize, (cw.y + 0.5) * cellSize);
@@ -523,7 +1589,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const team = gameState.teams[wp.teamId];
             if (!team) return;
 
-            const isHighlighted = lastActionHighlights.structures.has(wp.id);
+            const isHighlighted = uiState.lastActionHighlights.structures.has(wp.id);
             ctx.save();
             if (isHighlightingActive && !isHighlighted) {
                 ctx.globalAlpha = 0.2;
@@ -534,8 +1600,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const cx = (wp.coords.x + 0.5) * cellSize;
             const cy = (wp.coords.y + 0.5) * cellSize;
             const radius = Math.sqrt(wp.radius_sq) * cellSize;
-            const now = Date.now();
-            const angle_offset = (now / 2000) % (2 * Math.PI); // Full rotation every 2 seconds
+            const angle_offset = (Date.now() / 2000) % (2 * Math.PI);
 
             ctx.save();
             ctx.translate(cx, cy);
@@ -544,14 +1609,10 @@ document.addEventListener('DOMContentLoaded', () => {
             for (let i = 0; i < num_lines; i++) {
                 const angle = angle_offset + (i * 2 * Math.PI / num_lines);
                 const start_radius = radius * 0.2;
-                const end_radius = radius * (1 - (wp.turns_left / 4) * 0.5); // Shrinks as it expires
+                const end_radius = radius * (1 - (wp.turns_left / 4) * 0.5);
 
                 ctx.beginPath();
-                ctx.moveTo(
-                    Math.cos(angle) * start_radius,
-                    Math.sin(angle) * start_radius
-                );
-                // Swirly quadratic curve
+                ctx.moveTo(Math.cos(angle) * start_radius, Math.sin(angle) * start_radius);
                 ctx.quadraticCurveTo(
                     Math.cos(angle + wp.swirl * 2) * radius * 0.6,
                     Math.sin(angle + wp.swirl * 2) * radius * 0.6,
@@ -560,7 +1621,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 );
                 ctx.strokeStyle = team.color;
                 ctx.lineWidth = 1.5;
-                ctx.globalAlpha = 0.5 * (wp.turns_left / 4); // Fade out as it expires
+                ctx.globalAlpha = 0.5 * (wp.turns_left / 4);
                 ctx.stroke();
             }
             ctx.restore();
@@ -568,7 +1629,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function drawNexuses(gameState, isHighlightingActive = false) {
-        // This function will now draw both regular and attuned nexuses.
         const allNexuses = [];
         if (gameState.nexuses) {
             for (const teamId in gameState.nexuses) {
@@ -584,7 +1644,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const team = gameState.teams[nexus.teamId];
             if (!team) return;
 
-            const isHighlighted = nexus.point_ids.every(pid => lastActionHighlights.points.has(pid));
+            const isHighlighted = nexus.point_ids.every(pid => uiState.lastActionHighlights.points.has(pid));
             ctx.save();
             if (isHighlightingActive && !isHighlighted) {
                 ctx.globalAlpha = 0.2;
@@ -594,11 +1654,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const points = nexus.point_ids.map(pid => gameState.points[pid]).filter(p => p);
             if (points.length !== 4) return;
             
-            // Draw the square fill
-            ctx.beginPath();
             const center = nexus.center;
             points.sort((a, b) => Math.atan2(a.y - center.y, a.x - center.x) - Math.atan2(b.y - center.y, b.x - center.x));
             
+            ctx.beginPath();
             ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
             for (let i = 1; i < points.length; i++) {
                  ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
@@ -608,30 +1667,25 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.globalAlpha *= (nexus.is_attuned ? 0.35 : 0.25);
             ctx.fill();
 
-            // Draw the central orb
             const orb_cx = (nexus.center.x + 0.5) * cellSize;
             const orb_cy = (nexus.center.y + 0.5) * cellSize;
             const pulse = Math.abs(Math.sin(Date.now() / (nexus.is_attuned ? 400 : 800)));
-            
-            // Outer glow
             const glow_radius = (nexus.is_attuned ? 15 : 10) + pulse * 5;
             const gradient = ctx.createRadialGradient(orb_cx, orb_cy, 0, orb_cx, orb_cy, glow_radius);
             gradient.addColorStop(0, `rgba(255, 255, 255, ${0.8 - pulse * 0.3})`);
             gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
             ctx.fillStyle = gradient;
-            ctx.globalAlpha = 1.0; // Reset alpha for orb
+            ctx.globalAlpha = 1.0;
             ctx.beginPath();
             ctx.arc(orb_cx, orb_cy, glow_radius, 0, 2 * Math.PI);
             ctx.fill();
 
-            // Inner core
             ctx.fillStyle = team.color;
             ctx.beginPath();
             ctx.arc(orb_cx, orb_cy, (nexus.is_attuned ? 6 : 4) + pulse * 2, 0, 2 * Math.PI);
             ctx.fill();
 
             if (nexus.is_attuned) {
-                // Draw energy aura for attuned nexuses
                 ctx.beginPath();
                 ctx.arc(orb_cx, orb_cy, Math.sqrt(nexus.radius_sq) * cellSize, 0, 2 * Math.PI);
                 ctx.strokeStyle = team.color;
@@ -644,302 +1698,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function drawRunes(gameState, isHighlightingActive = false) {
-        if (!gameState.runes) return;
-    
-        for (const teamId in gameState.runes) {
-            const teamRunes = gameState.runes[teamId];
-            const team = gameState.teams[teamId];
-            if (!team) continue;
-    
-            const checkRuneHighlight = (point_ids) => point_ids.every(pid => lastActionHighlights.points.has(pid));
-    
-            // Draw V-Runes
-            if (teamRunes.v_shape) {
-                teamRunes.v_shape.forEach(rune => {
-                    const rune_points = [rune.vertex_id, rune.leg1_id, rune.leg2_id];
-                    const isHighlighted = checkRuneHighlight(rune_points);
-                    ctx.save();
-                    if (isHighlightingActive && !isHighlighted) {
-                        ctx.globalAlpha = 0.2;
-                    } else if (isHighlightingActive && isHighlighted) {
-                        ctx.globalAlpha = 1.0;
-                    }
-
-                    const p_v = gameState.points[rune.vertex_id];
-                    const p_l1 = gameState.points[rune.leg1_id];
-                    const p_l2 = gameState.points[rune.leg2_id];
-                    if (!p_v || !p_l1 || !p_l2) {
-                        ctx.restore();
-                        return;
-                    }
-    
-                    ctx.beginPath();
-                    ctx.moveTo((p_l1.x + 0.5) * cellSize, (p_l1.y + 0.5) * cellSize);
-                    ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
-                    ctx.lineTo((p_l2.x + 0.5) * cellSize, (p_l2.y + 0.5) * cellSize);
-                    ctx.strokeStyle = team.color;
-                    ctx.lineWidth = 6;
-                    ctx.globalAlpha *= 0.4;
-                    ctx.stroke();
-                    ctx.restore();
-                });
-            }
-
-            // Draw Trident Runes
-            if (teamRunes.trident) {
-                teamRunes.trident.forEach(rune => {
-                    const rune_points = [rune.apex_id, rune.handle_id, ...rune.prong_ids];
-                    const isHighlighted = checkRuneHighlight(rune_points);
-                    ctx.save();
-                    if (isHighlightingActive && !isHighlighted) {
-                        ctx.globalAlpha = 0.2;
-                    } else if (isHighlightingActive && isHighlighted) {
-                        ctx.globalAlpha = 1.0;
-                    }
-
-                    const p_apex = gameState.points[rune.apex_id];
-                    const p_h = gameState.points[rune.handle_id];
-                    const p_p1 = gameState.points[rune.prong_ids[0]];
-                    const p_p2 = gameState.points[rune.prong_ids[1]];
-                    if (!p_apex || !p_h || !p_p1 || !p_p2) {
-                        ctx.restore();
-                        return;
-                    }
-
-                    ctx.beginPath();
-                    // Handle to Apex
-                    ctx.moveTo((p_h.x + 0.5) * cellSize, (p_h.y + 0.5) * cellSize);
-                    ctx.lineTo((p_apex.x + 0.5) * cellSize, (p_apex.y + 0.5) * cellSize);
-                    // Apex to Prongs
-                    ctx.moveTo((p_p1.x + 0.5) * cellSize, (p_p1.y + 0.5) * cellSize);
-                    ctx.lineTo((p_apex.x + 0.5) * cellSize, (p_apex.y + 0.5) * cellSize);
-                    ctx.lineTo((p_p2.x + 0.5) * cellSize, (p_p2.y + 0.5) * cellSize);
-                    
-                    ctx.strokeStyle = team.color;
-                    ctx.lineWidth = 8;
-                    ctx.globalAlpha *= 0.4;
-                    ctx.filter = 'blur(2px)';
-                    ctx.stroke();
-                    ctx.filter = 'none';
-                    ctx.restore();
-                });
-            }
-    
-            // Draw Cross-Runes
-            if (teamRunes.cross) {
-                teamRunes.cross.forEach(rune_p_ids => {
-                    const isHighlighted = checkRuneHighlight(rune_p_ids);
-                    ctx.save();
-                    if (isHighlightingActive && !isHighlighted) {
-                        ctx.globalAlpha = 0.2;
-                    } else if (isHighlightingActive && isHighlighted) {
-                        ctx.globalAlpha = 1.0;
-                    }
-
-                    const points = rune_p_ids.map(pid => gameState.points[pid]).filter(p => p);
-                    if (points.length !== 4) {
-                        ctx.restore();
-                        return;
-                    }
-                    
-                    // Sort points angularly around their centroid to draw the polygon correctly
-                    const centroid = {
-                        x: points.reduce((acc, p) => acc + p.x, 0) / 4,
-                        y: points.reduce((acc, p) => acc + p.y, 0) / 4,
-                    };
-                    points.sort((a, b) => {
-                        return Math.atan2(a.y - centroid.y, a.x - centroid.x) - Math.atan2(b.y - centroid.y, b.x - centroid.x);
-                    });
-    
-                    ctx.beginPath();
-                    ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
-                    for (let i = 1; i < points.length; i++) {
-                         ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
-                    }
-                    ctx.closePath();
-                    ctx.fillStyle = team.color;
-                    ctx.globalAlpha *= 0.2;
-                    ctx.fill();
-                    ctx.restore();
-                });
-            }
-
-            // Draw Shield Runes
-            if (teamRunes.shield) {
-                teamRunes.shield.forEach(rune => {
-                    const rune_points = [...rune.triangle_ids, rune.core_id];
-                    const isHighlighted = checkRuneHighlight(rune_points);
-                    ctx.save();
-                    if (isHighlightingActive && !isHighlighted) {
-                        ctx.globalAlpha = 0.2;
-                    } else if (isHighlightingActive && isHighlighted) {
-                        ctx.globalAlpha = 1.0;
-                    }
-
-                    const tri_points = rune.triangle_ids.map(pid => gameState.points[pid]).filter(p => p);
-                    const core_point = gameState.points[rune.core_id];
-                    if (tri_points.length !== 3 || !core_point) {
-                        ctx.restore();
-                        return;
-                    }
-
-                    // Draw the filled triangle
-                    ctx.beginPath();
-                    ctx.moveTo((tri_points[0].x + 0.5) * cellSize, (tri_points[0].y + 0.5) * cellSize);
-                    ctx.lineTo((tri_points[1].x + 0.5) * cellSize, (tri_points[1].y + 0.5) * cellSize);
-                    ctx.lineTo((tri_points[2].x + 0.5) * cellSize, (tri_points[2].y + 0.5) * cellSize);
-                    ctx.closePath();
-                    
-                    const currentAlpha = ctx.globalAlpha;
-                    ctx.fillStyle = team.color;
-                    ctx.globalAlpha = currentAlpha * 0.25;
-                    ctx.fill();
-
-                    // Draw an outline pulse
-                    const pulse = Math.abs(Math.sin(Date.now() / 500));
-                    ctx.strokeStyle = '#fff';
-                    ctx.lineWidth = 1 + pulse * 2;
-                    ctx.globalAlpha = currentAlpha * (0.3 + pulse * 0.4);
-                    ctx.stroke();
-
-                    ctx.restore();
-                });
-            }
-
-            // Draw Hourglass Runes
-            if (teamRunes.hourglass) {
-                teamRunes.hourglass.forEach(rune => {
-                    const isHighlighted = checkRuneHighlight(rune.all_points);
-                    ctx.save();
-                    if (isHighlightingActive && !isHighlighted) {
-                        ctx.globalAlpha = 0.2;
-                    } else if (isHighlightingActive && isHighlighted) {
-                        ctx.globalAlpha = 1.0;
-                    }
-
-                    const p_v = gameState.points[rune.vertex_id];
-                    if (!p_v) {
-                        ctx.restore();
-                        return;
-                    }
-
-                    const all_points = rune.all_points.map(pid => gameState.points[pid]);
-                    if (all_points.some(p => !p)) return;
-
-                    const tri1_pts = all_points.filter(p => p.id !== p_v.id).slice(0, 2);
-                    const tri2_pts = all_points.filter(p => p.id !== p_v.id).slice(2, 4);
-                    if (tri1_pts.length < 2 || tri2_pts.length < 2) return;
-
-                    ctx.beginPath();
-                    // tri 1
-                    ctx.moveTo((tri1_pts[0].x + 0.5) * cellSize, (tri1_pts[0].y + 0.5) * cellSize);
-                    ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
-                    ctx.lineTo((tri1_pts[1].x + 0.5) * cellSize, (tri1_pts[1].y + 0.5) * cellSize);
-                    // tri 2
-                    ctx.moveTo((tri2_pts[0].x + 0.5) * cellSize, (tri2_pts[0].y + 0.5) * cellSize);
-                    ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
-                    ctx.lineTo((tri2_pts[1].x + 0.5) * cellSize, (tri2_pts[1].y + 0.5) * cellSize);
-                    
-                    ctx.strokeStyle = team.color;
-                    ctx.lineWidth = 6;
-                    ctx.globalAlpha *= 0.4;
-                    ctx.stroke();
-                    ctx.restore();
-                });
-            }
-        }
-    }
-
-    function drawHeartwoods(gameState, isHighlightingActive = false) {
-        if (!gameState.heartwoods) return;
-
-        for (const teamId in gameState.heartwoods) {
-            const heartwood = gameState.heartwoods[teamId];
-            const team = gameState.teams[teamId];
-            if (!team || !heartwood) continue;
-
-            const isHighlighted = lastActionHighlights.structures.has(heartwood.id);
-            ctx.save();
-            if (isHighlightingActive && !isHighlighted) {
-                ctx.globalAlpha = 0.2;
-            } else if (isHighlightingActive && isHighlighted) {
-                ctx.globalAlpha = 1.0;
-            }
-
-            const cx = (heartwood.center_coords.x + 0.5) * cellSize;
-            const cy = (heartwood.center_coords.y + 0.5) * cellSize;
-            const pulse = Math.abs(Math.sin(Date.now() / 1200)); // Slow, deep pulse
-            const baseRadius = 10;
-            const radius = baseRadius + pulse * 5;
-
-            const currentAlpha = ctx.globalAlpha;
-
-            // Draw the aura
-            ctx.beginPath();
-            ctx.arc(cx, cy, (gameState.grid_size * 0.2) * cellSize, 0, 2 * Math.PI);
-            ctx.fillStyle = team.color;
-            ctx.globalAlpha = currentAlpha * (0.05 + pulse * 0.05);
-            ctx.fill();
-
-            // Draw the core
-            // Outer ring
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-            ctx.strokeStyle = team.color;
-            ctx.lineWidth = 2 + pulse * 2;
-            ctx.globalAlpha = currentAlpha * (0.5 + pulse * 0.5);
-            ctx.stroke();
-            
-            // Inner core
-            ctx.beginPath();
-            ctx.arc(cx, cy, baseRadius * 0.5, 0, 2 * Math.PI);
-            ctx.fillStyle = team.color;
-            ctx.globalAlpha = currentAlpha;
-            ctx.fill();
-
-            // Maybe draw some 'roots'
-            ctx.save();
-            ctx.translate(cx, cy);
-            ctx.lineWidth = 1;
-            ctx.globalAlpha = currentAlpha * 0.4;
-            for(let i=0; i < 5; i++) {
-                ctx.rotate( (2 * Math.PI / 5) + (pulse * 0.1) );
-                ctx.beginPath();
-                ctx.moveTo(0, radius * 0.5);
-                ctx.quadraticCurveTo(radius, radius, radius * 1.5, radius * 0.5);
-                ctx.stroke();
-            }
-            ctx.restore(); // for rotation
-            ctx.restore(); // for alpha
-        }
-    }
-
-    function drawFissures(gameState, isHighlightingActive = false) {
-        if (!gameState.fissures) return;
-
-        gameState.fissures.forEach(fissure => {
-            const isHighlighted = lastActionHighlights.structures.has(fissure.id);
-            ctx.save();
-            if (isHighlightingActive && !isHighlighted) {
-                ctx.globalAlpha = 0.2;
-            } else if (isHighlightingActive && isHighlighted) {
-                ctx.globalAlpha = 1.0;
-            }
-
-            const p1 = {x: (fissure.p1.x + 0.5) * cellSize, y: (fissure.p1.y + 0.5) * cellSize};
-            const p2 = {x: (fissure.p2.x + 0.5) * cellSize, y: (fissure.p2.y + 0.5) * cellSize};
-            
-            ctx.strokeStyle = `rgba(30, 30, 30, ${0.4 + (fissure.turns_left / 8) * 0.4})`;
-            ctx.lineWidth = 4;
-            ctx.lineCap = 'round';
-            // Jagged line effect
-            drawJaggedLine(p1, p2, 15, 6);
-            ctx.lineCap = 'butt';
-            ctx.restore();
-        });
-    }
-
     function drawRiftSpires(gameState, isHighlightingActive = false) {
         if (!gameState.rift_spires) return;
 
@@ -948,7 +1706,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const team = gameState.teams[spire.teamId];
             if (!team) continue;
 
-            const isHighlighted = lastActionHighlights.structures.has(spire.id);
+            const isHighlighted = uiState.lastActionHighlights.structures.has(spire.id);
             ctx.save();
             if (isHighlightingActive && !isHighlighted) {
                 ctx.globalAlpha = 0.2;
@@ -963,7 +1721,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const pulse = Math.abs(Math.sin(now / 300));
             const charge_level = spire.charge / spire.charge_needed;
 
-            // Draw a spiky star shape
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(rotation);
@@ -978,11 +1735,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
             }
             ctx.closePath();
-
             ctx.fillStyle = team.color;
             ctx.fill();
             
-            // Draw charge level indicator
             if (charge_level < 1) {
                 ctx.strokeStyle = `rgba(255, 255, 255, 0.5)`;
                 ctx.lineWidth = 3;
@@ -990,11 +1745,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.arc(0, 0, outerRadius + 2, -Math.PI/2, -Math.PI/2 + (2*Math.PI * charge_level), false);
                 ctx.stroke();
             } else {
-                // Glow when fully charged
                 ctx.fillStyle = `rgba(255, 255, 255, ${pulse * 0.3})`;
                 ctx.fill();
             }
-
             ctx.restore();
         }
     }
@@ -1006,7 +1759,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const team = gameState.teams[trap.teamId];
             if (!team) return;
 
-            const isHighlighted = lastActionHighlights.structures.has(trap.id);
+            const isHighlighted = uiState.lastActionHighlights.structures.has(trap.id);
             ctx.save();
             if (isHighlightingActive && !isHighlighted) {
                 ctx.globalAlpha = 0.2;
@@ -1016,8 +1769,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const cx = (trap.coords.x + 0.5) * cellSize;
             const cy = (trap.coords.y + 0.5) * cellSize;
-            const now = Date.now();
-            const flicker = (Math.sin(now / 100) + Math.sin(now / 237)) / 2; // more erratic flicker
+            const flicker = (Math.sin(Date.now() / 100) + Math.sin(Date.now() / 237)) / 2;
             const radius = Math.sqrt(trap.radius_sq) * cellSize;
 
             ctx.save();
@@ -1025,7 +1777,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.strokeStyle = team.color;
             ctx.lineWidth = 1.5;
 
-            // Draw a simple broken circle rune
             ctx.beginPath();
             ctx.arc(cx, cy, radius, 0.2, Math.PI - 0.2);
             ctx.stroke();
@@ -1042,14 +1793,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!gameState.scorched_zones) return;
     
         gameState.scorched_zones.forEach(zone => {
-            const isHighlighted = false; // TODO: decide if these can be highlighted
             ctx.save();
-            if (isHighlightingActive && !isHighlighted) {
-                ctx.globalAlpha = 0.2;
-            } else if (isHighlightingActive && isHighlighted) {
-                ctx.globalAlpha = 1.0;
-            }
-    
             const triPoints = zone.points;
             if (triPoints && triPoints.length === 3) {
                 ctx.beginPath();
@@ -1057,25 +1801,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.lineTo((triPoints[1].x + 0.5) * cellSize, (triPoints[1].y + 0.5) * cellSize);
                 ctx.lineTo((triPoints[2].x + 0.5) * cellSize, (triPoints[2].y + 0.5) * cellSize);
                 ctx.closePath();
-
-                // Dark fill with some transparency
                 ctx.fillStyle = `rgba(50, 50, 50, ${0.4 + (zone.turns_left / 5) * 0.2})`;
                 ctx.fill();
-
-                // Jagged, burnt orange border
                 ctx.strokeStyle = `rgba(200, 80, 0, ${0.5 + (zone.turns_left / 5) * 0.3})`;
                 ctx.lineWidth = 2;
-                illustrationHelpers.drawJaggedLine(
+                illustrationHelpers.drawJaggedLine(ctx,
                     {x: (triPoints[0].x + 0.5) * cellSize, y: (triPoints[0].y + 0.5) * cellSize},
                     {x: (triPoints[1].x + 0.5) * cellSize, y: (triPoints[1].y + 0.5) * cellSize},
                     10, 3
                 );
-                illustrationHelpers.drawJaggedLine(
+                illustrationHelpers.drawJaggedLine(ctx,
                     {x: (triPoints[1].x + 0.5) * cellSize, y: (triPoints[1].y + 0.5) * cellSize},
                     {x: (triPoints[2].x + 0.5) * cellSize, y: (triPoints[2].y + 0.5) * cellSize},
                     10, 3
                 );
-                illustrationHelpers.drawJaggedLine(
+                illustrationHelpers.drawJaggedLine(ctx,
                     {x: (triPoints[2].x + 0.5) * cellSize, y: (triPoints[2].y + 0.5) * cellSize},
                     {x: (triPoints[0].x + 0.5) * cellSize, y: (triPoints[0].y + 0.5) * cellSize},
                     10, 3
@@ -1087,38 +1827,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function drawBarricades(gameState, isHighlightingActive = false) {
         if (!gameState.barricades) return;
-
         gameState.barricades.forEach(barricade => {
             const team = gameState.teams[barricade.teamId];
             if (!team) return;
-
-            const isHighlighted = lastActionHighlights.structures.has(barricade.id);
+            const isHighlighted = uiState.lastActionHighlights.structures.has(barricade.id);
             ctx.save();
             if (isHighlightingActive && !isHighlighted) {
                 ctx.globalAlpha = 0.2;
             } else if (isHighlightingActive && isHighlighted) {
                 ctx.globalAlpha = 1.0;
             }
-
             const p1 = {x: (barricade.p1.x + 0.5) * cellSize, y: (barricade.p1.y + 0.5) * cellSize};
             const p2 = {x: (barricade.p2.x + 0.5) * cellSize, y: (barricade.p2.y + 0.5) * cellSize};
-            
-            const currentAlpha = ctx.globalAlpha;
-            // Draw a thick, "rocky" looking line
-            ctx.strokeStyle = team.color; // Use team color to show who built it
-            ctx.globalAlpha = currentAlpha * (0.5 + (barricade.turns_left / 5) * 0.5); // Fade as it expires
+            ctx.strokeStyle = team.color;
+            ctx.globalAlpha *= (0.5 + (barricade.turns_left / 5) * 0.5);
             ctx.lineWidth = 6;
             ctx.lineCap = 'round';
-            drawJaggedLine(p1, p2, 10, 4);
-            
-            // Add a solid "core" to it
-            ctx.globalAlpha = currentAlpha * 0.8;
+            illustrationHelpers.drawJaggedLine(ctx, p1, p2, 10, 4);
+            ctx.globalAlpha *= 0.8;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
             ctx.stroke();
-
             ctx.lineCap = 'butt';
             ctx.restore();
         });
@@ -1126,74 +1857,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function drawLeyLines(gameState, isHighlightingActive = false) {
         if (!gameState.ley_lines) return;
-    
         for (const leyLineId in gameState.ley_lines) {
             const ley_line = gameState.ley_lines[leyLineId];
             const team = gameState.teams[ley_line.teamId];
             if (!team) continue;
-    
-            const isHighlighted = ley_line.point_ids.every(pid => lastActionHighlights.points.has(pid));
+            const isHighlighted = ley_line.point_ids.every(pid => uiState.lastActionHighlights.points.has(pid));
             ctx.save();
             if (isHighlightingActive && !isHighlighted) {
                 ctx.globalAlpha = 0.2;
             } else if (isHighlightingActive && isHighlighted) {
                 ctx.globalAlpha = 1.0;
             }
-    
             const points = ley_line.point_ids.map(pid => gameState.points[pid]).filter(p => p);
             if (points.length < 2) {
                 ctx.restore();
                 continue;
             }
-            
-            // Find the two endpoints
             const p1 = points[0];
             const p2 = points[points.length - 1];
-    
             const x1 = (p1.x + 0.5) * cellSize;
             const y1 = (p1.y + 0.5) * cellSize;
             const x2 = (p2.x + 0.5) * cellSize;
             const y2 = (p2.y + 0.5) * cellSize;
-    
-            // Draw a thick, glowing, translucent line
             const pulse = Math.abs(Math.sin(Date.now() / 600));
             ctx.beginPath();
             ctx.moveTo(x1, y1);
             ctx.lineTo(x2, y2);
-            
             ctx.strokeStyle = team.color;
             ctx.lineWidth = 10 + pulse * 4;
-            ctx.globalAlpha *= (0.3 + pulse * 0.2); // Pulsing alpha
-            ctx.filter = 'blur(5px)'; // Glow effect
+            ctx.globalAlpha *= (0.3 + pulse * 0.2);
+            ctx.filter = 'blur(5px)';
             ctx.stroke();
-    
             ctx.restore();
         }
     }
 
     function drawWonders(gameState, isHighlightingActive = false) {
         if (!gameState.wonders) return;
-    
         for (const wonderId in gameState.wonders) {
             const wonder = gameState.wonders[wonderId];
             const team = gameState.teams[wonder.teamId];
             if (!team || wonder.type !== 'ChronosSpire') continue;
-    
-            const isHighlighted = lastActionHighlights.structures.has(wonder.id);
+            const isHighlighted = uiState.lastActionHighlights.structures.has(wonder.id);
             ctx.save();
             if (isHighlightingActive && !isHighlighted) {
                 ctx.globalAlpha = 0.2;
             } else if (isHighlightingActive && isHighlighted) {
                 ctx.globalAlpha = 1.0;
             }
-    
             const cx = (wonder.coords.x + 0.5) * cellSize;
             const cy = (wonder.coords.y + 0.5) * cellSize;
             const now = Date.now();
-            const pulse = Math.abs(Math.sin(now / 500)); // Faster, more energetic pulse
+            const pulse = Math.abs(Math.sin(now / 500));
             const rotation = (now / 5000) % (2 * Math.PI);
-    
-            // Base
             const baseRadius = 20;
             ctx.beginPath();
             ctx.arc(cx, cy, baseRadius, 0, 2 * Math.PI);
@@ -1204,8 +1920,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.fillStyle = gradient;
             ctx.globalAlpha = currentAlpha * (0.3 + pulse * 0.2);
             ctx.fill();
-    
-            // Rotating rings
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(rotation);
@@ -1215,13 +1929,11 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             ctx.arc(0, 0, baseRadius * 0.7, 0, 2 * Math.PI);
             ctx.stroke();
-            ctx.rotate(Math.PI / 2); // Rotate second ring
+            ctx.rotate(Math.PI / 2);
             ctx.beginPath();
-            ctx.arc(0, 0, baseRadius * 1.2, 0, 1.5 * Math.PI); // Incomplete ring
+            ctx.arc(0, 0, baseRadius * 1.2, 0, 1.5 * Math.PI);
             ctx.stroke();
             ctx.restore();
-    
-            // Central core
             ctx.beginPath();
             ctx.arc(cx, cy, 5 + pulse * 2, 0, 2 * Math.PI);
             ctx.fillStyle = '#fff';
@@ -1230,8 +1942,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.arc(cx, cy, 2 + pulse, 0, 2 * Math.PI);
             ctx.fillStyle = team.color;
             ctx.fill();
-    
-            // Countdown timer
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 14px Arial';
             ctx.textAlign = 'center';
@@ -1246,14 +1956,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function drawPrisms(gameState, isHighlightingActive = false) {
         if (!gameState.prisms) return;
-
         for (const teamId in gameState.prisms) {
             const teamPrisms = gameState.prisms[teamId];
             const team = gameState.teams[teamId];
             if (!team || !teamPrisms) continue;
-
             teamPrisms.forEach(prism => {
-                const isHighlighted = prism.all_point_ids.every(pid => lastActionHighlights.points.has(pid));
+                const isHighlighted = prism.all_point_ids.every(pid => uiState.lastActionHighlights.points.has(pid));
                 ctx.save();
                 if (isHighlightingActive && !isHighlighted) {
                     ctx.globalAlpha = 0.2;
@@ -1262,536 +1970,206 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const p1 = gameState.points[prism.shared_p1_id];
                 const p2 = gameState.points[prism.shared_p2_id];
-
                 if (p1 && p2) {
                     const x1 = (p1.x + 0.5) * cellSize;
                     const y1 = (p1.y + 0.5) * cellSize;
                     const x2 = (p2.x + 0.5) * cellSize;
                     const y2 = (p2.y + 0.5) * cellSize;
-                    
-                    // Draw a glowing line for the shared edge
                     ctx.beginPath();
                     ctx.moveTo(x1, y1);
                     ctx.lineTo(x2, y2);
                     ctx.strokeStyle = team.color;
                     ctx.lineWidth = 8;
                     ctx.globalAlpha *= 0.5;
-                    ctx.filter = 'blur(4px)'; // Glow effect
+                    ctx.filter = 'blur(4px)';
                     ctx.stroke();
-                    
-                    // Reset filters
                     ctx.filter = 'none';
                 }
                 ctx.restore();
             });
         }
     }
-
-    function drawVisualEffects() {
-        const now = Date.now();
-        visualEffects = visualEffects.filter(effect => {
-            const age = now - effect.startTime;
-            if (age > effect.duration) return false; // Remove expired effects
-
-            const progress = age / effect.duration;
-
-            if (effect.type === 'line_flash') {
-                const p1 = currentGameState.points[effect.line.p1_id];
-                const p2 = currentGameState.points[effect.line.p2_id];
-                if (p1 && p2) {
-                    const x1 = (p1.x + 0.5) * cellSize, y1 = (p1.y + 0.5) * cellSize;
-                    const x2 = (p2.x + 0.5) * cellSize, y2 = (p2.y + 0.5) * cellSize;
-                    ctx.beginPath();
-                    ctx.moveTo(x1, y1);
-                    ctx.lineTo(x2, y2);
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - progress)})`; // White flash
-                    ctx.lineWidth = 2 + 5 * (1 - progress);
-                    ctx.stroke();
-                }
-            } else if (effect.type === 'point_pull') {
-                const ease_progress = 1 - (1 - progress)**3; // Ease-out
-                const centerX = (effect.center.x + 0.5) * cellSize;
-                const centerY = (effect.center.y + 0.5) * cellSize;
-                ctx.globalAlpha = 1 - progress;
-                effect.points.forEach((p_start, i) => {
-                    const startX = (p_start.x + 0.5) * cellSize;
-                    const startY = (p_start.y + 0.5) * cellSize;
-                    const currentX = startX + (centerX - startX) * ease_progress;
-                    const currentY = startY + (centerY - startY) * ease_progress;
-                    ctx.beginPath();
-                    ctx.moveTo(startX, startY);
-                    ctx.lineTo(currentX, currentY);
-                    ctx.strokeStyle = `rgba(220, 220, 255, 0.7)`;
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                });
-                ctx.globalAlpha = 1.0;
-            } else if (effect.type === 'growing_wall') {
-                const p1 = {x: effect.barricade.p1.x * cellSize, y: effect.barricade.p1.y * cellSize};
-                const p2 = {x: effect.barricade.p2.x * cellSize, y: effect.barricade.p2.y * cellSize};
-                
-                ctx.strokeStyle = effect.color;
-                ctx.globalAlpha = progress;
-                ctx.lineWidth = 2 + progress * 4;
-                ctx.lineCap = 'round';
-                drawJaggedLine(p1, p2, 10, 4 * progress);
-
-                ctx.lineCap = 'butt';
-                ctx.globalAlpha = 1.0;
-            } else if (effect.type === 'line_crack') {
-                const p1 = currentGameState.points[effect.old_line.p1_id];
-                const p2 = currentGameState.points[effect.old_line.p2_id];
-                if (p1 && p2) {
-                    const p1_coords = {x: (p1.x + 0.5) * cellSize, y: (p1.y + 0.5) * cellSize};
-                    const p2_coords = {x: (p2.x + 0.5) * cellSize, y: (p2.y + 0.5) * cellSize};
-                    const new_p_coords = {x: (effect.new_point.x + 0.5) * cellSize, y: (effect.new_point.y + 0.5) * cellSize};
-                    
-                    // Draw old line fading out
-                    ctx.beginPath();
-                    ctx.moveTo(p1_coords.x, p1_coords.y);
-                    ctx.lineTo(p2_coords.x, p2_coords.y);
-                    ctx.strokeStyle = effect.color;
-                    ctx.globalAlpha = 1 - progress;
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-
-                    // Draw crack effect
-                    if (progress < 0.5) {
-                        const crack_progress = progress * 2;
-                        ctx.beginPath();
-                        ctx.arc(new_p_coords.x, new_p_coords.y, 10 * crack_progress, 0, 2*Math.PI);
-                        ctx.strokeStyle = `rgba(255, 255, 255, ${1 - crack_progress})`;
-                        ctx.lineWidth = 3 * (1 - crack_progress);
-                        ctx.stroke();
-                    }
-                    ctx.globalAlpha = 1.0;
-                }
-            } else if (effect.type === 'territory_fill') {
-                ctx.save();
+    
+    // --- Data-Driven Drawing ---
+    
+    const drawOrchestrator = {
+        // Defines the render order. Functions receive (gameState, isHighlightingActive).
+        renderLayers: [
+            drawTerritories, drawMonoliths, drawTrebuchets, drawPrisms,
+            (gs, h) => drawRunes(gs, h), // Wrap to match signature if needed
+            drawNexuses, drawHeartwoods, drawWonders, drawRiftSpires,
+            drawRiftTraps, drawFissures, drawBarricades, drawScorchedZones,
+            drawLeyLines, drawLines, drawPoints,
+            (gs) => drawHulls(gs.interpretation, gs.teams)
+        ],
+        // Defines how to draw specific rune types.
+        runeDrawers: {
+            'v_shape': (rune, team, gameState) => {
+                const p_v = gameState.points[rune.vertex_id];
+                const p_l1 = gameState.points[rune.leg1_id];
+                const p_l2 = gameState.points[rune.leg2_id];
+                if (!p_v || !p_l1 || !p_l2) return;
                 ctx.beginPath();
-                ctx.moveTo((effect.points[0].x + 0.5) * cellSize, (effect.points[0].y + 0.5) * cellSize);
-                ctx.lineTo((effect.points[1].x + 0.5) * cellSize, (effect.points[1].y + 0.5) * cellSize);
-                ctx.lineTo((effect.points[2].x + 0.5) * cellSize, (effect.points[2].y + 0.5) * cellSize);
+                ctx.moveTo((p_l1.x + 0.5) * cellSize, (p_l1.y + 0.5) * cellSize);
+                ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
+                ctx.lineTo((p_l2.x + 0.5) * cellSize, (p_l2.y + 0.5) * cellSize);
+                ctx.strokeStyle = team.color;
+                ctx.lineWidth = 6;
+                ctx.globalAlpha *= 0.4;
+                ctx.stroke();
+            },
+            'trident': (rune, team, gameState) => {
+                const p_apex = gameState.points[rune.apex_id];
+                const p_h = gameState.points[rune.handle_id];
+                const p_p1 = gameState.points[rune.prong_ids[0]];
+                const p_p2 = gameState.points[rune.prong_ids[1]];
+                if (!p_apex || !p_h || !p_p1 || !p_p2) return;
+                ctx.beginPath();
+                ctx.moveTo((p_h.x + 0.5) * cellSize, (p_h.y + 0.5) * cellSize);
+                ctx.lineTo((p_apex.x + 0.5) * cellSize, (p_apex.y + 0.5) * cellSize);
+                ctx.moveTo((p_p1.x + 0.5) * cellSize, (p_p1.y + 0.5) * cellSize);
+                ctx.lineTo((p_apex.x + 0.5) * cellSize, (p_apex.y + 0.5) * cellSize);
+                ctx.lineTo((p_p2.x + 0.5) * cellSize, (p_p2.y + 0.5) * cellSize);
+                ctx.strokeStyle = team.color;
+                ctx.lineWidth = 8;
+                ctx.globalAlpha *= 0.4;
+                ctx.filter = 'blur(2px)';
+                ctx.stroke();
+                ctx.filter = 'none';
+            },
+            'cross': (rune_p_ids, team, gameState) => {
+                const points = rune_p_ids.map(pid => gameState.points[pid]).filter(p => p);
+                if (points.length !== 4) return;
+                const centroid = { x: points.reduce((acc, p) => acc + p.x, 0) / 4, y: points.reduce((acc, p) => acc + p.y, 0) / 4 };
+                points.sort((a, b) => Math.atan2(a.y - centroid.y, a.x - centroid.x) - Math.atan2(b.y - centroid.y, b.x - centroid.x));
+                ctx.beginPath();
+                ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
+                for (let i = 1; i < points.length; i++) {
+                     ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
+                }
                 ctx.closePath();
-                
-                // Create a clip path that grows from the center out
-                const center = {
-                    x: (effect.points[0].x + effect.points[1].x + effect.points[2].x) / 3 * cellSize + (0.5*cellSize),
-                    y: (effect.points[0].y + effect.points[1].y + effect.points[2].y) / 3 * cellSize + (0.5*cellSize),
-                };
-                const max_dist = Math.max(...effect.points.map(p => Math.sqrt((p.x*cellSize-center.x)**2 + (p.y*cellSize-center.y)**2)));
-                
-                ctx.clip(); 
-                
-                // Draw a circle that expands to fill the clip
-                ctx.beginPath();
-                ctx.arc(center.x, center.y, max_dist * progress * 1.5, 0, 2*Math.PI);
-                ctx.fillStyle = effect.color;
-                ctx.globalAlpha = 0.3;
+                ctx.fillStyle = team.color;
+                ctx.globalAlpha *= 0.2;
                 ctx.fill();
-                
-                ctx.restore();
-                ctx.globalAlpha = 1.0;
-
-            } else if (effect.type === 'nexus_detonation') {
+            },
+            'shield': (rune, team, gameState) => {
+                const tri_points = rune.triangle_ids.map(pid => gameState.points[pid]).filter(p => p);
+                if (tri_points.length !== 3) return;
                 ctx.beginPath();
-                ctx.arc(
-                    (effect.center.x + 0.5) * cellSize,
-                    (effect.center.y + 0.5) * cellSize,
-                    Math.sqrt(effect.radius_sq) * cellSize * progress, // Radius grows
-                    0, 2 * Math.PI
-                );
-                ctx.strokeStyle = effect.color;
-                ctx.globalAlpha = (1 - progress);
-                ctx.lineWidth = 4;
-                ctx.stroke();
-                ctx.globalAlpha = 1.0;
-            } else if (effect.type === 'monolith_wave' || effect.type === 'shield_pulse') {
-                const progress = age / effect.duration;
-                ctx.beginPath();
-                ctx.arc(
-                    (effect.center.x + 0.5) * cellSize,
-                    (effect.center.y + 0.5) * cellSize,
-                    Math.sqrt(effect.radius_sq) * cellSize * progress,
-                    0, 2 * Math.PI
-                );
-                ctx.strokeStyle = effect.color || `rgba(220, 220, 255, ${0.8 * (1 - progress)})`; // White-blue wave
-                ctx.lineWidth = 4 * (1 - progress);
-                ctx.stroke();
-            } else if (effect.type === 'nova_burst') {
-                const num_particles = 20;
-                const radius = effect.radius * progress;
-                // Expanding shockwave
-                ctx.beginPath();
-                ctx.arc((effect.x + 0.5) * cellSize, (effect.y + 0.5) * cellSize, radius, 0, 2 * Math.PI);
-                ctx.strokeStyle = `rgba(255, 100, 100, ${1 - progress})`;
-                ctx.lineWidth = 3;
-                ctx.stroke();
-                // Particles
-                for(let i=0; i < num_particles; i++) {
-                    const angle = effect.particles[i].angle;
-                    const speed = effect.particles[i].speed;
-                    const dist = speed * age / 1000;
-                    ctx.beginPath();
-                    ctx.arc(
-                        (effect.x + 0.5) * cellSize + Math.cos(angle) * dist,
-                        (effect.y + 0.5) * cellSize + Math.sin(angle) * dist,
-                        Math.max(0, 2 * (1-progress)), 0, 2*Math.PI
-                    );
-                    ctx.fillStyle = `rgba(255, 150, 100, ${1 - progress})`;
-                    ctx.fill();
-                }
-            } else if (effect.type === 'new_line') {
-                const p1 = currentGameState.points[effect.line.p1_id];
-                const p2 = currentGameState.points[effect.line.p2_id];
-                if(p1 && p2) {
-                    ctx.beginPath();
-                    ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
-                    ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 * (1 - progress)})`; // White flash
-                    ctx.lineWidth = 5;
-                    ctx.stroke();
-                }
-            } else if (effect.type === 'animated_ray') {
-                const start_x = (effect.p1.x + 0.5) * cellSize;
-                const start_y = (effect.p1.y + 0.5) * cellSize;
-                const end_x = (effect.p2.x + 0.5) * cellSize;
-                const end_y = (effect.p2.y + 0.5) * cellSize;
-
-                const current_x = start_x + (end_x - start_x) * progress;
-                const current_y = start_y + (end_y - start_y) * progress;
-
-                // Draw a fading tail
-                const tail_length = 40;
-                const dx = end_x - start_x;
-                const dy = end_y - start_y;
-                const len = Math.sqrt(dx*dx + dy*dy);
-                if (len < 0.1) return true; // Avoid division by zero for tiny rays
-                const tail_x = current_x - (dx/len) * tail_length;
-                const tail_y = current_y - (dy/len) * tail_length;
-
-                const gradient = ctx.createLinearGradient(current_x, current_y, tail_x, tail_y);
-                gradient.addColorStop(0, effect.color);
-                gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
-                
-                ctx.strokeStyle = gradient;
-                ctx.lineWidth = effect.lineWidth || 3;
-                ctx.beginPath();
-                ctx.moveTo(tail_x, tail_y);
-                ctx.lineTo(current_x, current_y);
-                ctx.stroke();
-
-            } else if (effect.type === 'attack_ray') {
-                const x1 = (effect.p1.x + 0.5) * cellSize;
-                const y1 = (effect.p1.y + 0.5) * cellSize;
-                const x2 = (effect.p2.x + 0.5) * cellSize;
-                const y2 = (effect.p2.y + 0.5) * cellSize;
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                ctx.strokeStyle = effect.color || `rgba(255, 0, 0, ${1 - progress})`; // Red, fading out
-                ctx.lineWidth = effect.lineWidth || 3;
-                ctx.stroke();
-            } else if (effect.type === 'mirror_axis') {
-                const p1 = currentGameState.points[effect.p1_id];
-                const p2 = currentGameState.points[effect.p2_id];
-                if(p1 && p2) {
-                    ctx.save();
-                    ctx.beginPath();
-                    ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
-                    ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
-                    ctx.strokeStyle = `rgba(200, 200, 255, ${0.7 * (1 - progress)})`; // Light blue, fading
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([5, 5]);
-                    ctx.stroke();
-                    ctx.restore();
-                }
-            } else if (effect.type === 'polygon_flash') {
-                const progress = age / effect.duration;
-                if (effect.points && effect.points.length >= 3) {
-                    ctx.beginPath();
-                    ctx.moveTo((effect.points[0].x + 0.5) * cellSize, (effect.points[0].y + 0.5) * cellSize);
-                    for (let i = 1; i < effect.points.length; i++) {
-                        ctx.lineTo((effect.points[i].x + 0.5) * cellSize, (effect.points[i].y + 0.5) * cellSize);
-                    }
-                    ctx.closePath();
-                    ctx.fillStyle = effect.color;
-                    ctx.globalAlpha = 0.7 * (1 - progress); // Fade out
-                    ctx.fill();
-                    ctx.globalAlpha = 1.0;
-                }
-            } else if (effect.type === 'chain_lightning') {
-                const points = effect.point_ids.map(pid => currentGameState.points[pid]).filter(p => p);
-                if (points.length < 2) return true;
-                
-                ctx.lineWidth = 1 + Math.random() * 2; // Flickering width
-                ctx.strokeStyle = `rgba(180, 220, 255, ${0.9 * (1 - progress)})`;
-            
-                // Draw lightning along the conduit path
-                for (let i = 0; i < points.length - 1; i++) {
-                    const p1 = points[i];
-                    const p2 = points[i+1];
-                    const p1_coords = { x: (p1.x + 0.5) * cellSize, y: (p1.y + 0.5) * cellSize };
-                    const p2_coords = { x: (p2.x + 0.5) * cellSize, y: (p2.y + 0.5) * cellSize };
-                    drawJaggedLine(p1_coords, p2_coords, 5, 8);
-                }
-            
-                // Draw jump to target if it exists and after a delay
-                const jump_progress = (age - 400) / (effect.duration - 400);
-                if (effect.destroyed_point && jump_progress > 0) {
-                     ctx.lineWidth = 2 + Math.random() * 2;
-                     ctx.strokeStyle = `rgba(200, 230, 255, ${0.9 * (1 - jump_progress)})`;
-                    // Jump from one of the endpoints. Let's find the one closest to the target.
-                    const endpoint1 = points[0];
-                    const endpoint2 = points[points.length-1];
-                    const d_sq_1 = (endpoint1.x - effect.destroyed_point.x)**2 + (endpoint1.y - effect.destroyed_point.y)**2;
-                    const d_sq_2 = (endpoint2.x - effect.destroyed_point.x)**2 + (endpoint2.y - effect.destroyed_point.y)**2;
-                    const jump_origin_point = d_sq_1 < d_sq_2 ? endpoint1 : endpoint2;
-
-                    const p1_coords = {x: (jump_origin_point.x + 0.5)*cellSize, y: (jump_origin_point.y + 0.5)*cellSize};
-                    const p2_coords = {x: (effect.destroyed_point.x + 0.5)*cellSize, y: (effect.destroyed_point.y + 0.5)*cellSize};
-                    drawJaggedLine(p1_coords, p2_coords, 7, 10);
-                }
-
-            } else if (effect.type === 'heartwood_creation') {
-                const progress = age / effect.duration;
-                effect.sacrificed_points.forEach(p => {
-                    const start_x = (p.x + 0.5) * cellSize;
-                    const start_y = (p.y + 0.5) * cellSize;
-                    const end_x = (effect.center_coords.x + 0.5) * cellSize;
-                    const end_y = (effect.center_coords.y + 0.5) * cellSize;
-                    
-                    const current_x = start_x + (end_x - start_x) * progress;
-                    const current_y = start_y + (end_y - start_y) * progress;
-
-                    ctx.beginPath();
-                    ctx.arc(current_x, current_y, Math.max(0, 8 * (1 - progress)), 0, 2*Math.PI);
-                    ctx.fillStyle = `rgba(150, 255, 150, ${1 - progress})`;
-                    ctx.fill();
-                });
-            } else if (effect.type === 'bastion_formation') {
-                const progress = age / effect.duration;
-                const pulse = Math.abs(Math.sin(progress * Math.PI)); // Curve from 0 -> 1 -> 0. Abs to prevent negative line width.
-                ctx.globalAlpha = pulse * 0.9;
-                ctx.lineWidth = 2 + pulse * 8; // Shield widens
-                ctx.strokeStyle = `rgba(173, 216, 230, ${pulse * 0.8})`; // Shield blue color
-                ctx.lineCap = 'round';
-                effect.line_ids.forEach(line_id => {
-                    const line = currentGameState.lines.find(l => l.id === line_id);
-                    if (line && currentGameState.points[line.p1_id] && currentGameState.points[line.p2_id]) {
-                        const p1 = currentGameState.points[line.p1_id];
-                        const p2 = currentGameState.points[line.p2_id];
-                        ctx.beginPath();
-                        ctx.moveTo((p1.x + 0.5) * cellSize, (p1.y + 0.5) * cellSize);
-                        ctx.lineTo((p2.x + 0.5) * cellSize, (p2.y + 0.5) * cellSize);
-                        ctx.stroke();
-                    }
-                });
-                ctx.globalAlpha = 1.0;
-                ctx.lineCap = 'butt';
-            } else if (effect.type === 'monolith_formation') {
-                const progress = age / effect.duration;
-                const cx = (effect.center.x + 0.5) * cellSize;
-                const top_y = -20;
-                const ground_y = (effect.center.y + 0.5) * cellSize;
-                const beam_height = ground_y - top_y;
-                
-                // Animate beam descending
-                const current_bottom_y = top_y + beam_height * progress;
-
-                const gradient = ctx.createLinearGradient(cx, top_y, cx, current_bottom_y);
-                gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
-                gradient.addColorStop(0.8, `rgba(255, 255, 255, ${1 - progress})`);
-                gradient.addColorStop(1, effect.color);
-
-                ctx.fillStyle = gradient;
-                ctx.fillRect(cx - 10, top_y, 20, current_bottom_y - top_y); // The beam
-                
-                // Impact ring on the ground
-                if (progress > 0.5) {
-                    const impact_progress = (progress - 0.5) * 2;
-                    ctx.beginPath();
-                    ctx.arc(cx, ground_y, Math.max(0, 30 * impact_progress), 0, 2 * Math.PI);
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${1 - impact_progress})`;
-                    ctx.lineWidth = 3 * (1 - impact_progress);
-                    ctx.stroke();
-                }
-
-            } else if (effect.type === 'energy_spiral') {
-                const ease_progress = Math.sin(progress * Math.PI / 2); // Ease-out curve
-                const start_x = (effect.start.x + 0.5) * cellSize;
-                const start_y = (effect.start.y + 0.5) * cellSize;
-                const end_x = (effect.end.x + 0.5) * cellSize;
-                const end_y = (effect.end.y + 0.5) * cellSize;
-
-                const num_particles = 15;
-                for (let i = 0; i < num_particles; i++) {
-                    const particle_progress = (ease_progress + i / num_particles / 5) % 1.0;
-                    const current_x = start_x + (end_x - start_x) * particle_progress;
-                    const current_y = start_y + (end_y - start_y) * particle_progress;
-
-                    // Add swirl
-                    const swirl_angle = particle_progress * Math.PI * 4 + (i / num_particles * Math.PI * 2);
-                    const swirl_radius = Math.sin(particle_progress * Math.PI) * 20;
-                    
-                    const final_x = current_x + Math.cos(swirl_angle) * swirl_radius;
-                    const final_y = current_y + Math.sin(swirl_angle) * swirl_radius;
-
-                    ctx.beginPath();
-                    ctx.arc(final_x, final_y, 2, 0, 2 * Math.PI);
-                    ctx.fillStyle = `rgba(255, 255, 255, ${1 - particle_progress})`;
-                    ctx.fill();
-                }
-
-            } else if (effect.type === 'portal_link') {
-                const progress = age / effect.duration;
-                const p1_x = (effect.p1.x + 0.5) * cellSize;
-                const p1_y = (effect.p1.y + 0.5) * cellSize;
-                const p2_x = (effect.p2.x + 0.5) * cellSize;
-                const p2_y = (effect.p2.y + 0.5) * cellSize;
-
-                // Draw two swirling portals
-                const portal_radius = 15 * Math.abs(Math.sin(progress * Math.PI)); // Grow and shrink pulse.
-                [ {x: p1_x, y: p1_y}, {x: p2_x, y: p2_y} ].forEach(p => {
-                    ctx.beginPath();
-                    // Defensively ensure radius is non-negative to prevent IndexSizeError.
-                    ctx.arc(p.x, p.y, Math.max(0, portal_radius), 0, 2 * Math.PI);
-                    ctx.strokeStyle = effect.color;
-                    ctx.lineWidth = 2;
-                    ctx.globalAlpha = 0.8;
-                    ctx.stroke();
-                });
-
-                // Draw a shimmering connector
-                if (progress > 0.1 && progress < 0.9) {
-                    ctx.beginPath();
-                    ctx.moveTo(p1_x, p1_y);
-                    ctx.lineTo(p2_x, p2_y);
-                    ctx.lineWidth = 1.5;
-                    ctx.strokeStyle = `rgba(255,255,255, ${Math.random() * 0.5 + 0.3})`;
-                    ctx.stroke();
-                }
-
-                ctx.globalAlpha = 1.0;
-            } else if (effect.type === 'heartwood_growth_ray') {
-                if (effect.heartwood && effect.new_point) {
-                    const start_x = (effect.heartwood.center_coords.x + 0.5) * cellSize;
-                    const start_y = (effect.heartwood.center_coords.y + 0.5) * cellSize;
-                    const end_x = (effect.new_point.x + 0.5) * cellSize;
-                    const end_y = (effect.new_point.y + 0.5) * cellSize;
-
-                    ctx.beginPath();
-                    ctx.moveTo(start_x, start_y);
-                    ctx.lineTo(end_x, end_y);
-                    ctx.strokeStyle = `rgba(150, 255, 150, ${0.7 * (1 - progress)})`;
-                    ctx.lineWidth = 3;
-                    ctx.stroke();
-                }
-            } else if (effect.type === 'point_explosion') {
-                ctx.beginPath();
-                const startRadius = 5;
-                const endRadius = 15;
-                const currentRadius = startRadius + (endRadius - startRadius) * progress;
-                ctx.arc(
-                    (effect.x + 0.5) * cellSize,
-                    (effect.y + 0.5) * cellSize,
-                    Math.max(0, currentRadius), // Prevent negative radius
-                    0, 2 * Math.PI
-                );
-                ctx.fillStyle = `rgba(255, 180, 50, ${1 - progress})`; // Orange-ish fade out
+                ctx.moveTo((tri_points[0].x + 0.5) * cellSize, (tri_points[0].y + 0.5) * cellSize);
+                ctx.lineTo((tri_points[1].x + 0.5) * cellSize, (tri_points[1].y + 0.5) * cellSize);
+                ctx.lineTo((tri_points[2].x + 0.5) * cellSize, (tri_points[2].y + 0.5) * cellSize);
+                ctx.closePath();
+                const currentAlpha = ctx.globalAlpha;
+                ctx.fillStyle = team.color;
+                ctx.globalAlpha = currentAlpha * 0.25;
                 ctx.fill();
-            } else if (effect.type === 'point_implosion') {
+                const pulse = Math.abs(Math.sin(Date.now() / 500));
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1 + pulse * 2;
+                ctx.globalAlpha = currentAlpha * (0.3 + pulse * 0.4);
+                ctx.stroke();
+            },
+            'hourglass': (rune, team, gameState) => {
+                const p_v = gameState.points[rune.vertex_id];
+                if (!p_v) return;
+                const all_points = rune.all_points.map(pid => gameState.points[pid]);
+                if (all_points.some(p => !p)) return;
+                const tri1_pts = all_points.filter(p => p.id !== p_v.id).slice(0, 2);
+                const tri2_pts = all_points.filter(p => p.id !== p_v.id).slice(2, 4);
+                if (tri1_pts.length < 2 || tri2_pts.length < 2) return;
                 ctx.beginPath();
-                const startRadius = 15;
-                const endRadius = 3;
-                const currentRadius = startRadius - (startRadius - endRadius) * progress;
-                ctx.arc(
-                    (effect.x + 0.5) * cellSize,
-                    (effect.y + 0.5) * cellSize,
-                    Math.max(0, currentRadius), // Prevent negative radius
-                    0, 2 * Math.PI
-                );
-                ctx.fillStyle = effect.color || `rgba(200, 180, 255, ${1 - progress})`; // Purple-ish fade out
-                ctx.fill();
-            } else if (effect.type === 'territory_fade') {
-                const team = currentGameState.teams[effect.territory.teamId];
-                const triPoints = effect.territory.point_ids.map(id => currentGameState.points[id]);
-                if (team && triPoints.length === 3 && triPoints.every(p => p)) {
-                    ctx.fillStyle = team.color;
-                    ctx.globalAlpha = 0.3 * (1 - progress); // Fade out alpha
-                    ctx.beginPath();
-                    ctx.moveTo((triPoints[0].x + 0.5) * cellSize, (triPoints[0].y + 0.5) * cellSize);
-                    ctx.lineTo((triPoints[1].x + 0.5) * cellSize, (triPoints[1].y + 0.5) * cellSize);
-                    ctx.lineTo((triPoints[2].x + 0.5) * cellSize, (triPoints[2].y + 0.5) * cellSize);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.globalAlpha = 1.0; // reset alpha
-                }
-            } else if (effect.type === 'arc_projectile') {
-                const startX = (effect.start.x + 0.5) * cellSize;
-                const startY = (effect.start.y + 0.5) * cellSize;
-                const endX = (effect.end.x + 0.5) * cellSize;
-                const endY = (effect.end.y + 0.5) * cellSize;
-
-                // Simple parabolic arc using a quadratic bezier curve
-                const controlX = (startX + endX) / 2;
-                const controlY = Math.min(startY, endY) - 50; // Arc height
-
-                // Calculate current position along the curve
-                const t = progress;
-                const currentX = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * controlX + t * t * endX;
-                const currentY = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * controlY + t * t * endY;
-                
-                ctx.beginPath();
-                ctx.arc(currentX, currentY, 5, 0, 2*Math.PI);
-                ctx.fillStyle = `rgba(255, 100, 50, ${1 - progress * 0.5})`;
-                ctx.fill();
+                ctx.moveTo((tri1_pts[0].x + 0.5) * cellSize, (tri1_pts[0].y + 0.5) * cellSize);
+                ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
+                ctx.lineTo((tri1_pts[1].x + 0.5) * cellSize, (tri1_pts[1].y + 0.5) * cellSize);
+                ctx.moveTo((tri2_pts[0].x + 0.5) * cellSize, (tri2_pts[0].y + 0.5) * cellSize);
+                ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
+                ctx.lineTo((tri2_pts[1].x + 0.5) * cellSize, (tri2_pts[1].y + 0.5) * cellSize);
+                ctx.strokeStyle = team.color;
+                ctx.lineWidth = 6;
+                ctx.globalAlpha *= 0.4;
+                ctx.stroke();
             }
-            
-            return true; // Keep active effects
+        }
+    };
+
+    function drawRunes(gameState, isHighlightingActive = false) {
+        if (!gameState.runes) return;
+        for (const teamId in gameState.runes) {
+            const teamRunes = gameState.runes[teamId];
+            const team = gameState.teams[teamId];
+            if (!team) continue;
+    
+            for (const runeType in teamRunes) {
+                const drawer = drawOrchestrator.runeDrawers[runeType];
+                if (!drawer) continue;
+    
+                teamRunes[runeType].forEach(rune => {
+                    const pointIds = rune.point_ids || rune.all_points || (Array.isArray(rune) ? rune : null);
+                    if (!pointIds) return;
+                    
+                    const isHighlighted = pointIds.every(pid => uiState.lastActionHighlights.points.has(pid));
+                    ctx.save();
+                    if (isHighlightingActive && !isHighlighted) {
+                        ctx.globalAlpha = 0.2;
+                    } else if (isHighlightingActive && isHighlighted) {
+                        ctx.globalAlpha = 1.0;
+                    }
+                    drawer(rune, team, gameState);
+                    ctx.restore();
+                });
+            }
+        }
+    }
+    
+    function drawFissures(gameState, isHighlightingActive = false) {
+        if (!gameState.fissures) return;
+        gameState.fissures.forEach(fissure => {
+            const isHighlighted = uiState.lastActionHighlights.structures.has(fissure.id);
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
+            const p1 = {x: (fissure.p1.x + 0.5) * cellSize, y: (fissure.p1.y + 0.5) * cellSize};
+            const p2 = {x: (fissure.p2.x + 0.5) * cellSize, y: (fissure.p2.y + 0.5) * cellSize};
+            ctx.strokeStyle = `rgba(30, 30, 30, ${0.4 + (fissure.turns_left / 8) * 0.4})`;
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+            illustrationHelpers.drawJaggedLine(ctx, p1, p2, 15, 6);
+            ctx.lineCap = 'butt';
+            ctx.restore();
         });
     }
 
     function fullRender() {
         if (!currentGameState) return;
 
-        // Central drawing function, called every frame by animationLoop
         drawGrid();
 
-        const isHighlightingActive = debugOptions.highlightLastAction && (lastActionHighlights.points.size > 0 || lastActionHighlights.lines.size > 0 || lastActionHighlights.structures.size > 0);
+        const isHighlightingActive = uiState.debugOptions.highlightLastAction && 
+            (uiState.lastActionHighlights.points.size > 0 || uiState.lastActionHighlights.lines.size > 0 || uiState.lastActionHighlights.structures.size > 0);
 
         if (currentGameState.game_phase === 'SETUP') {
-             // During setup, draw the temporary points from the local array
              const tempPointsDict = {};
-             initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
-             drawPoints(tempPointsDict, localTeams, isHighlightingActive); // Use localTeams for colors
-        } else {
-            // During RUNNING or FINISHED, draw from the official game state
-            if (currentGameState.teams) {
-                drawTerritories(currentGameState.points, currentGameState.territories, currentGameState.teams, isHighlightingActive);
-                drawMonoliths(currentGameState, isHighlightingActive);
-                drawTrebuchets(currentGameState, isHighlightingActive);
-                drawPrisms(currentGameState, isHighlightingActive);
-                drawRunes(currentGameState, isHighlightingActive);
-                drawNexuses(currentGameState, isHighlightingActive);
-                drawHeartwoods(currentGameState, isHighlightingActive);
-                drawWonders(currentGameState, isHighlightingActive);
-                drawRiftSpires(currentGameState, isHighlightingActive);
-                drawRiftTraps(currentGameState, isHighlightingActive);
-                drawFissures(currentGameState, isHighlightingActive);
-                drawBarricades(currentGameState, isHighlightingActive);
-                drawScorchedZones(currentGameState, isHighlightingActive);
-                drawLeyLines(currentGameState, isHighlightingActive);
-                drawLines(currentGameState.points, currentGameState.lines, currentGameState.teams, isHighlightingActive);
-                drawPoints(currentGameState.points, currentGameState.teams, isHighlightingActive);
-                
-                // Draw hulls if game is finished and toggled on
-                if (currentGameState.game_phase === 'FINISHED') {
-                    drawHulls(currentGameState.interpretation, currentGameState.teams);
+             uiState.initialPoints.forEach((p, i) => tempPointsDict[`p_${i}`] = {...p, id: `p_${i}`});
+             drawPoints(tempPointsDict, uiState.localTeams, isHighlightingActive);
+        } else if (currentGameState.teams) {
+            // Render all layers in their defined order
+            drawOrchestrator.renderLayers.forEach(drawFn => {
+                if(drawFn.name === 'drawLines' || drawFn.name === 'drawPoints') {
+                     drawFn(currentGameState.points, currentGameState[drawFn.name.substring(4).toLowerCase()], currentGameState.teams, isHighlightingActive);
+                } else if(drawFn.name === 'drawHulls') {
+                    if (currentGameState.game_phase === 'FINISHED') {
+                         drawFn(currentGameState.interpretation, currentGameState.teams);
+                    }
                 }
-            }
+                else {
+                    drawFn(currentGameState, isHighlightingActive);
+                }
+            });
         }
-
         drawVisualEffects();
     }
 
@@ -1803,10 +2181,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const actionVisualsMap = {
         'isolate_point': (details, gameState) => {
-            lastActionHighlights.points.add(details.isolated_point.id);
-            lastActionHighlights.points.add(details.projector_point.id);
+            uiState.lastActionHighlights.points.add(details.isolated_point.id);
+            uiState.lastActionHighlights.points.add(details.projector_point.id);
             if (details.projector_point && details.isolated_point) {
-                visualEffects.push({
+                uiState.visualEffects.push({
                     type: 'animated_ray',
                     p1: details.projector_point,
                     p2: details.isolated_point,
@@ -1818,8 +2196,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         'isolate_fizzle_barricade': (details, gameState) => {
-            lastActionHighlights.structures.add(details.barricade.id);
-            visualEffects.push({
+            uiState.lastActionHighlights.structures.add(details.barricade.id);
+            uiState.visualEffects.push({
                 type: 'growing_wall',
                 barricade: details.barricade,
                 color: gameState.teams[details.barricade.teamId].color,
@@ -1828,13 +2206,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'nova_burst': (details, gameState) => {
-            lastActionHighlights.points.add(details.sacrificed_point.id);
-            // Pre-calculate particle directions for the effect
+            uiState.lastActionHighlights.points.add(details.sacrificed_point.id);
             let particles = [];
             for(let i=0; i<20; i++) {
                 particles.push({angle: Math.random() * 2 * Math.PI, speed: (150 + Math.random() * 50) * (cellSize/10)});
             }
-            visualEffects.push({
+            uiState.visualEffects.push({
                 type: 'nova_burst',
                 x: details.sacrificed_point.x,
                 y: details.sacrificed_point.y,
@@ -1845,19 +2222,19 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'add_line': (details, gameState) => {
-            lastActionHighlights.lines.add(details.line.id);
-            lastActionHighlights.points.add(details.line.p1_id);
-            lastActionHighlights.points.add(details.line.p2_id);
-            visualEffects.push({
+            uiState.lastActionHighlights.lines.add(details.line.id);
+            uiState.lastActionHighlights.points.add(details.line.p1_id);
+            uiState.lastActionHighlights.points.add(details.line.p2_id);
+            uiState.visualEffects.push({
                 type: 'new_line', line: details.line, startTime: Date.now(), duration: 500
             });
         },
-        'add_line_fallback_strengthen': (details, gameState) => {
-            lastActionHighlights.lines.add(details.strengthened_line.id);
-            visualEffects.push({ type: 'line_flash', line: details.strengthened_line, startTime: Date.now(), duration: 800 });
+        'add_line_fizzle_strengthen': (details, gameState) => {
+            uiState.lastActionHighlights.lines.add(details.strengthened_line.id);
+            uiState.visualEffects.push({ type: 'line_flash', line: details.strengthened_line, startTime: Date.now(), duration: 800 });
         },
         'fracture_line': (details, gameState) => {
-            visualEffects.push({
+            uiState.visualEffects.push({
                 type: 'line_crack',
                 old_line: details.old_line,
                 new_point: details.new_point,
@@ -1865,18 +2242,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 startTime: Date.now(),
                 duration: 800,
             });
-            lastActionHighlights.points.add(details.new_point.id);
-            lastActionHighlights.lines.add(details.new_line1.id);
-            lastActionHighlights.lines.add(details.new_line2.id);
+            uiState.lastActionHighlights.points.add(details.new_point.id);
+            uiState.lastActionHighlights.lines.add(details.new_line1.id);
+            uiState.lastActionHighlights.lines.add(details.new_line2.id);
         },
         'convert_point': (details, gameState) => {
-            lastActionHighlights.points.add(details.converted_point.id);
+            uiState.lastActionHighlights.points.add(details.converted_point.id);
             const line = details.sacrificed_line;
             const p1 = gameState.points[line.p1_id];
             const p2 = gameState.points[line.p2_id];
             if (p1 && p2) {
                  const midpoint = {x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2};
-                 visualEffects.push({
+                 uiState.visualEffects.push({
                      type: 'energy_spiral',
                      start: midpoint,
                      end: details.converted_point,
@@ -1887,8 +2264,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         'convert_fizzle_push': (details, gameState) => {
-            visualEffects.push({
-                type: 'shield_pulse', // Reuse this visual
+            uiState.visualEffects.push({
+                type: 'shield_pulse',
                 center: details.pulse_center,
                 radius_sq: details.radius_sq,
                 color: 'rgba(255, 180, 50, 0.9)',
@@ -1897,8 +2274,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'attack_line': (details, gameState) => {
-            lastActionHighlights.lines.add(details.attacker_line.id);
-            visualEffects.push({
+            uiState.lastActionHighlights.lines.add(details.attacker_line.id);
+            uiState.visualEffects.push({
                 type: 'animated_ray',
                 p1: details.attack_ray.p1,
                 p2: details.attack_ray.p2,
@@ -1908,23 +2285,23 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'attack_line_energized': (details, gameState) => {
-            lastActionHighlights.lines.add(details.attacker_line.id);
-            visualEffects.push({
+            uiState.lastActionHighlights.lines.add(details.attacker_line.id);
+            uiState.visualEffects.push({
                 type: 'animated_ray',
                 p1: details.attack_ray.p1,
                 p2: details.attack_ray.p2,
                 startTime: Date.now(),
                 duration: 600,
-                color: 'rgba(255, 255, 100, 1.0)', // Energized yellow/white
+                color: 'rgba(255, 255, 100, 1.0)',
                 lineWidth: 5
             });
             details.destroyed_points.forEach(p => {
-                visualEffects.push({ type: 'point_explosion', x: p.x, y: p.y, startTime: Date.now() + 200, duration: 500 });
+                uiState.visualEffects.push({ type: 'point_explosion', x: p.x, y: p.y, startTime: Date.now() + 200, duration: 500 });
             });
         },
         'rune_shoot_bisector': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
                 type: 'animated_ray',
                 p1: details.attack_ray.p1,
                 p2: details.attack_ray.p2,
@@ -1935,30 +2312,30 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'vbeam_miss_fissure': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({ type: 'animated_ray', p1: details.attack_ray.p1, p2: details.attack_ray.p2, startTime: Date.now(), duration: 800, color: 'rgba(100, 255, 255, 1.0)', lineWidth: 4});
-            visualEffects.push({ type: 'growing_wall', barricade: details.fissure, color: 'rgba(50, 50, 50, 0.8)', startTime: Date.now() + 200, duration: 1000 });
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({ type: 'animated_ray', p1: details.attack_ray.p1, p2: details.attack_ray.p2, startTime: Date.now(), duration: 800, color: 'rgba(100, 255, 255, 1.0)', lineWidth: 4});
+            uiState.visualEffects.push({ type: 'growing_wall', barricade: details.fissure, color: 'rgba(50, 50, 50, 0.8)', startTime: Date.now() + 200, duration: 1000 });
         },
         'rune_area_shield': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             const tri_points = details.rune_triangle_ids.map(pid => gameState.points[pid]).filter(p=>p);
             if(tri_points.length === 3) {
-                visualEffects.push({
+                uiState.visualEffects.push({
                     type: 'polygon_flash',
                     points: tri_points,
-                    color: 'rgba(173, 216, 230, 0.9)', // Light blue shield color
+                    color: 'rgba(173, 216, 230, 0.9)',
                     startTime: Date.now(),
                     duration: 1000
                 });
             }
         },
         'area_shield_fizzle_push': (details, gameState) => {
-             details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-             visualEffects.push({ type: 'shield_pulse', center: details.pulse_center, radius_sq: details.pulse_radius_sq, color: `rgba(173, 216, 230, 0.9)`, startTime: Date.now(), duration: 800 });
+             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+             uiState.visualEffects.push({ type: 'shield_pulse', center: details.pulse_center, radius_sq: details.pulse_radius_sq, color: `rgba(173, 216, 230, 0.9)`, startTime: Date.now(), duration: 800 });
         },
         'rune_shield_pulse': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
                 type: 'shield_pulse',
                 center: details.pulse_center,
                 radius_sq: details.pulse_radius_sq,
@@ -1968,26 +2345,23 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'shield_pulse_fizzle_pull': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            const pulled_points = [];
-            for (const p_info of details.pulled_points_count) { // This is wrong, payload has count not points.
-                // The backend would need to send the points that were at the start of the pull.
-                // For now, this visual will do nothing. This is a limitation.
-            }
-            visualEffects.push({
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            // The payload contains the *final* positions. For a correct visual, we'd need
+            // the start positions. This is a best-effort visual using the data available.
+            uiState.visualEffects.push({
                 type: 'point_pull',
                 center: details.pulse_center,
-                points: pulled_points,
+                points: details.pulled_points,
                 startTime: Date.now(),
                 duration: 1000,
             });
         },
         'extend_line': (details, gameState) => {
-            lastActionHighlights.points.add(details.new_point.id);
+            uiState.lastActionHighlights.points.add(details.new_point.id);
             const origin_point = gameState.points[details.origin_point_id];
             if (origin_point) {
                 const teamColor = gameState.teams[details.new_point.teamId].color;
-                visualEffects.push({
+                uiState.visualEffects.push({
                     type: 'animated_ray',
                     p1: origin_point,
                     p2: details.new_point,
@@ -1998,23 +2372,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             if (details.is_empowered && details.new_line) {
-                lastActionHighlights.lines.add(details.new_line.id);
+                uiState.lastActionHighlights.lines.add(details.new_line.id);
             }
         },
         'shield_line': (details, gameState) => {
-            lastActionHighlights.lines.add(details.shielded_line.id);
-             visualEffects.push({
-                type: 'bastion_formation', // Reusing this for a shield-up effect
+            uiState.lastActionHighlights.lines.add(details.shielded_line.id);
+             uiState.visualEffects.push({
+                type: 'bastion_formation',
                 line_ids: [details.shielded_line.id],
                 startTime: Date.now(),
                 duration: 800
             });
         },
         'claim_territory': (details, gameState) => {
-            details.territory.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            details.territory.point_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             const triPoints = details.territory.point_ids.map(id => gameState.points[id]).filter(Boolean);
             if (triPoints.length === 3) {
-                visualEffects.push({
+                uiState.visualEffects.push({
                     type: 'territory_fill',
                     points: triPoints,
                     color: gameState.teams[details.territory.teamId].color,
@@ -2024,9 +2398,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         'create_anchor': (details, gameState) => {
-            lastActionHighlights.points.add(details.anchor_point.id);
+            uiState.lastActionHighlights.points.add(details.anchor_point.id);
             if(details.sacrificed_point) {
-                 visualEffects.push({
+                 uiState.visualEffects.push({
                     type: 'point_implosion',
                     x: details.sacrificed_point.x,
                     y: details.sacrificed_point.y,
@@ -2037,52 +2411,52 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         'create_whirlpool': (details, gameState) => {
-            visualEffects.push({
+            uiState.visualEffects.push({
                 type: 'point_implosion',
                 x: details.sacrificed_point.x,
                 y: details.sacrificed_point.y,
                 startTime: Date.now(),
                 duration: 1200,
-                color: currentGameState.teams[details.sacrificed_point.teamId]?.color || `rgba(150, 220, 255, ${1-0})` // Blueish for water
+                color: currentGameState.teams[details.sacrificed_point.teamId]?.color || `rgba(150, 220, 255, 1)`
             });
         },
         'mirror_structure': (details, gameState) => {
-            details.new_points.forEach(p => lastActionHighlights.points.add(p.id));
-            lastActionHighlights.points.add(details.axis_p1_id);
-            lastActionHighlights.points.add(details.axis_p2_id);
-            visualEffects.push({
+            details.new_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
+            uiState.lastActionHighlights.points.add(details.axis_p1_id);
+            uiState.lastActionHighlights.points.add(details.axis_p2_id);
+            uiState.visualEffects.push({
                 type: 'mirror_axis',
                 p1_id: details.axis_p1_id,
                 p2_id: details.axis_p2_id,
                 startTime: Date.now(),
-                duration: 1500 // ms
+                duration: 1500
             });
         },
         'mirror_fizzle_strengthen': (details, gameState) => {
             details.strengthened_lines.forEach(line => {
-                lastActionHighlights.lines.add(line.id);
-                visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
+                uiState.lastActionHighlights.lines.add(line.id);
+                uiState.visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
             });
         },
         'create_orbital': (details, gameState) => {
-            lastActionHighlights.points.add(details.center_point_id);
+            uiState.lastActionHighlights.points.add(details.center_point_id);
             const center_point = gameState.points[details.center_point_id];
 
             details.new_points.forEach((p, i) => {
-                lastActionHighlights.points.add(p.id);
-                visualEffects.push({
+                uiState.lastActionHighlights.points.add(p.id);
+                uiState.visualEffects.push({
                     type: 'energy_spiral',
                     start: center_point,
                     end: p,
                     color: gameState.teams[p.teamId].color,
-                    startTime: Date.now() + i * 50, // Stagger start times
+                    startTime: Date.now() + i * 50,
                     duration: 800
                 });
             });
-            details.new_lines.forEach(l => lastActionHighlights.lines.add(l.id));
+            details.new_lines.forEach(l => uiState.lastActionHighlights.lines.add(l.id));
         },
         'form_bastion': (details, gameState) => {
-            visualEffects.push({
+            uiState.visualEffects.push({
                 type: 'bastion_formation',
                 line_ids: details.line_ids,
                 color: gameState.teams[details.bastion.teamId].color,
@@ -2091,15 +2465,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'attune_nexus': (details, gameState) => {
-            details.nexus.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-            lastActionHighlights.structures.add(details.nexus.id);
+            details.attuned_nexus.point_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.lastActionHighlights.structures.add(details.attuned_nexus.id);
             const line = details.sacrificed_line;
             const p1 = gameState.points[line.p1_id];
             const p2 = gameState.points[line.p2_id];
             if (p1 && p2) {
-                 visualEffects.push({
-                     type: 'point_pull', // Looks like energy being pulled in
-                     center: details.nexus.center,
+                 uiState.visualEffects.push({
+                     type: 'point_pull',
+                     center: details.attuned_nexus.center,
                      points: [p1, p2],
                      startTime: Date.now(),
                      duration: 1000,
@@ -2107,7 +2481,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         'form_monolith': (details, gameState) => {
-            visualEffects.push({
+            uiState.visualEffects.push({
                 type: 'monolith_formation',
                 center: details.monolith.center_coords,
                 color: gameState.teams[details.monolith.teamId].color,
@@ -2116,91 +2490,92 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'chain_lightning': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
+            if (details.rune_points) { // It may not exist if structure was destroyed
+                details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            }
+            uiState.visualEffects.push({
                 type: 'chain_lightning',
                 point_ids: details.rune_points,
                 destroyed_point: details.destroyed_point,
                 startTime: Date.now(),
-                duration: 1000 // ms
+                duration: 1000
             });
             if (details.destroyed_point) {
-                visualEffects.push({
+                uiState.visualEffects.push({
                     type: 'point_explosion',
                     x: details.destroyed_point.x,
                     y: details.destroyed_point.y,
-                    startTime: Date.now() + 400, // delayed explosion
+                    startTime: Date.now() + 400,
                     duration: 500
                 });
             }
         },
         'refraction_beam': (details, gameState) => {
-            details.prism_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
-                type: 'attack_ray', p1: details.source_ray.p1, p2: details.source_ray.p2, startTime: Date.now(), duration: 1200, color: `rgba(255, 255, 150, ${1-0})`, lineWidth: 2
+            details.prism_point_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
+                type: 'attack_ray', p1: details.source_ray.p1, p2: details.source_ray.p2, startTime: Date.now(), duration: 1200, color: `rgba(255, 255, 150, 1)`, lineWidth: 2
             });
-            visualEffects.push({
-                type: 'attack_ray', p1: details.refracted_ray.p1, p2: details.refracted_ray.p2, startTime: Date.now() + 200, duration: 1000, color: `rgba(255, 100, 100, ${1-0})`, lineWidth: 4
+            uiState.visualEffects.push({
+                type: 'attack_ray', p1: details.refracted_ray.p1, p2: details.refracted_ray.p2, startTime: Date.now() + 200, duration: 1000, color: `rgba(255, 100, 100, 1)`, lineWidth: 4
             });
         },
         'bastion_pulse': (details, gameState) => {
             const bastion = gameState.bastions[details.bastion_id];
             if(bastion) {
-                lastActionHighlights.points.add(bastion.core_id);
-                bastion.prong_ids.forEach(pid => lastActionHighlights.points.add(pid));
+                uiState.lastActionHighlights.points.add(bastion.core_id);
+                bastion.prong_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             }
-            visualEffects.push({
-                type: 'point_implosion', x: details.sacrificed_prong.x, y: details.sacrificed_prong.y, startTime: Date.now(), duration: 800, color: currentGameState.teams[details.sacrificed_prong.teamId]?.color
+            uiState.visualEffects.push({
+                type: 'point_implosion', x: details.sacrificed_point.x, y: details.sacrificed_point.y, startTime: Date.now(), duration: 800, color: currentGameState.teams[details.sacrificed_point.teamId]?.color
             });
         },
         'sentry_zap': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-             visualEffects.push({
-                type: 'attack_ray', p1: details.attack_ray.p1, p2: details.attack_ray.p2, startTime: Date.now(), duration: 400, color: `rgba(255, 100, 100, ${1-0})`, lineWidth: 2
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+             uiState.visualEffects.push({
+                type: 'attack_ray', p1: details.attack_ray.p1, p2: details.attack_ray.p2, startTime: Date.now(), duration: 400, color: `rgba(255, 100, 100, 1)`, lineWidth: 2
             });
-            visualEffects.push({
+            uiState.visualEffects.push({
                 type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now(), duration: 600
             });
         },
         'cultivate_heartwood': (details, gameState) => {
-            details.sacrificed_points.forEach(p => lastActionHighlights.points.add(p.id));
-            visualEffects.push({
+            details.sacrificed_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
+            uiState.visualEffects.push({
                 type: 'heartwood_creation', sacrificed_points: details.sacrificed_points, center_coords: details.heartwood.center_coords, startTime: Date.now(), duration: 1500
             });
         },
         'form_purifier': (details, gameState) => {
-            details.purifier.point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            details.purifier.point_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             const points = details.purifier.point_ids.map(pid => gameState.points[pid]).filter(Boolean);
             if(points.length === 5) {
-                visualEffects.push({
+                uiState.visualEffects.push({
                     type: 'polygon_flash',
                     points: points,
-                    color: 'rgba(255, 255, 220, 1.0)', // Light yellow
+                    color: 'rgba(255, 255, 220, 1.0)',
                     startTime: Date.now(),
                     duration: 1200
                 });
             }
         },
         'launch_payload': (details, gameState) => {
-            details.trebuchet_points.forEach(pid => lastActionHighlights.points.add(pid));
+            details.trebuchet_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             const launch_point = gameState.points[details.launch_point_id];
             if (launch_point) {
-                visualEffects.push({
+                uiState.visualEffects.push({
                     type: 'arc_projectile', start: launch_point, end: details.destroyed_point, startTime: Date.now(), duration: 1200
                 });
             }
-            visualEffects.push({
+            uiState.visualEffects.push({
                 type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now() + 1200, duration: 800
             });
         },
         'rune_hourglass_stasis': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            lastActionHighlights.points.add(details.target_point.id);
-            // The point renderer will show the stasis effect, no special animation needed for now
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.lastActionHighlights.points.add(details.target_point.id);
         },
         'create_rift_trap': (details, gameState) => {
-            lastActionHighlights.points.add(details.sacrificed_point.id);
-            visualEffects.push({
+            uiState.lastActionHighlights.points.add(details.sacrificed_point.id);
+            uiState.visualEffects.push({
                 type: 'point_implosion',
                 x: details.sacrificed_point.x,
                 y: details.sacrificed_point.y,
@@ -2212,7 +2587,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'phase_shift': (details, gameState) => {
             const teamColor = gameState.teams[details.sacrificed_line.teamId].color;
             if (details.original_coords) {
-                visualEffects.push({
+                uiState.visualEffects.push({
                     type: 'portal_link',
                     p1: details.original_coords,
                     p2: details.new_coords,
@@ -2221,26 +2596,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     duration: 1000
                 });
             }
-            lastActionHighlights.points.add(details.moved_point_id);
+            uiState.lastActionHighlights.points.add(details.moved_point_id);
         },
         'pincer_attack': (details, gameState) => {
-            lastActionHighlights.points.add(details.attacker_p1_id);
-            lastActionHighlights.points.add(details.attacker_p2_id);
+            uiState.lastActionHighlights.points.add(details.attacker_p1_id);
+            uiState.lastActionHighlights.points.add(details.attacker_p2_id);
             const p1 = gameState.points[details.attacker_p1_id];
             const p2 = gameState.points[details.attacker_p2_id];
             const target = details.destroyed_point;
 
             if (p1 && target) {
-                 visualEffects.push({ type: 'animated_ray', p1: p1, p2: target, startTime: Date.now(), duration: 500, color: 'rgba(255,0,0,1.0)' });
+                 uiState.visualEffects.push({ type: 'animated_ray', p1: p1, p2: target, startTime: Date.now(), duration: 500, color: 'rgba(255,0,0,1.0)' });
             }
             if (p2 && target) {
-                visualEffects.push({ type: 'animated_ray', p1: p2, p2: target, startTime: Date.now(), duration: 500, color: 'rgba(255,0,0,1.0)' });
+                uiState.visualEffects.push({ type: 'animated_ray', p1: p2, p2: target, startTime: Date.now(), duration: 500, color: 'rgba(255,0,0,1.0)' });
             }
-            visualEffects.push({ type: 'point_explosion', x: target.x, y: target.y, startTime: Date.now(), duration: 600 });
+            uiState.visualEffects.push({ type: 'point_explosion', x: target.x, y: target.y, startTime: Date.now(), duration: 600 });
         },
         'rune_impale': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
                 type: 'animated_ray',
                 p1: details.attack_ray.p1,
                 p2: details.attack_ray.p2,
@@ -2249,45 +2624,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 color: 'rgba(255, 100, 255, 1.0)',
                 lineWidth: 6,
             });
-            // Add explosion effects at intersection points
             details.intersection_points.forEach(p_intersect => {
-                visualEffects.push({
+                uiState.visualEffects.push({
                     type: 'point_explosion',
                     x: p_intersect.x,
                     y: p_intersect.y,
-                    startTime: Date.now(), // No delay, explode as the beam passes
+                    startTime: Date.now(),
                     duration: 400
                 });
             });
         },
         'territory_strike': (details, gameState) => {
-            details.territory_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
+            details.territory_point_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
                 type: 'attack_ray', p1: details.attack_ray.p1, p2: details.attack_ray.p2, startTime: Date.now(), duration: 900, color: 'rgba(100, 255, 100, 1.0)', lineWidth: 3
             });
-            visualEffects.push({
+            uiState.visualEffects.push({
                 type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now() + 500, duration: 600
             });
         },
         'purify_territory': (details, gameState) => {
-            details.purifier_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
+            details.purifier_point_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
                 type: 'territory_fade', territory: details.cleansed_territory, startTime: Date.now(), duration: 1500
             });
         },
         'build_chronos_spire': (details, gameState) => {
-            visualEffects.push({
-                type: 'point_implosion', x: details.wonder.coords.x, y: details.wonder.coords.y, startTime: Date.now(), duration: 2000, color: `rgba(255, 255, 150, ${1-0})`
+            uiState.visualEffects.push({
+                type: 'point_implosion', x: details.wonder.coords.x, y: details.wonder.coords.y, startTime: Date.now(), duration: 2000, color: `rgba(255, 255, 150, 1)`
             });
         },
         'form_rift_spire': (details, gameState) => {
-            visualEffects.push({
-                type: 'point_implosion', x: details.sacrificed_point.x, y: details.sacrificed_point.y, startTime: Date.now(), duration: 1500, color: `rgba(200, 100, 255, ${1-0})`
+            uiState.visualEffects.push({
+                type: 'point_implosion', x: details.spire.coords.x, y: details.spire.coords.y, startTime: Date.now(), duration: 1500, color: `rgba(200, 100, 255, 1)`
             });
         },
         'raise_barricade': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
                 type: 'growing_wall',
                 barricade: details.barricade,
                 color: gameState.teams[details.barricade.teamId].color,
@@ -2296,11 +2670,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'attack_miss_spawn': (details, gameState) => {
-            lastActionHighlights.points.add(details.new_point.id);
-            lastActionHighlights.lines.add(details.attacker_line.id);
+            uiState.lastActionHighlights.points.add(details.new_point.id);
+            uiState.lastActionHighlights.lines.add(details.attacker_line.id);
             const origin_point = details.attack_ray.p1;
             if (origin_point) {
-                visualEffects.push({
+                uiState.visualEffects.push({
                     type: 'animated_ray',
                     p1: origin_point,
                     p2: details.new_point,
@@ -2312,27 +2686,27 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         'nova_shockwave': (details, gameState) => {
-            visualEffects.push({
-                type: 'shield_pulse', // Reusing shield pulse visual
+            uiState.visualEffects.push({
+                type: 'shield_pulse',
                 center: details.sacrificed_point,
                 radius_sq: (gameState.grid_size * 0.25)**2,
-                color: 'rgba(255, 180, 50, 0.9)', // Orange-ish for nova
+                color: 'rgba(255, 180, 50, 0.9)',
                 startTime: Date.now(),
                 duration: 800,
             });
         },
         'whirlpool_fizzle_fissure': (details, gameState) => {
-             visualEffects.push({
-                type: 'growing_wall', // Reusing barricade visual
-                barricade: details.fissure, // It has p1 and p2, compatible
+             uiState.visualEffects.push({
+                type: 'growing_wall',
+                barricade: details.fissure,
                 color: 'rgba(50, 50, 50, 0.8)',
                 startTime: Date.now(),
                 duration: 1000
             });
         },
         'pincer_fizzle_barricade': (details, gameState) => {
-            details.pincer_points.forEach(pid => lastActionHighlights.points.add(pid));
-            visualEffects.push({
+            details.pincer_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
                 type: 'growing_wall',
                 barricade: details.barricade,
                 color: gameState.teams[details.barricade.teamId].color,
@@ -2341,128 +2715,119 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         },
         'rotate_point': (details, gameState) => {
-            lastActionHighlights.points.add(details.moved_point.id);
+            uiState.lastActionHighlights.points.add(details.moved_point.id);
             if (details.pivot_point && !details.is_grid_center) {
-                // If another point was the pivot, highlight it too
-                lastActionHighlights.points.add(details.pivot_point.id);
+                uiState.lastActionHighlights.points.add(details.pivot_point.id);
             }
         },
         'impale_fizzle_barricade': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            // Animate the beam first
-            visualEffects.push({
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
                 type: 'animated_ray',
                 p1: details.attack_ray.p1, p2: details.attack_ray.p2,
                 startTime: Date.now(), duration: 500,
                 color: 'rgba(255, 100, 255, 1.0)', lineWidth: 6,
             });
-            // Then animate the wall growing
-            visualEffects.push({
+            uiState.visualEffects.push({
                 type: 'growing_wall',
                 barricade: details.barricade,
                 color: gameState.teams[details.barricade.teamId].color,
-                startTime: Date.now() + 200, // Staggered start
+                startTime: Date.now() + 200,
                 duration: 800,
             });
         },
         'territory_fizzle_reinforce': (details, gameState) => {
             details.strengthened_lines.forEach(line => {
-                lastActionHighlights.lines.add(line.id);
-                visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
+                uiState.lastActionHighlights.lines.add(line.id);
+                uiState.visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
             });
-            details.territory_point_ids.forEach(pid => lastActionHighlights.points.add(pid));
+            details.territory_point_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
         },
         'sentry_zap_miss_spawn': (details, gameState) => {
-            details.rune_points.forEach(pid => lastActionHighlights.points.add(pid));
-            lastActionHighlights.points.add(details.new_point.id);
-            visualEffects.push({
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.lastActionHighlights.points.add(details.new_point.id);
+            uiState.visualEffects.push({
                 type: 'attack_ray',
                 p1: details.attack_ray.p1,
                 p2: details.attack_ray.p2,
                 startTime: Date.now(),
                 duration: 700,
-                color: `rgba(255, 100, 100, ${1-0})`,
+                color: `rgba(255, 100, 100, 1)`,
                 lineWidth: 2
             });
         }
-        // 'create_fissure' has no special effect beyond the fissure appearing.
     };
     
     function processActionVisuals(gameState) {
         const details = gameState.last_action_details;
         if (!details || !details.type) return;
 
-        // Process secondary visual events first
         if (details.action_events) {
             details.action_events.forEach(event => {
                 if (event.type === 'nexus_detonation') {
-                    visualEffects.push({
+                    uiState.visualEffects.push({
                         type: 'nexus_detonation',
                         center: event.center,
                         radius_sq: event.radius_sq,
                         color: event.color,
                         startTime: Date.now(),
-                        duration: 900 // ms
+                        duration: 900
                     });
                 }
             });
         }
 
-        // Clear previous highlights
-        clearTimeout(lastActionHighlights.clearTimeout);
-        lastActionHighlights.points.clear();
-        lastActionHighlights.lines.clear();
-        lastActionHighlights.structures.clear();
+        clearTimeout(uiState.lastActionHighlights.clearTimeout);
+        uiState.lastActionHighlights.points.clear();
+        uiState.lastActionHighlights.lines.clear();
+        uiState.lastActionHighlights.structures.clear();
 
         const visualizer = actionVisualsMap[details.type];
         if (visualizer) {
             visualizer(details, gameState);
         }
 
-        // Generic handling for bonus lines from any action
         if (details.bonus_line) {
-            lastActionHighlights.lines.add(details.bonus_line.id);
-            visualEffects.push({
+            uiState.lastActionHighlights.lines.add(details.bonus_line.id);
+            uiState.visualEffects.push({
                 type: 'new_line', line: details.bonus_line, startTime: Date.now(), duration: 800
             });
         }
         if (details.bonus_lines) {
             details.bonus_lines.forEach(line => {
-                lastActionHighlights.lines.add(line.id);
-                visualEffects.push({
+                uiState.lastActionHighlights.lines.add(line.id);
+                uiState.visualEffects.push({
                     type: 'new_line', line: line, startTime: Date.now(), duration: 800
                 });
             });
         }
 
-        // Set a timer to clear the highlights
-        lastActionHighlights.clearTimeout = setTimeout(() => {
-            lastActionHighlights.points.clear();
-            lastActionHighlights.lines.clear();
-            lastActionHighlights.structures.clear();
-        }, 2000); // Highlight for 2 seconds
+        uiState.lastActionHighlights.clearTimeout = setTimeout(() => {
+            uiState.lastActionHighlights.points.clear();
+            uiState.lastActionHighlights.lines.clear();
+            uiState.lastActionHighlights.structures.clear();
+        }, 2000);
     }
 
     function updateStateAndRender(gameState) {
         if (!gameState || !gameState.teams) return;
         
         const isFirstUpdate = !currentGameState.game_phase;
-        currentGameState = gameState; // Cache state
+        currentGameState = gameState;
 
-        // Process turn start events for visuals
         if (gameState.new_turn_events && gameState.new_turn_events.length > 0) {
             gameState.new_turn_events.forEach(event => {
                 if (event.type === 'point_collapse') {
-                    visualEffects.push({
+                    uiState.visualEffects.push({
                         type: 'point_implosion',
                         x: event.point.x,
                         y: event.point.y,
                         startTime: Date.now(),
                         duration: 800,
-                        color: 'rgba(100, 100, 100, 0.9)' // Grey collapse
+                        color: 'rgba(100, 100, 100, 0.9)'
                     });
                 } else if (event.type === 'heartwood_growth') {
-                    visualEffects.push({
+                    uiState.visualEffects.push({
                         type: 'heartwood_growth_ray',
                         heartwood: gameState.heartwoods[event.new_point.teamId],
                         new_point: event.new_point,
@@ -2470,22 +2835,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         duration: 1500,
                     });
                 } else if (event.type === 'monolith_wave') {
-                     visualEffects.push({
+                     uiState.visualEffects.push({
                         type: 'monolith_wave',
-                        center_coords: event.center_coords,
+                        center: event.center_coords,
                         radius_sq: event.radius_sq,
                         startTime: Date.now(),
                         duration: 1200,
                     });
                 } else if (event.type === 'rift_trap_trigger') {
-                    visualEffects.push({
+                    uiState.visualEffects.push({
                         type: 'point_explosion',
                         x: event.destroyed_point.x,
                         y: event.destroyed_point.y,
                         startTime: Date.now(),
                         duration: 800
                     });
-                    visualEffects.push({
+                    uiState.visualEffects.push({
                         type: 'point_implosion',
                         x: event.trap.coords.x,
                         y: event.trap.coords.y,
@@ -2494,9 +2859,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         color: gameState.teams[event.trap.teamId].color
                     });
                 } else if (event.type === 'rift_trap_expire') {
-                    lastActionHighlights.points.add(event.new_point.id);
-                    visualEffects.push({
-                        type: 'point_implosion', // Implodes and then spawns
+                    uiState.lastActionHighlights.points.add(event.new_point.id);
+                    uiState.visualEffects.push({
+                        type: 'point_implosion',
                         x: event.trap.coords.x,
                         y: event.trap.coords.y,
                         startTime: Date.now(),
@@ -2504,8 +2869,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         color: 'rgba(220, 220, 255, 0.9)'
                     });
                 } else if (event.type === 'attuned_nexus_fade') {
-                    // Maybe a small implosion effect on the nexus orb
-                    visualEffects.push({
+                    uiState.visualEffects.push({
                         type: 'point_implosion',
                         x: event.nexus.center.x,
                         y: event.nexus.center.y,
@@ -2516,7 +2880,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (event.type === 'ley_line_fade') {
                     const points = event.ley_line.point_ids.map(pid => gameState.points[pid]).filter(p => p);
                     if (points.length >= 2) {
-                        visualEffects.push({
+                        uiState.visualEffects.push({
                             type: 'line_flash',
                             line: { p1_id: points[0].id, p2_id: points[points.length - 1].id },
                             startTime: Date.now(),
@@ -2528,18 +2892,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         if (isFirstUpdate) {
-            // After the first state load, ensure the teams list and controls are correctly rendered
             renderTeamsList();
         }
 
         processActionVisuals(gameState);
 
-        // UI update functions (don't need to be in every frame)
         updateLog(gameState.game_log, gameState.teams);
         updateInterpretationPanel(gameState);
         updateActionPreview(gameState);
         updateControls(gameState);
-        // The animation loop will handle the drawing
     }
 
     // --- UI Update Functions ---
@@ -2547,31 +2908,27 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTeamsList() {
         teamsList.innerHTML = '';
         const inSetupPhase = currentGameState.game_phase === 'SETUP';
-        const teamsToRender = inSetupPhase ? localTeams : currentGameState.teams;
+        const teamsToRender = inSetupPhase ? uiState.localTeams : currentGameState.teams;
     
         for (const teamId in teamsToRender) {
             const team = teamsToRender[teamId];
             const li = document.createElement('li');
             li.dataset.teamId = teamId;
     
-            if (selectedTeamId === teamId && inSetupPhase) {
+            if (uiState.selectedTeamId === teamId && inSetupPhase) {
                 li.classList.add('selected');
             }
     
-            // --- Create ALL elements for both modes ---
-    
-            // Color Box (always visible)
             const colorBox = document.createElement('div');
             colorBox.className = 'team-color-box';
             colorBox.style.backgroundColor = team.color;
             li.appendChild(colorBox);
     
-            // --- Normal Display Mode Elements ---
             const teamInfo = document.createElement('div');
             teamInfo.className = 'team-info';
             teamInfo.onclick = () => {
                 if (inSetupPhase) {
-                    selectedTeamId = teamId;
+                    uiState.selectedTeamId = teamId;
                     renderTeamsList();
                 }
             };
@@ -2588,7 +2945,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             li.appendChild(teamInfo);
     
-            // --- Edit Mode Elements ---
             const editControls = document.createElement('div');
             editControls.className = 'team-edit-controls';
     
@@ -2614,43 +2970,42 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     
             const saveBtn = document.createElement('button');
-            saveBtn.innerHTML = '&#10003;'; // Checkmark
+            saveBtn.innerHTML = '&#10003;';
             saveBtn.title = 'Save changes';
             saveBtn.className = 'save-team-btn';
             saveBtn.onclick = () => {
                 const newName = editNameInput.value.trim();
                 if (newName) {
-                    localTeams[teamId].name = newName;
-                    localTeams[teamId].color = editColorInput.value;
-                    localTeams[teamId].trait = editTraitSelect.value;
-                    localTeams[teamId].isEditing = false;
+                    uiState.localTeams[teamId].name = newName;
+                    uiState.localTeams[teamId].color = editColorInput.value;
+                    uiState.localTeams[teamId].trait = editTraitSelect.value;
+                    uiState.localTeams[teamId].isEditing = false;
                     renderTeamsList();
                 }
             };
     
             const cancelBtn = document.createElement('button');
-            cancelBtn.innerHTML = '&times;'; // Cross
+            cancelBtn.innerHTML = '&times;';
             cancelBtn.title = 'Cancel edit';
             cancelBtn.className = 'cancel-team-btn';
             cancelBtn.onclick = () => {
-                localTeams[teamId].isEditing = false;
+                uiState.localTeams[teamId].isEditing = false;
                 renderTeamsList();
             };
     
             editControls.append(editColorInput, editNameInput, editTraitSelect, saveBtn, cancelBtn);
             li.appendChild(editControls);
     
-            // --- Action Buttons ---
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'team-actions';
             if (inSetupPhase) {
                 li.style.cursor = 'pointer';
                 const editBtn = document.createElement('button');
-                editBtn.innerHTML = '&#9998;'; // Pencil icon
+                editBtn.innerHTML = '&#9998;';
                 editBtn.title = 'Edit team';
                 editBtn.onclick = () => {
-                    Object.values(localTeams).forEach(t => t.isEditing = false);
-                    localTeams[teamId].isEditing = true;
+                    Object.values(uiState.localTeams).forEach(t => t.isEditing = false);
+                    uiState.localTeams[teamId].isEditing = true;
                     renderTeamsList();
                 };
     
@@ -2664,7 +3019,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             li.appendChild(actionsDiv);
     
-            // --- Set visibility based on state ---
             if (inSetupPhase && team.isEditing) {
                 colorBox.style.display = 'none';
                 teamInfo.style.display = 'none';
@@ -2682,75 +3036,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateLog(log, teams) {
-        logDiv.innerHTML = ''; // Clear previous logs
+        logDiv.innerHTML = '';
         if (!log) return;
 
-        let lastMessageEntry = null;
-        // Find the last message from a team for the status bar
-        for (let i = log.length - 1; i >= 0; i--) {
-            const entry = log[i];
-            if (entry.teamId && teams[entry.teamId]) {
-                lastMessageEntry = entry;
-                break;
-            }
-        }
+        let lastMessageEntry = log.slice().reverse().find(entry => entry.teamId && teams[entry.teamId]);
 
         log.forEach(entry => {
             const logEntryDiv = document.createElement('div');
             logEntryDiv.className = 'log-entry';
-
-            const message = (debugOptions.compactLog && entry.short_message) ? entry.short_message : entry.message;
-
+            const message = (uiState.debugOptions.compactLog && entry.short_message) ? entry.short_message : entry.message;
             if (entry.teamId && teams[entry.teamId]) {
                 const team = teams[entry.teamId];
-                const teamName = team.name;
                 logEntryDiv.style.borderLeftColor = team.color;
-
-                if (!debugOptions.compactLog && message.includes(teamName)) {
-                    // This is a simple replacement; for more complex cases, more logic is needed.
-                    // It's designed to work with messages like "Alpha did action" or "Beta vs Alpha".
-                    // The regex finds the team name as a whole word to avoid replacing parts of words.
-                    const coloredMessage = message.replace(new RegExp(`\\b${teamName}\\b`, 'g'), `<strong style="color: ${team.color};">${teamName}</strong>`);
-                    
-                    // A simple heuristic to find other team names in the message and color them too.
-                    let finalMessage = coloredMessage;
+                if (!uiState.debugOptions.compactLog && message.includes(team.name)) {
+                    let finalMessage = message;
                     for (const otherTeamId in teams) {
-                        if (otherTeamId !== entry.teamId) {
-                            const otherTeam = teams[otherTeamId];
-                            finalMessage = finalMessage.replace(new RegExp(`\\b${otherTeam.name}\\b`, 'g'), `<strong style="color: ${otherTeam.color};">${otherTeam.name}</strong>`);
-                        }
+                        const otherTeam = teams[otherTeamId];
+                        finalMessage = finalMessage.replace(new RegExp(`\\b${otherTeam.name}\\b`, 'g'), `<strong style="color: ${otherTeam.color};">${otherTeam.name}</strong>`);
                     }
                     logEntryDiv.innerHTML = finalMessage;
                 } else {
                     logEntryDiv.textContent = message;
                 }
-                
-                if (debugOptions.compactLog) {
+                if (uiState.debugOptions.compactLog) {
                     logEntryDiv.style.color = team.color;
                     logEntryDiv.style.fontWeight = 'bold';
                 }
-            } else { // Non-team messages (Turn counter, etc)
+            } else {
                 logEntryDiv.textContent = message;
                 logEntryDiv.style.textAlign = 'center';
                 logEntryDiv.style.borderLeftColor = '#ccc';
                 logEntryDiv.style.background = '#f0f0f0';
-                if (debugOptions.compactLog) {
+                if (uiState.debugOptions.compactLog) {
                     logEntryDiv.style.fontWeight = 'bold';
                 }
             }
-            logDiv.prepend(logEntryDiv); // Prepend to put new entries on top
+            logDiv.prepend(logEntryDiv);
         });
-        logDiv.scrollTop = 0; // Scroll to top to see latest entries
+        logDiv.scrollTop = 0;
 
-        // Update status bar
         if (currentGameState.game_phase === 'RUNNING') {
             if (lastMessageEntry) {
-                const message = lastMessageEntry.message;
-                let finalMessage = message;
-                // Color all team names found in the status bar message
+                let finalMessage = lastMessageEntry.message;
                 for (const teamId in teams) {
-                    const team = teams[teamId];
-                    finalMessage = finalMessage.replace(new RegExp(`\\b${team.name}\\b`, 'g'), `<strong style="color: ${team.color};">${team.name}</strong>`);
+                    finalMessage = finalMessage.replace(new RegExp(`\\b${teams[teamId].name}\\b`, 'g'), `<strong style="color: ${teams[teamId].color};">${teams[teamId].name}</strong>`);
                 }
                 statusBar.innerHTML = finalMessage;
             } else {
@@ -2763,17 +3092,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateInterpretationPanel(gameState) {
-        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn, runes, prisms, nexuses, bastions, monoliths, wonders, purifiers } = gameState;
+        const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn } = gameState;
 
         let turnText = `Turn: ${turn} / ${max_turns}`;
-        if (game_phase === 'RUNNING' && actions_queue_this_turn && actions_queue_this_turn.length > 0) {
-            // Use action_in_turn for a 0-based count for logic, show +1 for user
+        if (game_phase === 'RUNNING' && actions_queue_this_turn?.length > 0) {
             const currentActionNum = Math.min(action_in_turn + 1, actions_queue_this_turn.length);
             turnText += ` (Action ${currentActionNum} / ${actions_queue_this_turn.length})`;
         }
         turnCounter.textContent = turnText;
 
-        // Live stats
         let statsHTML = '<h4>Live Stats</h4>';
         if (teams && Object.keys(teams).length > 0 && live_stats) {
              for (const teamId in teams) {
@@ -2782,36 +3109,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (stats) {
                     let teamHTML = `<div style="margin-bottom: 5px;">
                         <strong style="color:${team.color};">${team.name}</strong>: 
-                        ${stats.point_count} pts, 
-                        ${stats.line_count} lines,
-                        ${stats.controlled_area} area`;
-                    
-                    const teamRunes = runes[teamId] || {};
-                    const allStructures = {
-                        'I-Rune': teamRunes.i_shape ? teamRunes.i_shape.length : 0,
-                        'Cross': teamRunes.cross ? teamRunes.cross.length : 0,
-                        'V-Rune': teamRunes.v_shape ? teamRunes.v_shape.length : 0,
-                        'Prism': (prisms && prisms[teamId]) ? prisms[teamId].length : 0,
-                        'Nexus': (nexuses && nexuses[teamId]) ? nexuses[teamId].length : 0,
-                        'Bastion': Object.values(bastions || {}).filter(b => b.teamId === teamId).length,
-                        'Monolith': Object.values(monoliths || {}).filter(m => m.teamId === teamId).length,
-                        'Trebuchet': (gameState.trebuchets && gameState.trebuchets[teamId]) ? gameState.trebuchets[teamId].length : 0,
-                        'Purifier': (purifiers && purifiers[teamId]) ? purifiers[teamId].length : 0,
-                        'Rift Spire': Object.values(gameState.rift_spires || {}).filter(s => s.teamId === teamId).length,
-                        'Wonder': Object.values(wonders || {}).filter(w => w.teamId === teamId).length
-                    };
-
-                    let structureStrings = [];
-                    for (const [name, count] of Object.entries(allStructures)) {
-                        if (count > 0) {
-                            structureStrings.push(`${name}(${count})`);
-                        }
-                    }
-
+                        ${stats.point_count} pts, ${stats.line_count} lines, ${stats.controlled_area} area`;
+                    const allStructures = ['I-Rune', 'Cross', 'V-Rune', 'Prism', 'Nexus', 'Bastion', 'Monolith', 'Trebuchet', 'Purifier', 'Rift Spire', 'Wonder'];
+                    let structureStrings = allStructures.map(name => {
+                        const stateKey = name.toLowerCase().replace('-', '_');
+                        let count = 0;
+                        if (gameState.runes && gameState.runes[teamId] && gameState.runes[teamId][stateKey]) count = gameState.runes[teamId][stateKey].length;
+                        else if (gameState[stateKey + 's'] && teamId in gameState[stateKey + 's']) count = gameState[stateKey + 's'][teamId].length;
+                        else if (gameState[stateKey + 's']) count = Object.values(gameState[stateKey + 's']).filter(s => s.teamId === teamId).length;
+                        return count > 0 ? `${name}(${count})` : '';
+                    }).filter(Boolean);
                     if (structureStrings.length > 0) {
                         teamHTML += `<br/><span style="font-size: 0.9em; padding-left: 10px;">Formations: ${structureStrings.join(', ')}</span>`;
                     }
-
                     teamHTML += `</div>`;
                     statsHTML += teamHTML;
                 }
@@ -2821,69 +3131,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         statsDiv.innerHTML = statsHTML;
     
-        // Final interpretation
         if (game_phase === 'FINISHED' && interpretation) {
-            finalInterpContent.innerHTML = ''; // Clear previous content
+            finalInterpContent.innerHTML = '';
             finalAnalysisOptions.style.display = 'block';
-
-            // Display victory condition
             if(victory_condition) {
                 const victoryTitle = document.createElement('h4');
                 victoryTitle.className = 'victory-condition';
                 victoryTitle.textContent = `Game Over: ${victory_condition}`;
                 finalInterpContent.appendChild(victoryTitle);
             }
-
             const cardsContainer = document.createElement('div');
             cardsContainer.className = 'interp-cards-container';
-
             for (const teamId in teams) {
                 const team = teams[teamId];
                 const teamData = interpretation[teamId];
                 if (!teamData) continue;
-
                 const card = document.createElement('div');
                 card.className = 'interp-card';
                 card.style.borderColor = team.color;
-
-                const cardHeader = document.createElement('div');
-                cardHeader.className = 'interp-card-header';
-                cardHeader.style.backgroundColor = team.color;
-                cardHeader.textContent = team.name;
-                card.appendChild(cardHeader);
-
-                const statsList = document.createElement('ul');
-                statsList.className = 'interp-stats-list';
-
-                const allStats = {
-                    'Points': teamData.point_count,
-                    'Lines': teamData.line_count,
-                    'Total Line Length': teamData.line_length,
-                    'Triangles': teamData.triangles,
-                    'Territory Area': teamData.controlled_area,
-                    'Influence Area (Hull)': teamData.hull_area,
-                    'Hull Perimeter': teamData.hull_perimeter
-                };
-
-                let hasStats = false;
-                for (const [statName, statValue] of Object.entries(allStats)) {
-                    if (statValue > 0) {
-                        hasStats = true;
-                        const li = document.createElement('li');
-                        li.innerHTML = `<strong>${statName}:</strong> ${statValue}`;
-                        statsList.appendChild(li);
-                    }
-                }
-                
-                if (hasStats) {
-                    card.appendChild(statsList);
-                }
-
-                const divinationText = document.createElement('p');
-                divinationText.className = 'interp-divination';
-                divinationText.textContent = `"${teamData.divination_text}"`;
-                card.appendChild(divinationText);
-
+                card.innerHTML = `
+                    <div class="interp-card-header" style="background-color: ${team.color};">${team.name}</div>
+                    <ul class="interp-stats-list">
+                        ${Object.entries({
+                            'Points': teamData.point_count, 'Lines': teamData.line_count, 'Total Line Length': teamData.line_length,
+                            'Triangles': teamData.triangles, 'Territory Area': teamData.controlled_area, 'Influence Area (Hull)': teamData.hull_area,
+                            'Hull Perimeter': teamData.hull_perimeter
+                        }).map(([statName, statValue]) => statValue > 0 ? `<li><strong>${statName}:</strong> ${statValue}</li>` : '').join('')}
+                    </ul>
+                    <p class="interp-divination">"${teamData.divination_text}"</p>
+                `;
                 cardsContainer.appendChild(card);
             }
             finalInterpContent.appendChild(cardsContainer);
@@ -2895,102 +3171,64 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateActionPreview(gameState) {
-        const panel = document.getElementById('action-preview-panel');
         const content = document.getElementById('action-preview-content');
         const showInvalid = document.getElementById('show-invalid-actions').checked;
     
         if (gameState.game_phase !== 'RUNNING' || !gameState.actions_queue_this_turn) {
-            panel.style.display = 'none';
+            actionPreviewPanel.style.display = 'none';
             return;
         }
+        actionPreviewPanel.style.display = 'block';
         
-        panel.style.display = 'block';
-        
-        let teamIdForPreview;
-        let titlePrefix;
         const actionIndex = gameState.action_in_turn;
+        let teamIdForPreview, titlePrefix;
 
         if (actionIndex >= gameState.actions_queue_this_turn.length) {
-            // End of turn, show preview for the next turn.
             titlePrefix = "Next Turn Preview";
-            const activeTeamIds = Object.keys(gameState.teams).filter(id => {
-                const stats = gameState.live_stats[id];
-                return stats && stats.point_count > 0;
-            });
-            
+            const activeTeamIds = Object.keys(gameState.teams).filter(id => gameState.live_stats[id]?.point_count > 0);
             if (activeTeamIds.length > 0) {
-                // Can't know who is next due to shuffling, so just pick the first active team as a representative.
                 teamIdForPreview = activeTeamIds[0];
             } else {
                 content.innerHTML = '<h5>Turn Over</h5><p>No active teams remain.</p>';
                 return;
             }
         } else {
-            // Mid-turn, show preview for the current team.
             titlePrefix = "Now:";
-            const currentActionInfo = gameState.actions_queue_this_turn[actionIndex];
-            teamIdForPreview = currentActionInfo.teamId;
+            teamIdForPreview = gameState.actions_queue_this_turn[actionIndex].teamId;
         }
     
-        api.getActionProbabilities(teamIdForPreview, showInvalid)
-            .then(data => {
-                if (data.error) {
-                    content.innerHTML = `<p>Error loading actions for ${data.team_name || 'team'}.</p>`;
-                    return;
-                }
-    
-                let html = `<h5 style="border-color:${data.color};">${titlePrefix} ${data.team_name}'s Turn</h5>`;
-    
-                const groupOrder = ['Fight', 'Expand', 'Fortify', 'Sacrifice', 'Rune'];
-                let hasValidActions = false;
-
-                for (const groupName of groupOrder) {
-                    const group = data.groups[groupName];
-                    if (group && group.actions.length > 0) {
-                        hasValidActions = true;
-                        html += `
-                            <div class="action-category">
-                                <h6>${groupName} (${group.group_probability}%)</h6>
-                                <ul class="action-prob-list">`;
-                        
-                        group.actions.forEach(action => {
-                            html += `
-                                <li>
-                                    <span>${action.display_name}</span>
-                                    <div class="action-prob-bar-container">
-                                        <div class="action-prob-bar" style="width: ${action.probability}%; background-color:${data.color};"></div>
-                                    </div>
-                                    <span class="action-prob-percent">${action.probability}%</span>
-                                </li>
-                            `;
-                        });
-                        html += '</ul></div>';
-                    }
-                }
-                
-                if (!hasValidActions) {
-                     html += '<p>No valid actions found. Passing turn.</p>';
-                }
-
-                if (showInvalid && data.invalid.length > 0) {
-                    html += `<div class="action-category"><h6>Invalid Actions</h6><ul class="action-prob-list">`;
-                    data.invalid.forEach(action => {
-                        html += `
-                            <li class="invalid-action" title="${action.reason} (${action.group})">
-                                <span>${action.display_name}</span>
-                                <div class="action-prob-bar-container"></div>
-                            </li>
-                        `;
+        api.getActionProbabilities(teamIdForPreview, showInvalid).then(data => {
+            if (data.error) {
+                content.innerHTML = `<p>Error loading actions for ${data.team_name || 'team'}.</p>`;
+                return;
+            }
+            let html = `<h5 style="border-color:${data.color};">${titlePrefix} ${data.team_name}'s Turn</h5>`;
+            const groupOrder = ['Fight', 'Expand', 'Fortify', 'Sacrifice', 'Rune'];
+            let hasValidActions = false;
+            for (const groupName of groupOrder) {
+                const group = data.groups[groupName];
+                if (group && group.actions.length > 0) {
+                    hasValidActions = true;
+                    html += `<div class="action-category"><h6>${groupName} (${group.group_probability}%)</h6><ul class="action-prob-list">`;
+                    group.actions.forEach(action => {
+                        html += `<li><span>${action.display_name}</span><div class="action-prob-bar-container"><div class="action-prob-bar" style="width: ${action.probability}%; background-color:${data.color};"></div></div><span class="action-prob-percent">${action.probability}%</span></li>`;
                     });
                     html += '</ul></div>';
                 }
-    
-                content.innerHTML = html;
-            })
-            .catch(err => {
-                console.error("Failed to fetch action probabilities:", err);
-                content.innerHTML = `<p>Could not load action preview.</p>`;
-            });
+            }
+            if (!hasValidActions) html += '<p>No valid actions found. Passing turn.</p>';
+            if (showInvalid && data.invalid.length > 0) {
+                html += `<div class="action-category"><h6>Invalid Actions</h6><ul class="action-prob-list">`;
+                data.invalid.forEach(action => {
+                    html += `<li class="invalid-action" title="${action.reason} (${action.group})"><span>${action.display_name}</span><div class="action-prob-bar-container"></div></li>`;
+                });
+                html += '</ul></div>';
+            }
+            content.innerHTML = html;
+        }).catch(err => {
+            console.error("Failed to fetch action probabilities:", err);
+            content.innerHTML = `<p>Could not load action preview.</p>`;
+        });
     }
 
     function updateControls(gameState) {
@@ -3002,1899 +3240,236 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.toggle('game-running', isRunning || isFinished);
         document.body.classList.toggle('game-finished', isFinished);
 
-        // Manage the enabled/disabled state of buttons
         if (isFinished) {
-            if (autoPlayInterval) stopAutoPlay();
+            if (uiState.autoPlayInterval) stopAutoPlay();
             autoPlayBtn.textContent = 'Auto-Play';
-            document.getElementById('next-action-btn').disabled = true;
-            document.getElementById('auto-play-btn').disabled = true;
+            nextActionBtn.disabled = true;
+            autoPlayBtn.disabled = true;
         } else if (isRunning) {
-             document.getElementById('next-action-btn').disabled = false;
-             document.getElementById('auto-play-btn').disabled = false;
+             nextActionBtn.disabled = false;
+             autoPlayBtn.disabled = false;
         }
     }
 
     // --- Event Handlers & API Calls ---
 
-    document.getElementById('show-invalid-actions').addEventListener('change', () => {
-        updateActionPreview(currentGameState);
-    });
-
+    document.getElementById('show-invalid-actions').addEventListener('change', () => updateActionPreview(currentGameState));
     compactLogToggle.addEventListener('click', () => {
-        debugOptions.compactLog = compactLogToggle.checked;
-        // We need to re-render the log with the new setting
+        uiState.debugOptions.compactLog = compactLogToggle.checked;
         updateLog(currentGameState.game_log, currentGameState.teams);
     });
-
-    debugPointIdsToggle.addEventListener('click', () => {
-        debugOptions.showPointIds = debugPointIdsToggle.checked;
-    });
-    debugLineIdsToggle.addEventListener('click', () => {
-        debugOptions.showLineIds = debugLineIdsToggle.checked;
-    });
-    debugLastActionToggle.addEventListener('click', () => {
-        debugOptions.highlightLastAction = debugLastActionToggle.checked;
-    });
-
-    function showTemporaryButtonFeedback(button, message, duration = 1500) {
-        const originalText = button.innerHTML;
-        button.innerHTML = message;
-        button.disabled = true;
-        setTimeout(() => {
-            button.innerHTML = originalText;
-            button.disabled = false;
-        }, duration);
-    }
+    debugPointIdsToggle.addEventListener('click', () => uiState.debugOptions.showPointIds = debugPointIdsToggle.checked);
+    debugLineIdsToggle.addEventListener('click', () => uiState.debugOptions.showLineIds = debugLineIdsToggle.checked);
+    debugLastActionToggle.addEventListener('click', () => uiState.debugOptions.highlightLastAction = debugLastActionToggle.checked);
+    showHullsToggle.addEventListener('click', () => uiState.debugOptions.showHulls = showHullsToggle.checked);
 
     copyLogBtn.addEventListener('click', () => {
         if (navigator.clipboard) {
-            const logEntries = logDiv.querySelectorAll('.log-entry');
-            const logText = Array.from(logEntries)
-                .map(entry => entry.textContent)
-                .reverse() // Entries are prepended, so reverse to get chronological order
-                .join('\n');
-            navigator.clipboard.writeText(logText).then(() => {
-                showTemporaryButtonFeedback(copyLogBtn, 'Copied!');
-            }).catch(err => {
-                console.error('Failed to copy log: ', err);
-                alert('Could not copy log.');
-            });
-        } else {
-            alert('Clipboard API not available in this browser.');
+            const logText = Array.from(logDiv.querySelectorAll('.log-entry')).map(entry => entry.textContent).reverse().join('\n');
+            navigator.clipboard.writeText(logText).then(() => showTemporaryButtonFeedback(copyLogBtn, 'Copied!'));
         }
-    });
-    showHullsToggle.addEventListener('click', () => {
-        debugOptions.showHulls = showHullsToggle.checked;
     });
 
     copyStateBtn.addEventListener('click', async () => {
         if (navigator.clipboard) {
             try {
-                // Get state via the API wrapper
-                const gameState = await api.getState();
-                const stateString = JSON.stringify(gameState, null, 2);
+                const stateString = JSON.stringify(await api.getState(), null, 2);
                 await navigator.clipboard.writeText(stateString);
                 showTemporaryButtonFeedback(copyStateBtn, 'State Copied!');
-            } catch (err) {
-                console.error('Failed to copy game state: ', err);
-                alert('Could not copy game state to clipboard. See console for details.');
-            }
-        } else {
-            alert('Clipboard API not available in this browser.');
+            } catch (err) { console.error('Failed to copy game state: ', err); }
         }
     });
 
     restartServerBtn.addEventListener('click', async () => {
-        if (!confirm("This will restart the server. The page will reload after a few seconds. Are you sure?")) {
-            return;
-        }
-        
-        try {
-            await api.restartServer(); // API handles mode switching
-            
-            // This part only runs in HTTP mode.
-            statusBar.textContent = 'Server is restarting... The page will reload shortly.';
-            statusBar.style.opacity = '1';
-            document.querySelectorAll('button, input, select').forEach(el => el.disabled = true);
-            
-            // Wait a few seconds for the server to come back up, then reload the page.
-            setTimeout(() => {
-                location.reload();
-            }, 5000); // 5 seconds should be enough for the reloader.
-        } catch (error) {
-            console.error("Error sending restart command:", error);
-            alert("Failed to send restart command.");
+        if (confirm("This will restart the server. The page will reload after a few seconds. Are you sure?")) {
+            try {
+                await api.restartServer();
+                statusBar.textContent = 'Server is restarting... The page will reload shortly.';
+                statusBar.style.opacity = '1';
+                document.querySelectorAll('button, input, select').forEach(el => el.disabled = true);
+                setTimeout(() => location.reload(), 5000);
+            } catch (error) { console.error("Error sending restart command:", error); }
         }
     });
 
-    // Listener for team list - now only for deletion (selection and editing are handled on elements)
     teamsList.addEventListener('click', (e) => {
         if (currentGameState.game_phase !== 'SETUP') return;
-
-        // Handle team deletion
         const deleteButton = e.target.closest('.delete-team-btn');
         if (deleteButton) {
             const teamId = deleteButton.dataset.teamId;
-            const teamName = localTeams[teamId]?.name || 'this team';
-            if (!confirm(`Are you sure you want to remove ${teamName}? This will also delete its points.`)) return;
-
-            // If the deleted team was selected, deselect it or pick another
-            if (selectedTeamId === teamId) {
-                selectedTeamId = null;
-                const remainingTeamIds = Object.keys(localTeams).filter(id => id !== teamId);
-                if (remainingTeamIds.length > 0) {
-                    selectedTeamId = remainingTeamIds[0];
-                }
+            if (!confirm(`Are you sure you want to remove ${uiState.localTeams[teamId]?.name || 'this team'}? This will also delete its points.`)) return;
+            if (uiState.selectedTeamId === teamId) {
+                const remainingTeamIds = Object.keys(uiState.localTeams).filter(id => id !== teamId);
+                uiState.selectedTeamId = remainingTeamIds.length > 0 ? remainingTeamIds[0] : null;
             }
-
-            // Remove team from local state
-            delete localTeams[teamId];
-            // Remove points associated with that team
-            initialPoints = initialPoints.filter(p => p.teamId !== teamId);
-            
-            // Re-render teams list. Grid will update via animation loop.
+            delete uiState.localTeams[teamId];
+            uiState.initialPoints = uiState.initialPoints.filter(p => p.teamId !== teamId);
             renderTeamsList();
         }
     });
 
     addTeamBtn.addEventListener('click', () => {
         const teamName = newTeamNameInput.value.trim();
-        const trait = newTeamTraitSelect.value;
-        if (teamName && !Object.values(localTeams).some(t => t.name === teamName)) {
+        if (teamName && !Object.values(uiState.localTeams).some(t => t.name === teamName)) {
             const teamId = `team-${Date.now()}`;
-            
-            localTeams[teamId] = {
-                id: teamId,
-                name: teamName,
-                color: newTeamColorInput.value,
-                trait: trait,
-                isEditing: false
-            };
-            
-            // Set new random defaults for the next team to be added
-            setNewTeamDefaults(); 
-
-            // Auto-select the newly created team
-            selectedTeamId = teamId;
+            uiState.localTeams[teamId] = { id: teamId, name: teamName, color: newTeamColorInput.value, trait: newTeamTraitSelect.value, isEditing: false };
+            setNewTeamDefaults();
+            uiState.selectedTeamId = teamId;
             renderTeamsList();
-
         } else if (teamName) {
             alert('A team with this name already exists.');
         }
     });
 
-    newTeamNameInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            addTeamBtn.click();
-        }
-    });
-
-    undoPointBtn.addEventListener('click', () => {
-        if (initialPoints.length > 0) {
-            initialPoints.pop();
-            // Grid updates via animation loop
-        }
-    });
-
-    clearPointsBtn.addEventListener('click', () => {
-        if (initialPoints.length > 0) {
-            if (confirm("Are you sure you want to clear all points from the grid?")) {
-                initialPoints = [];
-                // Grid updates via animation loop
-            }
-        }
-    });
+    newTeamNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addTeamBtn.click(); } });
+    undoPointBtn.addEventListener('click', () => { if (uiState.initialPoints.length > 0) uiState.initialPoints.pop(); });
+    clearPointsBtn.addEventListener('click', () => { if (confirm("Clear all points?")) uiState.initialPoints = []; });
 
     randomizePointsBtn.addEventListener('click', () => {
-        if (Object.keys(localTeams).length === 0) {
-            alert("Please add at least one team before randomizing points.");
-            return;
-        }
-
-        if (initialPoints.length > 0) {
-            if (!confirm("This will replace all existing points on the grid with new random ones. Are you sure?")) {
-                return;
-            }
-        }
-
+        if (Object.keys(uiState.localTeams).length === 0) return alert("Please add at least one team.");
+        if (uiState.initialPoints.length > 0 && !confirm("Replace all existing points?")) return;
         const pointsPerTeam = parseInt(prompt("How many points per team?", "5"));
         if (isNaN(pointsPerTeam) || pointsPerTeam <= 0) return;
-
-        initialPoints = []; // Clear existing points
+        uiState.initialPoints = [];
         const currentGridSize = parseInt(gridSizeInput.value) || 10;
-
-        for (const teamId in localTeams) {
+        for (const teamId in uiState.localTeams) {
             for (let i = 0; i < pointsPerTeam; i++) {
                 let x, y, isUnique;
                 do {
                     x = Math.floor(Math.random() * currentGridSize);
                     y = Math.floor(Math.random() * currentGridSize);
-                    isUnique = !initialPoints.some(p => p.x === x && p.y === y);
+                    isUnique = !uiState.initialPoints.some(p => p.x === x && p.y === y);
                 } while (!isUnique);
-                initialPoints.push({ x, y, teamId });
+                uiState.initialPoints.push({ x, y, teamId });
             }
-        }
-        // Grid updates via animation loop
-    });
-
-    function findPointAtCoord(x, y) {
-        // Find the index of the point in the initialPoints array
-        return initialPoints.findIndex(p => p.x === x && p.y === y);
-    }
-
-    canvas.addEventListener('mousemove', (e) => {
-        if (currentGameState.game_phase !== 'SETUP') {
-            if (canvas.style.cursor !== 'default') canvas.style.cursor = 'default';
-            return;
-        }
-        const rect = canvas.getBoundingClientRect();
-        const x = Math.floor((e.clientX - rect.left) / cellSize);
-        const y = Math.floor((e.clientY - rect.top) / cellSize);
-
-        if (findPointAtCoord(x, y) !== -1) {
-            if (canvas.style.cursor !== 'pointer') canvas.style.cursor = 'pointer';
-        } else {
-            if (canvas.style.cursor !== 'crosshair') canvas.style.cursor = 'crosshair';
         }
     });
 
     canvas.addEventListener('click', (e) => {
-        if (currentGameState.game_phase !== 'SETUP') {
-            return;
-        }
-
+        if (currentGameState.game_phase !== 'SETUP') return;
         const rect = canvas.getBoundingClientRect();
-        // The grid is drawn as a square, and its side length in pixels is canvas.width.
-        // We must ignore clicks outside of this drawn square area.
-        const gridPixelSide = canvas.width;
-
-        const clickX = e.clientX - rect.left;
-        const clickY = e.clientY - rect.top;
-
-        // Explicitly check against the square grid area.
-        if (clickX < 0 || clickY < 0 || clickX > gridPixelSide || clickY > gridPixelSide) {
-            // Click is outside the drawable square grid area.
-            return;
-        }
-
-        const x = Math.floor(clickX / cellSize);
-        const y = Math.floor(clickY / cellSize);
-
-        // Final safety check on grid coordinates.
-        if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
-            return;
-        }
-
-        const pointIndex = findPointAtCoord(x, y);
-
-        if (pointIndex !== -1) {
-            // Point exists, so remove it
-            initialPoints.splice(pointIndex, 1);
-        } else {
-            // Point does not exist, add a new one
-            if (!selectedTeamId) {
-                alert('Please add and select a team first!');
-                return;
-            }
-            initialPoints.push({ x, y, teamId: selectedTeamId });
-        }
+        const clickX = e.clientX - rect.left, clickY = e.clientY - rect.top;
+        if (clickX < 0 || clickY < 0 || clickX > canvas.width || clickY > canvas.height) return;
         
-        // Grid will update on the next frame via animation loop.
+        const gridSize = currentGameState.grid_size || 10;
+        const x = Math.floor(clickX / cellSize), y = Math.floor(clickY / cellSize);
+        if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) return;
+
+        const pointIndex = uiState.initialPoints.findIndex(p => p.x === x && p.y === y);
+        if (pointIndex !== -1) {
+            uiState.initialPoints.splice(pointIndex, 1);
+        } else {
+            if (!uiState.selectedTeamId) return alert('Please add and select a team first!');
+            uiState.initialPoints.push({ x, y, teamId: uiState.selectedTeamId });
+        }
     });
 
     startGameBtn.addEventListener('click', async () => {
-        if (initialPoints.length === 0) {
-            alert("Please add some points to the grid before starting.");
-            return;
-        }
-        const payload = {
-            teams: localTeams,
-            points: initialPoints,
-            maxTurns: parseInt(maxTurnsInput.value),
-            gridSize: parseInt(gridSizeInput.value)
-        };
+        if (uiState.initialPoints.length === 0) return alert("Please add points to the grid.");
         try {
-            const gameState = await api.startGame(payload);
-            initialPoints = []; // Clear setup points after game starts
+            const gameState = await api.startGame({
+                teams: uiState.localTeams, points: uiState.initialPoints,
+                maxTurns: parseInt(maxTurnsInput.value), gridSize: parseInt(gridSizeInput.value)
+            });
+            uiState.initialPoints = [];
             updateStateAndRender(gameState);
-        } catch (error) {
-            // Let the global handler catch and display it
-            throw error;
-        }
+        } catch (error) { throw error; }
     });
 
     restartSimulationBtn.addEventListener('click', async () => {
-        if (!confirm("This will restart the simulation from the beginning with the same setup. Continue?")) {
-            return;
-        }
+        if (!confirm("Restart the simulation with the same setup?")) return;
         stopAutoPlay();
         try {
             const gameState = await api.restart();
-            if (gameState.error) {
-                 throw new Error(`Failed to restart game: ${gameState.error}`);
-            }
+            if (gameState.error) throw new Error(`Failed to restart game: ${gameState.error}`);
             updateStateAndRender(gameState);
-        } catch (error) {
-            // Let the global handler catch and display it
-            throw error;
-        }
+        } catch (error) { throw error; }
     });
 
     nextActionBtn.addEventListener('click', async () => {
         try {
-            const gameState = await api.nextAction();
-            updateStateAndRender(gameState);
+            updateStateAndRender(await api.nextAction());
         } catch (error) {
             stopAutoPlay();
-            // Let the global handler catch and display it
             throw error;
         }
     });
 
     function stopAutoPlay() {
-        if (autoPlayInterval) {
-            clearInterval(autoPlayInterval);
-            autoPlayInterval = null;
+        if (uiState.autoPlayInterval) {
+            clearInterval(uiState.autoPlayInterval);
+            uiState.autoPlayInterval = null;
             autoPlayBtn.textContent = 'Auto-Play';
         }
     }
 
-    function startAutoPlay() {
-        stopAutoPlay(); // Ensure no multiple intervals are running
-        autoPlayBtn.textContent = 'Stop';
-        const delay = parseInt(autoPlaySpeedSlider.value, 10);
-        autoPlayInterval = setInterval(() => {
-            if (currentGameState.game_phase !== 'RUNNING') {
-                 stopAutoPlay();
-                 return;
-            }
-            (async () => {
-                const gameState = await api.nextAction();
-                updateStateAndRender(gameState);
-                if (gameState.game_phase === 'FINISHED') {
-                    stopAutoPlay();
-                }
-            })().catch(e => {
-                // This ensures that any error inside the async function is
-                // caught and passed to the global error handler.
-                stopAutoPlay();
-                // This will be picked up by the 'unhandledrejection' listener
-                throw e; 
-            });
-        }, delay);
-    }
-
     autoPlayBtn.addEventListener('click', () => {
-        if (autoPlayInterval) {
+        if (uiState.autoPlayInterval) {
             stopAutoPlay();
         } else {
-            startAutoPlay();
+            stopAutoPlay();
+            autoPlayBtn.textContent = 'Stop';
+            const delay = parseInt(autoPlaySpeedSlider.value, 10);
+            uiState.autoPlayInterval = setInterval(() => {
+                if (currentGameState.game_phase !== 'RUNNING') return stopAutoPlay();
+                (async () => {
+                    const gameState = await api.nextAction();
+                    updateStateAndRender(gameState);
+                    if (gameState.game_phase === 'FINISHED') stopAutoPlay();
+                })().catch(e => { stopAutoPlay(); throw e; });
+            }, delay);
         }
     });
 
     autoPlaySpeedSlider.addEventListener('input', () => {
-        const delay = autoPlaySpeedSlider.value;
-        speedValueSpan.textContent = `${delay}ms`;
-        // If auto-play is already running, restart it with the new speed
-        if (autoPlayInterval) {
-            startAutoPlay();
-        }
+        speedValueSpan.textContent = `${autoPlaySpeedSlider.value}ms`;
+        if (uiState.autoPlayInterval) autoPlayBtn.click(); // Stop
+        // The user has to click play again to start with the new speed.
     });
 
     resetBtn.addEventListener('click', async () => {
         stopAutoPlay();
-        if (confirm("This will erase all progress and return to the setup screen. Are you sure?")) {
+        if (confirm("End the current game and return to setup?")) {
             try {
                 const gameState = await api.reset();
-
-                // Reset local setup state
-                // The state from the server contains the default teams.
-                localTeams = gameState.teams || {};
-                Object.values(localTeams).forEach(t => { t.isEditing = false; }); // Ensure no edit mode
-                initialPoints = []; // Clear points
-                const teamIds = Object.keys(localTeams);
-                if (teamIds.length > 0) {
-                    selectedTeamId = teamIds[0];
-                } else {
-                    selectedTeamId = null;
-                }
-                
-                // Reset inputs to default
+                uiState.localTeams = gameState.teams || {};
+                Object.values(uiState.localTeams).forEach(t => t.isEditing = false);
+                uiState.initialPoints = [];
+                const teamIds = Object.keys(uiState.localTeams);
+                uiState.selectedTeamId = teamIds.length > 0 ? teamIds[0] : null;
                 gridSizeInput.value = gameState.grid_size;
                 maxTurnsInput.value = gameState.max_turns;
                 setNewTeamDefaults();
-
-                // Update the state cache and render all UI components based on the new state
                 updateStateAndRender(gameState);
-                // Manually call renderTeamsList because it's only called on first update inside updateStateAndRender
                 renderTeamsList();
-            } catch (error) {
-                // Let the global handler catch and display it
-                throw error;
-            }
+            } catch (error) { throw error; }
         }
     });
 
-    // --- Canvas Sizing & Responsiveness ---
-
     function resizeCanvas() {
-        // If the canvas's container is hidden, its client dimensions will be 0.
-        // We avoid resizing the canvas to 0x0, which would erase its content and
-        // prevent it from being redrawn correctly when it becomes visible again.
-        // The ResizeObserver will trigger this function correctly when it's visible.
-        if (canvas.clientWidth === 0 || canvas.clientHeight === 0) {
-            return;
-        }
-        // Match the drawing surface size to the element's size in the layout
+        if (canvas.clientWidth === 0 || canvas.clientHeight === 0) return;
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
-        
-        // Recalculate cell size, use width as it's a square
-        gridSize = currentGameState.grid_size || 10;
+        const gridSize = currentGameState.grid_size || 10;
         cellSize = canvas.width / gridSize;
     }
-    
-    // --- Initialization and Update Checker ---
 
-    // --- Tab Switching ---
     tabLinks.forEach(link => {
         link.addEventListener('click', () => {
             const tabId = link.dataset.tab;
-
             tabLinks.forEach(l => l.classList.remove('active'));
             tabContents.forEach(c => c.classList.remove('active'));
-
             link.classList.add('active');
             document.getElementById(tabId).classList.add('active');
-
-            // The ResizeObserver is now the single source of truth for resizing,
-            // so we no longer need a manual call here. This prevents race conditions.
         });
     });
-
-    // --- Action Guide ---
-
-    const illustrationHelpers = {
-        drawJaggedLine: (ctx, p1, p2, segments, jag_amount) => {
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const len = Math.sqrt(dx*dx + dy*dy);
-            if (len < 1) return;
-            const angle = Math.atan2(dy, dx);
-            
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-        
-            for (let i = 1; i < segments; i++) {
-                const lateral = (Math.random() - 0.5) * jag_amount;
-                const along = (i / segments) * len;
-                const x = p1.x + Math.cos(angle) * along - Math.sin(angle) * lateral;
-                const y = p1.y + Math.sin(angle) * along + Math.cos(angle) * lateral;
-                ctx.lineTo(x, y);
-            }
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-        },
-        drawPoints: (ctx, points, color) => {
-            points.forEach(p => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI);
-                ctx.fillStyle = color;
-                ctx.fill();
-            });
-        },
-        drawLines: (ctx, lines, color, width = 2) => {
-            ctx.strokeStyle = color;
-            ctx.lineWidth = width;
-            lines.forEach(line => {
-                ctx.beginPath();
-                ctx.moveTo(line.p1.x, line.p1.y);
-                ctx.lineTo(line.p2.x, line.p2.y);
-                ctx.stroke();
-            });
-        },
-        drawArrow: (ctx, p1, p2, color) => {
-            const headlen = 15;
-            const dx = p2.x - p1.x;
-            const dy = p2.y - p1.y;
-            const angle = Math.atan2(dy, dx);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.lineTo(p2.x - headlen * Math.cos(angle - Math.PI / 6), p2.y - headlen * Math.sin(angle - Math.PI / 6));
-            ctx.moveTo(p2.x, p2.y);
-            ctx.lineTo(p2.x - headlen * Math.cos(angle + Math.PI / 6), p2.y - headlen * Math.sin(angle + Math.PI / 6));
-            ctx.stroke();
-        },
-        drawDashedLine: (ctx, p1, p2, color) => {
-            ctx.save();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.setLineDash([5, 5]);
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-            ctx.restore();
-        },
-        drawExplosion: (ctx, x, y, color = 'red', radius = 15) => {
-            ctx.save();
-            ctx.fillStyle = color;
-            ctx.strokeStyle = 'rgba(255, 255, 150, 0.8)'; // yellow
-            ctx.lineWidth = 2;
-            const spikes = 8;
-            ctx.beginPath();
-            for (let i = 0; i < spikes; i++) {
-                const angle = (i / spikes) * 2 * Math.PI;
-                const outerX = x + Math.cos(angle) * radius;
-                const outerY = y + Math.sin(angle) * radius;
-                ctx.lineTo(outerX, outerY);
-                const innerAngle = angle + Math.PI / spikes;
-                const innerRadius = radius * 0.5;
-                const innerX = x + Math.cos(innerAngle) * innerRadius;
-                const innerY = y + Math.sin(innerAngle) * innerRadius;
-                ctx.lineTo(innerX, innerY);
-            }
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-        },
-        drawFortifiedPoint: (ctx, p, color) => {
-            ctx.fillStyle = color;
-            const radius = 5;
-            const size = radius * 1.7;
-            ctx.beginPath();
-            ctx.moveTo(p.x, p.y - size); ctx.lineTo(p.x + size, p.y); ctx.lineTo(p.x, p.y + size); ctx.lineTo(p.x - size, p.y);
-            ctx.closePath();
-            ctx.fill();
-        }
-    };
-    
-    const illustrationDrawers = {
-        'default': (ctx, w, h) => {
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#ccc';
-            ctx.font = '16px Arial';
-            ctx.fillText('No Illustration', w / 2, h / 2);
-        },
-        'fortify_shield': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1 = {x: w*0.3, y: h*0.5};
-            const p2 = {x: w*0.7, y: h*0.5};
-            
-            // Draw line first
-            illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
-            
-            // Draw shield on top
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)';
-            ctx.lineWidth = 12;
-            ctx.stroke();
-            ctx.restore();
-
-            // Redraw points on top of shield
-            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
-        },
-        'expand_add': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1 = {x: w*0.3, y: h*0.5};
-            const p2 = {x: w*0.7, y: h*0.5};
-            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
-            illustrationHelpers.drawDashedLine(ctx, p1, p2, team1_color);
-        },
-        'expand_extend': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1 = {x: w*0.2, y: h*0.5};
-            const p2 = {x: w*0.5, y: h*0.5};
-            const p3 = {x: w*0.9, y: h*0.5};
-            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
-            illustrationHelpers.drawDashedLine(ctx, p2, p3, team1_color);
-            illustrationHelpers.drawPoints(ctx, [p3], team1_color);
-        },
-        'expand_fracture': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1 = {x: w*0.2, y: h*0.5};
-            const p2 = {x: w*0.8, y: h*0.5};
-            const p_new = {x: w*0.5, y: h*0.5};
-            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
-            
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(p_new.x, p_new.y, 15, 0, 2*Math.PI);
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 6;
-            ctx.stroke();
-            ctx.fillStyle = team1_color;
-            ctx.fill();
-            ctx.restore();
-        },
-        'expand_grow': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1 = {x: w*0.3, y: h*0.5};
-            const p2 = {x: w*0.5, y: h*0.5};
-            const p3 = {x: w*0.65, y: h*0.3};
-            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
-            illustrationHelpers.drawDashedLine(ctx, p2, p3, team1_color);
-            illustrationHelpers.drawPoints(ctx, [p3], team1_color);
-        },
-        'expand_orbital': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const center = {x: w*0.5, y: h*0.5};
-            illustrationHelpers.drawPoints(ctx, [center], team1_color);
-
-            const radius = w * 0.3;
-            const num_satellites = 5;
-            const satellites = [];
-            for (let i = 0; i < num_satellites; i++) {
-                const angle = (i / num_satellites) * 2 * Math.PI;
-                const p = {
-                    x: center.x + Math.cos(angle) * radius,
-                    y: center.y + Math.sin(angle) * radius,
-                };
-                satellites.push(p);
-                illustrationHelpers.drawDashedLine(ctx, center, p, team1_color);
-            }
-            illustrationHelpers.drawPoints(ctx, satellites, team1_color);
-        },
-        'expand_spawn': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1 = {x: w*0.4, y: h*0.5};
-            const p2 = {x: w*0.6, y: h*0.5};
-            illustrationHelpers.drawPoints(ctx, [p1], team1_color);
-            illustrationHelpers.drawDashedLine(ctx, p1, p2, team1_color);
-            illustrationHelpers.drawPoints(ctx, [p2], team1_color);
-        },
-        'fight_attack': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            const p1 = {x: w*0.1, y: h*0.3};
-            const p2 = {x: w*0.4, y: h*0.3};
-            const ep1 = {x: w*0.7, y: h*0.1};
-            const ep2 = {x: w*0.7, y: h*0.9};
-            const hit = {x: w*0.7, y: h*0.3};
-
-            illustrationHelpers.drawPoints(ctx, [p1,p2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color);
-            illustrationHelpers.drawArrow(ctx, p2, hit, team1_color);
-            
-            illustrationHelpers.drawExplosion(ctx, hit.x, hit.y);
-        },
-        'fight_chain_lightning': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            
-            // I-Rune
-            const p1 = {x: w*0.2, y: h*0.5};
-            const p_sac = {x: w*0.4, y: h*0.5};
-            const p3 = {x: w*0.6, y: h*0.5};
-            illustrationHelpers.drawPoints(ctx, [p1, p_sac, p3], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:p1,p2:p_sac}, {p1:p_sac,p2:p3}], team1_color);
-
-            // Sacrifice center point
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
-            ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
-            ctx.stroke();
-
-            // Enemy point
-            const ep1 = {x: w*0.8, y: h*0.3};
-            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
-            
-            // Lightning - jump from nearest endpoint
-            const lightning_origin = p3;
-            ctx.save();
-            ctx.strokeStyle = 'rgba(200, 230, 255, 0.9)';
-            ctx.lineWidth = 2;
-            illustrationHelpers.drawJaggedLine(ctx, lightning_origin, ep1, 7, 12);
-            ctx.restore();
-
-            // Blast on enemy
-            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
-        },
-        'fight_convert': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-
-            const p1 = {x: w*0.2, y: h*0.5};
-            const p2 = {x: w*0.4, y: h*0.5};
-            const ep1 = {x: w*0.7, y: h*0.5};
-
-            // Sacrificed line with 'X'
-            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1,p2}], team1_color, 1);
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(w*0.25, h*0.4); ctx.lineTo(w*0.35, h*0.6);
-            ctx.moveTo(w*0.25, h*0.6); ctx.lineTo(w*0.35, h*0.4);
-            ctx.stroke();
-
-            // Enemy point
-            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
-            
-            // Arrow showing conversion
-            illustrationHelpers.drawArrow(ctx, {x: w*0.5, y: h*0.5}, {x: w*0.65, y: h*0.5}, '#f1c40f');
-            
-            // Converted point (draw a halo of new color)
-            ctx.beginPath();
-            ctx.arc(ep1.x, ep1.y, 12, 0, 2 * Math.PI);
-            ctx.fillStyle = team1_color;
-            ctx.globalAlpha = 0.5;
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
-        },
-        'fight_bastion_pulse': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            
-            // Bastion
-            const core = {x: w*0.3, y: h*0.5};
-            const p_sac = {x: w*0.5, y: h*0.2};
-            const prongs = [
-                p_sac,
-                {x: w*0.5, y: h*0.8},
-                {x: w*0.1, y: h*0.5},
-            ];
-            // Draw bastion outline
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(prongs[0].x, prongs[0].y);
-            ctx.lineTo(prongs[1].x, prongs[1].y);
-            ctx.lineTo(prongs[2].x, prongs[2].y);
-            ctx.closePath();
-            ctx.strokeStyle = team1_color;
-            ctx.lineWidth = 4;
-            ctx.globalAlpha = 0.4;
-            ctx.stroke();
-            ctx.restore();
-
-            // Draw bastion points
-            illustrationHelpers.drawPoints(ctx, [core, ...prongs], team1_color);
-            prongs.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: core, p2: p}], team1_color));
-
-            // Sacrificed point
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
-            ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
-            ctx.stroke();
-
-            // Enemy line crossing perimeter
-            const ep1 = {x: w*0.8, y: h*0.1};
-            const ep2 = {x: w*0.2, y: h*0.9};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
-
-            // Pulse/blast
-            illustrationHelpers.drawExplosion(ctx, w*0.4, h*0.7);
-        },
-        'fight_pincer_attack': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            const p1 = {x: w*0.3, y: h*0.3};
-            const p2 = {x: w*0.3, y: h*0.7};
-            const ep1 = {x: w*0.7, y: h*0.5};
-
-            illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
-            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
-
-            illustrationHelpers.drawArrow(ctx, p1, ep1, team1_color);
-            illustrationHelpers.drawArrow(ctx, p2, ep1, team1_color);
-            
-            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
-        },
-        'fight_sentry_zap': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            const p1 = {x: w*0.2, y: h*0.5};
-            const p2 = {x: w*0.4, y: h*0.5};
-            const p3 = {x: w*0.6, y: h*0.5};
-            const ep1 = {x: w*0.4, y: h*0.2};
-            
-            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1,p2}, {p1:p2,p2:p3}], team1_color);
-            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
-
-            const beam_end = {x: w*0.4, y: h*0.05};
-            illustrationHelpers.drawArrow(ctx, p2, beam_end, 'rgba(255, 100, 100, 1.0)');
-
-            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
-        },
-        'fight_refraction_beam': (ctx, w, h) => {
-            const team1_color = 'hsl(240, 70%, 50%)'; // Blue
-            const team2_color = 'hsl(0, 70%, 50%)';   // Red
-            
-            // Prism structure (two adjacent triangles)
-            const pA = {x: w*0.3, y: h*0.5};
-            const pB = {x: w*0.5, y: h*0.2};
-            const pC = {x: w*0.5, y: h*0.8};
-            const pD = {x: w*0.7, y: h*0.5};
-            const prism_points = [pA, pB, pC, pD];
-            
-            // Draw territory fills
-            ctx.save();
-            ctx.fillStyle = team1_color;
-            ctx.globalAlpha = 0.2;
-            ctx.beginPath();
-            ctx.moveTo(pA.x, pA.y); ctx.lineTo(pB.x, pB.y); ctx.lineTo(pC.x, pC.y); ctx.closePath();
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(pD.x, pD.y); ctx.lineTo(pB.x, pB.y); ctx.lineTo(pC.x, pC.y); ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-            
-            illustrationHelpers.drawPoints(ctx, prism_points, team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:pA,p2:pB},{p1:pA,p2:pC},{p1:pB,p2:pC}], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:pD,p2:pB},{p1:pD,p2:pC}], team1_color);
-
-            // Enemy line
-            const ep1 = {x: w*0.9, y: h*0.2};
-            const ep2 = {x: w*0.9, y: h*0.8};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color);
-
-            // Beam
-            const source_point = {x: w*0.1, y: h*0.3};
-            const hit_prism = {x: w*0.5, y: h*0.4};
-            const hit_enemy = {x: w*0.9, y: h*0.5};
-
-            // Source ray
-            illustrationHelpers.drawArrow(ctx, source_point, hit_prism, 'rgba(255, 255, 150, 1.0)');
-            // Reflected ray
-            illustrationHelpers.drawArrow(ctx, hit_prism, hit_enemy, 'rgba(255, 100, 100, 1.0)');
-
-            // Explosion
-            illustrationHelpers.drawExplosion(ctx, hit_enemy.x, hit_enemy.y);
-        },
-        'fight_territory_strike': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            const p1 = {x: w*0.5, y: h*0.2};
-            const p2 = {x: w*0.2, y: h*0.8};
-            const p3 = {x: w*0.8, y: h*0.8};
-            const center = {x: (p1.x+p2.x+p3.x)/3, y: (p1.y+p2.y+p3.y)/3};
-            const ep1 = {x: w*0.8, y: h*0.2};
-
-            // Draw territory
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
-            ctx.fillStyle = team1_color;
-            ctx.globalAlpha = 0.3;
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
-            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
-            
-            // Draw enemy
-            illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
-            
-            // Draw strike
-            illustrationHelpers.drawArrow(ctx, center, ep1, 'rgba(100, 255, 100, 1.0)');
-
-            illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
-        },
-        'fortify_anchor': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            const p_sac = {x: w*0.2, y: h*0.5};
-            const p_anchor = {x: w*0.4, y: h*0.5};
-            const ep1 = {x: w*0.8, y: h*0.3};
-            const ep2 = {x: w*0.8, y: h*0.7};
-
-            // Sacrificed point
-            illustrationHelpers.drawPoints(ctx, [p_sac], team1_color);
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
-            ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
-            ctx.stroke();
-
-            // Anchor point
-            ctx.fillStyle = team1_color;
-            ctx.fillRect(p_anchor.x - 8, p_anchor.y - 8, 16, 16);
-
-            // Enemy points
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            
-            // Pull arrows
-            illustrationHelpers.drawArrow(ctx, ep1, p_anchor, '#aaa');
-            illustrationHelpers.drawArrow(ctx, ep2, p_anchor, '#aaa');
-        },
-        'fortify_claim': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1 = {x: w*0.5, y: h*0.2};
-            const p2 = {x: w*0.2, y: h*0.8};
-            const p3 = {x: w*0.8, y: h*0.8};
-
-            illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1: p1, p2: p2}, {p1: p2, p2: p3}, {p1: p3, p2: p1}], team1_color);
-
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.lineTo(p3.x, p3.y);
-            ctx.closePath();
-            ctx.fillStyle = team1_color;
-            ctx.globalAlpha = 0.3;
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
-        },
-        'fortify_form_bastion': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const core = {x: w*0.5, y: h*0.5};
-            const prongs = [
-                {x: w*0.7, y: h*0.3},
-                {x: w*0.7, y: h*0.7},
-                {x: w*0.3, y: h*0.5},
-            ];
-            
-            // Draw core as fortified
-            ctx.save();
-            ctx.fillStyle = team1_color;
-            const size = 18;
-            ctx.translate(core.x, core.y);
-            ctx.beginPath();
-            ctx.moveTo(0, -size); ctx.lineTo(size, 0); ctx.lineTo(0, size); ctx.lineTo(-size, 0);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-
-            // Draw prongs and lines
-            illustrationHelpers.drawPoints(ctx, prongs, team1_color);
-            prongs.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: core, p2: p}], team1_color));
-
-            // Draw bastion outline
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(prongs[0].x, prongs[0].y);
-            ctx.lineTo(prongs[1].x, prongs[1].y);
-            ctx.lineTo(prongs[2].x, prongs[2].y);
-            ctx.closePath();
-            ctx.strokeStyle = team1_color;
-            ctx.lineWidth = 4;
-            ctx.globalAlpha = 0.4;
-            ctx.stroke();
-            ctx.restore();
-        },
-        'fortify_form_monolith': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1 = {x: w*0.4, y: h*0.1};
-            const p2 = {x: w*0.6, y: h*0.1};
-            const p3 = {x: w*0.6, y: h*0.9};
-            const p4 = {x: w*0.4, y: h*0.9};
-
-            const points = [p1, p2, p3, p4];
-            illustrationHelpers.drawPoints(ctx, points, team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1, p2}, {p1:p2,p2:p3}, {p1:p3,p2:p4}, {p1:p4,p2:p1}], team1_color);
-
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.lineTo(p3.x, p3.y);
-            ctx.lineTo(p4.x, p4.y);
-            ctx.closePath();
-            ctx.fillStyle = team1_color;
-            ctx.globalAlpha = 0.2;
-            ctx.fill();
-            ctx.globalAlpha = 1.0;
-        },
-        'fortify_mirror': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const axis1 = {x: w*0.5, y: h*0.1};
-            const axis2 = {x: w*0.5, y: h*0.9};
-            const p_orig = {x: w*0.3, y: h*0.3};
-            const p_refl = {x: w*0.7, y: h*0.3};
-
-            // Axis
-            illustrationHelpers.drawPoints(ctx, [axis1, axis2], team1_color);
-            illustrationHelpers.drawDashedLine(ctx, axis1, axis2, '#aaa');
-            
-            // Original point
-            illustrationHelpers.drawPoints(ctx, [p_orig], team1_color);
-            
-            // Reflection line
-            illustrationHelpers.drawDashedLine(ctx, p_orig, p_refl, '#aaa');
-            
-            // Reflected point
-            ctx.save();
-            ctx.globalAlpha = 0.5;
-            illustrationHelpers.drawPoints(ctx, [p_refl], team1_color);
-            ctx.restore();
-        },
-        'rune_area_shield': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const t1 = {x: w*0.5, y: h*0.1};
-            const t2 = {x: w*0.1, y: h*0.9};
-            const t3 = {x: w*0.9, y: h*0.9};
-            const core = {x: w*0.5, y: h*0.6};
-            
-            // Draw rune
-            illustrationHelpers.drawPoints(ctx, [t1, t2, t3, core], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:t1,p2:t2},{p1:t2,p2:t3},{p1:t3,p2:t1}], team1_color);
-            
-            // Fill area
-            ctx.beginPath();
-            ctx.moveTo(t1.x, t1.y); ctx.lineTo(t2.x, t2.y); ctx.lineTo(t3.x, t3.y); ctx.closePath();
-            ctx.fillStyle = 'rgba(173, 216, 230, 0.5)'; // Shield color
-            ctx.fill();
-
-            // Line inside
-            const l1 = {x: w*0.4, y: h*0.5};
-            const l2 = {x: w*0.6, y: h*0.7};
-            illustrationHelpers.drawPoints(ctx, [l1, l2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:l1, p2:l2}], team1_color);
-            
-            // Shield on line
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(l1.x, l1.y); ctx.lineTo(l2.x, l2.y);
-            ctx.strokeStyle = 'rgba(173, 216, 230, 0.9)';
-            ctx.lineWidth = 12;
-            ctx.stroke();
-            ctx.restore();
-        },
-        'rune_shield_pulse': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            
-            // Shield rune
-            const t1 = {x: w*0.3, y: h*0.2};
-            const t2 = {x: w*0.1, y: h*0.8};
-            const t3 = {x: w*0.5, y: h*0.8};
-            const core = {x: w*0.3, y: h*0.6};
-            const center = {x: (t1.x+t2.x+t3.x)/3, y: (t1.y+t2.y+t3.y)/3};
-            
-            illustrationHelpers.drawPoints(ctx, [t1, t2, t3, core], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:t1,p2:t2},{p1:t2,p2:t3},{p1:t3,p2:t1}], team1_color);
-
-            // Shockwave
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(center.x, center.y, w*0.3, 0, 2*Math.PI);
-            ctx.strokeStyle = 'rgba(173, 216, 230, 0.7)'; // shield blue
-            ctx.setLineDash([4,4]);
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
-
-            // Enemy points
-            const ep1 = {x: w*0.8, y: h*0.3};
-            const ep2 = {x: w*0.7, y: h*0.7};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-
-            // Push arrows
-            illustrationHelpers.drawArrow(ctx, ep1, {x: w*0.9, y: h*0.2}, '#aaa');
-            illustrationHelpers.drawArrow(ctx, ep2, {x: w*0.8, y: h*0.8}, '#aaa');
-        },
-        'rune_impale': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            // Trident rune
-            const p_handle = {x: w*0.1, y: h*0.5};
-            const p_apex = {x: w*0.3, y: h*0.5};
-            const p_p1 = {x: w*0.4, y: h*0.3};
-            const p_p2 = {x: w*0.4, y: h*0.7};
-            illustrationHelpers.drawPoints(ctx, [p_handle, p_apex, p_p1, p_p2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:p_handle, p2:p_apex}, {p1:p_apex, p2:p_p1}, {p1:p_apex, p2:p_p2}], team1_color);
-            
-            // Beam
-            const hit_point = {x: w*0.9, y: h*0.5};
-            illustrationHelpers.drawArrow(ctx, p_apex, hit_point, 'rgba(255, 100, 255, 1.0)');
-
-            // Enemy line
-            const ep1 = {x: w*0.7, y: h*0.2};
-            const ep2 = {x: w*0.7, y: h*0.8};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
-        },
-        'rune_shoot_bisector': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            
-            // V-Rune
-            const p_v = {x: w*0.2, y: h*0.5};
-            const p_l1 = {x: w*0.4, y: h*0.2};
-            const p_l2 = {x: w*0.4, y: h*0.8};
-            illustrationHelpers.drawPoints(ctx, [p_v, p_l1, p_l2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1: p_v, p2: p_l1}, {p1: p_v, p2: p_l2}], team1_color);
-            
-            // Beam
-            const hit_point = {x: w*0.9, y: h*0.5};
-            illustrationHelpers.drawArrow(ctx, p_v, hit_point, 'rgba(100, 255, 255, 1.0)');
-
-            // Enemy Line
-            const ep1 = {x: w*0.7, y: h*0.3};
-            const ep2 = {x: w*0.7, y: h*0.7};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
-        },
-        'rune_t_hammer_slam': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            // T-Rune
-            const p_mid = {x: w*0.3, y: h*0.5};
-            const p_head = {x: w*0.5, y: h*0.5};
-            const p_s1 = {x: w*0.3, y: h*0.2};
-            const p_s2 = {x: w*0.3, y: h*0.8};
-            illustrationHelpers.drawPoints(ctx, [p_mid, p_head, p_s1, p_s2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:p_s1, p2:p_mid}, {p1:p_mid, p2:p_s2}, {p1:p_mid, p2:p_head}], team1_color);
-
-            // Enemy points
-            const ep1 = {x: w*0.7, y: h*0.3};
-            const ep2 = {x: w*0.7, y: h*0.7};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-
-            // Push arrows
-            illustrationHelpers.drawArrow(ctx, ep1, {x:w*0.9, y:h*0.3}, '#aaa');
-            illustrationHelpers.drawArrow(ctx, ep2, {x:w*0.9, y:h*0.7}, '#aaa');
-        },
-        'sacrifice_nova': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            const center = {x: w*0.5, y: h*0.5};
-            
-            // Sacrificed point
-            illustrationHelpers.drawPoints(ctx, [center], team1_color);
-            illustrationHelpers.drawExplosion(ctx, center.x, center.y, 'red', 15);
-            
-            // Enemy lines being destroyed
-            const ep1 = {x: w*0.8, y: h*0.3};
-            const ep2 = {x: w*0.8, y: h*0.7};
-            const ep3 = {x: w*0.2, y: h*0.2};
-            const ep4 = {x: w*0.3, y: h*0.8};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2, ep3, ep4], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}, {p1: ep3, p2: ep4}], team2_color, 1);
-            
-            // Blast radius
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(center.x, center.y, w*0.3, 0, 2*Math.PI);
-            ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
-            ctx.setLineDash([5,5]);
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
-        },
-        'sacrifice_phase_shift': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const p1_orig = {x: w*0.2, y: h*0.5};
-            const p2 = {x: w*0.5, y: h*0.5};
-            const p1_new = {x: w*0.8, y: h*0.3};
-
-            // Sacrificed line
-            illustrationHelpers.drawLines(ctx, [{p1:p1_orig, p2:p2}], team1_color, 1);
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(w*0.3, h*0.4); ctx.lineTo(w*0.4, h*0.6);
-            ctx.moveTo(w*0.3, h*0.6); ctx.lineTo(w*0.4, h*0.4);
-            ctx.stroke();
-
-            // Original points
-            illustrationHelpers.drawPoints(ctx, [p1_orig, p2], team1_color);
-            ctx.globalAlpha = 0.3;
-            illustrationHelpers.drawPoints(ctx, [p1_orig], team1_color); // Redraw to fade it
-            ctx.globalAlpha = 1.0;
-
-            // New point and path
-            illustrationHelpers.drawDashedLine(ctx, p1_orig, p1_new, '#aaa');
-            illustrationHelpers.drawPoints(ctx, [p1_new], team1_color);
-        },
-        'sacrifice_whirlpool': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            const center = {x: w*0.5, y: h*0.5};
-
-            // Sacrificed point
-            illustrationHelpers.drawExplosion(ctx, center.x, center.y);
-
-            const pointsToPull = [
-                {x: w*0.2, y: h*0.2},
-                {x: w*0.8, y: h*0.3},
-                {x: w*0.7, y: h*0.8},
-                {x: w*0.3, y: h*0.7},
-            ];
-
-            illustrationHelpers.drawPoints(ctx, pointsToPull, team2_color);
-
-            // Draw spiral lines
-            pointsToPull.forEach(p => {
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.quadraticCurveTo((p.x+center.x)/2 + (p.y-center.y)*0.3, (p.y+center.y)/2 - (p.x-center.x)*0.3, center.x, center.y);
-                ctx.strokeStyle = '#aaa';
-                ctx.setLineDash([3,3]);
-                ctx.stroke();
-            });
-            ctx.setLineDash([]);
-        },
-        'fortify_cultivate_heartwood': (ctx, w, h) => {
-            const team1_color = 'hsl(120, 70%, 50%)'; // Green for nature
-            const center = {x: w*0.5, y: h*0.5};
-            const branches = [];
-            const num_branches = 5;
-            const radius = w * 0.3;
-
-            for (let i = 0; i < num_branches; i++) {
-                const angle = (i / num_branches) * 2 * Math.PI;
-                branches.push({
-                    x: center.x + Math.cos(angle) * radius,
-                    y: center.y + Math.sin(angle) * radius,
-                });
-            }
-            
-            // Draw original points
-            illustrationHelpers.drawPoints(ctx, [center, ...branches], team1_color);
-            branches.forEach(b => illustrationHelpers.drawLines(ctx, [{p1: center, p2: b}], team1_color));
-            
-            // Draw sacrifice 'X' over them
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            [center, ...branches].forEach(p => {
-                ctx.beginPath();
-                ctx.moveTo(p.x - 6, p.y - 6); ctx.lineTo(p.x + 6, p.y + 6);
-                ctx.moveTo(p.x - 6, p.y + 6); ctx.lineTo(p.x + 6, p.y - 6);
-                ctx.stroke();
-            });
-
-            // Draw Heartwood symbol
-            ctx.beginPath();
-            ctx.arc(center.x, center.y, 15, 0, 2 * Math.PI);
-            ctx.fillStyle = team1_color;
-            ctx.fill();
-            ctx.font = 'bold 24px Arial';
-            ctx.fillStyle = 'white';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('❤', center.x, center.y + 1);
-        },
-        'fortify_form_purifier': (ctx, w, h) => {
-            const team1_color = 'hsl(50, 80%, 60%)'; // Light yellow for purify
-            const center = {x: w*0.5, y: h*0.5};
-            const radius = w * 0.35;
-            const num_points = 5;
-            const points = [];
-
-            for (let i = 0; i < num_points; i++) {
-                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2); // Start from top
-                points.push({
-                    x: center.x + Math.cos(angle) * radius,
-                    y: center.y + Math.sin(angle) * radius,
-                });
-            }
-            illustrationHelpers.drawPoints(ctx, points, team1_color);
-            for (let i = 0; i < num_points; i++) {
-                illustrationHelpers.drawLines(ctx, [{p1: points[i], p2: points[(i+1)%num_points]}], team1_color);
-            }
-        },
-        'fight_launch_payload': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            const apex = {x: w*0.2, y: h*0.3};
-            const b1 = {x: w*0.3, y: h*0.5};
-            const b2 = {x: w*0.3, y: h*0.1};
-            const cw = {x: w*0.4, y: h*0.3};
-            const target = {x: w*0.8, y: h*0.7};
-
-            illustrationHelpers.drawPoints(ctx, [apex, b1, b2, cw], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:apex,p2:b1},{p1:b1,p2:cw},{p1:cw,p2:b2},{p1:b2,p2:apex},{p1:b1,p2:b2}], team1_color);
-            
-            // Draw a fortified point as the target
-            illustrationHelpers.drawFortifiedPoint(ctx, target, team2_color);
-
-            // Arc
-            ctx.beginPath();
-            ctx.moveTo(apex.x, apex.y);
-            ctx.quadraticCurveTo(w*0.5, h*0.1, target.x, target.y);
-            ctx.setLineDash([4,4]);
-            ctx.strokeStyle = 'red';
-            ctx.stroke();
-            ctx.setLineDash([]);
-            
-            // Explosion on target
-            illustrationHelpers.drawExplosion(ctx, target.x, target.y);
-        },
-        'rune_hourglass_stasis': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            const v = {x: w*0.4, y: h*0.5};
-            const t1 = [{x: w*0.2, y: h*0.2}, {x: w*0.2, y: h*0.8}];
-            const t2 = [{x: w*0.6, y: h*0.3}, {x: w*0.6, y: h*0.7}];
-            const ep = {x: w*0.8, y: h*0.5};
-
-            illustrationHelpers.drawPoints(ctx, [v, ...t1, ...t2], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:t1[0],p2:v},{p1:v,p2:t1[1]},{p1:t1[0],p2:t1[1]}], team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1:t2[0],p2:v},{p1:v,p2:t2[1]},{p1:t2[0],p2:t2[1]}], team1_color);
-            
-            illustrationHelpers.drawPoints(ctx, [ep], team2_color);
-            
-            // Cage
-            const cage_r = 15;
-            ctx.strokeStyle = 'rgba(150, 220, 255, 0.9)';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.moveTo(ep.x - cage_r, ep.y); ctx.lineTo(ep.x + cage_r, ep.y);
-            ctx.moveTo(ep.x, ep.y - cage_r); ctx.lineTo(ep.x, ep.y + cage_r); ctx.stroke();
-            ctx.beginPath(); ctx.arc(ep.x, ep.y, cage_r, 0, 2 * Math.PI); ctx.stroke();
-        },
-        'sacrifice_rift_trap': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const center = {x: w*0.5, y: h*0.5};
-            
-            // Sacrificed point
-            illustrationHelpers.drawPoints(ctx, [center], team1_color);
-            illustrationHelpers.drawExplosion(ctx, center.x - 20, center.y - 20);
-
-            // Trap symbol
-            const radius = 12;
-            ctx.strokeStyle = team1_color;
-            ctx.lineWidth = 2;
-            ctx.globalAlpha = 0.6;
-            ctx.beginPath();
-            ctx.arc(center.x, center.y, radius, 0.2, Math.PI - 0.2);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(center.x, center.y, radius, Math.PI + 0.2, 2 * Math.PI - 0.2);
-            ctx.stroke();
-            ctx.globalAlpha = 1.0;
-        },
-        'fight_purify_territory': (ctx, w, h) => {
-            const team1_color = 'hsl(50, 80%, 60%)'; // Light yellow for purify
-            const team2_color = 'hsl(240, 70%, 50%)';
-            
-            // Purifier (pentagon)
-            const purifier_center = {x: w*0.3, y: h*0.5};
-            const purifier_radius = w * 0.2;
-            const purifier_points = [];
-            for (let i = 0; i < 5; i++) {
-                const angle = (i / 5) * 2 * Math.PI - (Math.PI / 2);
-                purifier_points.push({
-                    x: purifier_center.x + Math.cos(angle) * purifier_radius,
-                    y: purifier_center.y + Math.sin(angle) * purifier_radius,
-                });
-            }
-            illustrationHelpers.drawPoints(ctx, purifier_points, team1_color);
-            for (let i = 0; i < 5; i++) {
-                illustrationHelpers.drawLines(ctx, [{p1: purifier_points[i], p2: purifier_points[(i+1)%5]}], team1_color);
-            }
-
-            // Enemy territory
-            const p1 = {x: w*0.8, y: h*0.2};
-            const p2 = {x: w*0.6, y: h*0.8};
-            const p3 = {x: w*0.95, y: h*0.8};
-            illustrationHelpers.drawPoints(ctx, [p1,p2,p3], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p1}], team2_color);
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
-            ctx.fillStyle = team2_color;
-            ctx.globalAlpha = 0.3;
-            ctx.fill();
-            
-            // Draw purification wave
-            ctx.save();
-            ctx.globalAlpha = 1.0;
-            ctx.beginPath();
-            ctx.arc(purifier_center.x, purifier_center.y, w * 0.4, 0, 2*Math.PI);
-            ctx.strokeStyle = team1_color;
-            ctx.lineWidth = 2;
-            ctx.setLineDash([4,4]);
-            ctx.stroke();
-            ctx.restore();
-
-            // Draw fading effect on enemy territory
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.fill();
-        },
-        'fortify_build_wonder': (ctx, w, h) => {
-            const team1_color = 'hsl(50, 80%, 60%)'; // Gold for wonder
-            const center = {x: w*0.5, y: h*0.5};
-            const radius = w * 0.3;
-            const num_points = 5;
-            const cycle_points = [];
-
-            for (let i = 0; i < num_points; i++) {
-                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
-                cycle_points.push({
-                    x: center.x + Math.cos(angle) * radius,
-                    y: center.y + Math.sin(angle) * radius,
-                });
-            }
-            
-            // Draw original star rune
-            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
-            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
-            for (let i = 0; i < num_points; i++) {
-                illustrationHelpers.drawLines(ctx, [{p1: cycle_points[i], p2: cycle_points[(i+1)%num_points]}], team1_color);
-            }
-            
-            // Draw sacrifice 'X' over them
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            [center, ...cycle_points].forEach(p => {
-                ctx.beginPath();
-                ctx.moveTo(p.x - 4, p.y - 4); ctx.lineTo(p.x + 4, p.y + 4);
-                ctx.moveTo(p.x - 4, p.y + 4); ctx.lineTo(p.x + 4, p.y - 4);
-                ctx.stroke();
-            });
-
-            // Draw Spire symbol at center
-            ctx.save();
-            ctx.fillStyle = team1_color;
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 2;
-            const spire_base_w = 18;
-            const spire_h = 37;
-            ctx.beginPath();
-            ctx.moveTo(center.x - spire_base_w, center.y + spire_h/2);
-            ctx.lineTo(center.x, center.y - spire_h/2);
-            ctx.lineTo(center.x + spire_base_w, center.y + spire_h/2);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-        },
-        'terraform_raise_barricade': (ctx, w, h) => {
-            const team1_color = 'hsl(30, 70%, 50%)'; // Brownish for earth/wall
-            
-            // 1. Draw Barricade Rune (rectangle)
-            const p1 = {x: w*0.2, y: h*0.2};
-            const p2 = {x: w*0.8, y: h*0.2};
-            const p3 = {x: w*0.8, y: h*0.8};
-            const p4 = {x: w*0.2, y: h*0.8};
-            const points = [p1, p2, p3, p4];
-            illustrationHelpers.drawPoints(ctx, points, team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p4},{p1:p4,p2:p1}], team1_color);
-            
-            // 2. Show consumption
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            points.forEach(p => {
-                ctx.beginPath();
-                ctx.moveTo(p.x - 4, p.y - 4); ctx.lineTo(p.x + 4, p.y + 4);
-                ctx.moveTo(p.x - 4, p.y + 4); ctx.lineTo(p.x + 4, p.y - 4);
-                ctx.stroke();
-            });
-
-            // 3. Draw the resulting barricade
-            const mid1 = {x: (p1.x+p4.x)/2, y: (p1.y+p4.y)/2};
-            const mid2 = {x: (p2.x+p3.x)/2, y: (p2.y+p3.y)/2};
-            ctx.save();
-            ctx.strokeStyle = team1_color;
-            ctx.lineWidth = 6;
-            ctx.lineCap = 'round';
-            illustrationHelpers.drawJaggedLine(ctx, mid1, mid2, 10, 4);
-            ctx.restore();
-        },
-        'terraform_create_fissure': (ctx, w, h) => {
-            const team1_color = 'hsl(280, 70%, 60%)'; // Purple for rift
-            
-            // Rift Spire
-            const spire_center = {x: w*0.2, y: h*0.5};
-            ctx.save();
-            ctx.translate(spire_center.x, spire_center.y);
-            ctx.beginPath();
-            const spikes = 7;
-            const outerRadius = 12;
-            const innerRadius = 6;
-            for (let i = 0; i < spikes * 2; i++) {
-                const radius = i % 2 === 0 ? outerRadius : innerRadius;
-                const angle = (i * Math.PI) / spikes;
-                ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
-            }
-            ctx.closePath();
-            ctx.fillStyle = team1_color;
-            ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.restore();
-
-            // Beam from spire to fissure start
-            const fissure_start = {x: w*0.4, y: h*0.3};
-            illustrationHelpers.drawDashedLine(ctx, spire_center, fissure_start, team1_color);
-            
-            // Fissure
-            const fissure_end = {x: w*0.9, y: h*0.7};
-            ctx.save();
-            ctx.strokeStyle = 'rgba(30, 30, 30, 0.8)';
-            ctx.lineWidth = 4;
-            ctx.lineCap = 'round';
-            illustrationHelpers.drawJaggedLine(ctx, fissure_start, fissure_end, 15, 6);
-            ctx.restore();
-        },
-        'fortify_form_rift_spire': (ctx, w, h) => {
-            const team1_color = 'hsl(280, 70%, 60%)'; // Purple for rift
-            const center = {x: w*0.5, y: h*0.5};
-
-            // 3 territories meeting at 'center'
-            const t1_p2 = {x: w*0.2, y: h*0.2};
-            const t1_p3 = {x: w*0.8, y: h*0.2};
-            const t2_p3 = {x: w*0.2, y: h*0.8};
-            const t3_p3 = {x: w*0.8, y: h*0.8};
-
-            // Draw territories
-            ctx.save();
-            ctx.fillStyle = team1_color;
-            ctx.globalAlpha = 0.2;
-            ctx.beginPath(); // T1
-            ctx.moveTo(center.x, center.y); ctx.lineTo(t1_p2.x, t1_p2.y); ctx.lineTo(t1_p3.x, t1_p3.y); ctx.closePath();
-            ctx.fill();
-            ctx.beginPath(); // T2
-            ctx.moveTo(center.x, center.y); ctx.lineTo(t1_p2.x, t1_p2.y); ctx.lineTo(t2_p3.x, t2_p3.y); ctx.closePath();
-            ctx.fill();
-            ctx.beginPath(); // T3
-            ctx.moveTo(center.x, center.y); ctx.lineTo(t1_p3.x, t1_p3.y); ctx.lineTo(t3_p3.x, t3_p3.y); ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-
-            // Draw points
-            illustrationHelpers.drawPoints(ctx, [center, t1_p2, t1_p3, t2_p3, t3_p3], team1_color);
-            
-            // Draw sacrifice 'X' over center point
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(center.x - 5, center.y - 5); ctx.lineTo(center.x + 5, center.y + 5);
-            ctx.moveTo(center.x - 5, center.y + 5); ctx.lineTo(center.x + 5, center.y - 5);
-            ctx.stroke();
-
-            // Draw Spire symbol over it
-            ctx.save();
-            ctx.translate(center.x, center.y);
-            ctx.beginPath();
-            const spikes = 7;
-            const outerRadius = 12;
-            const innerRadius = 6;
-            for (let i = 0; i < spikes * 2; i++) {
-                const radius = i % 2 === 0 ? outerRadius : innerRadius;
-                const angle = (i * Math.PI) / spikes;
-                ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
-            }
-            ctx.closePath();
-            ctx.fillStyle = team1_color;
-            ctx.globalAlpha = 0.8;
-            ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.restore();
-        },
-        'rune_starlight_cascade': (ctx, w, h) => {
-            const team1_color = 'hsl(50, 80%, 60%)'; // Gold for star
-            const team2_color = 'hsl(240, 70%, 50%)';
-
-            const center = {x: w*0.35, y: h*0.5};
-            const radius = w * 0.25;
-            const num_points = 5;
-            const cycle_points = [];
-
-            for (let i = 0; i < num_points; i++) {
-                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
-                cycle_points.push({
-                    x: center.x + Math.cos(angle) * radius,
-                    y: center.y + Math.sin(angle) * radius,
-                });
-            }
-            const p_sac = cycle_points[0];
-
-            // Draw star rune
-            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
-            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
-            for (let i = 0; i < num_points; i++) {
-                illustrationHelpers.drawLines(ctx, [{p1: cycle_points[i], p2: cycle_points[(i+1)%num_points]}], team1_color);
-            }
-
-            // Sacrificed point
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
-            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
-            ctx.stroke();
-
-            // Blast radius
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(p_sac.x, p_sac.y, w*0.3, 0, 2*Math.PI);
-            ctx.strokeStyle = 'rgba(255, 255, 150, 0.7)';
-            ctx.setLineDash([4,4]);
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
-            
-            // Enemy lines
-            const ep1 = {x: w*0.8, y: h*0.2};
-            const ep2 = {x: w*0.8, y: h*0.8};
-            const ep3 = {x: w*0.6, y: h*0.1};
-            const ep4 = {x: w*0.9, y: h*0.1};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2, ep3, ep4], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}, {p1: ep3, p2: ep4}], team2_color, 1);
-            
-            // Damage effect
-            illustrationHelpers.drawExplosion(ctx, w*0.8, h*0.5, 'red', 12);
-            illustrationHelpers.drawExplosion(ctx, w*0.75, h*0.1, 'red', 12);
-        },
-        'rune_focus_beam': (ctx, w, h) => {
-            const team1_color = 'hsl(50, 80%, 60%)'; // Gold for star
-            const team2_color = 'hsl(240, 70%, 50%)';
-
-            // Star rune
-            const center = {x: w*0.3, y: h*0.5};
-            const radius = w * 0.2;
-            const num_points = 5;
-            const cycle_points = [];
-            for (let i = 0; i < num_points; i++) {
-                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
-                cycle_points.push({
-                    x: center.x + Math.cos(angle) * radius,
-                    y: center.y + Math.sin(angle) * radius,
-                });
-            }
-            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
-            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
-            for (let i = 0; i < num_points; i++) {
-                illustrationHelpers.drawLines(ctx, [{p1: cycle_points[i], p2: cycle_points[(i+1)%num_points]}], team1_color);
-            }
-
-            // High-value enemy target (bastion core)
-            const target = {x: w*0.8, y: h*0.5};
-            ctx.save();
-            ctx.fillStyle = team2_color;
-            const size = 18;
-            ctx.translate(target.x, target.y);
-            ctx.beginPath();
-            ctx.moveTo(0, -size); ctx.lineTo(size, 0); ctx.lineTo(0, size); ctx.lineTo(-size, 0);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-
-            // Beam
-            illustrationHelpers.drawArrow(ctx, center, target, 'rgba(255, 255, 150, 1.0)');
-
-            // Explosion
-            illustrationHelpers.drawExplosion(ctx, target.x, target.y, 'red', 20);
-        },
-        'rune_cardinal_pulse': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-
-            // Plus rune
-            const center = {x: w*0.5, y: h*0.5};
-            const arms = [
-                {x: w*0.5, y: h*0.2}, // top
-                {x: w*0.8, y: h*0.5}, // right
-                {x: w*0.5, y: h*0.8}, // bottom
-                {x: w*0.2, y: h*0.5}  // left
-            ];
-            const rune_points = [center, ...arms];
-            illustrationHelpers.drawPoints(ctx, rune_points, team1_color);
-            arms.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
-            
-            // Show consumption
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            rune_points.forEach(p => {
-                ctx.beginPath();
-                ctx.moveTo(p.x - 6, p.y - 6); ctx.lineTo(p.x + 6, p.y + 6);
-                ctx.moveTo(p.x - 6, p.y + 6); ctx.lineTo(p.x + 6, p.y - 6);
-                ctx.stroke();
-            });
-
-            // Beams
-            // 1. Right beam hits enemy line
-            const ep1 = {x: w*0.9, y: h*0.3};
-            const ep2 = {x: w*0.9, y: h*0.7};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color);
-            const hit_point = {x: w*0.9, y: h*0.5};
-            illustrationHelpers.drawArrow(ctx, center, hit_point, team1_color);
-            illustrationHelpers.drawExplosion(ctx, hit_point.x, hit_point.y, 'red', 12);
-
-            // 2. Top beam misses, creates point
-            const new_point = {x: w*0.5, y: h*0.05};
-            illustrationHelpers.drawDashedLine(ctx, center, new_point, team1_color);
-            illustrationHelpers.drawPoints(ctx, [new_point], team1_color);
-            
-            // 3 & 4. Other beams just flying off
-            illustrationHelpers.drawArrow(ctx, center, {x:w*0.05, y:h*0.5}, team1_color);
-            illustrationHelpers.drawArrow(ctx, center, {x:w*0.5, y:h*0.95}, team1_color);
-        },
-        'rune_parallel_discharge': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-            
-            // Parallelogram rune
-            const p1 = {x: w*0.2, y: h*0.2};
-            const p2 = {x: w*0.6, y: h*0.2};
-            const p3 = {x: w*0.8, y: h*0.8};
-            const p4 = {x: w*0.4, y: h*0.8};
-            const points = [p1, p2, p3, p4];
-            illustrationHelpers.drawPoints(ctx, points, team1_color);
-            illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p4},{p1:p4,p2:p1}], team1_color);
-            
-            // Crossing enemy line
-            const ep1 = {x: w*0.5, y: h*0.1};
-            const ep2 = {x: w*0.5, y: h*0.9};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color);
-            
-            // Discharge effect
-            ctx.save();
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
-            ctx.closePath();
-            ctx.fillStyle = 'rgba(255, 255, 150, 0.7)'; // Yellowish glow
-            ctx.fill();
-            ctx.restore();
-
-            // Blast on enemy line
-            illustrationHelpers.drawExplosion(ctx, w*0.5, h*0.5);
-        },
-        'rune_starlight_cascade': (ctx, w, h) => {
-            const team1_color = 'hsl(50, 80%, 60%)'; // Gold for star
-            const team2_color = 'hsl(240, 70%, 50%)';
-
-            const center = {x: w*0.35, y: h*0.5};
-            const radius = w * 0.25;
-            const num_points = 5;
-            const cycle_points = [];
-
-            for (let i = 0; i < num_points; i++) {
-                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
-                cycle_points.push({
-                    x: center.x + Math.cos(angle) * radius,
-                    y: center.y + Math.sin(angle) * radius,
-                });
-            }
-            const p_sac = cycle_points[0];
-
-            // Draw star rune
-            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
-            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
-            for (let i = 0; i < num_points; i++) {
-                illustrationHelpers.drawLines(ctx, [{p1: cycle_points[i], p2: cycle_points[(i+1)%num_points]}], team1_color);
-            }
-
-            // Sacrificed point
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(p_sac.x - 5, p_sac.y - 5); ctx.lineTo(p_sac.x + 5, p_sac.y + 5);
-            ctx.moveTo(p_sac.x - 5, p_sac.y + 5); ctx.lineTo(p_sac.x + 5, p_sac.y - 5);
-            ctx.stroke();
-
-            // Blast radius
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(p_sac.x, p_sac.y, w*0.3, 0, 2*Math.PI);
-            ctx.strokeStyle = 'rgba(255, 255, 150, 0.7)';
-            ctx.setLineDash([4,4]);
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.restore();
-            
-            // Enemy lines
-            const ep1 = {x: w*0.8, y: h*0.2};
-            const ep2 = {x: w*0.8, y: h*0.8};
-            const ep3 = {x: w*0.6, y: h*0.1};
-            const ep4 = {x: w*0.9, y: h*0.1};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2, ep3, ep4], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}, {p1: ep3, p2: ep4}], team2_color, 1);
-            
-            // Damage effect
-            illustrationHelpers.drawExplosion(ctx, w*0.8, h*0.5, 'red', 12);
-            illustrationHelpers.drawExplosion(ctx, w*0.75, h*0.1, 'red', 12);
-        },
-        'rune_focus_beam': (ctx, w, h) => {
-            const team1_color = 'hsl(50, 80%, 60%)'; // Gold for star
-            const team2_color = 'hsl(240, 70%, 50%)';
-
-            // Star rune
-            const center = {x: w*0.3, y: h*0.5};
-            const radius = w * 0.2;
-            const num_points = 5;
-            const cycle_points = [];
-            for (let i = 0; i < num_points; i++) {
-                const angle = (i / num_points) * 2 * Math.PI - (Math.PI / 2);
-                cycle_points.push({
-                    x: center.x + Math.cos(angle) * radius,
-                    y: center.y + Math.sin(angle) * radius,
-                });
-            }
-            illustrationHelpers.drawPoints(ctx, [center, ...cycle_points], team1_color);
-            cycle_points.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
-            for (let i = 0; i < num_points; i++) {
-                illustrationHelpers.drawLines(ctx, [{p1: cycle_points[i], p2: cycle_points[(i+1)%num_points]}], team1_color);
-            }
-
-            // High-value enemy target (bastion core)
-            const target = {x: w*0.8, y: h*0.5};
-            ctx.save();
-            ctx.fillStyle = team2_color;
-            const size = 12;
-            ctx.translate(target.x, target.y);
-            ctx.beginPath();
-            ctx.moveTo(0, -size); ctx.lineTo(size, 0); ctx.lineTo(0, size); ctx.lineTo(-size, 0);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-
-            // Beam
-            illustrationHelpers.drawArrow(ctx, center, target, 'rgba(255, 255, 150, 1.0)');
-
-            // Explosion
-            illustrationHelpers.drawExplosion(ctx, target.x, target.y, 'red', 20);
-        },
-        'rune_cardinal_pulse': (ctx, w, h) => {
-            const team1_color = 'hsl(0, 70%, 50%)';
-            const team2_color = 'hsl(240, 70%, 50%)';
-
-            // Plus rune
-            const center = {x: w*0.5, y: h*0.5};
-            const arms = [
-                {x: w*0.5, y: h*0.2}, // top
-                {x: w*0.8, y: h*0.5}, // right
-                {x: w*0.5, y: h*0.8}, // bottom
-                {x: w*0.2, y: h*0.5}  // left
-            ];
-            const rune_points = [center, ...arms];
-            illustrationHelpers.drawPoints(ctx, rune_points, team1_color);
-            arms.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: center, p2: p}], team1_color));
-            
-            // Show consumption
-            ctx.strokeStyle = 'red';
-            ctx.lineWidth = 2;
-            rune_points.forEach(p => {
-                ctx.beginPath();
-                ctx.moveTo(p.x - 4, p.y - 4); ctx.lineTo(p.x + 4, p.y + 4);
-                ctx.moveTo(p.x - 4, p.y + 4); ctx.lineTo(p.x + 4, p.y - 4);
-                ctx.stroke();
-            });
-
-            // Beams
-            // 1. Right beam hits enemy line
-            const ep1 = {x: w*0.9, y: h*0.3};
-            const ep2 = {x: w*0.9, y: h*0.7};
-            illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
-            illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color);
-            const hit_point = {x: w*0.9, y: h*0.5};
-            illustrationHelpers.drawArrow(ctx, center, hit_point, team1_color);
-            illustrationHelpers.drawExplosion(ctx, hit_point.x, hit_point.y, 'red', 12);
-
-            // 2. Top beam misses, creates point
-            const new_point = {x: w*0.5, y: h*0.05};
-            illustrationHelpers.drawDashedLine(ctx, center, new_point, team1_color);
-            illustrationHelpers.drawPoints(ctx, [new_point], team1_color);
-            
-            // 3 & 4. Other beams just flying off
-            illustrationHelpers.drawArrow(ctx, center, {x:w*0.05, y:h*0.5}, team1_color);
-            illustrationHelpers.drawArrow(ctx, center, {x:w*0.5, y:h*0.95}, team1_color);
-        },
-    };
 
     async function initActionGuide() {
         try {
             const allActions = await api.getAllActions();
             const searchInput = document.getElementById('guide-search');
             const togglesContainer = document.getElementById('guide-group-toggles');
-            actionGuideContent.innerHTML = ''; // Clear content area
+            actionGuideContent.innerHTML = '';
 
             const groupCounts = allActions.reduce((acc, action) => {
                 acc[action.group] = (acc[action.group] || 0) + 1;
@@ -4907,7 +3482,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 togglesContainer.innerHTML += `<button data-group="${group}">${group} (${groupCounts[group]})</button>`;
             });
 
-            // Group actions and create cards
             const actionsByGroup = {};
             allActions.forEach(action => {
                 if (!actionsByGroup[action.group]) actionsByGroup[action.group] = [];
@@ -4928,56 +3502,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
                 actionsByGroup[action.group].push(card);
-
                 const canvas = card.querySelector('canvas');
-                const ctx = canvas.getContext('2d');
                 const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
-                drawer(ctx, canvas.width, canvas.height);
+                drawer(canvas.getContext('2d'), canvas.width, canvas.height);
             });
             
-            // Build the DOM with sections
             for (const group of groups) {
                 const section = document.createElement('div');
                 section.className = 'guide-group-section';
                 section.dataset.group = group;
-                
-                const header = document.createElement('h3');
-                header.className = 'guide-group-header';
-                header.textContent = group;
-                section.appendChild(header);
-                
+                section.innerHTML = `<h3 class="guide-group-header">${group}</h3>`;
                 const grid = document.createElement('div');
                 grid.className = 'action-guide-grid';
                 actionsByGroup[group].forEach(card => grid.appendChild(card));
                 section.appendChild(grid);
-                
                 actionGuideContent.appendChild(section);
             }
-
 
             function filterActions() {
                 const searchTerm = searchInput.value.toLowerCase();
                 const activeGroup = togglesContainer.querySelector('button.active').dataset.group;
-                const sections = actionGuideContent.querySelectorAll('.guide-group-section');
-                
-                sections.forEach(section => {
+                actionGuideContent.querySelectorAll('.guide-group-section').forEach(section => {
                     const sectionGroup = section.dataset.group;
                     const groupMatch = activeGroup === 'All' || sectionGroup === activeGroup;
-                    
-                    if (!groupMatch) {
-                        section.style.display = 'none';
-                        return;
-                    }
-                    
+                    if (!groupMatch) { section.style.display = 'none'; return; }
                     section.style.display = 'block';
                     let hasVisibleCard = false;
-                    const cards = section.querySelectorAll('.action-card');
-
-                    cards.forEach(card => {
-                        const nameMatch = card.dataset.displayName.toLowerCase().includes(searchTerm);
-                        const descMatch = card.dataset.description.toLowerCase().includes(searchTerm);
-                        const searchMatch = nameMatch || descMatch;
-
+                    section.querySelectorAll('.action-card').forEach(card => {
+                        const searchMatch = card.dataset.displayName.toLowerCase().includes(searchTerm) || card.dataset.description.toLowerCase().includes(searchTerm);
                         if (searchMatch) {
                             card.style.display = 'flex';
                             hasVisibleCard = true;
@@ -4985,11 +3537,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             card.style.display = 'none';
                         }
                     });
-
-                    // Hide the whole section if no cards match the search
-                    if (searchTerm && !hasVisibleCard) {
-                        section.style.display = 'none';
-                    }
+                    if (searchTerm && !hasVisibleCard) section.style.display = 'none';
                 });
             }
 
@@ -5001,13 +3549,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     filterActions();
                 }
             });
-
         } catch (error) {
             actionGuideContent.innerHTML = '<p>Could not load action guide.</p>';
             console.error("Failed to initialize action guide:", error);
         }
     }
-
 
     function setupErrorHandling() {
         const errorOverlay = document.getElementById('error-overlay');
@@ -5015,183 +3561,109 @@ document.addEventListener('DOMContentLoaded', () => {
         const copyErrorBtn = document.getElementById('copy-error-btn');
         const closeErrorBtn = document.getElementById('close-error-btn');
     
-        window.onerror = function (message, source, lineno, colno, error) {
-            // Stop any game loops
+        const showError = (errorText) => {
             stopAutoPlay();
-            
-            const errorText = `Error: ${message}\nSource: ${source}\nLine: ${lineno}, Column: ${colno}\nStack: ${error ? error.stack : 'N/A'}`;
             errorDetails.textContent = errorText;
             errorOverlay.style.display = 'flex';
-            return true; // Prevents the default browser error handling
+        };
+
+        window.onerror = (message, source, lineno, colno, error) => {
+            showError(`Error: ${message}\nSource: ${source}\nLine: ${lineno}, Column: ${colno}\nStack: ${error ? error.stack : 'N/A'}`);
+            return true;
         };
         
-        // Also catch promise rejections
         window.addEventListener('unhandledrejection', event => {
-            stopAutoPlay();
             let errorContent = `Unhandled Promise Rejection:\nReason: ${event.reason.stack || event.reason}`;
-            // If our custom API error was thrown, it might have the server's response text.
-            if (event.reason && event.reason.response_text) {
-                // The response text is often an HTML traceback page. Let's try to extract the useful part.
+            if (event.reason?.response_text) {
                 const tracebackMatch = event.reason.response_text.match(/<pre>([\s\S]*)<\/pre>/);
-                const serverTraceback = tracebackMatch ? tracebackMatch[1].trim() : 'Could not extract traceback. See console for full server response.';
-                errorContent += `\n\n--- Server Response ---\n${serverTraceback}`;
+                errorContent += `\n\n--- Server Response ---\n${tracebackMatch ? tracebackMatch[1].trim() : 'Could not extract traceback.'}`;
             }
-            errorDetails.textContent = errorContent;
-            errorOverlay.style.display = 'flex';
+            showError(errorContent);
         });
     
-        closeErrorBtn.addEventListener('click', () => {
-            errorOverlay.style.display = 'none';
-        });
-    
+        closeErrorBtn.addEventListener('click', () => errorOverlay.style.display = 'none');
         copyErrorBtn.addEventListener('click', () => {
             if (navigator.clipboard) {
-                navigator.clipboard.writeText(errorDetails.textContent).then(() => {
-                    showTemporaryButtonFeedback(copyErrorBtn, 'Copied!', 1000);
-                }).catch(err => {
-                    alert('Could not copy error details.');
-                });
+                navigator.clipboard.writeText(errorDetails.textContent).then(() => showTemporaryButtonFeedback(copyErrorBtn, 'Copied!', 1000));
             }
         });
-    }
-
-    function checkForUpdates() {
-        // Only run update checker in HTTP mode.
-        if (api._mode !== 'http') return;
-
-        setInterval(async () => {
-            try {
-                const data = await api.checkUpdates();
-                if (data.updated) {
-                    alert(data.message);
-                    stopAutoPlay();
-                }
-            } catch (error) {
-                console.error('Update check failed:', error);
-                stopAutoPlay();
-            }
-        }, 5000);
     }
 
     async function init() {
         setNewTeamDefaults();
         setupErrorHandling();
 
-        // Auto-detect whether to use the Flask backend or Pyodide.
-        // This makes it easy to test the static/Pyodide version locally
-        // by simply running a static file server instead of the Flask app.
         let apiMode = 'http';
-        const isGhPages = window.location.hostname.endsWith('github.io');
-        const isFile = window.location.protocol === 'file:';
-
-        if (isGhPages || isFile) {
+        if (window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:') {
             apiMode = 'pyodide';
         } else {
             try {
-                // Use a HEAD request to a server-only endpoint. If it fails, we're on a static host.
                 const response = await fetch('/api/check_updates', { method: 'HEAD', cache: 'no-cache' });
-                if (response.ok) {
-                    console.log('Flask API detected. Using HTTP mode.');
-                    apiMode = 'http';
-                } else {
-                    console.log('API check failed (response not OK), falling back to Pyodide.');
-                    apiMode = 'pyodide';
-                }
+                if (!response.ok) apiMode = 'pyodide';
             } catch (error) {
-                // A network error means no server is listening.
-                console.log('API check failed with network error, falling back to Pyodide.');
                 apiMode = 'pyodide';
             }
         }
 
-        // Show a loading message for Pyodide
         if (apiMode === 'pyodide') {
-            statusBar.textContent = 'Loading Python interpreter (Pyodide)... This may take a moment.';
+            statusBar.textContent = 'Loading Python interpreter (Pyodide)...';
             statusBar.style.opacity = '1';
-            restartServerBtn.style.display = 'none'; // Hide dev-only button
+            restartServerBtn.style.display = 'none';
         }
 
         try {
             await api.initialize(apiMode);
         } catch(e) {
-            console.error("Failed to initialize API", e);
-            statusBar.textContent = `Error: Failed to initialize application backend. See console for details.`;
+            statusBar.textContent = `Error: Failed to initialize application backend. See console.`;
             statusBar.style.backgroundColor = 'red';
-            throw e; // Stop execution
+            throw e;
         }
 
         if (apiMode === 'pyodide') {
             statusBar.textContent = 'Pyodide loaded. Initializing game...';
         }
 
-        // --- Live grid size update ---
         gridSizeInput.addEventListener('input', () => {
             if (currentGameState.game_phase === 'SETUP') {
                 const newSize = parseInt(gridSizeInput.value, 10);
                 if (newSize >= 5 && newSize <= 50) {
-                    const oldSize = currentGameState.grid_size;
-                    const outOfBoundsPoints = initialPoints.filter(p => p.x >= newSize || p.y >= newSize);
-
-                    if (outOfBoundsPoints.length > 0) {
-                        if (!confirm(`Changing grid size to ${newSize}x${newSize} will remove ${outOfBoundsPoints.length} point(s) that are now out of bounds. Continue?`)) {
-                            gridSizeInput.value = oldSize; // Revert input
-                            return;
-                        }
+                    const outOfBoundsPoints = uiState.initialPoints.filter(p => p.x >= newSize || p.y >= newSize);
+                    if (outOfBoundsPoints.length > 0 && !confirm(`Changing grid size will remove ${outOfBoundsPoints.length} out-of-bounds point(s). Continue?`)) {
+                        gridSizeInput.value = currentGameState.grid_size;
+                        return;
                     }
-
-                    // Update grid size and filter points
                     currentGameState.grid_size = newSize;
-                    initialPoints = initialPoints.filter(p => p.x < newSize && p.y < newSize);
+                    uiState.initialPoints = uiState.initialPoints.filter(p => p.x < newSize && p.y < newSize);
                     resizeCanvas();
                 }
             }
         });
 
-        // Setup resize observer
-        const gridContainer = document.querySelector('.grid-container');
-        const resizeObserver = new ResizeObserver(() => {
-            // Decouple the resize logic from the observer's notification loop
-            // to prevent the "ResizeObserver loop limit exceeded" error.
-            requestAnimationFrame(() => {
-                if(currentGameState && currentGameState.grid_size) {
-                    resizeCanvas();
-                }
-            });
-        });
-        resizeObserver.observe(gridContainer);
+        const resizeObserver = new ResizeObserver(() => requestAnimationFrame(() => {
+            if(currentGameState && currentGameState.grid_size) resizeCanvas();
+        }));
+        resizeObserver.observe(document.querySelector('.grid-container'));
 
         const gameState = await api.getState();
         
-        // If page is refreshed during setup, reconstruct state to allow editing
         if (gameState.game_phase === 'SETUP') {
-             localTeams = gameState.teams || {};
-             Object.values(localTeams).forEach(t => t.isEditing = false); // Ensure no edit mode on load
-             initialPoints = Object.values(gameState.points);
-             // Auto-select the first team if teams exist, for better UX
-             const teamIds = Object.keys(localTeams);
-             if (teamIds.length > 0) {
-                 selectedTeamId = teamIds[0];
-             }
+             uiState.localTeams = gameState.teams || {};
+             Object.values(uiState.localTeams).forEach(t => t.isEditing = false);
+             uiState.initialPoints = Object.values(gameState.points);
+             const teamIds = Object.keys(uiState.localTeams);
+             if (teamIds.length > 0) uiState.selectedTeamId = teamIds[0];
         } else {
-             localTeams = gameState.teams || {};
-             initialPoints = [];
+             uiState.localTeams = gameState.teams || {};
+             uiState.initialPoints = [];
         }
         
         gridSizeInput.value = gameState.grid_size;
         maxTurnsInput.value = gameState.max_turns;
 
-        // Perform initial render and resize
         updateStateAndRender(gameState);
-        // A small delay lets the flexbox layout settle before the first canvas resize.
-        setTimeout(() => {
-            resizeCanvas();
-            hasResizedInitially = true;
-            // The animation loop will render the correctly sized canvas.
-        }, 50);
-
-        initActionGuide(); // Fetch and render the guide in the background
-        checkForUpdates();
-        animationLoop(); // Start the animation loop
+        setTimeout(() => resizeCanvas(), 50);
+        initActionGuide();
+        animationLoop();
     }
 
     init();
