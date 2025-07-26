@@ -26,7 +26,7 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
     *   **Bonus:** Grants the `Piercing Attacks` passive. The team's standard `Attack Line` action can now bypass one enemy shield.
 *   **Plus-Rune (+):**
     *   **Formation:** Five points forming a '+' shape, where a central point is connected to four other points that form two perpendicular, straight lines.
-    *   **Bonus:** Unlocks the **[RUNE] Cardinal Pulse** action. This is a powerful, one-use sacrificial action.
+    *   **Bonus:** Unlocks the **[RUNE] Cardinal Pulse** action.
 *   **T-Rune:**
     *   **Formation:** Four points in a 'T' shape. It requires a central point connected to three other points, where two of the connections form a straight line (the stem) and the third is perpendicular to it (the head). All three connecting lines must exist.
     *   **Bonus:** Unlocks the **[RUNE] T-Hammer Slam** action.
@@ -98,9 +98,9 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[RUNE] Starlight Cascade:** _(Requires a Star-Rune)_ Unleashes a cascade of energy from its center, damaging or destroying all nearby unshielded enemy lines.
 *   **[RUNE] Focus Beam:** _(Requires a Star-Rune)_ Fires a beam from the central point to destroy a high-value enemy structure (Wonder, Bastion core, etc). If no high-value targets exist, it targets a regular point. If no targets exist at all, it creates a small fissure in the heart of the enemy's territory.
 *   **[RUNE] Gravity Well:** _(Requires a Star-Rune)_ Creates a powerful gravitational field, pushing all non-friendly points away from its center. If no points are in range, it gently pulls friendly points towards its center to consolidate. This action has no cost.
-*   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field. If no valid targets are in range, it instead sacrifices one of its own points to turn another of its rune-points into a temporary gravitational **anchor**.
+*   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field. If no valid targets are in range, it instead degrades the rune by converting one of its own non-vertex points into a temporary gravitational **anchor**. This action has no cost.
 *   **[FORTIFY] Attune Nexus:** Sacrifices a diagonal line from one of its Nexuses to supercharge it. For several turns, the Attuned Nexus energizes all nearby friendly lines, causing their attacks to also destroy the target line's endpoints.
-*   **[FORTIFY] Shield Line:** Applies a temporary shield to one of its lines. If all lines are already shielded, it will instead **overcharge** an existing shield, extending its duration.
+*   **[FORTIFY] Shield Line:** Applies a temporary shield to one of its lines. If all lines are already shielded, it will instead **overcharge** an existing shield, extending its duration. This action has no cost.
 *   **[DEFEND] Form Prism:** A passive formation. A Prism is created when two of a team's claimed territories (triangles) share a common edge line.
     *   **Bonus:** Unlocks the **[FIGHT] Refraction Beam** action, which allows for powerful bank-shot attacks.
 *   **[DEFEND] Form Nexus:** A passive formation. A Nexus is a powerful economic structure that grants bonus actions.
@@ -120,6 +120,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns. If no valid reflections can be found, it instead reinforces the lines of the structure it was attempting to mirror.
 *   **[FORTIFY] Reposition Point:** Moves a single 'free' (non-structural) point to a better tactical position nearby. A subtle but important move for setting up future formations. This action has no cost.
 *   **[FORTIFY] Rotate Point:** Rotates a single 'free' (non-structural) point around the grid center or another friendly point. This action has no cost.
+*   **[FORTIFY] Create Ley Line:** Activates an I-Rune into a powerful Ley Line for several turns. When new friendly points are created near the Ley Line, they are automatically connected to it with a new line for free. If all I-Runes are already active, it pulses one Ley Line to strengthen all connected lines instead. This action has no cost.
 *   **[SACRIFICE] Cultivate Heartwood:** A unique, powerful structure. Requires a central point connected to at least 5 other "branch" points.
     *   **Cost:** The central point and all branch points are sacrificed. This action can only be performed once per team.
     *   **Bonus 1 (Passive Growth):** Every few turns, the Heartwood automatically creates a new point for its team nearby.
@@ -127,7 +128,7 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FORTIFY] Form Rift Spire:** At a point that serves as a vertex for at least three different claimed territories, erect a Rift Spire. This action has no cost.
     *   **Bonus:** Creates a **Rift Spire**. This structure takes several turns to charge. Once charged, it unlocks the **[TERRAFORM] Create Fissure** action.
 *   **[RUNE] Raise Barricade:** _(Requires an active Barricade-Rune)_ Creates a temporary, impassable wall along one of the rune's diagonals. The wall blocks line-based actions for several turns. This action has no cost.
-*   **[TERRAFORM] Create Fissure:** _(Requires a charged Rift Spire)_ The spire opens a temporary, impassable fissure across the battlefield.
+*   **[TERRAFORM] Create Fissure:** _(Requires a charged Rift Spire)_ The spire opens a temporary, impassable fissure across the battlefield. This action has no cost.
     *   **Effect:** The fissure is a line on the grid that blocks most actions. No points can be created near it, and line-based actions (like `Attack Line` or `Extend Line`) cannot cross it. It decays after a number of turns.
 
 ## Wonders

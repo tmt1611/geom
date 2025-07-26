@@ -193,9 +193,9 @@ ACTIONS = {
     
     # --- FORTIFY ACTIONS ---
     'fortify_shield': {
-        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'shield_line',
+        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'shield_line', 'no_cost': True,
         'display_name': 'Shield Line / Overcharge',
-        'description': "Applies a temporary shield to a line, making it immune to one standard attack. If all lines are shielded, it overcharges an existing shield to extend its duration.",
+        'description': "Applies a temporary shield to a line, making it immune to one standard attack. If all lines are shielded, it overcharges an existing shield to extend its duration. This action has no cost.",
         'log_generators': {
             'shield_line': lambda r: ("raised a defensive shield on one of its lines.", "[SHIELD]"),
             'shield_overcharge': lambda r: (f"could not shield a new line, and instead overcharged an existing shield to last for {r['new_duration']} turns.", "[OVERCHARGE]"),
@@ -263,9 +263,9 @@ ACTIONS = {
         }
     },
     'terraform_create_fissure': {
-        'group': 'Rune', 'handler': 'fortify_handler', 'method': 'create_fissure',
+        'group': 'Rune', 'handler': 'fortify_handler', 'method': 'create_fissure', 'no_cost': True,
         'display_name': 'Create Fissure',
-        'description': "A charged Rift Spire creates a temporary, impassable fissure across the map that blocks line-based actions.",
+        'description': "A charged Rift Spire creates a temporary, impassable fissure across the map that blocks line-based actions. This action has no cost.",
         'log_generators': {
             'create_fissure': lambda r: (f"unleashed the power of a Rift Spire, tearing a fissure across the battlefield.", "[FISSURE!]"),
         }
@@ -289,9 +289,9 @@ ACTIONS = {
         }
     },
     'fortify_create_ley_line': {
-        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'create_ley_line',
+        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'create_ley_line', 'no_cost': True,
         'display_name': 'Create Ley Line',
-        'description': "Activates an I-Rune into a powerful Ley Line for several turns. When new friendly points are created near the Ley Line, they are automatically connected to it with a new line for free. If all I-Runes are already active, it pulses one Ley Line to strengthen all connected lines instead.",
+        'description': "Activates an I-Rune into a powerful Ley Line for several turns. When new friendly points are created near the Ley Line, they are automatically connected to it with a new line for free. If all I-Runes are already active, it pulses one Ley Line to strengthen all connected lines instead. This action has no cost.",
         'log_generators': {
             'create_ley_line': lambda r: ("activated an I-Rune, creating a powerful Ley Line.", "[LEY LINE!]"),
             'ley_line_pulse': lambda r: ("could not create a new Ley Line, and instead pulsed an existing one, strengthening nearby lines.", "[LEY LINE->PULSE]"),
@@ -443,9 +443,9 @@ ACTIONS = {
         }
     },
     'rune_hourglass_stasis': {
-        'group': 'Rune', 'handler': 'rune_handler', 'method': 'hourglass_stasis',
+        'group': 'Rune', 'handler': 'rune_handler', 'method': 'hourglass_stasis', 'no_cost': True,
         'display_name': 'Rune: Time Stasis',
-        'description': "An Hourglass-Rune freezes a nearby enemy point in time for several turns, making it immune but unable to be used. If no target is found, it creates an anchor.",
+        'description': "An Hourglass-Rune freezes a nearby enemy point in time for several turns, making it immune but unable to be used. If no target is found, it creates an anchor. This action has no cost.",
         'log_generators': {
             'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from {r['target_team_name']} in time.", "[STASIS!]"),
             'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead converted one of the rune's points into a temporary anchor.", "[STASIS->ANCHOR]"),
@@ -499,7 +499,7 @@ ACTIONS = {
     },
     'rune_cardinal_pulse': {
         'group': 'Rune', 'handler': 'rune_handler', 'method': 'cardinal_pulse',
-        'display_name': 'Rune: Cardinal Pulse', 'no_cost': True,
+        'display_name': 'Rune: Cardinal Pulse',
         'description': "A Plus-Rune fires four beams from its center through its arms. Beams destroy the first enemy line they hit and create a new point on the border if they miss.",
         'log_generators': {
             'rune_cardinal_pulse': lambda r: (f"unleashed a Cardinal Pulse from a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points.", "[CARDINAL PULSE!]"),
