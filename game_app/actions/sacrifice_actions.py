@@ -32,6 +32,10 @@ class SacrificeActionsHandler:
         can_perform = any(t['teamId'] == teamId for t in self.state.get('territories', []))
         return can_perform, "Requires at least one claimed territory to sacrifice."
 
+    def can_perform_raise_barricade(self, teamId):
+        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('barricade', []))
+        return can_perform, "Requires an active Barricade-Rune."
+
     def can_perform_convert_point(self, teamId):
         # Primary needs a vulnerable enemy point. Fallback is always possible if a line exists.
         # Thus, only a line is needed.
@@ -383,6 +387,61 @@ class SacrificeActionsHandler:
             'type': 'scorch_territory',
             'scorched_zone': new_scorched_zone,
             'sacrificed_points_count': len(sacrificed_points_data)
+        }
+
+    def raise_barricade(self, teamId):
+        """[SACRIFICE ACTION]: Consumes a Barricade-Rune to create a temporary wall."""
+        team_barricade_runes = self.state.get('runes', {}).get(teamId, {}).get('barricade', [])
+        if not team_barricade_runes:
+            return {'success': False, 'reason': 'no active barricade runes'}
+
+        rune_p_ids_tuple = random.choice(team_barricade_runes)
+        points_map = self.state['points']
+
+        if not all(pid in points_map for pid in rune_p_ids_tuple):
+            return {'success': False, 'reason': 'rune points no longer exist'}
+        
+        p_list = [points_map[pid] for pid in rune_p_ids_tuple]
+        
+        # Determine the barricade path along one of the rune's diagonals before sacrificing it.
+        edge_data = get_edges_by_distance(p_list)
+        diag_pairs = edge_data.get('diagonals', [])
+        
+        p1, p2 = None, None
+        
+        if len(diag_pairs) > 0:
+            # Pick a diagonal to form the barricade along.
+            diag_to_use = random.choice(diag_pairs)
+            p1 = points_map[diag_to_use[0]]
+            p2 = points_map[diag_to_use[1]]
+
+        # --- Consume the rune (sacrifice points and lines) ---
+        sacrificed_points_data = []
+        for pid in rune_p_ids_tuple:
+            # The _delete_point_and_connections will also remove connected lines.
+            sac_data = self.game._delete_point_and_connections(pid, aggressor_team_id=teamId)
+            if sac_data:
+                sacrificed_points_data.append(sac_data)
+        
+        # If geometry failed (e.g., not a proper rectangle), we can't create the barricade.
+        # The sacrifice is done, but the effect fizzles. This is a valid outcome.
+        if p1 is None or p2 is None:
+             return {
+                 'success': True, 
+                 'type': 'raise_barricade_fizzle', 
+                 'sacrificed_points': sacrificed_points_data,
+                 'sacrificed_points_count': len(sacrificed_points_data),
+            }
+
+        # --- Create the barricade ---
+        new_barricade = self.game._create_temporary_barricade(teamId, p1, p2, 5) # 5-turn duration
+
+        return {
+            'success': True,
+            'type': 'raise_barricade',
+            'barricade': new_barricade,
+            'sacrificed_points_count': len(sacrificed_points_data),
+            'sacrificed_points': sacrificed_points_data,
         }
 
     def convert_point(self, teamId):

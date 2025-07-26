@@ -382,6 +382,7 @@ ACTIONS = {
         'description': "A Barricade-Rune is consumed to create a temporary, impassable wall that blocks line-based actions.",
         'log_generators': {
             'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]"),
+'raise_barricade_fizzle': lambda r: (f"consumed a Barricade Rune, but its geometry was unstable, failing to form a wall.", "[BARRICADE->FIZZLE]"),
         }
     },
     'sacrifice_build_wonder': {
