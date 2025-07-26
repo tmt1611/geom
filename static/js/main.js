@@ -1990,14 +1990,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    function drawHeartwoods(gameState, isHighlightingActive = false) {
+        if (!gameState.heartwoods) return;
+
+        for (const teamId in gameState.heartwoods) {
+            const heartwood = gameState.heartwoods[teamId];
+            const team = gameState.teams[teamId];
+            if (!team) continue;
+
+            const isHighlighted = uiState.lastActionHighlights.structures.has(heartwood.id);
+            ctx.save();
+            if (isHighlightingActive && !isHighlighted) {
+                ctx.globalAlpha = 0.2;
+            } else if (isHighlightingActive && isHighlighted) {
+                ctx.globalAlpha = 1.0;
+            }
+
+            const cx = (heartwood.center_coords.x + 0.5) * cellSize;
+            const cy = (heartwood.center_coords.y + 0.5) * cellSize;
+            const radius = 15;
+            
+            // Aura
+            const pulse = Math.abs(Math.sin(Date.now() / 800));
+            const aura_radius = Math.sqrt(heartwood.aura_radius_sq) * cellSize;
+            ctx.beginPath();
+            ctx.arc(cx, cy, aura_radius, 0, 2 * Math.PI);
+            ctx.fillStyle = team.color;
+            ctx.globalAlpha *= (0.1 + pulse * 0.1);
+            ctx.fill();
+
+            // Core
+            ctx.globalAlpha = isHighlightingActive && !isHighlighted ? 0.2 : 1.0;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = team.color;
+            ctx.fill();
+            
+            // Symbol
+            ctx.font = 'bold 24px Arial';
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('❤', cx, cy + 1);
+
+            ctx.restore();
+        }
+    }
+
     // --- Data-Driven Drawing ---
     
     const drawOrchestrator = {
         // Defines the render order. Functions receive (gameState, isHighlightingActive).
         renderLayers: [
             drawTerritories, drawMonoliths, drawTrebuchets, drawPrisms,
-            (gs, h) => drawRunes(gs, h), // Wrap to match signature if needed
-            drawNexuses, drawHeartwoods, drawWonders, drawRiftSpires,
+            drawRunes, drawNexuses, drawHeartwoods, drawWonders, drawRiftSpires,
             drawRiftTraps, drawFissures, drawBarricades, drawScorchedZones,
             drawLeyLines, drawLines, drawPoints,
             (gs) => drawHulls(gs.interpretation, gs.teams)
@@ -2809,94 +2855,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 2000);
     }
 
+    function processTurnEvents(events, gameState) {
+        if (!events || events.length === 0) return;
+
+        events.forEach(event => {
+            const teamColor = gameState.teams[event.new_point?.teamId]?.color ||
+                              gameState.teams[event.trap?.teamId]?.color ||
+                              gameState.teams[event.nexus?.teamId]?.color ||
+                              'rgba(200, 200, 200, 0.9)';
+
+            switch (event.type) {
+                case 'point_collapse':
+                    uiState.visualEffects.push({ type: 'point_implosion', x: event.point.x, y: event.point.y, startTime: Date.now(), duration: 800, color: 'rgba(100, 100, 100, 0.9)' });
+                    break;
+                case 'heartwood_growth':
+                    uiState.visualEffects.push({ type: 'heartwood_growth_ray', heartwood: gameState.heartwoods[event.new_point.teamId], new_point: event.new_point, startTime: Date.now(), duration: 1500 });
+                    break;
+                case 'monolith_wave':
+                    uiState.visualEffects.push({ type: 'monolith_wave', center: event.center_coords, radius_sq: event.radius_sq, startTime: Date.now(), duration: 1200 });
+                    break;
+                case 'rift_trap_trigger':
+                    uiState.visualEffects.push({ type: 'point_explosion', x: event.destroyed_point.x, y: event.destroyed_point.y, startTime: Date.now(), duration: 800 });
+                    uiState.visualEffects.push({ type: 'point_implosion', x: event.trap.coords.x, y: event.trap.coords.y, startTime: Date.now(), duration: 800, color: teamColor });
+                    break;
+                case 'rift_trap_expire':
+                    uiState.lastActionHighlights.points.add(event.new_point.id);
+                    uiState.visualEffects.push({ type: 'point_implosion', x: event.trap.coords.x, y: event.trap.coords.y, startTime: Date.now(), duration: 1000, color: 'rgba(220, 220, 255, 0.9)' });
+                    break;
+                case 'attuned_nexus_fade':
+                    uiState.visualEffects.push({ type: 'point_implosion', x: event.nexus.center.x, y: event.nexus.center.y, startTime: Date.now(), duration: 800, color: teamColor });
+                    break;
+                case 'ley_line_fade':
+                    const points = event.ley_line.point_ids.map(pid => gameState.points[pid]).filter(p => p);
+                    if (points.length >= 2) {
+                        uiState.visualEffects.push({ type: 'line_flash', line: { p1_id: points[0].id, p2_id: points[points.length - 1].id }, startTime: Date.now(), duration: 1000 });
+                    }
+                    break;
+            }
+        });
+    }
+
     function updateStateAndRender(gameState) {
         if (!gameState || !gameState.teams) return;
         
         const isFirstUpdate = !currentGameState.game_phase;
         currentGameState = gameState;
 
-        if (gameState.new_turn_events && gameState.new_turn_events.length > 0) {
-            gameState.new_turn_events.forEach(event => {
-                if (event.type === 'point_collapse') {
-                    uiState.visualEffects.push({
-                        type: 'point_implosion',
-                        x: event.point.x,
-                        y: event.point.y,
-                        startTime: Date.now(),
-                        duration: 800,
-                        color: 'rgba(100, 100, 100, 0.9)'
-                    });
-                } else if (event.type === 'heartwood_growth') {
-                    uiState.visualEffects.push({
-                        type: 'heartwood_growth_ray',
-                        heartwood: gameState.heartwoods[event.new_point.teamId],
-                        new_point: event.new_point,
-                        startTime: Date.now(),
-                        duration: 1500,
-                    });
-                } else if (event.type === 'monolith_wave') {
-                     uiState.visualEffects.push({
-                        type: 'monolith_wave',
-                        center: event.center_coords,
-                        radius_sq: event.radius_sq,
-                        startTime: Date.now(),
-                        duration: 1200,
-                    });
-                } else if (event.type === 'rift_trap_trigger') {
-                    uiState.visualEffects.push({
-                        type: 'point_explosion',
-                        x: event.destroyed_point.x,
-                        y: event.destroyed_point.y,
-                        startTime: Date.now(),
-                        duration: 800
-                    });
-                    uiState.visualEffects.push({
-                        type: 'point_implosion',
-                        x: event.trap.coords.x,
-                        y: event.trap.coords.y,
-                        startTime: Date.now(),
-                        duration: 800,
-                        color: gameState.teams[event.trap.teamId].color
-                    });
-                } else if (event.type === 'rift_trap_expire') {
-                    uiState.lastActionHighlights.points.add(event.new_point.id);
-                    uiState.visualEffects.push({
-                        type: 'point_implosion',
-                        x: event.trap.coords.x,
-                        y: event.trap.coords.y,
-                        startTime: Date.now(),
-                        duration: 1000,
-                        color: 'rgba(220, 220, 255, 0.9)'
-                    });
-                } else if (event.type === 'attuned_nexus_fade') {
-                    uiState.visualEffects.push({
-                        type: 'point_implosion',
-                        x: event.nexus.center.x,
-                        y: event.nexus.center.y,
-                        startTime: Date.now(),
-                        duration: 800,
-                        color: gameState.teams[event.nexus.teamId].color
-                    });
-                } else if (event.type === 'ley_line_fade') {
-                    const points = event.ley_line.point_ids.map(pid => gameState.points[pid]).filter(p => p);
-                    if (points.length >= 2) {
-                        uiState.visualEffects.push({
-                            type: 'line_flash',
-                            line: { p1_id: points[0].id, p2_id: points[points.length - 1].id },
-                            startTime: Date.now(),
-                            duration: 1000,
-                        });
-                    }
-                }
-            });
-        }
+        processTurnEvents(gameState.new_turn_events, gameState);
         
         if (isFirstUpdate) {
             renderTeamsList();
         }
 
         processActionVisuals(gameState);
-
         updateLog(gameState.game_log, gameState.teams);
         updateInterpretationPanel(gameState);
         updateActionPreview(gameState);
@@ -2905,6 +2916,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- UI Update Functions ---
 
+    /** Creates a single team list item, handling view and edit modes. */
+    function createTeamListItem(team, teamId, inSetupPhase) {
+        const li = document.createElement('li');
+        li.dataset.teamId = teamId;
+        if (uiState.selectedTeamId === teamId && inSetupPhase) li.classList.add('selected');
+
+        // --- View Mode Elements ---
+        const colorBox = document.createElement('div');
+        colorBox.className = 'team-color-box';
+        colorBox.style.backgroundColor = team.color;
+
+        const teamInfo = document.createElement('div');
+        teamInfo.className = 'team-info';
+        teamInfo.innerHTML = `<span class="team-name">${team.name}</span><span class="team-trait">(${team.trait})</span>`;
+        if (inSetupPhase) {
+            li.style.cursor = 'pointer';
+            teamInfo.onclick = () => { uiState.selectedTeamId = teamId; renderTeamsList(); };
+        }
+
+        // --- Edit Mode Elements ---
+        const editControls = document.createElement('div');
+        editControls.className = 'team-edit-controls';
+        const traits = ['Random', 'Balanced', 'Aggressive', 'Expansive', 'Defensive'];
+        editControls.innerHTML = `
+            <input type="color" value="${team.color}">
+            <input type="text" value="${team.name}" placeholder="Team Name">
+            <select>${traits.map(t => `<option value="${t}" ${team.trait === t ? 'selected' : ''}>${t}</option>`).join('')}</select>
+            <button class="save-team-btn" title="Save changes">&#10003;</button>
+            <button class="cancel-team-btn" title="Cancel edit">&times;</button>
+        `;
+        editControls.querySelector('.save-team-btn').onclick = () => {
+            const newName = editControls.querySelector('input[type="text"]').value.trim();
+            if (newName) {
+                uiState.localTeams[teamId].name = newName;
+                uiState.localTeams[teamId].color = editControls.querySelector('input[type="color"]').value;
+                uiState.localTeams[teamId].trait = editControls.querySelector('select').value;
+                uiState.localTeams[teamId].isEditing = false;
+                renderTeamsList();
+            }
+        };
+        editControls.querySelector('.cancel-team-btn').onclick = () => {
+            uiState.localTeams[teamId].isEditing = false;
+            renderTeamsList();
+        };
+
+        // --- Action Buttons (Edit/Delete) ---
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'team-actions';
+        if (inSetupPhase) {
+            actionsDiv.innerHTML = `<button class="edit-team-btn" title="Edit team">&#9998;</button><button class="delete-team-btn" title="Delete team">&times;</button>`;
+            actionsDiv.querySelector('.edit-team-btn').onclick = () => {
+                Object.values(uiState.localTeams).forEach(t => t.isEditing = false);
+                uiState.localTeams[teamId].isEditing = true;
+                renderTeamsList();
+            };
+            actionsDiv.querySelector('.delete-team-btn').dataset.teamId = teamId;
+        }
+
+        li.append(colorBox, teamInfo, editControls, actionsDiv);
+
+        // Toggle visibility based on edit mode
+        const isEditing = inSetupPhase && team.isEditing;
+        teamInfo.style.display = isEditing ? 'none' : 'flex';
+        colorBox.style.display = isEditing ? 'none' : 'block';
+        actionsDiv.style.display = isEditing ? 'none' : 'flex';
+        editControls.style.display = isEditing ? 'flex' : 'none';
+        
+        return li;
+    }
+
     function renderTeamsList() {
         teamsList.innerHTML = '';
         const inSetupPhase = currentGameState.game_phase === 'SETUP';
@@ -2912,126 +2993,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
         for (const teamId in teamsToRender) {
             const team = teamsToRender[teamId];
-            const li = document.createElement('li');
-            li.dataset.teamId = teamId;
-    
-            if (uiState.selectedTeamId === teamId && inSetupPhase) {
-                li.classList.add('selected');
-            }
-    
-            const colorBox = document.createElement('div');
-            colorBox.className = 'team-color-box';
-            colorBox.style.backgroundColor = team.color;
-            li.appendChild(colorBox);
-    
-            const teamInfo = document.createElement('div');
-            teamInfo.className = 'team-info';
-            teamInfo.onclick = () => {
-                if (inSetupPhase) {
-                    uiState.selectedTeamId = teamId;
-                    renderTeamsList();
-                }
-            };
-            const teamNameSpan = document.createElement('span');
-            teamNameSpan.className = 'team-name';
-            teamNameSpan.textContent = team.name;
-            teamInfo.appendChild(teamNameSpan);
-    
-            if (team.trait) {
-                const teamTraitSpan = document.createElement('span');
-                teamTraitSpan.className = 'team-trait';
-                teamTraitSpan.textContent = `(${team.trait})`;
-                teamInfo.appendChild(teamTraitSpan);
-            }
-            li.appendChild(teamInfo);
-    
-            const editControls = document.createElement('div');
-            editControls.className = 'team-edit-controls';
-    
-            const editColorInput = document.createElement('input');
-            editColorInput.type = 'color';
-            editColorInput.value = team.color;
-    
-            const editNameInput = document.createElement('input');
-            editNameInput.type = 'text';
-            editNameInput.value = team.name;
-            editNameInput.placeholder = 'Team Name';
-    
-            const editTraitSelect = document.createElement('select');
-            const traits = ['Random', 'Balanced', 'Aggressive', 'Expansive', 'Defensive'];
-            traits.forEach(traitValue => {
-                const option = document.createElement('option');
-                option.value = traitValue;
-                option.textContent = traitValue;
-                if (team.trait === traitValue) {
-                    option.selected = true;
-                }
-                editTraitSelect.appendChild(option);
-            });
-    
-            const saveBtn = document.createElement('button');
-            saveBtn.innerHTML = '&#10003;';
-            saveBtn.title = 'Save changes';
-            saveBtn.className = 'save-team-btn';
-            saveBtn.onclick = () => {
-                const newName = editNameInput.value.trim();
-                if (newName) {
-                    uiState.localTeams[teamId].name = newName;
-                    uiState.localTeams[teamId].color = editColorInput.value;
-                    uiState.localTeams[teamId].trait = editTraitSelect.value;
-                    uiState.localTeams[teamId].isEditing = false;
-                    renderTeamsList();
-                }
-            };
-    
-            const cancelBtn = document.createElement('button');
-            cancelBtn.innerHTML = '&times;';
-            cancelBtn.title = 'Cancel edit';
-            cancelBtn.className = 'cancel-team-btn';
-            cancelBtn.onclick = () => {
-                uiState.localTeams[teamId].isEditing = false;
-                renderTeamsList();
-            };
-    
-            editControls.append(editColorInput, editNameInput, editTraitSelect, saveBtn, cancelBtn);
-            li.appendChild(editControls);
-    
-            const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'team-actions';
-            if (inSetupPhase) {
-                li.style.cursor = 'pointer';
-                const editBtn = document.createElement('button');
-                editBtn.innerHTML = '&#9998;';
-                editBtn.title = 'Edit team';
-                editBtn.onclick = () => {
-                    Object.values(uiState.localTeams).forEach(t => t.isEditing = false);
-                    uiState.localTeams[teamId].isEditing = true;
-                    renderTeamsList();
-                };
-    
-                const deleteBtn = document.createElement('button');
-                deleteBtn.innerHTML = '&times;';
-                deleteBtn.title = 'Delete team';
-                deleteBtn.className = 'delete-team-btn';
-                deleteBtn.dataset.teamId = teamId;
-    
-                actionsDiv.append(editBtn, deleteBtn);
-            }
-            li.appendChild(actionsDiv);
-    
-            if (inSetupPhase && team.isEditing) {
-                colorBox.style.display = 'none';
-                teamInfo.style.display = 'none';
-                actionsDiv.style.display = 'none';
-                editControls.style.display = 'flex';
-            } else {
-                colorBox.style.display = 'block';
-                teamInfo.style.display = 'flex';
-                actionsDiv.style.display = 'flex';
-                editControls.style.display = 'none';
-            }
-    
-            teamsList.appendChild(li);
+            teamsList.appendChild(createTeamListItem(team, teamId, inSetupPhase));
         }
     }
 
@@ -3091,6 +3053,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateLiveStats(teams, live_stats, gameState) {
+        let statsHTML = '<h4>Live Stats</h4>';
+        if (teams && Object.keys(teams).length > 0 && live_stats) {
+            for (const teamId in teams) {
+                const team = teams[teamId];
+                const stats = live_stats[teamId];
+                if (!stats) continue;
+
+                let teamHTML = `<div style="margin-bottom: 5px;">
+                    <strong style="color:${team.color};">${team.name}</strong>: 
+                    ${stats.point_count} pts, ${stats.line_count} lines, ${stats.controlled_area} area`;
+                
+                const allStructures = ['I-Rune', 'Cross', 'V-Rune', 'Prism', 'Nexus', 'Bastion', 'Monolith', 'Trebuchet', 'Purifier', 'Rift Spire', 'Wonder'];
+                const structureStrings = allStructures.map(name => {
+                    const stateKey = name.toLowerCase().replace('-', '_');
+                    let count = 0;
+                    if (gameState.runes?.[teamId]?.[stateKey]) count = gameState.runes[teamId][stateKey].length;
+                    else if (gameState[stateKey + 's']?.[teamId]) count = gameState[stateKey + 's'][teamId].length;
+                    else if (gameState[stateKey + 's']) count = Object.values(gameState[stateKey + 's']).filter(s => s.teamId === teamId).length;
+                    return count > 0 ? `${name}(${count})` : '';
+                }).filter(Boolean);
+
+                if (structureStrings.length > 0) {
+                    teamHTML += `<br/><span style="font-size: 0.9em; padding-left: 10px;">Formations: ${structureStrings.join(', ')}</span>`;
+                }
+                teamHTML += `</div>`;
+                statsHTML += teamHTML;
+            }
+        } else {
+            statsHTML += '<p>No teams yet.</p>';
+        }
+        statsDiv.innerHTML = statsHTML;
+    }
+
     function updateInterpretationPanel(gameState) {
         const { turn, max_turns, teams, game_phase, interpretation, victory_condition, live_stats, action_in_turn, actions_queue_this_turn } = gameState;
 
@@ -3101,35 +3097,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         turnCounter.textContent = turnText;
 
-        let statsHTML = '<h4>Live Stats</h4>';
-        if (teams && Object.keys(teams).length > 0 && live_stats) {
-             for (const teamId in teams) {
-                const team = teams[teamId];
-                const stats = live_stats[teamId];
-                if (stats) {
-                    let teamHTML = `<div style="margin-bottom: 5px;">
-                        <strong style="color:${team.color};">${team.name}</strong>: 
-                        ${stats.point_count} pts, ${stats.line_count} lines, ${stats.controlled_area} area`;
-                    const allStructures = ['I-Rune', 'Cross', 'V-Rune', 'Prism', 'Nexus', 'Bastion', 'Monolith', 'Trebuchet', 'Purifier', 'Rift Spire', 'Wonder'];
-                    let structureStrings = allStructures.map(name => {
-                        const stateKey = name.toLowerCase().replace('-', '_');
-                        let count = 0;
-                        if (gameState.runes && gameState.runes[teamId] && gameState.runes[teamId][stateKey]) count = gameState.runes[teamId][stateKey].length;
-                        else if (gameState[stateKey + 's'] && teamId in gameState[stateKey + 's']) count = gameState[stateKey + 's'][teamId].length;
-                        else if (gameState[stateKey + 's']) count = Object.values(gameState[stateKey + 's']).filter(s => s.teamId === teamId).length;
-                        return count > 0 ? `${name}(${count})` : '';
-                    }).filter(Boolean);
-                    if (structureStrings.length > 0) {
-                        teamHTML += `<br/><span style="font-size: 0.9em; padding-left: 10px;">Formations: ${structureStrings.join(', ')}</span>`;
-                    }
-                    teamHTML += `</div>`;
-                    statsHTML += teamHTML;
-                }
-            }
-        } else {
-            statsHTML += '<p>No teams yet.</p>';
-        }
-        statsDiv.innerHTML = statsHTML;
+        updateLiveStats(teams, live_stats, gameState);
     
         if (game_phase === 'FINISHED' && interpretation) {
             finalInterpContent.innerHTML = '';
@@ -3464,27 +3432,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    async function initActionGuide() {
-        try {
-            const allActions = await api.getAllActions();
-            const searchInput = document.getElementById('guide-search');
-            const togglesContainer = document.getElementById('guide-group-toggles');
-            actionGuideContent.innerHTML = '';
+    function createActionGuideFilters(allActions) {
+        const togglesContainer = document.getElementById('guide-group-toggles');
+        const groupCounts = allActions.reduce((acc, action) => ({ ...acc, [action.group]: (acc[action.group] || 0) + 1 }), {});
+        const groups = Object.keys(groupCounts).sort();
 
-            const groupCounts = allActions.reduce((acc, action) => {
-                acc[action.group] = (acc[action.group] || 0) + 1;
-                return acc;
-            }, {});
-            const groups = Object.keys(groupCounts).sort();
+        let buttonsHTML = `<button class="active" data-group="All">All (${allActions.length})</button>`;
+        groups.forEach(group => {
+            buttonsHTML += `<button data-group="${group}">${group} (${groupCounts[group]})</button>`;
+        });
+        togglesContainer.innerHTML = buttonsHTML;
 
-            togglesContainer.innerHTML = `<button class="active" data-group="All">All (${allActions.length})</button>`;
-            groups.forEach(group => {
-                togglesContainer.innerHTML += `<button data-group="${group}">${group} (${groupCounts[group]})</button>`;
-            });
+        togglesContainer.addEventListener('click', e => {
+            if (e.target.tagName === 'BUTTON') {
+                togglesContainer.querySelector('button.active').classList.remove('active');
+                e.target.classList.add('active');
+                filterActionGuide();
+            }
+        });
+    }
 
-            const actionsByGroup = {};
-            allActions.forEach(action => {
-                if (!actionsByGroup[action.group]) actionsByGroup[action.group] = [];
+    function populateActionGuideContent(allActions) {
+        const groups = [...new Set(allActions.map(a => a.group))].sort();
+        const actionsByGroup = allActions.reduce((acc, action) => {
+            if (!acc[action.group]) acc[action.group] = [];
+            acc[action.group].push(action);
+            return acc;
+        }, {});
+
+        actionGuideContent.innerHTML = '';
+        for (const group of groups) {
+            const section = document.createElement('div');
+            section.className = 'guide-group-section';
+            section.dataset.group = group;
+            section.innerHTML = `<h3 class="guide-group-header">${group}</h3>`;
+            const grid = document.createElement('div');
+            grid.className = 'action-guide-grid';
+            
+            actionsByGroup[group].forEach(action => {
                 const card = document.createElement('div');
                 card.className = 'action-card';
                 card.dataset.name = action.name;
@@ -3499,56 +3484,54 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="action-group action-group--${action.group.toLowerCase()}">${action.group}</span>
                         </div>
                         <div class="action-card-description">${action.description}</div>
-                    </div>
-                `;
-                actionsByGroup[action.group].push(card);
+                    </div>`;
+                grid.appendChild(card);
+
                 const canvas = card.querySelector('canvas');
                 const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
                 drawer(canvas.getContext('2d'), canvas.width, canvas.height);
             });
-            
-            for (const group of groups) {
-                const section = document.createElement('div');
-                section.className = 'guide-group-section';
-                section.dataset.group = group;
-                section.innerHTML = `<h3 class="guide-group-header">${group}</h3>`;
-                const grid = document.createElement('div');
-                grid.className = 'action-guide-grid';
-                actionsByGroup[group].forEach(card => grid.appendChild(card));
-                section.appendChild(grid);
-                actionGuideContent.appendChild(section);
+
+            section.appendChild(grid);
+            actionGuideContent.appendChild(section);
+        }
+    }
+
+    function filterActionGuide() {
+        const searchInput = document.getElementById('guide-search');
+        const togglesContainer = document.getElementById('guide-group-toggles');
+        const searchTerm = searchInput.value.toLowerCase();
+        const activeGroup = togglesContainer.querySelector('button.active').dataset.group;
+
+        actionGuideContent.querySelectorAll('.guide-group-section').forEach(section => {
+            const sectionGroup = section.dataset.group;
+            const groupMatch = activeGroup === 'All' || sectionGroup === activeGroup;
+            if (!groupMatch) {
+                section.style.display = 'none';
+                return;
             }
 
-            function filterActions() {
-                const searchTerm = searchInput.value.toLowerCase();
-                const activeGroup = togglesContainer.querySelector('button.active').dataset.group;
-                actionGuideContent.querySelectorAll('.guide-group-section').forEach(section => {
-                    const sectionGroup = section.dataset.group;
-                    const groupMatch = activeGroup === 'All' || sectionGroup === activeGroup;
-                    if (!groupMatch) { section.style.display = 'none'; return; }
-                    section.style.display = 'block';
-                    let hasVisibleCard = false;
-                    section.querySelectorAll('.action-card').forEach(card => {
-                        const searchMatch = card.dataset.displayName.toLowerCase().includes(searchTerm) || card.dataset.description.toLowerCase().includes(searchTerm);
-                        if (searchMatch) {
-                            card.style.display = 'flex';
-                            hasVisibleCard = true;
-                        } else {
-                            card.style.display = 'none';
-                        }
-                    });
-                    if (searchTerm && !hasVisibleCard) section.style.display = 'none';
-                });
-            }
-
-            searchInput.addEventListener('input', filterActions);
-            togglesContainer.addEventListener('click', e => {
-                if (e.target.tagName === 'BUTTON') {
-                    togglesContainer.querySelector('button.active').classList.remove('active');
-                    e.target.classList.add('active');
-                    filterActions();
+            section.style.display = 'block';
+            let hasVisibleCard = false;
+            section.querySelectorAll('.action-card').forEach(card => {
+                const searchMatch = card.dataset.displayName.toLowerCase().includes(searchTerm) || card.dataset.description.toLowerCase().includes(searchTerm);
+                if (searchMatch) {
+                    card.style.display = 'flex';
+                    hasVisibleCard = true;
+                } else {
+                    card.style.display = 'none';
                 }
             });
+            section.style.display = hasVisibleCard || !searchTerm ? 'block' : 'none';
+        });
+    }
+
+    async function initActionGuide() {
+        try {
+            const allActions = await api.getAllActions();
+            createActionGuideFilters(allActions);
+            populateActionGuideContent(allActions);
+            document.getElementById('guide-search').addEventListener('input', filterActionGuide);
         } catch (error) {
             actionGuideContent.innerHTML = '<p>Could not load action guide.</p>';
             console.error("Failed to initialize action guide:", error);
