@@ -342,6 +342,15 @@ ACTIONS = {
             'convert_fizzle_push': lambda r: (f"attempted to convert a point but found no targets, instead unleashing a pulse that pushed back {r['pushed_points_count']} enemies.", "[CONVERT->PUSH]"),
         }
     },
+    'sacrifice_line_retaliation': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'line_retaliation',
+        'display_name': 'Line Retaliation',
+        'description': "Sacrifices a point on a line to unleash two projectiles from the line's former position. One continues along the line's path, the other fires perpendicularly. Each projectile destroys the first enemy line it hits, or creates a new point on the border if it misses.",
+        'log_generators': {
+            'line_retaliation': lambda r: (f"sacrificed a point on a line, unleashing two projectiles that destroyed {len(r['destroyed_lines'])} lines and created {len(r['created_points'])} points.", "[RETALIATION!]"),
+            'line_retaliation_fizzle': lambda r: ("attempted a line retaliation, but both projectiles were blocked.", "[RETALIATION->FIZZLE]"),
+        }
+    },
     'sacrifice_bastion_pulse': {
         'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'bastion_pulse',
         'display_name': 'Bastion Pulse',

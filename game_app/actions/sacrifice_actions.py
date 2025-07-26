@@ -41,6 +41,10 @@ class SacrificeActionsHandler:
         # Thus, only a line is needed.
         return len(self.game.get_team_lines(teamId)) > 0, "Requires a line to sacrifice."
 
+    def can_perform_line_retaliation(self, teamId):
+        # Requires a non-critical line to sacrifice a point from.
+        return len(self._get_eligible_phase_shift_lines(teamId)) > 0, "Requires a non-critical line to sacrifice."
+
     def can_perform_bastion_pulse(self, teamId):
         return len(self._find_possible_bastion_pulses(teamId)) > 0, "No bastion with enemy lines crossing its perimeter."
 
@@ -515,6 +519,92 @@ class SacrificeActionsHandler:
                 'pulse_center': midpoint,
                 'pushed_points_count': len(pushed_points)
             }
+
+    def line_retaliation(self, teamId):
+        """[SACRIFICE ACTION]: Sacrifices a point on a line to fire two projectiles from the line's former position."""
+        eligible_lines = self._get_eligible_phase_shift_lines(teamId)
+        if not eligible_lines:
+            return {'success': False, 'reason': 'no eligible line to sacrifice a point from'}
+
+        line_to_unravel = random.choice(eligible_lines)
+        points = self.state['points']
+        
+        p1_id, p2_id = line_to_unravel['p1_id'], line_to_unravel['p2_id']
+        if p1_id not in points or p2_id not in points:
+            return {'success': False, 'reason': 'line points for sacrifice no longer exist'}
+        
+        # Sacrifice one point, keep the other
+        p_to_sac_id, p_to_keep_id = random.choice([(p1_id, p2_id), (p2_id, p1_id)])
+
+        p1_orig = points[p1_id].copy()
+        p2_orig = points[p2_id].copy()
+        midpoint = points_centroid([p1_orig, p2_orig])
+
+        # --- Perform Sacrifice ---
+        # Deleting the point will also remove the line.
+        sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
+        if not sacrificed_point_data:
+             return {'success': False, 'reason': 'failed to sacrifice line endpoint'}
+
+        # --- Fire Projectiles ---
+        destroyed_lines = []
+        created_points = []
+        attack_rays = []
+        
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        team_has_cross_rune = len(self.state.get('runes', {}).get(teamId, {}).get('cross', [])) > 0
+        bastion_line_ids = self.game._get_bastion_line_ids()
+
+        vx_ext, vy_ext = p2_orig['x'] - p1_orig['x'], p2_orig['y'] - p1_orig['y']
+        vectors_to_try = [(vx_ext, vy_ext), (-vy_ext, vx_ext)]
+
+        for vx, vy in vectors_to_try:
+            if vx == 0 and vy == 0: continue
+
+            dummy_end_point = {'x': midpoint['x'] + vx, 'y': midpoint['y'] + vy}
+            border_point = get_extended_border_point(
+                midpoint, dummy_end_point, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
+            )
+            if not border_point: continue
+            
+            attack_ray_p1 = midpoint
+            attack_ray_p2 = border_point
+
+            closest_hit = self.game.fight_handler._find_closest_attack_hit(
+                attack_ray_p1, attack_ray_p2, enemy_lines, team_has_cross_rune, bastion_line_ids
+            )
+
+            if closest_hit:
+                if closest_hit['target_line'] not in destroyed_lines:
+                    self.game._delete_line(closest_hit['target_line'])
+                    destroyed_lines.append(closest_hit['target_line'])
+                    attack_rays.append({'p1': attack_ray_p1, 'p2': closest_hit['intersection_point']})
+                    if closest_hit['target_line'] in enemy_lines:
+                        enemy_lines.remove(closest_hit['target_line'])
+            else:
+                new_point = self.game._helper_spawn_on_border(teamId, border_point)
+                if new_point:
+                    created_points.append(new_point)
+                    attack_rays.append({'p1': attack_ray_p1, 'p2': border_point})
+
+        if not destroyed_lines and not created_points:
+            return {
+                'success': True,
+                'type': 'line_retaliation_fizzle',
+                'sacrificed_point': sacrificed_point_data,
+                'unraveled_line': line_to_unravel
+            }
+
+        return {
+            'success': True,
+            'type': 'line_retaliation',
+            'destroyed_lines': destroyed_lines,
+            'created_points': created_points,
+            'attack_rays': attack_rays,
+            'sacrificed_point': sacrificed_point_data,
+            'unraveled_line': line_to_unravel
+        }
 
     def _find_possible_bastion_pulses(self, teamId):
         team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId and len(b['prong_ids']) > 0]

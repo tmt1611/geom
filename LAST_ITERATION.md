@@ -1,13 +1,14 @@
-This iteration focused on improving the robustness of the action system, ensuring that actions are available even in extreme edge cases, as per `design.md`.
+This iteration focused on redesigning sacrifice actions, implementing a new action directly from `design.md`.
 
-1.  **Ensured Action Availability for Single Points:**
-    - Identified that for a team with only one or two points, the available action pool could become very small or empty, violating a core design principle.
-    - The `reposition_point` and `rotate_point` actions were previously unavailable for teams with <= 2 points because they incorrectly used a helper method designed for sacrificial actions.
+1.  **Interpreted `design.md` Sacrifice Rules**:
+    - Analyzed the "Sacrifice Variants" section in `design.md`, specifically the rule for sacrificing a point that is part of a line.
+    - The rule states: "Line also sacrificed: fires a perpendicular and an extended line."
 
-2.  **Refactored Point Selection Logic:**
-    - Created a new helper method, `_find_repositionable_point`, in `game_logic.py`. This method specifically finds "free" points that are not part of critical structures and are not articulation points, making it suitable for non-destructive move actions.
-    - Unlike the old method, this new logic correctly identifies that a single point, or points in a simple line, can be safely moved.
+2.  **Designed and Implemented `Line Retaliation` Action**:
+    - Created a new sacrifice action, `sacrifice_line_retaliation`, that fulfills the design specification.
+    - **Action Logic**: The action sacrifices a non-critical point on a line. This causes the line to be destroyed, and from its former midpoint, two projectiles are fired: one along the line's original vector and another perpendicularly. Each projectile destroys the first enemy line it hits or creates a new point on the border if it misses.
+    - This adds a new strategic option to the `Sacrifice` group, providing a powerful area-denial and potential creation tool at the cost of a point and a line.
 
-3.  **Updated Fortify Actions:**
-    - Modified `reposition_point` and `rotate_point` (and their `can_perform_*` checks) in `fortify_actions.py` to use the new `_find_repositionable_point` method.
-    - This change makes these "no-cost" movement actions available in more scenarios, particularly for teams with very few points, thus guaranteeing a richer and more resilient action pool.
+3.  **Added Action Metadata**:
+    - Updated `action_data.py` with the new action's display name, description, and log generation messages for clear feedback to the user in the game log.
+    - Implemented the `can_perform_line_retaliation` precondition check in `sacrifice_actions.py` to ensure the action is only available when a valid, non-critical line can be targeted.
