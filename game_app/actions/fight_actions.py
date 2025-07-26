@@ -48,25 +48,10 @@ class FightActionsHandler:
         return can_perform, "Requires a Purifier."
 
     def can_perform_isolate_point(self, teamId):
-        # Primary effect needs >= 1 point and a valid target.
-        # Fallback effect needs >= 2 points.
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) < 1:
-            return False, "Requires at least one point to act."
-
-        if len(team_point_ids) >= 2:
-            return True, ""  # Can always perform the fallback barricade.
-
-        # If only 1 point exists, check if the primary action is possible.
-        enemy_team_ids = [tid for tid in self.game.state['teams'] if tid != teamId]
-        for enemy_team_id in enemy_team_ids:
-            articulation_points = self.game._find_articulation_points(enemy_team_id)
-            for pid in articulation_points:
-                # Check if this potential target is not already isolated or in stasis
-                if pid not in self.state.get('isolated_points', {}) and pid not in self.state.get('stasis_points', {}):
-                    return True, ""
-        
-        return False, "No valid enemy target to isolate and not enough points for fallback barricade."
+        # With push/barricade fallbacks, action is always possible if team has at least one point.
+        can_perform = len(self.game.get_team_point_ids(teamId)) >= 1
+        reason = "" if can_perform else "Requires at least one point to act."
+        return can_perform, reason
 
     def can_perform_parallel_strike(self, teamId):
         team_lines = self.game.get_team_lines(teamId)
@@ -793,19 +778,29 @@ class FightActionsHandler:
                 'target_team_name': target_team_name
             }
         else:
-            # --- Fallback: Create barricade ---
-            if len(team_point_ids) < 2:
-                return {'success': False, 'reason': 'not enough points for fallback barricade'}
-                
-            p1_id, p2_id = random.sample(team_point_ids, 2)
-            p1 = self.state['points'][p1_id]
-            p2 = self.state['points'][p2_id]
+            # --- Fallback Logic ---
+            if len(team_point_ids) >= 2:
+                # Fallback 1: Create barricade
+                p1_id, p2_id = random.sample(team_point_ids, 2)
+                p1 = self.state['points'][p1_id]
+                p2 = self.state['points'][p2_id]
+                new_barricade = self.game._create_temporary_barricade(teamId, p1, p2, 2)
+                return {
+                    'success': True, 'type': 'isolate_fizzle_barricade',
+                    'barricade': new_barricade
+                }
+            else:
+                # Fallback 2: Push a nearby enemy
+                projector_point = self.state['points'][team_point_ids[0]]
+                pulse_radius_sq = (self.state['grid_size'] * 0.2)**2
+                points_to_push = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+                pushed_points = self.game._push_points_in_radius(projector_point, pulse_radius_sq, 1.5, points_to_push)
 
-            new_barricade = self.game._create_temporary_barricade(teamId, p1, p2, 2)
-            return {
-                'success': True, 'type': 'isolate_fizzle_barricade',
-                'barricade': new_barricade
-            }
+                return {
+                    'success': True, 'type': 'isolate_fizzle_push',
+                    'projector_point': projector_point,
+                    'pushed_points_count': len(pushed_points)
+                }
 
     def parallel_strike(self, teamId):
         """[FIGHT ACTION]: From a point, draw a line parallel to a friendly line. If it hits an enemy point, destroy it. If it hits the border, generate a point."""

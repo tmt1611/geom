@@ -164,10 +164,11 @@ ACTIONS = {
     'fight_isolate_point': {
         'group': 'Fight', 'handler': 'fight_handler', 'method': 'isolate_point',
         'display_name': 'Isolate Point', 'no_cost': True,
-        'description': "Projects an isolation field onto a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. This action has no cost. If no such point is found, it creates a defensive barricade instead.",
+        'description': "Projects an isolation field onto a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. This action has no cost. If no such point is found, it creates a defensive barricade (with 2+ points) or a weak repulsive pulse (with 1 point).",
         'log_generators': {
             'isolate_point': lambda r: (f"isolated a critical point from {r['target_team_name']}", "[ISOLATE!]"),
             'isolate_fizzle_barricade': lambda r: ("failed to find a critical enemy point to isolate and instead formed a defensive barricade.", "[ISOLATE->WALL]"),
+            'isolate_fizzle_push': lambda r: (f"failed to find a target to isolate and instead emitted a weak pulse, pushing back {r['pushed_points_count']} enemies.", "[ISOLATE->PUSH]"),
         }
     },
     'fight_parallel_strike': {
