@@ -1,14 +1,16 @@
-This iteration focused on improving the action system by implementing missing actions and fixing a rule violation, adhering to `design.md`.
+This iteration focused on implementing several new rune-based sacrifice actions, bringing the game's mechanics closer to the vision in `design.md`.
 
-1.  **Corrected Rule Violation:**
-    -   The fallback for the `hourglass_stasis` action was sacrificing a rune point, which violates the rule "Rune, territory, and wonder points cannot be sacrificed."
-    -   This has been corrected. The fallback now *converts* one of the rune's own points into a temporary anchor, degrading the rune without an illicit sacrifice. This makes the cost of failure the temporary loss of the rune structure itself.
-    -   The action's precondition check (`can_perform_hourglass_stasis`) was also made more robust to account for this new fallback logic.
+1.  **Implemented New Rune-Sacrifice Actions:** Added four complex actions that are unlocked by specific runes and involve sacrificing part or all of the rune structure, as per `design.md` and `rules.md`.
+    -   `sacrifice_attune_nexus`: A Nexus sacrifices one of its diagonal lines to become "attuned," energizing nearby friendly lines for several turns, causing their attacks to become more destructive.
+    -   `sacrifice_starlight_cascade`: A Star-Rune sacrifices an outer point to create a small blast that destroys nearby unshielded enemy lines.
+    -   `sacrifice_t_hammer_slam`: A T-Rune sacrifices its "head" point to create a perpendicular shockwave, pushing points away from its "stem." It reinforces itself if it misses.
+    -   `sacrifice_cardinal_pulse`: A Plus-Rune is consumed entirely to fire four powerful beams in cardinal directions, destroying enemy lines or creating new friendly points.
 
-2.  **Implemented Missing Sacrifice Actions:**
-    -   The `convert_point` and `bastion_pulse` actions, which were defined in `action_data.py` but not implemented, have now been added to `sacrifice_actions.py`.
-    -   `convert_point`: Sacrifices a friendly line to convert a nearby vulnerable enemy point. If no target is in range, it creates a repulsive pulse.
-    -   `bastion_pulse`: An active Bastion sacrifices one of its outer points to destroy all enemy lines crossing its perimeter. If the Bastion dissolves from the sacrifice, it creates a local shockwave instead.
+2.  **State Management for New Effects:**
+    -   Added the `attuned_nexuses` state to `game_logic.py`.
+    -   Implemented the `_process_attuned_nexuses` logic in `turn_processor.py` to handle the effect's duration.
+    -   Updated `structure_data.py` to include `attuned_nexuses` in the turn processing order.
 
-3.  **Code Refactoring:**
-    -   Moved `_find_possible_bastion_pulses` from `game_logic.py` to `sacrifice_actions.py` to keep the action logic self-contained within its handler.
+3.  **Code Cleanup:**
+    -   Added necessary imports for new geometry functions in `sacrifice_actions.py`.
+    -   Ensured the new actions and their preconditions are correctly registered and checked by the game logic.
