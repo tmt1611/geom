@@ -13,10 +13,12 @@ class FortifyActionsHandler:
         return len(self.game.get_team_lines(teamId)) > 0, "Requires at least one line to shield or overcharge."
 
     def can_perform_claim_territory(self, teamId):
-        can_claim = len(self._find_claimable_triangles(teamId)) > 0
+        # A rough check to avoid expensive triangle enumeration for the precondition.
+        # The action itself will do the precise check.
+        can_potentially_claim = len(self.game.get_team_point_ids(teamId)) >= 3 and len(self.game.get_team_lines(teamId)) >= 3
         can_reinforce = any(t['teamId'] == teamId for t in self.state.get('territories', []))
-        can_perform = can_claim or can_reinforce
-        reason = "" if can_perform else "No new triangles to claim and no existing territories to reinforce."
+        can_perform = can_potentially_claim or can_reinforce
+        reason = "" if can_perform else "Requires at least 3 points and 3 lines to claim, or an existing territory to reinforce."
         return can_perform, reason
 
     def can_perform_create_anchor(self, teamId):
@@ -88,9 +90,15 @@ class FortifyActionsHandler:
         return None
 
     def can_perform_mirror_structure(self, teamId):
-        # The check is now more accurate: can we actually find a valid mirror operation?
-        can_perform = self._find_a_valid_mirror(teamId) is not None
-        return can_perform, "No valid mirror reflection found."
+        # Primary needs at least 3 points. Fallback needs at least one line, or at least 2 points to create a line.
+        # This is a cheap check; the action itself performs the more expensive geometric validation.
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        has_points_for_primary = len(team_point_ids) >= 3
+        has_lines_for_fallback_strengthen = len(self.game.get_team_lines(teamId)) > 0
+        has_points_for_fallback_add_line = len(team_point_ids) >= 2
+        can_perform = has_points_for_primary or has_lines_for_fallback_strengthen or has_points_for_fallback_add_line
+        reason = "" if can_perform else "Requires at least 2 points."
+        return can_perform, reason
 
     def can_perform_form_bastion(self, teamId):
         can_form = len(self._find_possible_bastions(teamId)) > 0
@@ -194,22 +202,10 @@ class FortifyActionsHandler:
         return can_rotate, reason
     
     def can_perform_create_ley_line(self, teamId):
-        # An I-Rune is a line of 3 or more points.
-        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
-        if not team_i_runes:
-            return False, "Requires an I-Rune (a line of 3+ points)."
-        
-        # Check if there's at least one I-Rune that isn't already an active Ley Line.
-        for i_rune in team_i_runes:
-            is_active = False
-            for ll in self.state.get('ley_lines', {}).values():
-                if set(ll['point_ids']) == set(i_rune['point_ids']):
-                    is_active = True
-                    break
-            if not is_active:
-                return True, ""
-                
-        return False, "All available I-Runes are already active Ley Lines."
+        # The action is possible as long as an I-Rune exists.
+        # The action logic handles whether to create a new Ley Line or pulse an existing one.
+        has_i_rune = bool(self.state.get('runes', {}).get(teamId, {}).get('i_shape', []))
+        return has_i_rune, "Requires an I-Rune (a line of 3+ points)."
 
     # --- End Precondition Checks ---
 
@@ -603,7 +599,7 @@ class FortifyActionsHandler:
                     new_line = {"id": line_id, "p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
                     self.state['lines'].append(new_line)
                     # For logging purposes, it's better to return a unique type
-                    return {'success': True, 'type': 'add_line', 'line': new_line}
+                    return {'success': True, 'type': 'mirror_fizzle_add_line', 'new_line': new_line}
             
             return {'success': False, 'reason': 'mirroring failed and structure is already fully connected/strengthened'}
 

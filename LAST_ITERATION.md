@@ -1,5 +1,6 @@
-Improved action robustness to reduce cases where actions can fail, in line with the "action pool never empty" design goal.
+Optimized and corrected action precondition checks to improve performance and adhere to the "action pool never empty" design principle.
 
-1.  **`hull_breach` Improvement**: Added a third-level fallback to the `hull_breach` action. If the primary effect (convert point) and secondary effect (reinforce hull lines) are not possible, the action will now emit a weak pulse to push nearby enemies away, preventing the action from failing if the hull is already complete and max-strength. Updated `action_data.py` with a new log generator and description for this outcome.
-
-2.  **`parallel_strike` Fix**: Corrected the `parallel_strike` action logic. It no longer requires enemy points to be present to be considered a valid action, as its design includes creating a point on the border if it misses. This makes the action more reliable and always available as long as the team has a valid point/line combination.
+1.  **Optimized `claim_territory` Precondition:** Replaced the expensive triangle enumeration in `can_perform_claim_territory` with a much cheaper check based on point and line counts, improving performance. The precise check remains in the action's execution logic.
+2.  **Corrected `mirror_structure` Precondition:** The `can_perform_mirror_structure` check was too strict and only checked for the primary effect. It now correctly accounts for the action's fallback effects (strengthening or adding a line), making the action available more often as intended.
+3.  **Corrected `create_ley_line` Precondition:** Simplified the `can_perform_create_ley_line` check. It now correctly allows the action if any I-Rune exists, as the action's implementation handles both creating a new ley line and pulsing an existing one.
+4.  **Improved `mirror_structure` Fallback:** Added a unique log message for the final fallback case of the `mirror_structure` action where it creates a new line, distinguishing it from the standard `add_line` action for better log clarity.
