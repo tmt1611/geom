@@ -89,7 +89,7 @@ class FortifyActionsHandler:
 
     def can_perform_mirror_structure(self, teamId):
         # The check is now more accurate: can we actually find a valid mirror operation?
-        can_perform = self._find_a_valid_mirror(teamId, num_attempts=3) is not None
+        can_perform = self._find_a_valid_mirror(teamId) is not None
         return can_perform, "No valid mirror reflection found."
 
     def can_perform_form_bastion(self, teamId):
