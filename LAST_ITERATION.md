@@ -1,3 +1,2 @@
-*   **Refactor (Action System):** Introduced a new `Terraform` action group and handler.
-*   **Refactor (Code Organization):** Moved the `form_rift_spire` and `create_fissure` actions from the `Fortify` handler to the new `TerraformActionsHandler` for better logical separation. This included creating a new file `game_app/actions/terraform_actions.py`.
-*   **Update:** Adjusted action registry, group weights, and core game logic to integrate the new `Terraform` action group.
+*   **Fix (Bug):** Corrected a syntax error (an extra closing brace) in `action_data.py` within the `ACTIONS` dictionary.
+*   **Refactor (Actions):** Updated the `line_retaliation` action to allow for point regeneration, making it consistent with other point-sacrifice actions and the design document's intent.

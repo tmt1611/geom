@@ -256,7 +256,6 @@ ACTIONS = {
             'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
         }
     },
-    },
     'fortify_reposition_point': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'reposition_point',
         'display_name': 'Reposition Point', 'no_cost': True,

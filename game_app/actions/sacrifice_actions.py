@@ -515,7 +515,7 @@ class SacrificeActionsHandler:
 
         # --- Perform Sacrifice ---
         # Deleting the point will also remove the line.
-        sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
+        sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId, allow_regeneration=True)
         if not sacrificed_point_data:
              return {'success': False, 'reason': 'failed to sacrifice line endpoint'}
 
