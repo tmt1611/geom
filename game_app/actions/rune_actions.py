@@ -282,7 +282,7 @@ class RuneActionsHandler:
                     pulled_points.append(point.copy())
             
             return {
-                'success': True, 'type': 'shield_pulse_fizzle_pull', 'pulled_points_count': len(pulled_points),
+                'success': True, 'type': 'shield_pulse_fizzle_pull', 'pulled_points': pulled_points,
                 'rune_points': all_rune_pids, 'pulse_center': rune_center, 'pulse_radius_sq': pulse_radius_sq
             }
 

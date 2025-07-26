@@ -1804,16 +1804,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const actionVisualsMap = {
         'isolate_point': (details, gameState) => {
             lastActionHighlights.points.add(details.isolated_point.id);
-            const line = details.sacrificed_line;
-            const p1 = gameState.points[line.p1_id];
-            const p2 = gameState.points[line.p2_id];
-            if (p1 && p2) {
+            lastActionHighlights.points.add(details.projector_point.id);
+            if (details.projector_point && details.isolated_point) {
                 visualEffects.push({
-                    type: 'point_pull',
-                    center: details.isolated_point,
-                    points: [p1, p2],
+                    type: 'animated_ray',
+                    p1: details.projector_point,
+                    p2: details.isolated_point,
                     startTime: Date.now(),
-                    duration: 1000
+                    duration: 800,
+                    color: 'rgba(200, 100, 255, 1.0)',
+                    lineWidth: 3
                 });
             }
         },
