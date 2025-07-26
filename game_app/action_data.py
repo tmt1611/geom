@@ -254,8 +254,16 @@ ACTIONS = {
             'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
         }
     },
+    'fortify_form_rift_spire': {
+        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'form_rift_spire',
+        'display_name': 'Form Rift Spire', 'no_cost': True,
+        'description': "At a point that is a vertex of 3 or more territories, erects a Rift Spire. The Spire charges up to unlock the 'Create Fissure' action. This action costs no points.",
+        'log_generators': {
+            'form_rift_spire': lambda r: ("erected a Rift Spire at a territorial nexus.", "[RIFT SPIRE!]"),
+        }
+    },
     'terraform_create_fissure': {
-        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'create_fissure',
+        'group': 'Rune', 'handler': 'fortify_handler', 'method': 'create_fissure',
         'display_name': 'Create Fissure',
         'description': "A charged Rift Spire creates a temporary, impassable fissure across the map that blocks line-based actions.",
         'log_generators': {
@@ -378,23 +386,7 @@ ACTIONS = {
             'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
         }
     },
-    'sacrifice_form_rift_spire': {
-        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'form_rift_spire',
-        'display_name': 'Form Rift Spire',
-        'description': "Sacrifices a point that is a vertex of 3 or more territories to create a Rift Spire. The Spire charges up to unlock the 'Create Fissure' action.",
-        'log_generators': {
-            'form_rift_spire': lambda r: (f"sacrificed a point at a territorial nexus to form a Rift Spire.", "[RIFT SPIRE!]"),
-        }
-    },
-    'sacrifice_raise_barricade': {
-        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'raise_barricade',
-        'display_name': 'Raise Barricade',
-        'description': "A Barricade-Rune is consumed to create a temporary, impassable wall that blocks line-based actions.",
-        'log_generators': {
-            'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]"),
-'raise_barricade_fizzle': lambda r: (f"consumed a Barricade Rune, but its geometry was unstable, failing to form a wall.", "[BARRICADE->FIZZLE]"),
-        }
-    },
+
     'sacrifice_build_wonder': {
         'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'build_chronos_spire',
         'display_name': 'Build Wonder',
@@ -411,23 +403,7 @@ ACTIONS = {
             'attune_nexus': lambda r: ("attuned a Nexus, sacrificing a line to energize its surroundings.", "[ATTUNED!]"),
         }
     },
-    'sacrifice_t_hammer_slam': {
-        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 't_hammer_slam',
-        'display_name': 'Sacrifice: T-Hammer Slam',
-        'description': "A T-Rune sacrifices its 'head' point to create a shockwave along its 'stem', pushing all nearby points away perpendicularly. If no points are hit, it reinforces its own stem lines.",
-        'log_generators': {
-            'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
-            't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
-        }
-    },
-    'sacrifice_cardinal_pulse': {
-        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'cardinal_pulse',
-        'display_name': 'Sacrifice: Cardinal Pulse',
-        'description': "A Plus-Rune is consumed to fire four beams from its center. Beams destroy the first enemy line they hit and create a new point on the border if they miss.",
-        'log_generators': {
-            'rune_cardinal_pulse': lambda r: (f"consumed a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points with four beams of energy.", "[CARDINAL PULSE!]"),
-        }
-    },
+
     
     # --- RUNE ACTIONS ---
     'rune_shoot_bisector': {
@@ -510,6 +486,32 @@ ACTIONS = {
         'log_generators': {
             'parallel_discharge': lambda r: (f"unleashed a Parallel Discharge, cleansing its interior of {len(r['lines_destroyed'])} enemy lines.", "[DISCHARGE!]"),
             'parallel_discharge_fizzle_spawn': lambda r: ("unleashed a Parallel Discharge that found no targets, and instead created a new structure at its center.", "[DISCHARGE->SPAWN]"),
+        }
+    },
+    'rune_t_hammer_slam': {
+        'group': 'Rune', 'handler': 'rune_handler', 'method': 't_hammer_slam',
+        'display_name': 'Rune: T-Hammer Slam', 'no_cost': True,
+        'description': "A T-Rune creates a shockwave along its 'stem', pushing all nearby points away perpendicularly from the stem line. If no points are hit, it reinforces its own stem lines. This action costs no points.",
+        'log_generators': {
+            'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
+            't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
+        }
+    },
+    'rune_cardinal_pulse': {
+        'group': 'Rune', 'handler': 'rune_handler', 'method': 'cardinal_pulse',
+        'display_name': 'Rune: Cardinal Pulse', 'no_cost': True,
+        'description': "A Plus-Rune fires four beams from its center through its arms. Beams destroy the first enemy line they hit and create a new point on the border if they miss.",
+        'log_generators': {
+            'rune_cardinal_pulse': lambda r: (f"unleashed a Cardinal Pulse from a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points.", "[CARDINAL PULSE!]"),
+        }
+    },
+    'rune_raise_barricade': {
+        'group': 'Rune', 'handler': 'rune_handler', 'method': 'raise_barricade',
+        'display_name': 'Rune: Raise Barricade', 'no_cost': True,
+        'description': "A Barricade-Rune creates a temporary, impassable wall along one of its diagonals. This action has no cost.",
+        'log_generators': {
+            'raise_barricade': lambda r: ("activated a Barricade Rune to raise a defensive wall.", "[BARRICADE!]"),
+            'raise_barricade_fizzle': lambda r: ("activated a Barricade Rune, but its geometry was unstable, failing to form a wall.", "[BARRICADE->FIZZLE]"),
         }
     },
 }

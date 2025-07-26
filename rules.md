@@ -88,9 +88,9 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FIGHT] Purify Territory:** _(Requires an active Purifier)_ The Purifier unleashes a wave of energy at the nearest enemy territory, instantly neutralizing it. If there are no enemy territories to cleanse, it instead emits a defensive pulse that pushes all nearby enemy points away from it. This action has no cost.
 *   **[FIGHT] Isolate Point:** Projects an isolation field onto a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. This action has no cost. If no such point is found, it creates a defensive barricade instead.
 *   **[FIGHT] Parallel Strike:** From a friendly point, projects a beam parallel to a friendly line. Destroys the first enemy point it hits, or creates a new point on the border if it misses.
-*   **[RUNE] Cardinal Pulse:** _(Requires an active Plus-Rune)_ The rune is consumed. Four energy beams are fired from the central point through the four arm points. Beams destroy the first enemy line they hit (bypassing shields). Any beam that misses creates a new point on the border.
+*   **[RUNE] Cardinal Pulse:** _(Requires an active Plus-Rune)_ Fires four energy beams from the central point through the four arm points. Beams destroy the first enemy line they hit (bypassing shields). Any beam that misses creates a new point on the border.
 *   **[RUNE] Parallel Discharge:** _(Requires an active Parallelogram-Rune)_ Destroys all enemy lines crossing the interior of the parallelogram. If no lines are hit, it creates a new central structure of two points and a line inside the rune instead.
-*   **[RUNE] T-Hammer Slam:** _(Requires an active T-Rune)_ The rune sacrifices its 'head' point to create a shockwave emanating from its 'stem' line, pushing all nearby points away perpendicularly. If no points are in range, it instead reinforces the two lines that form the stem.
+*   **[RUNE] T-Hammer Slam:** _(Requires an active T-Rune)_ Creates a shockwave emanating from the rune's 'stem' line, pushing all nearby points away perpendicularly. If no points are in range, it instead reinforces the two lines that form the stem. This action has no cost.
 *   **[RUNE] Shoot Bisector:** _(Requires an active V-Rune)_ Fires a powerful beam from a 'V' formation, destroying the first enemy line it hits. If it misses, it creates a temporary fissure along its path.
 *   **[RUNE] Impale:** _(Requires an active Trident-Rune)_ Fires a devastating, long-range beam that pierces through all enemy lines in its path, ignoring shields. If the beam hits no targets, it instead creates a temporary defensive barricade along its path.
 *   **[RUNE] Area Shield:** _(Requires an active Shield-Rune)_ Creates a temporary shield on all friendly lines contained within the rune's triangular boundary. If no lines are found inside, it instead emits a gentle pulse that pushes friendly points outwards to de-clutter the area. This action has no cost.
@@ -124,9 +124,9 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Cost:** The central point and all branch points are sacrificed. This action can only be performed once per team.
     *   **Bonus 1 (Passive Growth):** Every few turns, the Heartwood automatically creates a new point for its team nearby.
     *   **Bonus 2 (Defensive Aura):** Prevents enemy points from being created in a large radius around it.
-*   **[SACRIFICE] Form Rift Spire:** Sacrifices a point that serves as a vertex for at least three different claimed territories.
+*   **[FORTIFY] Form Rift Spire:** At a point that serves as a vertex for at least three different claimed territories, erect a Rift Spire. This action has no cost.
     *   **Bonus:** Creates a **Rift Spire**. This structure takes several turns to charge. Once charged, it unlocks the **[TERRAFORM] Create Fissure** action.
-*   **[TERRAFORM] Raise Barricade:** _(Requires an active Barricade-Rune)_ Consumes the rune to create a temporary, impassable wall along the rune's central axis. The wall blocks line-based actions for several turns, offering a flexible way to control the battlefield.
+*   **[RUNE] Raise Barricade:** _(Requires an active Barricade-Rune)_ Creates a temporary, impassable wall along one of the rune's diagonals. The wall blocks line-based actions for several turns. This action has no cost.
 *   **[TERRAFORM] Create Fissure:** _(Requires a charged Rift Spire)_ The spire opens a temporary, impassable fissure across the battlefield.
     *   **Effect:** The fissure is a line on the grid that blocks most actions. No points can be created near it, and line-based actions (like `Attack Line` or `Extend Line`) cannot cross it. It decays after a number of turns.
 

@@ -207,6 +207,27 @@ class FortifyActionsHandler:
         has_i_rune = bool(self.state.get('runes', {}).get(teamId, {}).get('i_shape', []))
         return has_i_rune, "Requires an I-Rune (a line of 3+ points)."
 
+    def _find_rift_spire_candidates(self, teamId):
+        """Helper to find points that are vertices of 3+ territories."""
+        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
+        if len(team_territories) < 3:
+            return []
+
+        vertex_counts = {}
+        for territory in team_territories:
+            for pid in territory.get('point_ids', []):
+                vertex_counts[pid] = vertex_counts.get(pid, 0) + 1
+        
+        existing_spire_pids = {spire['point_id'] for spire in self.state.get('rift_spires', {}).values()}
+        
+        candidates = [pid for pid, count in vertex_counts.items() if count >= 3 and pid not in existing_spire_pids]
+        return candidates
+
+    def can_perform_form_rift_spire(self, teamId):
+        can_perform = len(self._find_rift_spire_candidates(teamId)) > 0
+        return can_perform, "Requires a point that is a vertex of at least 3 territories."
+
+
     # --- End Precondition Checks ---
 
     @property
@@ -725,3 +746,32 @@ class FortifyActionsHandler:
                 'pulsed_ley_line_id': ley_line_to_pulse['id'],
                 'strengthened_lines': strengthened_lines
             }
+
+    def form_rift_spire(self, teamId):
+        """[FORTIFY ACTION]: Erects a Rift Spire at a territorial nexus without sacrifice."""
+        candidate_pids = self._find_rift_spire_candidates(teamId)
+        if not candidate_pids:
+            return {'success': False, 'reason': 'no valid location for a Rift Spire found'}
+
+        nexus_point_id = random.choice(candidate_pids)
+        nexus_point = self.state['points'].get(nexus_point_id)
+        if not nexus_point:
+            return {'success': False, 'reason': 'nexus point for spire disappeared'}
+
+        spire_id = self.game._generate_id('rs')
+        new_spire = {
+            'id': spire_id,
+            'teamId': teamId,
+            'point_id': nexus_point_id,
+            'coords': {'x': nexus_point['x'], 'y': nexus_point['y']},
+            'charge': 0,
+            'charge_needed': 3
+        }
+        
+        self.state.setdefault('rift_spires', {})[spire_id] = new_spire
+
+        return {
+            'success': True,
+            'type': 'form_rift_spire',
+            'spire': new_spire
+        }

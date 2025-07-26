@@ -43,6 +43,12 @@ STRUCTURE_DEFINITIONS = {
         'is_critical': True,
         'frontend_flag_key': 'is_purifier_point',
     },
+    'rift_spires': {
+        'state_key': 'rift_spires', 'storage_type': 'dict',
+        'point_id_keys': ['point_id'],
+        'is_critical': True,
+        'frontend_flag_key': 'is_rift_spire_point',
+    },
     'attuned_nexuses': {
         'state_key': 'attuned_nexuses', 'storage_type': 'dict',
         'point_id_keys': [('list', 'point_ids')],

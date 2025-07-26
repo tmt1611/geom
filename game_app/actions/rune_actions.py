@@ -65,6 +65,18 @@ class RuneActionsHandler:
         can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('parallel', []))
         return can_perform, "Requires an active Parallelogram Rune."
 
+    def can_perform_t_hammer_slam(self, teamId):
+        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('t_shape', []))
+        return can_perform, "Requires an active T-Rune."
+
+    def can_perform_cardinal_pulse(self, teamId):
+        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('plus_shape', []))
+        return can_perform, "Requires an active Plus-Rune."
+
+    def can_perform_raise_barricade(self, teamId):
+        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('barricade', []))
+        return can_perform, "Requires an active Barricade-Rune."
+
     # --- End Precondition Checks ---
 
     @property
@@ -654,3 +666,174 @@ class RuneActionsHandler:
                 'success': True, 'type': 'gravity_well_fizzle_pull', 'pulled_points_count': pulled_points_count,
                 'rune_points': rune['all_points'], 'pulse_center': center_point, 'pulse_radius_sq': pulse_radius_sq
             }
+
+    def t_hammer_slam(self, teamId):
+        """[RUNE ACTION]: A T-Rune creates a perpendicular shockwave from its stem."""
+        team_t_runes = self.state.get('runes', {}).get(teamId, {}).get('t_shape', [])
+        if not team_t_runes: return {'success': False, 'reason': 'no active T-runes'}
+        
+        rune = random.choice(team_t_runes)
+        points = self.state['points']
+        if not all(pid in points for pid in rune['all_points']): return {'success': False, 'reason': 'rune points no longer exist'}
+        
+        p_mid = points[rune['mid_id']]
+        p_stem1 = points[rune['stem1_id']]
+        p_stem2 = points[rune['stem2_id']]
+
+        # Push logic
+        push_radius_sq = (self.state['grid_size'] * 0.2)**2
+        # We can push any point, including friendly ones, that are not part of the rune itself.
+        points_to_check = [p for p in points.values() if p['id'] not in rune['all_points']]
+        pushed_points = []
+        
+        stem_vx, stem_vy = p_stem2['x'] - p_stem1['x'], p_stem2['y'] - p_stem1['y']
+        mag_stem_sq = stem_vx**2 + stem_vy**2
+
+        if mag_stem_sq > 0.1:
+            for p in points_to_check:
+                # Check if point is near the stem
+                if distance_sq(p, p_mid) > push_radius_sq: continue
+
+                # project p onto stem line
+                dot = (p['x'] - p_stem1['x']) * stem_vx + (p['y'] - p_stem1['y']) * stem_vy
+                t = dot / mag_stem_sq
+                if 0 <= t <= 1: # check if projection is on segment
+                    proj_x = p_stem1['x'] + t * stem_vx
+                    proj_y = p_stem1['y'] + t * stem_vy
+                    
+                    # Push perpendicularly
+                    push_vx, push_vy = p['x'] - proj_x, p['y'] - proj_y
+                    mag_push = math.sqrt(push_vx**2 + push_vy**2)
+                    if mag_push < 0.1: continue
+
+                    new_x = p['x'] + (push_vx/mag_push) * 2.0
+                    new_y = p['y'] + (push_vy/mag_push) * 2.0
+                    
+                    new_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
+                    p['x'], p['y'] = new_coords['x'], new_coords['y']
+                    pushed_points.append(p)
+                    
+        if pushed_points:
+            return {
+                'success': True, 'type': 'rune_t_hammer_slam',
+                'pushed_points_count': len(pushed_points),
+                'rune_points': rune['all_points']
+            }
+        else:
+            # Fallback: Reinforce the stem lines
+            strengthened = []
+            all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+            key1 = tuple(sorted((rune['mid_id'], rune['stem1_id'])))
+            key2 = tuple(sorted((rune['mid_id'], rune['stem2_id'])))
+            
+            if key1 in all_lines_by_points and self.game._strengthen_line(all_lines_by_points[key1]):
+                strengthened.append(all_lines_by_points[key1])
+            if key2 in all_lines_by_points and self.game._strengthen_line(all_lines_by_points[key2]):
+                strengthened.append(all_lines_by_points[key2])
+
+            return {
+                'success': True, 'type': 't_slam_fizzle_reinforce',
+                'strengthened_lines': strengthened, 'rune_points': rune['all_points']
+            }
+
+    def cardinal_pulse(self, teamId):
+        """[RUNE ACTION]: Fires four beams from a Plus-Rune's center."""
+        team_plus_runes = self.state.get('runes', {}).get(teamId, {}).get('plus_shape', [])
+        if not team_plus_runes: return {'success': False, 'reason': 'no active plus runes'}
+        
+        rune = random.choice(team_plus_runes)
+        points = self.state['points']
+        if not all(pid in points for pid in rune['all_points']): return {'success': False, 'reason': 'rune points no longer exist'}
+            
+        p_center = points[rune['center_id']]
+        
+        # --- Fire beams ---
+        destroyed_lines = []
+        created_points = []
+        attack_rays = []
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        bastion_line_ids = self.game._get_bastion_line_ids()
+        
+        for arm_id in rune['arm_ids']:
+            arm_point = points.get(arm_id)
+            if not arm_point: continue
+
+            border_point = get_extended_border_point(p_center, arm_point, self.state['grid_size'],
+                self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', []))
+            if not border_point: continue
+            
+            attack_ray_p1, attack_ray_p2 = p_center, border_point
+            
+            closest_hit = None
+            min_dist_sq = float('inf')
+            current_points_map = self.state['points'] # Use current points map
+            for enemy_line in enemy_lines:
+                if enemy_line.get('id') in bastion_line_ids: continue
+                if enemy_line['p1_id'] not in current_points_map or enemy_line['p2_id'] not in current_points_map: continue
+                
+                ep1, ep2 = current_points_map[enemy_line['p1_id']], current_points_map[enemy_line['p2_id']]
+                intersection_point = get_segment_intersection_point(attack_ray_p1, attack_ray_p2, ep1, ep2)
+                if intersection_point:
+                    dist_sq = distance_sq(attack_ray_p1, intersection_point)
+                    if dist_sq < min_dist_sq:
+                        min_dist_sq = dist_sq
+                        closest_hit = {'target_line': enemy_line, 'intersection_point': intersection_point}
+            
+            if closest_hit and closest_hit['target_line'] not in destroyed_lines:
+                self.game._delete_line(closest_hit['target_line'])
+                destroyed_lines.append(closest_hit['target_line'])
+                attack_rays.append({'p1': attack_ray_p1, 'p2': closest_hit['intersection_point']})
+                enemy_lines.remove(closest_hit['target_line'])
+            else:
+                new_point = self.game._helper_spawn_on_border(teamId, border_point)
+                if new_point:
+                    created_points.append(new_point)
+                    attack_rays.append({'p1': attack_ray_p1, 'p2': border_point})
+                    
+        return {
+            'success': True, 'type': 'rune_cardinal_pulse',
+            'lines_destroyed': destroyed_lines, 'points_created': created_points,
+            'attack_rays': attack_rays, 'rune_points': rune['all_points']
+        }
+
+    def raise_barricade(self, teamId):
+        """[RUNE ACTION]: Creates a temporary wall from a Barricade-Rune without consuming it."""
+        team_barricade_runes = self.state.get('runes', {}).get(teamId, {}).get('barricade', [])
+        if not team_barricade_runes:
+            return {'success': False, 'reason': 'no active barricade runes'}
+
+        rune_p_ids_tuple = random.choice(team_barricade_runes)
+        points_map = self.state['points']
+
+        if not all(pid in points_map for pid in rune_p_ids_tuple):
+            return {'success': False, 'reason': 'rune points no longer exist'}
+        
+        p_list = [points_map[pid] for pid in rune_p_ids_tuple]
+        
+        # Determine the barricade path along one of the rune's diagonals.
+        edge_data = get_edges_by_distance(p_list)
+        diag_pairs = edge_data.get('diagonals', [])
+        
+        if not diag_pairs:
+             return {
+                 'success': True, 'type': 'raise_barricade_fizzle', 'rune_points': rune_p_ids_tuple
+            }
+            
+        diag_to_use = random.choice(diag_pairs)
+        p1 = points_map.get(diag_to_use[0])
+        p2 = points_map.get(diag_to_use[1])
+
+        if not p1 or not p2:
+             return {
+                 'success': True, 'type': 'raise_barricade_fizzle', 'rune_points': rune_p_ids_tuple
+            }
+
+        # --- Create the barricade ---
+        new_barricade = self.game._create_temporary_barricade(teamId, p1, p2, 5) # 5-turn duration
+
+        return {
+            'success': True,
+            'type': 'raise_barricade',
+            'barricade': new_barricade,
+            'rune_points': rune_p_ids_tuple,
+        }

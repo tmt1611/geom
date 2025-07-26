@@ -1,6 +1,14 @@
-Optimized and corrected action precondition checks to improve performance and adhere to the "action pool never empty" design principle.
+Refactored several sacrifice-based actions to conform to the design rule that "Rune, territory, and wonder points cannot be sacrificed."
 
-1.  **Optimized `claim_territory` Precondition:** Replaced the expensive triangle enumeration in `can_perform_claim_territory` with a much cheaper check based on point and line counts, improving performance. The precise check remains in the action's execution logic.
-2.  **Corrected `mirror_structure` Precondition:** The `can_perform_mirror_structure` check was too strict and only checked for the primary effect. It now correctly accounts for the action's fallback effects (strengthening or adding a line), making the action available more often as intended.
-3.  **Corrected `create_ley_line` Precondition:** Simplified the `can_perform_create_ley_line` check. It now correctly allows the action if any I-Rune exists, as the action's implementation handles both creating a new ley line and pulsing an existing one.
-4.  **Improved `mirror_structure` Fallback:** Added a unique log message for the final fallback case of the `mirror_structure` action where it creates a new line, distinguishing it from the standard `add_line` action for better log clarity.
+1.  **Redesigned Rune Actions:**
+    *   `sacrifice_t_hammer_slam`, `sacrifice_cardinal_pulse`, and `sacrifice_raise_barricade` were violating the no-sacrifice rule for rune points.
+    *   These actions have been moved from the `Sacrifice` group to the `Rune` group.
+    *   Their implementations were refactored to no longer sacrifice or consume their respective runes' points. They are now `no_cost` actions that can be used repeatedly as long as the rune exists.
+    *   Updated `action_data.py` and `rules.md` to reflect these changes in grouping, cost, and description.
+
+2.  **Fixed and Redesigned Rift Spire Formation:**
+    *   The action `sacrifice_form_rift_spire` was defined but not implemented, and its design violated the rule against sacrificing territory points.
+    *   Renamed it to `fortify_form_rift_spire`, moved it to the `Fortify` group, and implemented it as a `no_cost` action in `fortify_actions.py`.
+    *   The action now erects a Rift Spire at a valid territorial nexus without sacrificing the point, making the cost purely geometric.
+    *   Added a corresponding definition for Rift Spires in `structure_data.py` to correctly flag its point as critical.
+    *   Updated `rules.md` to reflect this non-sacrificial design.
