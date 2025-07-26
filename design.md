@@ -22,7 +22,7 @@ A 10×10 grid-based auto-battle sandbox where users place multiple points belong
 ### 2. **Action Phase**
 
 * Driven by geometric rules.
-* Each team performs one action per turn, unless get bonus action by special structures.
+* Each team performs one action per turn, unless get bonus action by special structures. Some actions are no-cost, they grant a bonus action. Team may use only one no-cost action per turn.
 * Actions are picked randomly from a pool and shown to the user.
 * Can run turn-by-turn or rapidly until a stopping condition (e.g., turn limit).
 * If an action might fail, fallback logic must reduce its cost.
