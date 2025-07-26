@@ -100,7 +100,7 @@ ACTIONS = {
     'fight_pincer_attack': {
         'group': 'Fight', 'handler': 'fight_handler', 'method': 'pincer_attack',
         'display_name': 'Pincer Attack',
-        'description': "Two friendly points flank and destroy a vulnerable enemy point between them. If no target is found, they form a temporary defensive barricade instead.",
+        'description': "Two friendly points flank and destroy a vulnerable enemy point between them. If no target is found, two random friendly points form a temporary defensive barricade instead.",
         'log_generators': {
             'pincer_attack': lambda r: (f"executed a pincer attack, destroying a point from {r['destroyed_team_name']}.", "[PINCER!]"),
             'pincer_fizzle_barricade': lambda r: ("failed to find a pincer target and instead formed a temporary defensive barricade.", "[PINCER->WALL]"),
@@ -185,7 +185,7 @@ ACTIONS = {
     'fight_hull_breach': {
         'group': 'Fight', 'handler': 'fight_handler', 'method': 'hull_breach',
         'display_name': 'Hull Breach',
-        'description': "Projects the team's convex hull as an energy field, converting the most central enemy point found inside. If no enemy points are inside, it reinforces the hull's boundary lines. If the hull is already fully reinforced, it emits a weak pulse that pushes nearby enemies away.",
+        'description': "Projects the team's convex hull as an energy field, converting the most central enemy point found inside. If no enemy points are inside, it creates or reinforces the hull's boundary lines. If the hull is already fully reinforced, it emits a weak pulse that pushes nearby enemies away.",
         'log_generators': {
             'hull_breach_convert': lambda r: (f"breached its hull, converting a point from {r['original_team_name']}.", "[BREACH!]"),
             'hull_breach_fizzle_reinforce': lambda r: (f"found no enemy points within its hull and instead fortified its boundary lines.", "[BREACH->FORTIFY]"),
@@ -223,7 +223,7 @@ ACTIONS = {
     'fortify_mirror': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'mirror_structure',
         'display_name': 'Mirror Structure',
-        'description': "Creates a symmetrical structure by reflecting some of its points across an axis defined by two other points. If it fails, it reinforces the structure it was trying to mirror.",
+        'description': "Creates a symmetrical structure by reflecting some of its points across an axis defined by two other points. If it fails, it reinforces several existing lines around random points. If that also fails, it adds a new line as a last resort.",
         'log_generators': {
             'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
             'mirror_fizzle_strengthen': lambda r: (f"attempted to mirror its structure, but instead reinforced {len(r['strengthened_lines'])} connected lines.", "[MIRROR->REINFORCE]"),

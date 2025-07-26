@@ -111,6 +111,9 @@ def serve_game_app_files(filename):
     Serve files from the game_app directory.
     This is needed for Pyodide to fetch the Python source in development mode.
     """
+    if not current_app.debug:
+        return jsonify({"error": "This function is only available in development mode."}), 403
+        
     # current_app.root_path is the absolute path to the 'game_app' directory.
     py_dir = os.path.abspath(current_app.root_path)
     return send_from_directory(py_dir, filename)
