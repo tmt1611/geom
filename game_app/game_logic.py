@@ -234,6 +234,66 @@ class Game:
         """Generates a unique ID with a given prefix."""
         return f"{prefix}_{uuid.uuid4().hex[:6]}"
 
+    def _iterate_structures(self, definition, teamId_filter=None):
+        """
+        A generator that yields structures from the game state based on a definition
+        from the structure registry. Can optionally filter by teamId.
+        """
+        state_key = definition['state_key']
+        storage = self.state.get(state_key)
+        if not storage:
+            return
+
+        storage_type = definition['storage_type']
+
+        if storage_type == 'dict_keyed_by_pid':
+            # This type is special, yield (pid, data)
+            for pid, data in storage.items():
+                if teamId_filter is None or data.get('teamId') == teamId_filter:
+                    yield (pid, data)
+            return
+
+        structures_to_process = []
+        if storage_type == 'list':
+            structures_to_process = storage
+        elif storage_type == 'dict':
+            structures_to_process = storage.values()
+        elif storage_type == 'team_dict_list':
+            if teamId_filter:
+                structures_to_process = storage.get(teamId_filter, [])
+            else: # All teams
+                for team_list in storage.values():
+                    structures_to_process.extend(team_list)
+        elif storage_type == 'team_dict_of_structures':
+            subtype_key = definition['structure_subtype_key']
+            if teamId_filter:
+                structures_to_process = storage.get(teamId_filter, {}).get(subtype_key, [])
+            else: # All teams
+                for team_structs in storage.values():
+                    structures_to_process.extend(team_structs.get(subtype_key, []))
+
+        for struct in structures_to_process:
+            if teamId_filter is None or struct.get('teamId') == teamId_filter:
+                yield struct
+
+    def _get_pids_from_struct(self, struct, key_info_list):
+        """Helper to extract all point IDs from a structure dict based on a list of key_info."""
+        pids = set()
+        for key_info in key_info_list:
+            if isinstance(key_info, tuple):
+                key_type, key_name = key_info
+                if key_type == 'list':
+                    pids_from_key = struct.get(key_name)
+                    if pids_from_key: pids.update(pids_from_key)
+                elif key_type == 'list_of_lists':
+                    if isinstance(struct, list):
+                        pids.update(struct)
+            else: # string
+                point_id = struct.get(key_info)
+                if point_id:
+                    pids.add(point_id)
+        return pids
+
     def start_game(self, teams, points, max_turns, grid_size):
         """Starts a new game with the given parameters."""
         self.reset()
@@ -275,9 +335,7 @@ class Game:
         """
         Returns a dictionary mapping frontend flag names to sets of point IDs that have that flag.
         This is driven by the STRUCTURE_DEFINITIONS registry.
-        e.g., {'is_anchor': {'p1', 'p2'}, 'is_fortified': {'p3'}}
         """
-        from collections import defaultdict
         flags = defaultdict(set)
 
         for definition in structure_data.STRUCTURE_DEFINITIONS.values():
@@ -286,48 +344,16 @@ class Game:
             if not flag_key and not flag_keys_map:
                 continue
 
-            state_key = definition['state_key']
-            storage = self.state.get(state_key)
-            if not storage:
-                continue
-            
-            storage_type = definition['storage_type']
-
-            if storage_type == 'dict_keyed_by_pid':
-                flags[flag_key].update(storage.keys())
-                continue
-            
-            structures_to_process = []
-            if storage_type == 'list':
-                structures_to_process = storage
-            elif storage_type == 'dict':
-                structures_to_process = storage.values()
-            elif storage_type == 'team_dict_list':
-                for team_list in storage.values():
-                    structures_to_process.extend(team_list)
-            elif storage_type == 'team_dict_of_structures':
-                subtype_key = definition['structure_subtype_key']
-                for team_structs in storage.values():
-                    structures_to_process.extend(team_structs.get(subtype_key, []))
-
-            for struct in structures_to_process:
+            if definition['storage_type'] == 'dict_keyed_by_pid':
                 if flag_key:
-                    pids_to_flag = set()
-                    for key_info in definition.get('point_id_keys', []):
-                        if isinstance(key_info, tuple):
-                            key_type, key_name = key_info
-                            if key_name:
-                                point_ids = struct.get(key_name, [])
-                                pids_to_flag.update(point_ids)
-                            elif key_type == 'list_of_lists':
-                                if isinstance(struct, list):
-                                    pids_to_flag.update(struct)
-                        else:
-                            point_id = struct.get(key_info)
-                            if point_id:
-                                pids_to_flag.add(point_id)
-                    flags[flag_key].update(pids_to_flag)
+                    for pid, _ in self._iterate_structures(definition):
+                        flags[flag_key].add(pid)
+                continue
 
+            for struct in self._iterate_structures(definition):
+                if flag_key:
+                    pids = self._get_pids_from_struct(struct, definition.get('point_id_keys', []))
+                    flags[flag_key].update(pids)
                 elif flag_keys_map:
                     for internal_key, generated_keys in flag_keys_map.items():
                         point_ids_val = struct.get(internal_key, [])
@@ -703,45 +729,15 @@ class Game:
         for definition in structure_data.STRUCTURE_DEFINITIONS.values():
             if not definition.get('is_critical'):
                 continue
-
-            state_key = definition['state_key']
-            storage = self.state.get(state_key)
-            if not storage:
-                continue
-                
-            structures_to_check = []
-            storage_type = definition['storage_type']
-
-            if storage_type == 'list':
-                structures_to_check = [s for s in storage if s.get('teamId') == teamId]
-            elif storage_type == 'dict':
-                structures_to_check = [s for s in storage.values() if s.get('teamId') == teamId]
-            elif storage_type == 'team_dict_list':
-                structures_to_check = storage.get(teamId, [])
-            elif storage_type == 'team_dict_of_structures':
-                subtype_key = definition['structure_subtype_key']
-                structures_to_check = storage.get(teamId, {}).get(subtype_key, [])
-            elif storage_type == 'dict_keyed_by_pid':
-                for pid, data in storage.items():
-                    if data.get('teamId') == teamId:
-                        critical_pids.add(pid)
+            
+            if definition['storage_type'] == 'dict_keyed_by_pid':
+                for pid, data in self._iterate_structures(definition, teamId):
+                    critical_pids.add(pid)
                 continue
 
-            for struct in structures_to_check:
-                for key_info in definition.get('point_id_keys', []):
-                    if isinstance(key_info, tuple):
-                        key_type, key_name = key_info
-                        if key_type == 'list':
-                            pids = struct.get(key_name)
-                            if pids: critical_pids.update(pids)
-                        elif key_type == 'list_of_lists':
-                            # Here, the struct itself is the list of point IDs
-                            if isinstance(struct, list):
-                                critical_pids.update(struct)
-                    else: # It's a string (e.g. 'core_id')
-                        point_id = struct.get(key_info)
-                        if point_id:
-                            critical_pids.add(point_id)
+            for struct in self._iterate_structures(definition, teamId):
+                pids = self._get_pids_from_struct(struct, definition.get('point_id_keys', []))
+                critical_pids.update(pids)
         
         return critical_pids
 
