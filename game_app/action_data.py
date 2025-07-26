@@ -96,15 +96,6 @@ ACTIONS = {
             'attack_line_strengthened': lambda r: ("attacked a strengthened line, weakening its defenses.", "[DAMAGE]"),
         }
     },
-    'fight_convert': {
-        'group': 'Fight', 'handler': 'fight_handler', 'method': 'convert_point',
-        'display_name': 'Convert Point',
-        'description': "Sacrifices a friendly line to convert the nearest vulnerable enemy point to its team. If no target is in range, it creates a repulsive pulse that pushes enemies away.",
-        'log_generators': {
-            'convert_point': lambda r: (f"sacrificed a line to convert a point from {r['original_team_name']}.", "[CONVERT]"),
-            'convert_fizzle_push': lambda r: (f"attempted to convert a point but found no targets, instead unleashing a pulse that pushed back {r['pushed_points_count']} enemies.", "[CONVERT->PUSH]"),
-        }
-    },
     'fight_pincer_attack': {
         'group': 'Fight', 'handler': 'fight_handler', 'method': 'pincer_attack',
         'display_name': 'Pincer Attack',
@@ -132,15 +123,6 @@ ACTIONS = {
             'territory_fizzle_reinforce': lambda r: ("could not find a target for a territory strike, and instead reinforced its own boundaries.", "[TERRITORY->REINFORCE]"),
         }
     },
-    'fight_bastion_pulse': {
-        'group': 'Fight', 'handler': 'fight_handler', 'method': 'bastion_pulse',
-        'display_name': 'Bastion Pulse',
-        'description': "An active Bastion sacrifices one of its outer points to destroy all enemy lines crossing its perimeter. If the action fizzles, it creates a local shockwave.",
-        'log_generators': {
-            'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
-            'bastion_pulse_fizzle_shockwave': lambda r: (f"attempted a bastion pulse that fizzled, instead creating a shockwave that pushed {r['pushed_points_count']} points.", "[PULSE->FIZZLE]"),
-        }
-    },
     'fight_sentry_zap': {
         'group': 'Fight', 'handler': 'fight_handler', 'method': 'sentry_zap',
         'display_name': 'Sentry Zap',
@@ -148,15 +130,6 @@ ACTIONS = {
         'log_generators': {
             'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from {r['destroyed_team_name']}.", "[ZAP!]"),
             'sentry_zap_miss_spawn': lambda r: ("a Sentry fired a beam that missed all targets, creating a new point on the border.", "[ZAP->SPAWN]"),
-        }
-    },
-    'fight_chain_lightning': {
-        'group': 'Fight', 'handler': 'fight_handler', 'method': 'chain_lightning',
-        'display_name': 'Chain Lightning',
-        'description': "An I-Rune (Conduit) sacrifices an internal point to destroy the nearest enemy point. If it fizzles, the point explodes in a mini-nova, destroying nearby lines.",
-        'log_generators': {
-            'chain_lightning': lambda r: (f"unleashed Chain Lightning from a Conduit, destroying a point from {r['destroyed_team_name']}.", "[LIGHTNING!]"),
-            'chain_lightning_fizzle_nova': lambda r: (f"attempted to use Chain Lightning which fizzled, instead unleashing a mini-nova that destroyed {r['lines_destroyed_count']} lines.", "[LIGHTNING->NOVA]"),
         }
     },
     'fight_refraction_beam': {
@@ -268,44 +241,12 @@ ACTIONS = {
             'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
         }
     },
-    'fortify_cultivate_heartwood': {
-        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'cultivate_heartwood',
-        'display_name': 'Cultivate Heartwood',
-        'description': "A unique action where a central point and at least 5 connected 'branch' points are sacrificed to create a Heartwood. The Heartwood passively generates new points and prevents enemy spawns nearby.",
-        'log_generators': {
-            'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
-        }
-    },
-    'fortify_form_rift_spire': {
-        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'form_rift_spire',
-        'display_name': 'Form Rift Spire',
-        'description': "Sacrifices a point that is a vertex of 3 or more territories to create a Rift Spire. The Spire charges up to unlock the 'Create Fissure' action.",
-        'log_generators': {
-            'form_rift_spire': lambda r: (f"sacrificed a point at a territorial nexus to form a Rift Spire.", "[RIFT SPIRE!]"),
-        }
-    },
     'terraform_create_fissure': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'create_fissure',
         'display_name': 'Create Fissure',
         'description': "A charged Rift Spire creates a temporary, impassable fissure across the map that blocks line-based actions.",
         'log_generators': {
             'create_fissure': lambda r: (f"unleashed the power of a Rift Spire, tearing a fissure across the battlefield.", "[FISSURE!]"),
-        }
-    },
-    'terraform_raise_barricade': {
-        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'raise_barricade',
-        'display_name': 'Raise Barricade',
-        'description': "A Barricade-Rune is consumed to create a temporary, impassable wall that blocks line-based actions.",
-        'log_generators': {
-            'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]"),
-        }
-    },
-    'fortify_build_wonder': {
-        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'build_chronos_spire',
-        'display_name': 'Build Wonder',
-        'description': "A rare action requiring a Star-Rune formation. Sacrifices the entire formation to build the Chronos Spire, an indestructible structure that provides a victory countdown.",
-        'log_generators': {
-            'build_chronos_spire': lambda r: (f"sacrificed {r['sacrificed_points_count']} points to construct the Chronos Spire, a path to victory!", "[WONDER!]"),
         }
     },
     'fortify_reposition_point': {
@@ -324,14 +265,6 @@ ACTIONS = {
         'log_generators': {
             'rotate_point': lambda r: (f"rotated a point around {'the grid center.' if r.get('is_grid_center') else 'another point.'}", "[ROTATE]"),
             'rotate_fizzle_strengthen': lambda r: ("could not find a valid rotation for any point, and instead reinforced a line.", "[ROTATE->REINFORCE]"),
-        }
-    },
-    'fortify_attune_nexus': {
-        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'attune_nexus',
-        'display_name': 'Attune Nexus',
-        'description': "Sacrifices a diagonal line from one of its Nexuses to supercharge it. For several turns, the Attuned Nexus energizes all nearby friendly lines, causing their attacks to also destroy the target line's endpoints.",
-        'log_generators': {
-            'attune_nexus': lambda r: ("attuned a Nexus, sacrificing a line to energize its surroundings.", "[ATTUNED!]"),
         }
     },
     'fortify_create_ley_line': {
@@ -388,6 +321,98 @@ ACTIONS = {
             'scorch_territory': lambda r: (f"sacrificed a territory, scorching the earth and making it impassable.", "[SCORCHED!]"),
         }
     },
+    'sacrifice_convert_point': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'convert_point',
+        'display_name': 'Convert Point',
+        'description': "Sacrifices a friendly line to convert the nearest vulnerable enemy point to its team. If no target is in range, it creates a repulsive pulse that pushes enemies away.",
+        'log_generators': {
+            'convert_point': lambda r: (f"sacrificed a line to convert a point from {r['original_team_name']}.", "[CONVERT]"),
+            'convert_fizzle_push': lambda r: (f"attempted to convert a point but found no targets, instead unleashing a pulse that pushed back {r['pushed_points_count']} enemies.", "[CONVERT->PUSH]"),
+        }
+    },
+    'sacrifice_bastion_pulse': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'bastion_pulse',
+        'display_name': 'Bastion Pulse',
+        'description': "An active Bastion sacrifices one of its outer points to destroy all enemy lines crossing its perimeter. If the action fizzles, it creates a local shockwave.",
+        'log_generators': {
+            'bastion_pulse': lambda r: (f"unleashed a defensive pulse from its bastion, destroying {len(r['lines_destroyed'])} lines.", "[PULSE!]"),
+            'bastion_pulse_fizzle_shockwave': lambda r: (f"attempted a bastion pulse that fizzled, instead creating a shockwave that pushed {r['pushed_points_count']} points.", "[PULSE->FIZZLE]"),
+        }
+    },
+    'sacrifice_chain_lightning': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'chain_lightning',
+        'display_name': 'Chain Lightning',
+        'description': "An I-Rune (Conduit) sacrifices an internal point to destroy the nearest enemy point. If it fizzles, the point explodes in a mini-nova, destroying nearby lines.",
+        'log_generators': {
+            'chain_lightning': lambda r: (f"unleashed Chain Lightning from a Conduit, destroying a point from {r['destroyed_team_name']}.", "[LIGHTNING!]"),
+            'chain_lightning_fizzle_nova': lambda r: (f"attempted to use Chain Lightning which fizzled, instead unleashing a mini-nova that destroyed {r['lines_destroyed_count']} lines.", "[LIGHTNING->NOVA]"),
+        }
+    },
+    'sacrifice_cultivate_heartwood': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'cultivate_heartwood',
+        'display_name': 'Cultivate Heartwood',
+        'description': "A unique action where a central point and at least 5 connected 'branch' points are sacrificed to create a Heartwood. The Heartwood passively generates new points and prevents enemy spawns nearby.",
+        'log_generators': {
+            'cultivate_heartwood': lambda r: (f"sacrificed {len(r['sacrificed_points'])} points to cultivate a mighty Heartwood.", "[HEARTWOOD!]"),
+        }
+    },
+    'sacrifice_form_rift_spire': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'form_rift_spire',
+        'display_name': 'Form Rift Spire',
+        'description': "Sacrifices a point that is a vertex of 3 or more territories to create a Rift Spire. The Spire charges up to unlock the 'Create Fissure' action.",
+        'log_generators': {
+            'form_rift_spire': lambda r: (f"sacrificed a point at a territorial nexus to form a Rift Spire.", "[RIFT SPIRE!]"),
+        }
+    },
+    'sacrifice_raise_barricade': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'raise_barricade',
+        'display_name': 'Raise Barricade',
+        'description': "A Barricade-Rune is consumed to create a temporary, impassable wall that blocks line-based actions.",
+        'log_generators': {
+            'raise_barricade': lambda r: (f"consumed a Barricade Rune, sacrificing {r['sacrificed_points_count']} points to raise a defensive wall.", "[BARRICADE!]"),
+        }
+    },
+    'sacrifice_build_wonder': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'build_chronos_spire',
+        'display_name': 'Build Wonder',
+        'description': "A rare action requiring a Star-Rune formation. Sacrifices the entire formation to build the Chronos Spire, an indestructible structure that provides a victory countdown.",
+        'log_generators': {
+            'build_chronos_spire': lambda r: (f"sacrificed {r['sacrificed_points_count']} points to construct the Chronos Spire, a path to victory!", "[WONDER!]"),
+        }
+    },
+    'sacrifice_attune_nexus': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'attune_nexus',
+        'display_name': 'Attune Nexus',
+        'description': "Sacrifices a diagonal line from one of its Nexuses to supercharge it. For several turns, the Attuned Nexus energizes all nearby friendly lines, causing their attacks to also destroy the target line's endpoints.",
+        'log_generators': {
+            'attune_nexus': lambda r: ("attuned a Nexus, sacrificing a line to energize its surroundings.", "[ATTUNED!]"),
+        }
+    },
+    'sacrifice_starlight_cascade': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'starlight_cascade',
+        'display_name': 'Sacrifice: Starlight Cascade',
+        'description': "A Star-Rune sacrifices one of its outer points to damage or destroy all nearby unshielded enemy lines.",
+        'log_generators': {
+            'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),
+        }
+    },
+    'sacrifice_t_hammer_slam': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 't_hammer_slam',
+        'display_name': 'Sacrifice: T-Hammer Slam',
+        'description': "A T-Rune sacrifices its 'head' point to create a shockwave along its 'stem', pushing all nearby points away perpendicularly. If no points are hit, it reinforces its own stem lines.",
+        'log_generators': {
+            'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
+            't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
+        }
+    },
+    'sacrifice_cardinal_pulse': {
+        'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'cardinal_pulse',
+        'display_name': 'Sacrifice: Cardinal Pulse',
+        'description': "A Plus-Rune is consumed to fire four beams from its center. Beams destroy the first enemy line they hit and create a new point on the border if they miss.",
+        'log_generators': {
+            'rune_cardinal_pulse': lambda r: (f"consumed a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points with four beams of energy.", "[CARDINAL PULSE!]"),
+        }
+    },
     
     # --- RUNE ACTIONS ---
     'rune_shoot_bisector': {
@@ -435,14 +460,6 @@ ACTIONS = {
             'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead sacrificed a rune point to create a temporary anchor.", "[STASIS->ANCHOR]"),
         }
     },
-    'rune_starlight_cascade': {
-        'group': 'Rune', 'handler': 'rune_handler', 'method': 'starlight_cascade',
-        'display_name': 'Rune: Starlight Cascade',
-        'description': "A Star-Rune sacrifices one of its outer points to damage or destroy all nearby unshielded enemy lines.",
-        'log_generators': {
-            'rune_starlight_cascade': lambda r: (f"unleashed a Starlight Cascade from a Star Rune, damaging {len(r['damaged_lines'])} enemy lines.", "[CASCADE!]"),
-        }
-    },
     'rune_focus_beam': {
         'group': 'Rune', 'handler': 'rune_handler', 'method': 'focus_beam',
         'display_name': 'Rune: Focus Beam',
@@ -451,23 +468,6 @@ ACTIONS = {
             'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from {r['destroyed_team_name']}.", "[FOCUS BEAM!]"),
             'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from {r['destroyed_team_name']}.", "[FOCUS BEAM]"),
             'focus_beam_fizzle_fissure': lambda r: ("found no targets for its Focus Beam and instead scarred the enemy's heartland with a temporary fissure.", "[FOCUS->FIZZLE]"),
-        }
-    },
-    'rune_t_hammer_slam': {
-        'group': 'Rune', 'handler': 'rune_handler', 'method': 't_hammer_slam',
-        'display_name': 'Rune: T-Hammer Slam',
-        'description': "A T-Rune sacrifices its 'head' point to create a shockwave along its 'stem', pushing all nearby points away perpendicularly. If no points are hit, it reinforces its own stem lines.",
-        'log_generators': {
-            'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
-            't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),
-        }
-    },
-    'rune_cardinal_pulse': {
-        'group': 'Rune', 'handler': 'rune_handler', 'method': 'cardinal_pulse',
-        'display_name': 'Rune: Cardinal Pulse',
-        'description': "A Plus-Rune is consumed to fire four beams from its center. Beams destroy the first enemy line they hit and create a new point on the border if they miss.",
-        'log_generators': {
-            'rune_cardinal_pulse': lambda r: (f"consumed a Plus-Rune, destroying {len(r['lines_destroyed'])} lines and creating {len(r['points_created'])} new points with four beams of energy.", "[CARDINAL PULSE!]"),
         }
     },
     'rune_parallel_discharge': {

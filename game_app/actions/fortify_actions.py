@@ -178,22 +178,10 @@ class FortifyActionsHandler:
         can_perform = len(self._find_possible_purifiers(teamId)) > 0
         return can_perform, "No valid pentagon formation found."
 
-    def can_perform_cultivate_heartwood(self, teamId):
-        can_perform = len(self.game.get_team_point_ids(teamId)) >= 6 and teamId not in self.state.get('heartwoods', {})
-        return can_perform, "Requires >= 6 points and no existing Heartwood."
-
-    def can_perform_form_rift_spire(self, teamId):
-        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
-        return len(team_territories) >= 3, "Requires at least 3 territories."
-
     def can_perform_create_fissure(self, teamId):
         team_spires = self.state.get('rift_spires', {}).values()
         can_perform = any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in team_spires)
         return can_perform, "Requires a charged Rift Spire."
-
-    def can_perform_raise_barricade(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('barricade', []))
-        return can_perform, "Requires an active Barricade Rune."
 
     def can_perform_reposition_point(self, teamId):
         can_reposition = bool(self.game._find_non_critical_sacrificial_point(teamId))
@@ -209,22 +197,6 @@ class FortifyActionsHandler:
         reason = "" if can_perform else "No free points to rotate and no lines to strengthen."
         return can_perform, reason
     
-    def can_perform_build_chronos_spire(self, teamId):
-        has_wonder = any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values())
-        if has_wonder:
-            return False, "Team already has a wonder."
-        
-        has_star_rune = len(self.game.formation_manager.check_star_rune(
-            self.game.get_team_point_ids(teamId),
-            self.game.get_team_lines(teamId),
-            self.state['points']
-        )) > 0
-        return has_star_rune, "Requires a Star Rune and no existing Wonder."
-
-    def can_perform_attune_nexus(self, teamId):
-        can_perform = len(self._find_attunable_nexuses(teamId)) > 0
-        return can_perform, "Requires a Nexus with a diagonal to sacrifice."
-
     def can_perform_create_ley_line(self, teamId):
         # An I-Rune is a line of 3 or more points.
         team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
@@ -454,124 +426,6 @@ class FortifyActionsHandler:
         else:
             return {'success': False, 'reason': 'no valid monolith or rectangle formation found'}
 
-    def cultivate_heartwood(self, teamId):
-        """[FORTIFY ACTION]: Cultivates a Heartwood from a point with many connections."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        # A heartwood for a team is unique.
-        if teamId in self.state.get('heartwoods', {}):
-            return {'success': False, 'reason': 'team already has a heartwood'}
-        
-        HEARTWOOD_MIN_BRANCHES = 5
-        
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.game.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-        
-        possible_formations = []
-        for center_pid, connections in adj.items():
-            if len(connections) >= HEARTWOOD_MIN_BRANCHES:
-                # All connected points must also belong to the team (already ensured by get_team_lines)
-                possible_formations.append({
-                    'center_id': center_pid,
-                    'branch_ids': list(connections)
-                })
-
-        if not possible_formations:
-            return {'success': False, 'reason': f'no point with at least {HEARTWOOD_MIN_BRANCHES} connections found'}
-        
-        chosen_formation = random.choice(possible_formations)
-        center_id = chosen_formation['center_id']
-        branch_ids = chosen_formation['branch_ids']
-        
-        # Get coordinates of center point before deleting it
-        center_coords = self.state['points'][center_id].copy()
-        
-        # --- Sacrifice all points in the formation ---
-        all_points_to_sac_ids = [center_id] + branch_ids
-        sacrificed_points_data = []
-        for pid in all_points_to_sac_ids:
-            # Note: _delete_point_and_connections also removes connected lines,
-            # so we don't need to worry about them separately.
-            sac_data = self.game._delete_point_and_connections(pid, aggressor_team_id=teamId)
-            if sac_data:
-                sacrificed_points_data.append(sac_data)
-
-        if not sacrificed_points_data:
-            return {'success': False, 'reason': 'failed to sacrifice points for heartwood'}
-
-        # --- Create the Heartwood ---
-        heartwood_id = self.game._generate_id('hw')
-        new_heartwood = {
-            'id': heartwood_id,
-            'teamId': teamId,
-            'center_coords': {'x': center_coords['x'], 'y': center_coords['y']},
-            'growth_counter': 0,
-            'growth_interval': 3, # spawns a point every 3 turns
-            'aura_radius_sq': (self.state['grid_size'] * 0.2)**2
-        }
-        
-        if 'heartwoods' not in self.state: self.state['heartwoods'] = {}
-        self.state['heartwoods'][teamId] = new_heartwood
-        
-        return {
-            'success': True,
-            'type': 'cultivate_heartwood',
-            'heartwood': new_heartwood,
-            'sacrificed_points': sacrificed_points_data
-        }
-
-    def form_rift_spire(self, teamId):
-        """[FORTIFY ACTION]: Forms a Rift Spire from a point that is a vertex of 3 territories."""
-        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
-        if len(team_territories) < 3:
-            return {'success': False, 'reason': 'not enough claimed territories'}
-
-        # Count how many territories each point belongs to
-        point_territory_count = {}
-        for territory in team_territories:
-            for pid in territory['point_ids']:
-                if pid not in self.state['points']: continue
-                point_territory_count[pid] = point_territory_count.get(pid, 0) + 1
-        
-        # Find points that are part of 3 or more territories
-        existing_spire_coords = { (s['coords']['x'], s['coords']['y']) for s in self.state.get('rift_spires', {}).values() }
-
-        possible_spires = []
-        for pid, count in point_territory_count.items():
-            if count >= 3:
-                point_coords = self.state['points'][pid]
-                if (point_coords['x'], point_coords['y']) not in existing_spire_coords:
-                    possible_spires.append(pid)
-        
-        if not possible_spires:
-            return {'success': False, 'reason': 'no point is a vertex of 3+ territories'}
-
-        p_to_sac_id = random.choice(possible_spires)
-        sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
-        
-        if not sacrificed_point_data:
-            return {'success': False, 'reason': 'failed to sacrifice point for spire'}
-
-        spire_id = self.game._generate_id('rs')
-        new_spire = {
-            'id': spire_id,
-            'teamId': teamId,
-            'coords': { 'x': sacrificed_point_data['x'], 'y': sacrificed_point_data['y'] },
-            'charge': 0,
-            'charge_needed': 3 # Takes 3 turns to charge up
-        }
-        if 'rift_spires' not in self.state: self.state['rift_spires'] = {}
-        self.state['rift_spires'][spire_id] = new_spire
-
-        return {
-            'success': True,
-            'type': 'form_rift_spire',
-            'spire': new_spire,
-            'sacrificed_point': sacrificed_point_data
-        }
-
     def create_fissure(self, teamId):
         """[TERRAFORM ACTION]: A Rift Spire creates a fissure on the map."""
         team_spires = [s for s in self.state.get('rift_spires', {}).values() if s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3)]
@@ -609,69 +463,6 @@ class FortifyActionsHandler:
             'type': 'create_fissure',
             'fissure': new_fissure,
             'spire_id': spire['id']
-        }
-
-    def raise_barricade(self, teamId):
-        """[TERRAFORM ACTION]: Consumes a Barricade Rune to create a barricade."""
-        active_barricade_runes = self.state.get('runes', {}).get(teamId, {}).get('barricade', [])
-        if not active_barricade_runes:
-            return {'success': False, 'reason': 'no active Barricade Runes'}
-
-        rune_p_ids_tuple = random.choice(active_barricade_runes)
-        points = self.state['points']
-        
-        if not all(pid in points for pid in rune_p_ids_tuple):
-            return {'success': False, 'reason': 'rune points no longer exist'}
-        
-        p_list = [points[pid] for pid in rune_p_ids_tuple]
-        
-        # Sacrifice the rune points
-        sacrificed_points_data = []
-        for pid in rune_p_ids_tuple:
-            sac_data = self.game._delete_point_and_connections(pid, aggressor_team_id=teamId)
-            if sac_data:
-                sacrificed_points_data.append(sac_data)
-
-        # Determine barricade from midpoints of an opposite pair of sides of the rectangle
-        # Use the original coordinates from p_list for this.
-        edge_data = get_edges_by_distance(p_list)
-        side_pair_ids = edge_data['sides']
-
-        # Pick one side
-        side1_ids = set(side_pair_ids[0])
-        # Find its opposite
-        side2_ids = None
-        for i in range(1, 4):
-            candidate_side_ids = set(side_pair_ids[i])
-            if not side1_ids.intersection(candidate_side_ids):
-                side2_ids = candidate_side_ids
-                break
-        
-        if not side2_ids:
-            # Fallback for weird geometry, this should be rare for a valid rect.
-            side1_ids = set(side_pair_ids[2])
-            side2_ids = set()
-            for i in [0,1,3]:
-                candidate_side_ids = set(side_pair_ids[i])
-                if not side1_ids.intersection(candidate_side_ids):
-                    side2_ids = candidate_side_ids
-                    break
-        
-        id_to_point = {p['id']: p for p in p_list}
-        side1_pts = [id_to_point[pid] for pid in list(side1_ids)]
-        side2_pts = [id_to_point[pid] for pid in list(side2_ids)]
-        
-        mid1 = points_centroid(side1_pts)
-        mid2 = points_centroid(side2_pts)
-
-        new_barricade = self.game._create_temporary_barricade(teamId, mid1, mid2, 5)
-
-        return {
-            'success': True,
-            'type': 'raise_barricade',
-            'barricade': new_barricade,
-            'rune_points': list(rune_p_ids_tuple),
-            'sacrificed_points_count': len(sacrificed_points_data)
         }
 
     def reposition_point(self, teamId):
@@ -773,191 +564,6 @@ class FortifyActionsHandler:
 
         return self.game._fallback_strengthen_random_line(teamId, 'rotate')
 
-    def build_chronos_spire(self, teamId):
-        """[WONDER ACTION]: Build the Chronos Spire."""
-        # Check if this team already has a wonder. Limit one per team for now.
-        if any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()):
-            return {'success': False, 'reason': 'team already has a wonder'}
-
-        star_formations = self.game.formation_manager.check_star_rune(self.game.get_team_point_ids(teamId), self.game.get_team_lines(teamId), self.state['points'])
-        if not star_formations:
-            return {'success': False, 'reason': 'no star formation found'}
-
-        # Choose a formation to build on
-        formation = random.choice(star_formations)
-        
-        center_point = self.state['points'][formation['center_id']]
-        spire_coords = {'x': center_point['x'], 'y': center_point['y']}
-        
-        # Sacrifice all points in the formation
-        points_to_sacrifice = formation['all_points']
-        sacrificed_points_data = []
-        for pid in points_to_sacrifice:
-            sac_data = self.game._delete_point_and_connections(pid, aggressor_team_id=teamId)
-            if sac_data:
-                sacrificed_points_data.append(sac_data)
-        
-        if len(sacrificed_points_data) != len(points_to_sacrifice):
-            return {'success': False, 'reason': 'failed to sacrifice all formation points'}
-            
-        # Create the Wonder
-        wonder_id = self.game._generate_id('w')
-        new_wonder = {
-            'id': wonder_id,
-            'teamId': teamId,
-            'type': 'ChronosSpire',
-            'coords': spire_coords,
-            'turns_to_victory': 10,
-            'creation_turn': self.state['turn']
-        }
-        
-        if 'wonders' not in self.state: self.state['wonders'] = {}
-        self.state['wonders'][wonder_id] = new_wonder
-        
-        return {
-            'success': True,
-            'type': 'build_chronos_spire',
-            'wonder': new_wonder,
-            'sacrificed_points_count': len(sacrificed_points_data)
-        }
-
-    def _find_attunable_nexuses(self, teamId):
-        """Finds nexuses that can be attuned."""
-        self.game._update_structures_for_team(teamId)
-        team_nexuses = self.state.get('nexuses', {}).get(teamId, [])
-        if not team_nexuses:
-            return []
-        
-        attuned_nexus_pids = {pid for an in self.state.get('attuned_nexuses', {}).values() for pid in an['point_ids']}
-        
-        attunable = []
-        for nexus in team_nexuses:
-            if any(pid in attuned_nexus_pids for pid in nexus['point_ids']):
-                continue
-            
-            # A Nexus is defined by having a diagonal, so we just need to find one that isn't already part of an attuned structure.
-            attunable.append(nexus)
-            
-        return attunable
-
-    def attune_nexus(self, teamId):
-        """[FORTIFY ACTION]: Empowers a Nexus by sacrificing a diagonal, energizing nearby friendly lines for powerful attacks."""
-        attunable_nexuses = self._find_attunable_nexuses(teamId)
-        if not attunable_nexuses:
-            return {'success': False, 'reason': 'no valid nexus to attune'}
-            
-        nexus_to_attune = random.choice(attunable_nexuses)
-        p_ids = nexus_to_attune['point_ids']
-        points = self.state['points']
-
-        # Find and sacrifice a diagonal line
-        p_list = [points[pid] for pid in p_ids]
-        edge_data = get_edges_by_distance(p_list)
-        diag_pairs = edge_data['diagonals']
-
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
-        
-        line_to_sac = None
-        for p1_id, p2_id in diag_pairs:
-            line_key = tuple(sorted((p1_id, p2_id)))
-            if line_key in existing_lines:
-                line_to_sac = existing_lines[line_key]
-                break
-        
-        if not line_to_sac:
-            return {'success': False, 'reason': 'nexus found but its diagonal line is missing'}
-
-        # --- Primary Effect: Attune the Nexus ---
-        self.state['lines'].remove(line_to_sac)
-        self.state['shields'].pop(line_to_sac.get('id'), None)
-
-        nexus_id = self.game._generate_id('an')
-        new_attuned_nexus = {
-            'id': nexus_id,
-            'teamId': teamId,
-            'point_ids': p_ids,
-            'center': nexus_to_attune['center'],
-            'turns_left': 5,
-            'radius_sq': (self.state['grid_size'] * 0.3)**2
-        }
-        if 'attuned_nexuses' not in self.state: self.state['attuned_nexuses'] = {}
-        self.state['attuned_nexuses'][nexus_id] = new_attuned_nexus
-        
-        return {
-            'success': True,
-            'type': 'attune_nexus',
-            'nexus': new_attuned_nexus,
-            'sacrificed_line': line_to_sac
-        }
-
-    def create_ley_line(self, teamId):
-        """[FORTIFY ACTION]: Activates an I-Rune into a Ley Line, granting bonuses to nearby point creation. If all are active, it pulses one."""
-        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
-        if not team_i_runes:
-            return {'success': False, 'reason': 'no I-Runes to convert'}
-        
-        available_runes = []
-        for i_rune in team_i_runes:
-            # Check if this exact set of points is already a ley line.
-            is_active = False
-            for ll in self.state.get('ley_lines', {}).values():
-                if set(ll['point_ids']) == set(i_rune['point_ids']):
-                    is_active = True
-                    break
-            if not is_active:
-                available_runes.append(i_rune)
-
-        if available_runes:
-            # --- Primary Effect: Create a new Ley Line ---
-            rune_to_activate = random.choice(available_runes)
-            ley_line_id = self.game._generate_id('ll')
-            
-            new_ley_line = {
-                'id': ley_line_id,
-                'teamId': teamId,
-                'point_ids': rune_to_activate['point_ids'],
-                'turns_left': 8,
-                'bonus_radius_sq': (self.state['grid_size'] * 0.15)**2
-            }
-
-            if 'ley_lines' not in self.state:
-                self.state['ley_lines'] = {}
-            self.state['ley_lines'][ley_line_id] = new_ley_line
-
-            return {
-                'success': True,
-                'type': 'create_ley_line',
-                'ley_line': new_ley_line
-            }
-        else:
-            # --- Fallback Effect: Pulse an existing Ley Line ---
-            team_ley_lines = [ll for ll in self.state.get('ley_lines', {}).values() if ll['teamId'] == teamId]
-            if not team_ley_lines:
-                return {'success': False, 'reason': 'no I-Runes to convert and no Ley Lines to pulse'}
-
-            ley_line_to_pulse = random.choice(team_ley_lines)
-            
-            # Strengthen all lines connected to any point on the ley line
-            strengthened_lines = []
-            all_team_lines = self.game.get_team_lines(teamId)
-            ley_line_pids = set(ley_line_to_pulse['point_ids'])
-
-            for line in all_team_lines:
-                # Don't strengthen the ley line's own segments
-                if line['p1_id'] in ley_line_pids and line['p2_id'] in ley_line_pids:
-                    continue
-                
-                if line['p1_id'] in ley_line_pids or line['p2_id'] in ley_line_pids:
-                    if self.game._strengthen_line(line):
-                        strengthened_lines.append(line)
-            
-            return {
-                'success': True,
-                'type': 'ley_line_pulse',
-                'pulsed_ley_line_id': ley_line_to_pulse['id'],
-                'strengthened_lines': strengthened_lines
-            }
-
     def mirror_structure(self, teamId):
         """[FORTIFY ACTION]: Reflects points to create symmetry. If not possible, reinforces the structure."""
         valid_mirror_op = self._find_a_valid_mirror(teamId)
@@ -1057,3 +663,71 @@ class FortifyActionsHandler:
         self.state.setdefault('purifiers', {}).setdefault(teamId, []).append(chosen_purifier_data)
         
         return {'success': True, 'type': 'form_purifier', 'purifier': chosen_purifier_data}
+
+    def create_ley_line(self, teamId):
+        """[FORTIFY ACTION]: Activates an I-Rune into a Ley Line, granting bonuses to nearby point creation. If all are active, it pulses one."""
+        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
+        if not team_i_runes:
+            return {'success': False, 'reason': 'no I-Runes to convert'}
+        
+        available_runes = []
+        for i_rune in team_i_runes:
+            # Check if this exact set of points is already a ley line.
+            is_active = False
+            for ll in self.state.get('ley_lines', {}).values():
+                if set(ll['point_ids']) == set(i_rune['point_ids']):
+                    is_active = True
+                    break
+            if not is_active:
+                available_runes.append(i_rune)
+
+        if available_runes:
+            # --- Primary Effect: Create a new Ley Line ---
+            rune_to_activate = random.choice(available_runes)
+            ley_line_id = self.game._generate_id('ll')
+            
+            new_ley_line = {
+                'id': ley_line_id,
+                'teamId': teamId,
+                'point_ids': rune_to_activate['point_ids'],
+                'turns_left': 8,
+                'bonus_radius_sq': (self.state['grid_size'] * 0.15)**2
+            }
+
+            if 'ley_lines' not in self.state:
+                self.state['ley_lines'] = {}
+            self.state['ley_lines'][ley_line_id] = new_ley_line
+
+            return {
+                'success': True,
+                'type': 'create_ley_line',
+                'ley_line': new_ley_line
+            }
+        else:
+            # --- Fallback Effect: Pulse an existing Ley Line ---
+            team_ley_lines = [ll for ll in self.state.get('ley_lines', {}).values() if ll['teamId'] == teamId]
+            if not team_ley_lines:
+                return {'success': False, 'reason': 'no I-Runes to convert and no Ley Lines to pulse'}
+
+            ley_line_to_pulse = random.choice(team_ley_lines)
+            
+            # Strengthen all lines connected to any point on the ley line
+            strengthened_lines = []
+            all_team_lines = self.game.get_team_lines(teamId)
+            ley_line_pids = set(ley_line_to_pulse['point_ids'])
+
+            for line in all_team_lines:
+                # Don't strengthen the ley line's own segments
+                if line['p1_id'] in ley_line_pids and line['p2_id'] in ley_line_pids:
+                    continue
+                
+                if line['p1_id'] in ley_line_pids or line['p2_id'] in ley_line_pids:
+                    if self.game._strengthen_line(line):
+                        strengthened_lines.append(line)
+            
+            return {
+                'success': True,
+                'type': 'ley_line_pulse',
+                'pulsed_ley_line_id': ley_line_to_pulse['id'],
+                'strengthened_lines': strengthened_lines
+            }

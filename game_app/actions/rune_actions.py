@@ -4,8 +4,7 @@ from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
     get_extended_border_point, is_point_inside_triangle,
-    points_centroid, clamp_and_round_point_coords, get_edges_by_distance,
-    get_angle_bisector_vector
+    points_centroid, get_angle_bisector_vector
 )
 
 class RuneActionsHandler:
@@ -34,23 +33,11 @@ class RuneActionsHandler:
         can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('hourglass', []))
         return can_perform, "Requires an active Hourglass Rune."
 
-    def can_perform_starlight_cascade(self, teamId):
-        can_perform = len(self._find_possible_starlight_cascades(teamId)) > 0
-        return can_perform, "No Star Rune has a valid target in range."
-
     def can_perform_focus_beam(self, teamId):
         has_star_rune = bool(self.state.get('runes', {}).get(teamId, {}).get('star', []))
         num_enemy_points = len(self.state['points']) - len(self.game.get_team_point_ids(teamId))
         can_perform = has_star_rune and num_enemy_points > 0
         return can_perform, "Requires a Star Rune and an enemy point."
-
-    def can_perform_t_hammer_slam(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('t_shape', []))
-        return can_perform, "Requires an active T-Rune."
-
-    def can_perform_cardinal_pulse(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('plus_shape', []))
-        return can_perform, "Requires an active Plus-Rune."
 
     def can_perform_parallel_discharge(self, teamId):
         can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('parallel', []))
@@ -331,6 +318,7 @@ class RuneActionsHandler:
             return {'success': False, 'reason': 'rune points no longer exist'}
         
         # Find diagonals
+        from ..geometry import get_edges_by_distance, points_centroid
         p_list = [points[pid] for pid in rune_p_ids_tuple]
         edge_data = get_edges_by_distance(p_list)
         diag1_p_ids, diag2_p_ids = edge_data['diagonals']
@@ -363,6 +351,7 @@ class RuneActionsHandler:
             mid1 = points_centroid([d1_p1, d1_p2])
             mid2 = points_centroid([d2_p1, d2_p2])
             
+            from ..geometry import clamp_and_round_point_coords
             grid_size = self.state['grid_size']
             p1_coords = clamp_and_round_point_coords(mid1, grid_size)
             p2_coords = clamp_and_round_point_coords(mid2, grid_size)
@@ -444,99 +433,6 @@ class RuneActionsHandler:
                 'anchor_point': anchor_point, 'sacrificed_point': sacrificed_point_data, 'rune_points': rune_pids
             }
     
-    def _find_possible_starlight_cascades(self, teamId):
-        active_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
-        if not active_star_runes: return []
-
-        damage_radius_sq = (self.state['grid_size'] * 0.3)**2
-        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        bastion_line_ids = self.game._get_bastion_line_ids()
-        points_map = self.state['points']
-
-        potential_cascades = []
-        # A bit complex: we want to return a list of valid {rune, sac_point_id} dicts
-        for rune in active_star_runes:
-            if not rune.get('cycle_ids'): continue
-            
-            for p_to_sac_id in rune['cycle_ids']:
-                if p_to_sac_id not in points_map: continue
-                sac_point_coords = points_map[p_to_sac_id]
-                
-                has_target = False
-                for line in enemy_lines:
-                    # Starlight cascade damages, it doesn't destroy shields/bastions, so skip them
-                    if line.get('id') in bastion_line_ids or line.get('id') in self.state['shields']: continue
-                    if line['p1_id'] not in points_map or line['p2_id'] not in points_map: continue
-                    p1 = points_map[line['p1_id']]
-                    p2 = points_map[line['p2_id']]
-                    midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
-
-                    if distance_sq(sac_point_coords, midpoint) < damage_radius_sq:
-                        potential_cascades.append({'rune': rune, 'sac_point_id': p_to_sac_id})
-                        has_target = True
-                        break # Found a target for this point, move to next sac candidate
-                if has_target:
-                    # Since we only need one valid sacrificial point per rune to make the rune "activatable"
-                    # we could break here. But for the action to be effective, we want to pick from *any*
-                    # valid sacrificial point. So we continue checking all sac points.
-                    pass
-        return potential_cascades
-
-    def starlight_cascade(self, teamId):
-        """[RUNE ACTION]: A Star Rune sacrifices a point to damage nearby enemy lines."""
-        possible_cascades = self._find_possible_starlight_cascades(teamId)
-        if not possible_cascades:
-            return {'success': False, 'reason': 'no valid targets for starlight cascade'}
-
-        chosen_cascade = random.choice(possible_cascades)
-        rune = chosen_cascade['rune']
-        p_to_sac_id = chosen_cascade['sac_point_id']
-        sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId)
-        
-        if not sacrificed_point_data:
-            return {'success': False, 'reason': 'failed to sacrifice rune point'}
-            
-        # Define damage area
-        damage_radius_sq = (self.state['grid_size'] * 0.3)**2
-        
-        # Find enemy lines within the area
-        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        bastion_line_ids = self.game._get_bastion_line_ids()
-        damaged_lines = []
-        points_map = self.state['points']
-
-        for line in enemy_lines:
-            if line.get('id') in bastion_line_ids or line.get('id') in self.state['shields']:
-                continue
-            if line['p1_id'] not in points_map or line['p2_id'] not in points_map:
-                continue
-            
-            p1 = points_map[line['p1_id']]
-            p2 = points_map[line['p2_id']]
-            midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}
-
-            if distance_sq(sacrificed_point_data, midpoint) < damage_radius_sq:
-                # Damage the line by reducing its strength
-                line_strength = self.state.get('line_strengths', {}).get(line['id'])
-                if line_strength and line_strength > 0:
-                    self.state['line_strengths'][line['id']] -= 1
-                    damaged_lines.append(line)
-                    if self.state['line_strengths'][line['id']] <= 0:
-                        del self.state['line_strengths'][line['id']]
-                else:
-                    # Line had no strength, so it's destroyed
-                    if line in self.state['lines']:
-                        self.state['lines'].remove(line)
-                        damaged_lines.append(line)
-
-        return {
-            'success': True,
-            'type': 'rune_starlight_cascade',
-            'damaged_lines': damaged_lines,
-            'sacrificed_point': sacrificed_point_data,
-            'rune_points': rune['all_points']
-        }
-
     def focus_beam(self, teamId):
         """[RUNE ACTION]: A Star Rune fires a beam at a high-value target. If none, a regular one. If no targets, creates a fissure."""
         active_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
@@ -628,165 +524,4 @@ class RuneActionsHandler:
                 'rune_points': rune['all_points'],
                 'beam_origin': center_point,
                 'beam_target': enemy_centroid
-            }
-
-    def cardinal_pulse(self, teamId):
-        """[RUNE ACTION]: A Plus-Rune is consumed to fire four beams from its center. Beams destroy the first enemy line hit, or create a point on the border if they miss."""
-        active_plus_runes = self.state.get('runes', {}).get(teamId, {}).get('plus_shape', [])
-        if not active_plus_runes:
-            return {'success': False, 'reason': 'no active Plus-Runes'}
-        
-        rune = random.choice(active_plus_runes)
-        points_map = self.state['points']
-        center_point = points_map.get(rune['center_id'])
-
-        if not center_point or not all(pid in points_map for pid in rune['arm_ids']):
-             return {'success': False, 'reason': 'rune points no longer exist'}
-        
-        # --- Consume the rune ---
-        sacrificed_points_data = []
-        for pid in rune['all_points']:
-            sac_data = self.game._delete_point_and_connections(pid, aggressor_team_id=teamId)
-            if sac_data:
-                sacrificed_points_data.append(sac_data)
-
-        if not sacrificed_points_data:
-            return {'success': False, 'reason': 'failed to sacrifice points for cardinal pulse'}
-            
-        # --- Fire 4 beams ---
-        lines_destroyed = []
-        points_created = []
-        attack_rays = []
-        bastion_line_ids = self.game._get_bastion_line_ids()
-        
-        for arm_pid in rune['arm_ids']:
-            # The arm point itself was sacrificed, so we use its last known coordinates from the sacrifice data.
-            arm_point_data = next((p for p in sacrificed_points_data if p['id'] == arm_pid), None)
-            if not arm_point_data: continue
-
-            border_point = get_extended_border_point(
-                center_point, arm_point_data, self.state['grid_size'],
-                self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
-            )
-            if not border_point: continue
-
-            attack_ray = {'p1': center_point, 'p2': border_point}
-            attack_rays.append(attack_ray)
-            
-            # This is complex because points/lines are being removed as we iterate.
-            # We need to check against the current state of the board for each beam.
-            enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-            hits = []
-            for enemy_line in enemy_lines:
-                 # Cardinal Pulse is powerful, it bypasses shields but not bastions.
-                if enemy_line.get('id') in bastion_line_ids: continue
-                if enemy_line['p1_id'] not in self.state['points'] or enemy_line['p2_id'] not in self.state['points']: continue
-                
-                ep1 = self.state['points'][enemy_line['p1_id']]
-                ep2 = self.state['points'][enemy_line['p2_id']]
-
-                intersection_point = get_segment_intersection_point(attack_ray['p1'], attack_ray['p2'], ep1, ep2)
-                if intersection_point:
-                    dist_sq = distance_sq(attack_ray['p1'], intersection_point)
-                    hits.append({'line': enemy_line, 'dist_sq': dist_sq})
-            
-            if hits:
-                # Destroy the closest line hit by this beam
-                closest_hit = min(hits, key=lambda h: h['dist_sq'])
-                line_to_destroy = closest_hit['line']
-                
-                if line_to_destroy in self.state['lines']: # Check it hasn't been destroyed by another beam
-                    self.game._delete_line(line_to_destroy)
-                    lines_destroyed.append(line_to_destroy)
-            else:
-                # Miss: create point on border
-                new_point = self.game._helper_spawn_on_border(teamId, border_point)
-                if new_point:
-                    points_created.append(new_point)
-
-        if not lines_destroyed and not points_created:
-            return {'success': False, 'reason': 'cardinal pulse had no effect'}
-
-        return {
-            'success': True,
-            'type': 'rune_cardinal_pulse',
-            'sacrificed_points': sacrificed_points_data,
-            'lines_destroyed': lines_destroyed,
-            'points_created': points_created,
-            'attack_rays': attack_rays
-        }
-
-    def t_hammer_slam(self, teamId):
-        """[RUNE ACTION]: A T-Rune sacrifices its head to push points away from its stem."""
-        active_t_runes = self.state.get('runes', {}).get(teamId, {}).get('t_shape', [])
-        if not active_t_runes:
-            return {'success': False, 'reason': 'no active T-Runes'}
-            
-        rune = random.choice(active_t_runes)
-        points = self.state['points']
-        
-        if not all(pid in points for pid in rune['all_points']):
-            return {'success': False, 'reason': 'rune points no longer exist'}
-            
-        # Sacrifice the head point
-        sacrificed_point_data = self.game._delete_point_and_connections(rune['head_id'], aggressor_team_id=teamId)
-        if not sacrificed_point_data:
-            return {'success': False, 'reason': 'failed to sacrifice rune head point'}
-        
-        # Check if stem points still exist after potential cascade
-        p_stem1 = points.get(rune['stem1_id'])
-        p_stem2 = points.get(rune['stem2_id'])
-        if not p_stem1 or not p_stem2:
-             return {'success': False, 'reason': 'rune stem points were destroyed during sacrifice'}
-             
-        # Find points to push
-        pushed_points = []
-        push_dist = 2.0
-        push_width = 2.0 # How far from the line to check
-        grid_size = self.state['grid_size']
-
-        # Vector for the stem and its perpendicular
-        v_stem_x, v_stem_y = p_stem2['x'] - p_stem1['x'], p_stem2['y'] - p_stem1['y']
-        mag_stem = math.sqrt(v_stem_x**2 + v_stem_y**2)
-        v_perp_x, v_perp_y = -v_stem_y / mag_stem, v_stem_x / mag_stem
-
-        for p_target in list(points.values()):
-            if p_target['id'] in rune['all_points']: continue
-
-            # Check distance from line segment
-            # Project p_target onto the stem line
-            v_s1_t_x, v_s1_t_y = p_target['x'] - p_stem1['x'], p_target['y'] - p_stem1['y']
-            dot = v_s1_t_x * v_stem_x + v_s1_t_y * v_stem_y
-            t = max(0, min(1, dot / (mag_stem**2)))
-            
-            p_closest = {'x': p_stem1['x'] + t * v_stem_x, 'y': p_stem1['y'] + t * v_stem_y}
-            
-            if distance_sq(p_target, p_closest) < push_width**2:
-                # Push the point
-                new_coords = clamp_and_round_point_coords({
-                    'x': p_target['x'] + v_perp_x * push_dist,
-                    'y': p_target['y'] + v_perp_y * push_dist
-                }, grid_size)
-                p_target['x'], p_target['y'] = new_coords['x'], new_coords['y']
-                pushed_points.append(p_target.copy())
-
-        if pushed_points:
-            return {
-                'success': True, 'type': 'rune_t_hammer_slam',
-                'pushed_points_count': len(pushed_points), 'sacrificed_point': sacrificed_point_data,
-                'rune_points': rune['all_points']
-            }
-        else:
-            # Fallback: Strengthen the stem lines
-            strengthened_lines = []
-            stem_lines_keys = [tuple(sorted((rune['mid_id'], rune['stem1_id']))), tuple(sorted((rune['mid_id'], rune['stem2_id'])))]
-            for line in self.game.get_team_lines(teamId):
-                if tuple(sorted((line['p1_id'], line['p2_id']))) in stem_lines_keys:
-                    if self.game._strengthen_line(line):
-                        strengthened_lines.append(line)
-            
-            return {
-                'success': True, 'type': 't_slam_fizzle_reinforce',
-                'strengthened_lines': strengthened_lines, 'sacrificed_point': sacrificed_point_data,
-                'rune_points': rune['all_points']
             }
