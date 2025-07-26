@@ -43,33 +43,10 @@ STRUCTURE_DEFINITIONS = {
         'is_critical': True,
         'frontend_flag_key': 'is_purifier_point',
     },
-    'nexuses': {
-        'state_key': 'nexuses', 'storage_type': 'team_dict_list',
-        'point_id_keys': [('list', 'point_ids')],
-        'is_critical': True,
-        'formation_checker': 'check_nexuses',
-        'formation_inputs': ['team_point_ids', 'team_lines', 'all_points'],
-        'frontend_flag_key': 'is_nexus_point',
-    },
     'attuned_nexuses': {
         'state_key': 'attuned_nexuses', 'storage_type': 'dict',
         'point_id_keys': [('list', 'point_ids')],
         'is_critical': True,
-    },
-    'prisms': {
-        'state_key': 'prisms', 'storage_type': 'team_dict_list',
-        'point_id_keys': [('list', 'all_point_ids')],
-        'is_critical': True,
-        'formation_checker': 'check_prisms',
-        'formation_inputs': ['team_territories'],
-    },
-    'trebuchets': {
-        'state_key': 'trebuchets', 'storage_type': 'team_dict_list',
-        'point_id_keys': [('list', 'point_ids')],
-        'is_critical': True,
-        'formation_checker': 'check_trebuchets',
-        'formation_inputs': ['team_point_ids', 'team_lines', 'all_points'],
-        'frontend_flag_key': 'is_trebuchet_point',
     },
     'ley_lines': {
         'state_key': 'ley_lines', 'storage_type': 'dict',
@@ -103,6 +80,33 @@ STRUCTURE_DEFINITIONS = {
     },
     # --- Runes ---
     # Runes are stored under state['runes'][teamId][rune_type]
+    'rune_nexus': {
+        'state_key': 'runes', 'storage_type': 'team_dict_of_structures',
+        'structure_subtype_key': 'nexus',
+        'point_id_keys': [('list', 'point_ids')],
+        'is_critical': True,
+        'formation_checker': 'check_nexuses',
+        'formation_inputs': ['team_point_ids', 'team_lines', 'all_points'],
+        'frontend_flag_key': 'is_nexus_point',
+    },
+    'rune_prism': {
+        'state_key': 'runes', 'storage_type': 'team_dict_of_structures',
+        'structure_subtype_key': 'prism',
+        'point_id_keys': [('list', 'all_point_ids')],
+        'is_critical': True,
+        'formation_checker': 'check_prisms',
+        'formation_inputs': ['team_territories'],
+        'frontend_flag_key': 'is_prism_point',
+    },
+    'rune_trebuchet': {
+        'state_key': 'runes', 'storage_type': 'team_dict_of_structures',
+        'structure_subtype_key': 'trebuchet',
+        'point_id_keys': [('list', 'point_ids')],
+        'is_critical': True,
+        'formation_checker': 'check_trebuchets',
+        'formation_inputs': ['team_point_ids', 'team_lines', 'all_points'],
+        'frontend_flag_key': 'is_trebuchet_point',
+    },
     'rune_cross': {
         'state_key': 'runes', 'storage_type': 'team_dict_of_structures',
         'structure_subtype_key': 'cross',

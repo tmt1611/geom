@@ -70,14 +70,11 @@ class Game:
             "territories": [], # Added for claimed triangles
             "bastions": {}, # {bastion_id: {teamId, core_id, prong_ids}}
             "runes": {}, # {teamId: {rune_type: [rune_data, ...]}}. Populated by _update_structures_for_team.
-            "nexuses": {}, # {teamId: [nexus1, nexus2, ...]}
             "attuned_nexuses": {}, # {nexus_id: {teamId, turns_left, center, point_ids, radius_sq}}
-            "prisms": {}, # {teamId: [prism1, prism2, ...]}
             "barricades": [], # {id, teamId, p1, p2, turns_left}
             "heartwoods": {}, # {teamId: {id, center_coords, growth_counter}}
             "whirlpools": [], # {id, teamId, coords, turns_left, strength, radius_sq}
             "monoliths": {}, # {monolith_id: {teamId, point_ids, ...}}
-            "trebuchets": {}, # {teamId: [trebuchet1, ...]}
             "purifiers": {}, # {teamId: [purifier1, ...]}
             "rift_spires": {}, # {spire_id: {teamId, coords, charge}}
             "rift_traps": [], # {id, teamId, coords, turns_left, radius_sq}
@@ -462,8 +459,7 @@ class Game:
         destroyed_lines_count = 0
         for line in lines_to_destroy:
             if line in self.state['lines']:
-                self.state['lines'].remove(line)
-                self.state['shields'].pop(line.get('id'), None)
+                self._delete_line(line)
                 destroyed_lines_count += 1
 
         if destroyed_points_count > 0 or destroyed_lines_count > 0:
@@ -628,7 +624,7 @@ class Game:
 
         # 1. Pre-deletion checks for cascades (e.g., Nexus detonation)
         nexus_to_detonate = None
-        all_nexuses = [n for team_nexuses in self.state.get('nexuses', {}).values() for n in team_nexuses]
+        all_nexuses = [n for team_runes in self.state.get('runes', {}).values() for n in team_runes.get('nexus', [])]
         for nexus in all_nexuses:
             if point_id in nexus.get('point_ids', []):
                 nexus_to_detonate = nexus
@@ -1049,7 +1045,7 @@ class Game:
             # Update structures to check for bonus-granting ones like Nexuses at the start of the turn.
             self._update_structures_for_team(teamId)
             
-            num_nexuses = len(self.state.get('nexuses', {}).get(teamId, []))
+            num_nexuses = len(self.state.get('runes', {}).get(teamId, {}).get('nexus', []))
             if num_nexuses > 0:
                 team_name = self.state['teams'][teamId]['name']
                 plural = "s" if num_nexuses > 1 else ""

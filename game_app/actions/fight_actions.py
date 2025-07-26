@@ -33,14 +33,14 @@ class FightActionsHandler:
         return can_perform, "Requires an I-Rune with at least 3 points."
 
     def can_perform_refraction_beam(self, teamId):
-        has_prism = bool(self.state.get('prisms', {}).get(teamId, []))
+        has_prism = bool(self.state.get('runes', {}).get(teamId, {}).get('prism', []))
         num_enemy_lines = len(self.state['lines']) - len(self.game.get_team_lines(teamId))
         can_perform = has_prism and num_enemy_lines > 0
-        return can_perform, "Requires a Prism and enemy lines."
+        return can_perform, "Requires a Prism Rune and enemy lines."
 
     def can_perform_launch_payload(self, teamId):
-        can_perform = bool(self.state.get('trebuchets', {}).get(teamId, []))
-        return can_perform, "Requires a Trebuchet."
+        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('trebuchet', []))
+        return can_perform, "Requires a Trebuchet Rune."
 
     def can_perform_purify_territory(self, teamId):
         # Action is possible if a purifier exists, due to the fallback push effect.
@@ -397,9 +397,9 @@ class FightActionsHandler:
 
     def launch_payload(self, teamId):
         """[FIGHT ACTION]: A Trebuchet launches a payload. Prioritizes high-value points, then any enemy, and finally creates a fissure if no targets exist."""
-        team_trebuchets = self.state.get('trebuchets', {}).get(teamId, [])
+        team_trebuchets = self.state.get('runes', {}).get(teamId, {}).get('trebuchet', [])
         if not team_trebuchets:
-            return {'success': False, 'reason': 'no active trebuchets'}
+            return {'success': False, 'reason': 'no active Trebuchet Runes'}
 
         trebuchet = random.choice(team_trebuchets)
         if not all(pid in self.state['points'] for pid in trebuchet.get('point_ids', [])):
@@ -581,9 +581,9 @@ class FightActionsHandler:
 
     def refraction_beam(self, teamId):
         """[FIGHT ACTION]: Uses a Prism to refract an attack beam. If it misses, it creates a new point on the border."""
-        team_prisms = self.state.get('prisms', {}).get(teamId, [])
+        team_prisms = self.state.get('runes', {}).get(teamId, {}).get('prism', [])
         if not team_prisms:
-            return {'success': False, 'reason': 'no active prisms'}
+            return {'success': False, 'reason': 'no active Prism Runes'}
         
         points = self.state['points']
         

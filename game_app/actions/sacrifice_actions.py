@@ -52,9 +52,9 @@ class SacrificeActionsHandler:
         return len(self._find_possible_bastion_pulses(teamId)) > 0, "No bastion with enemy lines crossing its perimeter."
 
     def can_perform_attune_nexus(self, teamId):
-        team_nexuses = self.state.get('nexuses', {}).get(teamId, [])
+        team_nexuses = self.state.get('runes', {}).get(teamId, {}).get('nexus', [])
         if not team_nexuses:
-            return False, "Requires an active Nexus."
+            return False, "Requires an active Nexus Rune."
         
         attuned_nexus_pids = {frozenset(an['point_ids']) for an in self.state.get('attuned_nexuses', {}).values()}
         
@@ -707,7 +707,7 @@ class SacrificeActionsHandler:
 
     def attune_nexus(self, teamId):
         """[SACRIFICE ACTION]: Sacrifices a diagonal from a Nexus to energize it for several turns."""
-        team_nexuses = self.state.get('nexuses', {}).get(teamId, [])
+        team_nexuses = self.state.get('runes', {}).get(teamId, {}).get('nexus', [])
         if not team_nexuses: return {'success': False, 'reason': 'no active nexuses'}
         
         attuned_nexus_pids = {frozenset(an['point_ids']) for an in self.state.get('attuned_nexuses', {}).values()}
