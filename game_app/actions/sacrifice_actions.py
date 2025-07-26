@@ -20,13 +20,16 @@ class SacrificeActionsHandler:
         return can_perform, "No suitable point to sacrifice for Nova Burst."
 
     def can_perform_create_whirlpool(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) > 1, "Requires more than 1 point to sacrifice one."
+        can_perform = self.game._find_non_critical_sacrificial_point(teamId) is not None
+        return can_perform, "No non-critical point available to sacrifice."
 
     def can_perform_phase_shift(self, teamId):
-        return len(self.game.get_team_lines(teamId)) > 0, "Requires a line to sacrifice."
+        can_perform = len(self._get_eligible_phase_shift_lines(teamId)) > 0
+        return can_perform, "Requires a non-critical/safe line to sacrifice."
 
     def can_perform_rift_trap(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) > 1, "Requires more than 1 point to sacrifice."
+        can_perform = self.game._find_non_critical_sacrificial_point(teamId) is not None
+        return can_perform, "No non-critical point available to sacrifice."
 
     def can_perform_scorch_territory(self, teamId):
         can_perform = any(t['teamId'] == teamId for t in self.state.get('territories', []))
@@ -179,11 +182,9 @@ class SacrificeActionsHandler:
 
     def create_whirlpool(self, teamId):
         """[SACRIFICE ACTION]: A point is destroyed. If points are nearby, it creates a vortex. Otherwise, it creates a small fissure."""
-        if len(self.game.get_team_point_ids(teamId)) <= 1:
-            return {'success': False, 'reason': 'not enough points to sacrifice'}
-
         p_to_sac_id = self.game._find_non_critical_sacrificial_point(teamId)
         if not p_to_sac_id:
+            # This should not happen if precondition is correct, but is a good safeguard.
             return {'success': False, 'reason': 'no non-critical points available to sacrifice'}
         sac_point_coords = self.state['points'][p_to_sac_id].copy()
         
@@ -261,10 +262,6 @@ class SacrificeActionsHandler:
 
     def phase_shift(self, teamId):
         """[SACRIFICE ACTION]: Sacrifice a line to teleport one of its points. If teleport fails, the other point becomes a temporary anchor."""
-        team_lines = self.game.get_team_lines(teamId)
-        if not team_lines:
-            return {'success': False, 'reason': 'no lines to sacrifice'}
-
         eligible_lines = self._get_eligible_phase_shift_lines(teamId)
         if not eligible_lines:
             return {'success': False, 'reason': 'no non-critical/safe lines to sacrifice'}
@@ -315,9 +312,6 @@ class SacrificeActionsHandler:
 
     def rift_trap(self, teamId):
         """[SACRIFICE ACTION]: Sacrifices a point to create a temporary trap. If an enemy enters, it's destroyed. If not, the trap becomes a new point."""
-        if len(self.game.get_team_point_ids(teamId)) <= 1:
-            return {'success': False, 'reason': 'not enough points to sacrifice'}
-
         # Find a non-critical point to sacrifice
         p_to_sac_id = self.game._find_non_critical_sacrificial_point(teamId)
         if not p_to_sac_id:

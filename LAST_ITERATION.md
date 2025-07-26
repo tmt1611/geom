@@ -1,13 +1,5 @@
-This iteration focused on cleaning up documentation and ensuring consistency between the `rules.md` file, the `action_data.py` definitions, and the actual implementation in `game_logic.py` and its handlers. This improves clarity for players and maintainability for developers.
+This iteration focused on improving the robustness and correctness of the action system by aligning action preconditions more closely with their implementation logic.
 
-1.  **Corrected `rules.md` for `no_cost` Actions**: Updated several actions in `rules.md` (`Create Anchor`, `Reposition Point`) to reflect their `no_cost` status and remove inaccurate descriptions of sacrifice or fallback behavior.
+1.  **Strengthened Sacrifice Preconditions**: Updated the `can_perform_*` methods for several sacrifice actions (`create_whirlpool`, `rift_trap`, `phase_shift`) in `game_app/actions/sacrifice_actions.py`. Instead of naive checks (like point or line counts), the preconditions now use the same detailed helper methods (`_find_non_critical_sacrificial_point`, `_get_eligible_phase_shift_lines`) that the action implementations use. This prevents the game from attempting actions that are guaranteed to fail their internal checks.
 
-2.  **Documented New/Missing Actions**: Added descriptions for `Rotate Point` and `Gravity Well` to `rules.md`, as they were implemented but not yet documented for players.
-
-3.  **Standardized `no_cost` Tag**: Ensured all `no_cost` actions (`Purify Territory`, `Area Shield`, `Shield Pulse`, etc.) explicitly state "This action has no cost." in `rules.md` for consistency.
-
-4.  **Action Group Correction**: Moved `Convert Point` from the `[FIGHT]` group to the `[SACRIFICE]` group in `rules.md`, to correctly categorize it as a sacrifice action per `design.md`.
-
-5.  **Updated Star-Rune Rules**: Corrected the `Starlight Cascade` description to remove the mention of sacrifice and added the new `Gravity Well` action to the list of Star-Rune bonuses.
-
-6.  **Clarified Action Description**: Refined the description for `fight_purify_territory` in `action_data.py` to more accurately state that it removes the entire territory, not just the "fortified" status.
+2.  **Cleaned Up Action Implementations**: Removed now-redundant checks from the implementations of `create_whirlpool`, `rift_trap`, and `phase_shift`. Since the preconditions are now more accurate, these initial checks were unnecessary, leading to slightly cleaner and more direct code. A safeguard `if` statement was kept in place to handle edge cases, but the primary logic is now correctly handled at the precondition stage.
