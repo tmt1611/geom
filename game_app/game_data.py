@@ -14,7 +14,8 @@ GROUP_BASE_WEIGHTS = {
     'Fight': 30,
     'Fortify': 20,
     'Sacrifice': 10,
-    'Rune': 10
+    'Rune': 10,
+    'Terraform': 5
 }
 
 TRAIT_GROUP_MULTIPLIERS = {

@@ -1,1 +1,3 @@
-*   **Bug Fix:** Removed a duplicated method definition for `_process_heartwoods` in `game_app/turn_processor.py`. This fixes a critical bug that would prevent the server from running and ensures turn processing logic is sound.
+*   **Refactor (Action System):** Introduced a new `Terraform` action group and handler.
+*   **Refactor (Code Organization):** Moved the `form_rift_spire` and `create_fissure` actions from the `Fortify` handler to the new `TerraformActionsHandler` for better logical separation. This included creating a new file `game_app/actions/terraform_actions.py`.
+*   **Update:** Adjusted action registry, group weights, and core game logic to integrate the new `Terraform` action group.

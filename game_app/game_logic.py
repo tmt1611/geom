@@ -19,6 +19,7 @@ from .actions.fortify_actions import FortifyActionsHandler
 from .actions.fight_actions import FightActionsHandler
 from .actions.sacrifice_actions import SacrificeActionsHandler
 from .actions.rune_actions import RuneActionsHandler
+from .actions.terraform_actions import TerraformActionsHandler
 from .turn_processor import TurnProcessor
 
 # --- Game Class ---
@@ -34,6 +35,7 @@ class Game:
         self.fight_handler = FightActionsHandler(self)
         self.sacrifice_handler = SacrificeActionsHandler(self)
         self.rune_handler = RuneActionsHandler(self)
+        self.terraform_handler = TerraformActionsHandler(self)
         self.turn_processor = TurnProcessor(self)
         self._init_action_preconditions()
         self._log_generators = game_data.get_log_generators()

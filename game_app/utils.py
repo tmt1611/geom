@@ -19,6 +19,7 @@ WATCHED_FILES = [
     'game_app/actions/fortify_actions.py',
     'game_app/actions/rune_actions.py',
     'game_app/actions/sacrifice_actions.py',
+    'game_app/actions/terraform_actions.py',
     # Frontend
     'static/js/main.js',
     'static/js/api.js',

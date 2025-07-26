@@ -29,7 +29,7 @@ const api = {
                     'formations.py', 'structure_data.py', 'turn_processor.py'
                 ],
                 'game_app/actions': [
-                    'expand_actions.py', 'fight_actions.py', 'fortify_actions.py', 'rune_actions.py', 'sacrifice_actions.py'
+                    'expand_actions.py', 'fight_actions.py', 'fortify_actions.py', 'rune_actions.py', 'sacrifice_actions.py', 'terraform_actions.py'
                 ]
             };
 

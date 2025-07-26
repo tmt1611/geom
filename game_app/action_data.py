@@ -256,21 +256,6 @@ ACTIONS = {
             'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
         }
     },
-    'fortify_form_rift_spire': {
-        'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'form_rift_spire',
-        'display_name': 'Form Rift Spire', 'no_cost': True,
-        'description': "At a point that is a vertex of 3 or more territories, erects a Rift Spire. The Spire charges up to unlock the 'Create Fissure' action. This action costs no points.",
-        'log_generators': {
-            'form_rift_spire': lambda r: ("erected a Rift Spire at a territorial nexus.", "[RIFT SPIRE!]"),
-        }
-    },
-    'terraform_create_fissure': {
-        'group': 'Rune', 'handler': 'fortify_handler', 'method': 'create_fissure', 'no_cost': True,
-        'display_name': 'Create Fissure',
-        'description': "A charged Rift Spire creates a temporary, impassable fissure across the map that blocks line-based actions. This action has no cost.",
-        'log_generators': {
-            'create_fissure': lambda r: (f"unleashed the power of a Rift Spire, tearing a fissure across the battlefield.", "[FISSURE!]"),
-        }
     },
     'fortify_reposition_point': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'reposition_point',
@@ -407,6 +392,24 @@ ACTIONS = {
     },
 
     
+    # --- TERRAFORM ACTIONS ---
+    'terraform_form_rift_spire': {
+        'group': 'Terraform', 'handler': 'terraform_handler', 'method': 'form_rift_spire',
+        'display_name': 'Form Rift Spire', 'no_cost': True,
+        'description': "At a point that is a vertex of 3 or more territories, erects a Rift Spire. The Spire charges up to unlock the 'Create Fissure' action. This action costs no points.",
+        'log_generators': {
+            'form_rift_spire': lambda r: ("erected a Rift Spire at a territorial nexus.", "[RIFT SPIRE!]"),
+        }
+    },
+    'terraform_create_fissure': {
+        'group': 'Terraform', 'handler': 'terraform_handler', 'method': 'create_fissure', 'no_cost': True,
+        'display_name': 'Create Fissure',
+        'description': "A charged Rift Spire creates a temporary, impassable fissure across the map that blocks line-based actions. This action has no cost.",
+        'log_generators': {
+            'create_fissure': lambda r: (f"unleashed the power of a Rift Spire, tearing a fissure across the battlefield.", "[FISSURE!]"),
+        }
+    },
+
     # --- RUNE ACTIONS ---
     'rune_shoot_bisector': {
         'group': 'Rune', 'handler': 'rune_handler', 'method': 'shoot_bisector',
