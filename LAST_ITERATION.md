@@ -1,11 +1,12 @@
-This iteration focused on cleaning up "no-cost" actions to ensure they adhere strictly to the design principle that they should not have an implicit cost.
+This iteration focused on implementing the `Build Wonder` action, a key missing feature from the design documents (`design.md` and `rules.md`).
 
-1.  **Refactored "No-Cost" Actions**:
-    *   The `Reposition Point` and `Rotate Point` actions were designed to be free tactical moves. However, their implementation caused them to fall back to `Strengthen Line` if they failed, which *does* have a cost (1 point). This violated the "no cost" rule.
-    *   The actions and their preconditions in `game_app/actions/fortify_actions.py` have been refactored.
-    *   Now, they are only offered if a valid "free" point exists to be moved.
-    *   If the action is chosen but a valid new position cannot be found (e.g., all nearby spots are blocked), the action now "fizzles" instead of falling back to a costly alternative.
-    *   This fizzle consumes the team's turn but has no point cost, making the action a true no-cost, low-risk tactical choice.
+1.  **Implemented Wonder Creation**:
+    *   The `build_chronos_spire` action method was added to `game_app/actions/sacrifice_actions.py`. This action allows a team to sacrifice a Star-Rune to create the Chronos Spire wonder.
+    *   The corresponding `can_perform_build_chronos_spire` precondition check was also added to ensure the action is only available when a Star-Rune exists.
 
-2.  **Updated Action Metadata**:
-    *   The descriptions and log generators for these actions in `game_app/action_data.py` were updated to reflect the new fizzle-based logic, removing any mention of strengthening lines. This provides clearer and more accurate feedback to the user.
+2.  **Implemented Wonder Bonuses**:
+    *   The logic in `game_app/game_logic.py` was updated to grant the Wonder's owner a bonus action each turn, as specified in `rules.md`. The `_build_action_queue` method now checks for Wonders alongside Nexuses.
+    *   The victory condition via the Wonder's countdown is already handled by the `turn_processor`, so the new Wonder object integrates seamlessly with existing logic.
+
+3.  **Documentation Cleanup**:
+    *   `rules.md` was updated to correctly categorize the `Build Wonder`, `Cultivate Heartwood`, and `Form Rift Spire` actions under the `[SACRIFICE]` group. This ensures consistency with the design principle that actions involving sacrifice are labeled as such.

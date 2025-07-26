@@ -1065,6 +1065,14 @@ class Game:
                 for _ in range(num_wonders):
                     actions_queue.append({'teamId': teamId, 'is_bonus': True})
 
+            num_wonders = sum(1 for w in self.state.get('wonders', {}).values() if w['teamId'] == teamId)
+            if num_wonders > 0:
+                team_name = self.state['teams'][teamId]['name']
+                plural = "s" if num_wonders > 1 else ""
+                self.state['game_log'].append({'message': f"{team_name} gains {num_wonders} bonus action{plural} from its Wonder{plural}.", 'short_message': f'[WONDER:+{num_wonders}ACT]'})
+                for _ in range(num_wonders):
+                    actions_queue.append({'teamId': teamId, 'is_bonus': True})
+
         random.shuffle(actions_queue)
         self.state['actions_queue_this_turn'] = actions_queue
 

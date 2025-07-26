@@ -117,11 +117,11 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[FORTIFY] Create Anchor:** Sacrifice one of its own points to turn another into a gravitational anchor. For a few turns, the anchor will slowly pull nearby enemy points towards it.
 *   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns. If no valid reflections can be found, it instead reinforces the lines of the structure it was attempting to mirror.
 *   **[FORTIFY] Reposition Point:** Moves a single 'free' (non-structural) point to a better tactical position nearby. A subtle but important move for setting up future formations. If it fails, a line is strengthened instead.
-*   **[FORTIFY] Cultivate Heartwood:** A unique, powerful structure. Requires a central point connected to at least 5 other "branch" points.
+*   **[SACRIFICE] Cultivate Heartwood:** A unique, powerful structure. Requires a central point connected to at least 5 other "branch" points.
     *   **Cost:** The central point and all branch points are sacrificed. This action can only be performed once per team.
     *   **Bonus 1 (Passive Growth):** Every few turns, the Heartwood automatically creates a new point for its team nearby.
     *   **Bonus 2 (Defensive Aura):** Prevents enemy points from being created in a large radius around it.
-*   **[FORTIFY] Form Rift Spire:** Sacrifices a point that serves as a vertex for at least three different claimed territories.
+*   **[SACRIFICE] Form Rift Spire:** Sacrifices a point that serves as a vertex for at least three different claimed territories.
     *   **Bonus:** Creates a **Rift Spire**. This structure takes several turns to charge. Once charged, it unlocks the **[TERRAFORM] Create Fissure** action.
 *   **[TERRAFORM] Raise Barricade:** _(Requires an active Barricade-Rune)_ Consumes the rune to create a temporary, impassable wall along the rune's central axis. The wall blocks line-based actions for several turns, offering a flexible way to control the battlefield.
 *   **[TERRAFORM] Create Fissure:** _(Requires a charged Rift Spire)_ The spire opens a temporary, impassable fissure across the battlefield.
@@ -132,7 +132,7 @@ Wonders are unique, game-changing structures that require immense investment and
 
 *   **Chronos Spire:**
     *   **Prerequisite:** A team must have an active **Star-Rune**.
-    *   **Action:** The **[FORTIFY] Build Wonder** action becomes available.
+    *   **Action:** The **[SACRIFICE] Build Wonder** action becomes available.
     *   **Cost:** The entire Star-Rune formation is sacrificed.
     *   **Bonus 1 (Temporal Distortion):** The Spire grants its owner **one bonus action** every turn. This stacks with other sources of bonus actions.
     *   **Bonus 2 (Victory Countdown):** The Spire is indestructible. If it remains on the field for **10 turns** after its creation, its owner immediately wins the game.

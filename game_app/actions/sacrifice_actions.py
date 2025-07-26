@@ -74,6 +74,10 @@ class SacrificeActionsHandler:
         can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('plus_shape', []))
         return can_perform, "Requires an active Plus-Rune."
 
+    def can_perform_build_chronos_spire(self, teamId):
+        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('star', []))
+        return can_perform, "Requires an active Star Rune to build a Wonder."
+
     # --- End Precondition Checks ---
 
     @property
