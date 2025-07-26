@@ -1,2 +1,1 @@
-*   **Fix (Bug):** Corrected a syntax error (an extra closing brace) in `action_data.py` within the `ACTIONS` dictionary.
-*   **Refactor (Actions):** Updated the `line_retaliation` action to allow for point regeneration, making it consistent with other point-sacrifice actions and the design document's intent.
+*   **Refactor (JS):** Removed the redundant `illustrationHelpers` and `illustrationDrawers` objects from `main.js`. This functionality is already provided by the globally-loaded `illustrations.js` file. This change reduces the line count of `main.js` by nearly 700 lines, improving its readability and maintainability.
