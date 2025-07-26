@@ -1,12 +1,11 @@
-This iteration focused on improving correctness and clarity around action preconditions and logging, ensuring the game behaves logically and provides better feedback to the user.
+This iteration focused on cleaning up "no-cost" actions to ensure they adhere strictly to the design principle that they should not have an implicit cost.
 
-1.  **Corrected Action Precondition for `parallel_strike`**:
-    *   The `can_perform_parallel_strike` check in `game_app/actions/fight_actions.py` was too simplistic. It only checked for the existence of any point and any line, which could lead to the action being offered in situations where it was geometrically impossible (e.g., a team with only two points connected by a single line).
-    *   The precondition was updated to accurately reflect the action's internal logic: it now iterates through the team's points and lines to ensure there is at least one combination where a point is not part of the reference line. This prevents the action from being offered when it's guaranteed to fail.
+1.  **Refactored "No-Cost" Actions**:
+    *   The `Reposition Point` and `Rotate Point` actions were designed to be free tactical moves. However, their implementation caused them to fall back to `Strengthen Line` if they failed, which *does* have a cost (1 point). This violated the "no cost" rule.
+    *   The actions and their preconditions in `game_app/actions/fortify_actions.py` have been refactored.
+    *   Now, they are only offered if a valid "free" point exists to be moved.
+    *   If the action is chosen but a valid new position cannot be found (e.g., all nearby spots are blocked), the action now "fizzles" instead of falling back to a costly alternative.
+    *   This fizzle consumes the team's turn but has no point cost, making the action a true no-cost, low-risk tactical choice.
 
-2.  **Added Missing Log Message**:
-    *   The `sacrifice_raise_barricade` action had a "fizzle" case where the rune was consumed but a barricade failed to form due to geometric instability. This was a valid, successful outcome but had no corresponding log message.
-    *   A new `'raise_barricade_fizzle'` log generator was added to `game_app/action_data.py` to inform the user when this specific outcome occurs.
-
-3.  **Simplified Log Message**:
-    *   The log message for the `hull_breach` fallback was overly complex, specifying the exact number of lines created and reinforced. This was simplified to a more general "fortified its boundary lines", which is cleaner for the game log, while the visual feedback on the canvas provides the specific details.
+2.  **Updated Action Metadata**:
+    *   The descriptions and log generators for these actions in `game_app/action_data.py` were updated to reflect the new fizzle-based logic, removing any mention of strengthening lines. This provides clearer and more accurate feedback to the user.

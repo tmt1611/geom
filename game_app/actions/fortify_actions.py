@@ -185,17 +185,13 @@ class FortifyActionsHandler:
 
     def can_perform_reposition_point(self, teamId):
         can_reposition = bool(self.game._find_repositionable_point(teamId))
-        can_strengthen = len(self.game.get_team_lines(teamId)) > 0
-        can_perform = can_reposition or can_strengthen
-        reason = "" if can_perform else "No free points to reposition and no lines to strengthen."
-        return can_perform, reason
+        reason = "" if can_reposition else "No free points to reposition."
+        return can_reposition, reason
 
     def can_perform_rotate_point(self, teamId):
         can_rotate = bool(self.game._find_repositionable_point(teamId))
-        can_strengthen = len(self.game.get_team_lines(teamId)) > 0
-        can_perform = can_rotate or can_strengthen
-        reason = "" if can_perform else "No free points to rotate and no lines to strengthen."
-        return can_perform, reason
+        reason = "" if can_rotate else "No free points to rotate."
+        return can_rotate, reason
     
     def can_perform_create_ley_line(self, teamId):
         # An I-Rune is a line of 3 or more points.
@@ -466,11 +462,12 @@ class FortifyActionsHandler:
         }
 
     def reposition_point(self, teamId):
-        """[FORTIFY ACTION]: Moves a single non-critical point to a new nearby location. If not possible, strengthens a line."""
+        """[FORTIFY ACTION]: Moves a single non-critical point to a new nearby location. This action has no cost."""
         point_to_move_id = self.game._find_repositionable_point(teamId)
         
         if not point_to_move_id or point_to_move_id not in self.state['points']:
-            return self.game._fallback_strengthen_random_line(teamId, 'reposition')
+            # The point that made this action possible is gone. Fizzle.
+            return {'success': True, 'type': 'reposition_fizzle', 'reason': 'target point for reposition disappeared'}
 
         p_origin = self.state['points'][point_to_move_id]
         original_coords = {'x': p_origin['x'], 'y': p_origin['y'], 'id': p_origin['id'], 'teamId': p_origin['teamId']}
@@ -507,15 +504,16 @@ class FortifyActionsHandler:
                 'original_coords': original_coords
             }
 
-        # Fallback: Strengthen a random line
-        return self.game._fallback_strengthen_random_line(teamId, 'reposition')
+        # If the loop finishes without finding a valid move, it's a "fizzle".
+        return {'success': True, 'type': 'reposition_fizzle', 'reason': 'no valid new position found'}
 
     def rotate_point(self, teamId):
-        """[FORTIFY ACTION]: Rotates a free point around a pivot. Falls back to strengthening a line."""
+        """[FORTIFY ACTION]: Rotates a free point around a pivot. This action has no cost."""
         point_to_move_id = self.game._find_repositionable_point(teamId)
         
         if not point_to_move_id or point_to_move_id not in self.state['points']:
-            return self.game._fallback_strengthen_random_line(teamId, 'rotate')
+            # The point that made this action possible is gone. Fizzle.
+            return {'success': True, 'type': 'rotate_fizzle', 'reason': 'target point for rotate disappeared'}
 
         p_origin = self.state['points'][point_to_move_id]
         original_coords = {'x': p_origin['x'], 'y': p_origin['y'], 'id': p_origin['id'], 'teamId': p_origin['teamId']}
@@ -561,7 +559,8 @@ class FortifyActionsHandler:
                 'is_grid_center': is_grid_center,
             }
 
-        return self.game._fallback_strengthen_random_line(teamId, 'rotate')
+        # If the loop finishes without finding a valid move, it's a "fizzle".
+        return {'success': True, 'type': 'rotate_fizzle', 'reason': 'no valid rotation found'}
 
     def mirror_structure(self, teamId):
         """[FORTIFY ACTION]: Reflects points to create symmetry. If not possible, reinforces the structure."""

@@ -262,19 +262,19 @@ ACTIONS = {
     'fortify_reposition_point': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'reposition_point',
         'display_name': 'Reposition Point', 'no_cost': True,
-        'description': "Moves a single 'free' (non-structural) point to a better tactical position nearby. A subtle but important move for setting up future formations. If it fails, a line is strengthened instead.",
+        'description': "Moves a single 'free' (non-structural) point to a better tactical position nearby. A subtle but important move for setting up future formations. This action has no cost and will fail if no point can be moved.",
         'log_generators': {
             'reposition_point': lambda r: ("subtly repositioned a point for a better tactical advantage.", "[REPOSITION]"),
-            'reposition_fizzle_strengthen': lambda r: ("could not find a better position for any point, and instead reinforced a line.", "[REPOSITION->REINFORCE]"),
+            'reposition_fizzle': lambda r: ("attempted to reposition a point, but no valid move could be found.", "[REPOSITION->FIZZLE]"),
         }
     },
     'fortify_rotate_point': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'rotate_point',
         'display_name': 'Rotate Point', 'no_cost': True,
-        'description': "Rotates a single 'free' (non-structural) point around the grid center or another friendly point. If no valid rotation is found, it strengthens a line instead.",
+        'description': "Rotates a single 'free' (non-structural) point around the grid center or another friendly point. This action has no cost and will fail if no valid rotation can be found.",
         'log_generators': {
             'rotate_point': lambda r: (f"rotated a point around {'the grid center.' if r.get('is_grid_center') else 'another point.'}", "[ROTATE]"),
-            'rotate_fizzle_strengthen': lambda r: ("could not find a valid rotation for any point, and instead reinforced a line.", "[ROTATE->REINFORCE]"),
+            'rotate_fizzle': lambda r: ("attempted to rotate a point, but no valid move could be found.", "[ROTATE->FIZZLE]"),
         }
     },
     'fortify_create_ley_line': {
