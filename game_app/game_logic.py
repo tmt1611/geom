@@ -833,39 +833,6 @@ class Game:
         
         return list(articulation_points)
 
-    def _find_possible_bastion_pulses(self, teamId):
-        team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId and len(b['prong_ids']) > 0]
-        if not team_bastions: return []
-
-        points_map = self.state['points']
-        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        if not enemy_lines: return []
-
-        possible_pulses = []
-        for bastion in team_bastions:
-            prong_points = [points_map[pid] for pid in bastion['prong_ids'] if pid in points_map]
-            if len(prong_points) < 2: continue
-
-            centroid = points_centroid(prong_points)
-            prong_points.sort(key=lambda p: math.atan2(p['y'] - centroid['y'], p['x'] - centroid['x']))
-            
-            has_crossing_line = False
-            for enemy_line in enemy_lines:
-                if enemy_line['p1_id'] not in points_map or enemy_line['p2_id'] not in points_map: continue
-                ep1 = points_map[enemy_line['p1_id']]
-                ep2 = points_map[enemy_line['p2_id']]
-                for i in range(len(prong_points)):
-                    perimeter_p1 = prong_points[i]
-                    perimeter_p2 = prong_points[(i + 1) % len(prong_points)]
-                    if segments_intersect(ep1, ep2, perimeter_p1, perimeter_p2):
-                        possible_pulses.append(bastion)
-                        has_crossing_line = True
-                        break
-                if has_crossing_line:
-                    break
-        return possible_pulses
-
-
 
     def _get_all_actions_status(self, teamId):
         """

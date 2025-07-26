@@ -457,7 +457,7 @@ ACTIONS = {
         'description': "An Hourglass-Rune freezes a nearby enemy point in time for several turns, making it immune but unable to be used. If no target is found, it creates an anchor.",
         'log_generators': {
             'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from {r['target_team_name']} in time.", "[STASIS!]"),
-            'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead sacrificed a rune point to create a temporary anchor.", "[STASIS->ANCHOR]"),
+            'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead converted one of the rune's points into a temporary anchor.", "[STASIS->ANCHOR]"),
         }
     },
     'rune_focus_beam': {

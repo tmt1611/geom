@@ -30,8 +30,22 @@ class RuneActionsHandler:
         return can_perform, "Requires an active Trident Rune."
 
     def can_perform_hourglass_stasis(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('hourglass', []))
-        return can_perform, "Requires an active Hourglass Rune."
+        active_hourglass_runes = self.state.get('runes', {}).get(teamId, {}).get('hourglass', [])
+        if not active_hourglass_runes:
+            return False, "Requires an active Hourglass Rune."
+
+        # Check for primary target
+        if self.game._get_vulnerable_enemy_points(teamId):
+             # A bit of an approximation, doesn't check for range, but good enough for a pre-check.
+            return True, ""
+        
+        # Check for fallback possibility
+        for rune in active_hourglass_runes:
+            non_vertex_pids = [pid for pid in rune.get('all_points', []) if pid != rune.get('vertex_id') and pid not in self.state.get('anchors', {})]
+            if non_vertex_pids:
+                return True, ""
+                
+        return False, "Requires an Hourglass Rune with a valid target or a point to convert to an anchor."
 
     def can_perform_focus_beam(self, teamId):
         has_star_rune = bool(self.state.get('runes', {}).get(teamId, {}).get('star', []))
@@ -410,27 +424,21 @@ class RuneActionsHandler:
             }
         else:
             # --- Fallback Effect: Create Anchor ---
-            if len(rune_pids) < 2:
-                return {'success': False, 'reason': 'not enough rune points for fallback anchor'}
+            # Degrade the rune by turning one of its non-vertex points into an anchor. No sacrifice.
+            non_vertex_pids = [pid for pid in rune_pids if pid != rune['vertex_id'] and pid not in self.state.get('anchors', {})]
+            if not non_vertex_pids:
+                return {'success': False, 'reason': 'no valid rune points to convert to anchor'}
             
-            # Sacrifice one point from the rune to make another an anchor.
-            p_to_sac_id, p_to_anchor_id = random.sample(rune_pids, 2)
-            
-            sacrificed_point_data = self.game._delete_point_and_connections(p_to_sac_id, aggressor_team_id=teamId, allow_regeneration=True)
-            if not sacrificed_point_data:
-                return {'success': False, 'reason': 'failed to sacrifice rune point for fallback'}
-            
-            # Check if anchor point still exists after cascade
-            if p_to_anchor_id not in self.state['points']:
-                # The anchor point was destroyed by the sacrifice of its neighbor. The action is just the sacrifice.
-                return {'success': True, 'type': 'hourglass_fizzle_anchor', 'anchor_point': None, 'sacrificed_point': sacrificed_point_data, 'rune_points': rune_pids}
-            
+            p_to_anchor_id = random.choice(non_vertex_pids)
+            anchor_point = points_map.get(p_to_anchor_id)
+            if not anchor_point:
+                return {'success': False, 'reason': 'chosen anchor point for fallback does not exist'}
+
             self.state['anchors'][p_to_anchor_id] = {'teamId': teamId, 'turns_left': 3}
-            anchor_point = self.state['points'][p_to_anchor_id]
 
             return {
                 'success': True, 'type': 'hourglass_fizzle_anchor',
-                'anchor_point': anchor_point, 'sacrificed_point': sacrificed_point_data, 'rune_points': rune_pids
+                'anchor_point': anchor_point, 'rune_points': rune_pids
             }
     
     def focus_beam(self, teamId):

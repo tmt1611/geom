@@ -1,6 +1,6 @@
 import random
 import math
-from ..geometry import distance_sq, clamp_and_round_point_coords
+from ..geometry import distance_sq, clamp_and_round_point_coords, points_centroid, segments_intersect
 
 class SacrificeActionsHandler:
     def __init__(self, game):
@@ -28,6 +28,14 @@ class SacrificeActionsHandler:
     def can_perform_scorch_territory(self, teamId):
         can_perform = any(t['teamId'] == teamId for t in self.state.get('territories', []))
         return can_perform, "Requires at least one claimed territory to sacrifice."
+
+    def can_perform_convert_point(self, teamId):
+        # Primary needs a vulnerable enemy point. Fallback is always possible if a line exists.
+        # Thus, only a line is needed.
+        return len(self.game.get_team_lines(teamId)) > 0, "Requires a line to sacrifice."
+
+    def can_perform_bastion_pulse(self, teamId):
+        return len(self._find_possible_bastion_pulses(teamId)) > 0, "No bastion with enemy lines crossing its perimeter."
 
     # --- End Precondition Checks ---
 
@@ -347,3 +355,176 @@ class SacrificeActionsHandler:
             'scorched_zone': new_scorched_zone,
             'sacrificed_points_count': len(sacrificed_points_data)
         }
+
+    def convert_point(self, teamId):
+        """[SACRIFICE ACTION]: Sacrifices a line to convert a nearby enemy point. If not possible, creates a repulsive pulse."""
+        # We should sacrifice a non-critical line if possible
+        eligible_lines = self._get_eligible_phase_shift_lines(teamId)
+        if not eligible_lines:
+            # Fallback to any line if no "safe" lines are found
+            eligible_lines = self.game.get_team_lines(teamId)
+        
+        if not eligible_lines:
+            return {'success': False, 'reason': 'no lines to sacrifice'}
+
+        line_to_sac = random.choice(eligible_lines)
+        points = self.state['points']
+        
+        if line_to_sac['p1_id'] not in points or line_to_sac['p2_id'] not in points:
+             return {'success': False, 'reason': 'line points for sacrifice no longer exist'}
+
+        p1 = points[line_to_sac['p1_id']]
+        p2 = points[line_to_sac['p2_id']]
+        midpoint = points_centroid([p1, p2])
+        
+        # --- Sacrifice the line before determining outcome ---
+        self.game._delete_line(line_to_sac)
+
+        # --- Find Primary Target ---
+        vulnerable_enemies = self.game._get_vulnerable_enemy_points(teamId)
+        max_range_sq = (self.state['grid_size'] * 0.3)**2
+        
+        closest_target = None
+        min_dist_sq = max_range_sq
+
+        if vulnerable_enemies:
+            for enemy_p in vulnerable_enemies:
+                dist_sq = distance_sq(midpoint, enemy_p)
+                if dist_sq < min_dist_sq:
+                    min_dist_sq = dist_sq
+                    closest_target = enemy_p
+
+        if closest_target:
+            # --- Primary Effect: Convert Point ---
+            original_team_id = closest_target['teamId']
+            original_team_name = self.state['teams'][original_team_id]['name']
+            
+            # Change team
+            closest_target['teamId'] = teamId
+            
+            # The point might have been part of enemy structures. We need to clean those up.
+            self.game._cleanup_structures_for_point(closest_target['id'])
+            
+            return {
+                'success': True,
+                'type': 'convert_point',
+                'converted_point': closest_target,
+                'original_team_name': original_team_name,
+                'sacrificed_line': line_to_sac
+            }
+        else:
+            # --- Fallback Effect: Repulsive Pulse ---
+            pulse_radius_sq = (self.state['grid_size'] * 0.2)**2
+            # We need to get enemy points again, as vulnerable_enemies might be empty
+            enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+            
+            pushed_points = self.game._push_points_in_radius(midpoint, pulse_radius_sq, 2.0, enemy_points)
+            
+            return {
+                'success': True,
+                'type': 'convert_fizzle_push',
+                'sacrificed_line': line_to_sac,
+                'pulse_center': midpoint,
+                'pushed_points_count': len(pushed_points)
+            }
+
+    def _find_possible_bastion_pulses(self, teamId):
+        team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId and len(b['prong_ids']) > 0]
+        if not team_bastions: return []
+
+        points_map = self.state['points']
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        if not enemy_lines: return []
+
+        possible_pulses = []
+        for bastion in team_bastions:
+            prong_points = [points_map[pid] for pid in bastion['prong_ids'] if pid in points_map]
+            if len(prong_points) < 2: continue
+
+            centroid = points_centroid(prong_points)
+            prong_points.sort(key=lambda p: math.atan2(p['y'] - centroid['y'], p['x'] - centroid['x']))
+            
+            has_crossing_line = False
+            for enemy_line in enemy_lines:
+                if enemy_line['p1_id'] not in points_map or enemy_line['p2_id'] not in points_map: continue
+                ep1 = points_map[enemy_line['p1_id']]
+                ep2 = points_map[enemy_line['p2_id']]
+                for i in range(len(prong_points)):
+                    perimeter_p1 = prong_points[i]
+                    perimeter_p2 = prong_points[(i + 1) % len(prong_points)]
+                    if segments_intersect(ep1, ep2, perimeter_p1, perimeter_p2):
+                        possible_pulses.append(bastion)
+                        has_crossing_line = True
+                        break
+                if has_crossing_line:
+                    break
+        return possible_pulses
+
+    def bastion_pulse(self, teamId):
+        """[SACRIFICE ACTION]: A bastion sacrifices a prong to destroy crossing enemy lines. If it fizzles, it creates a shockwave."""
+        possible_bastions = self._find_possible_bastion_pulses(teamId)
+        if not possible_bastions:
+            return {'success': False, 'reason': 'no bastion with crossing lines found'}
+        
+        bastion_to_pulse = random.choice(possible_bastions)
+        bastion_id = bastion_to_pulse['id']
+        prong_to_sac_id = random.choice(bastion_to_pulse['prong_ids'])
+        
+        points_map = self.state['points']
+        if prong_to_sac_id not in points_map:
+            return {'success': False, 'reason': 'prong point to sacrifice no longer exists'}
+            
+        sac_point_coords = points_map[prong_to_sac_id].copy()
+
+        # --- Perform sacrifice ---
+        # This will also trigger the cleanup logic in game_logic, which may dissolve the bastion.
+        sacrificed_point_data = self.game._delete_point_and_connections(prong_to_sac_id, aggressor_team_id=teamId)
+        if not sacrificed_point_data:
+            return {'success': False, 'reason': 'failed to sacrifice bastion prong'}
+
+        # --- Check for fizzle (bastion was dissolved) ---
+        if bastion_id not in self.state.get('bastions', {}):
+            # --- Fizzle Effect: Shockwave ---
+            blast_radius_sq = (self.state['grid_size'] * 0.15)**2
+            points_to_push = list(self.state['points'].values())
+            pushed_points = self.game._push_points_in_radius(sac_point_coords, blast_radius_sq, 2.0, points_to_push)
+            
+            return {
+                'success': True,
+                'type': 'bastion_pulse_fizzle_shockwave',
+                'sacrificed_point': sacrificed_point_data,
+                'pushed_points_count': len(pushed_points)
+            }
+        else:
+            # --- Primary Effect: Destroy Crossing Lines ---
+            # We need to find them again as the points may have changed.
+            remaining_bastion = self.state['bastions'][bastion_id]
+            prong_points = [points_map[pid] for pid in remaining_bastion['prong_ids'] if pid in points_map]
+            
+            lines_destroyed = []
+            if len(prong_points) >= 2:
+                centroid = points_centroid(prong_points)
+                prong_points.sort(key=lambda p: math.atan2(p['y'] - centroid['y'], p['x'] - centroid['x']))
+                
+                enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+                for enemy_line in enemy_lines:
+                    if enemy_line['p1_id'] not in points_map or enemy_line['p2_id'] not in points_map: continue
+                    ep1, ep2 = points_map[enemy_line['p1_id']], points_map[enemy_line['p2_id']]
+                    
+                    for i in range(len(prong_points)):
+                        perimeter_p1 = prong_points[i]
+                        perimeter_p2 = prong_points[(i + 1) % len(prong_points)]
+                        if segments_intersect(ep1, ep2, perimeter_p1, perimeter_p2):
+                            lines_destroyed.append(enemy_line)
+                            break # Move to next enemy line
+            
+            for line in set(lines_destroyed): # use set to avoid duplicates
+                self.game._delete_line(line)
+
+            return {
+                'success': True,
+                'type': 'bastion_pulse',
+                'sacrificed_point': sacrificed_point_data,
+                'lines_destroyed': lines_destroyed,
+                'bastion_id': bastion_id
+            }
