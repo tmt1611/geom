@@ -154,8 +154,8 @@ ACTIONS = {
     },
     'fight_purify_territory': {
         'group': 'Fight', 'handler': 'fight_handler', 'method': 'purify_territory',
-        'display_name': 'Purify Territory',
-        'description': "A Purifier structure neutralizes the nearest enemy territory, removing its fortified status. If no enemy territories exist, it pushes nearby enemy points away.",
+        'display_name': 'Purify Territory', 'no_cost': True,
+        'description': "A Purifier structure neutralizes the nearest enemy territory, removing its fortified status. If no enemy territories exist, it pushes nearby enemy points away. This action has no cost.",
         'log_generators': {
             'purify_territory': lambda r: (f"unleashed its Purifier, cleansing a territory from {r['cleansed_team_name']}.", "[PURIFY!]"),
             'purify_fizzle_push': lambda r: (f"found no territories to cleanse, and instead emitted a pulse that pushed back {r['pushed_points_count']} enemies.", "[PURIFY->PUSH]"),
@@ -449,8 +449,8 @@ ACTIONS = {
     },
     'rune_area_shield': {
         'group': 'Rune', 'handler': 'rune_handler', 'method': 'area_shield',
-        'display_name': 'Rune: Area Shield',
-        'description': "A Shield-Rune protects all friendly lines inside its triangular boundary with temporary shields. If no lines are found inside, it instead pushes friendly points out to de-clutter.",
+        'display_name': 'Rune: Area Shield', 'no_cost': True,
+        'description': "A Shield-Rune protects all friendly lines inside its triangular boundary with temporary shields. If no lines are found inside, it instead pushes friendly points out to de-clutter. This action has no cost.",
         'log_generators': {
             'rune_area_shield': lambda r: (f"activated a Shield Rune, protecting {r['shielded_lines_count']} lines within its boundary.", "[AEGIS!]"),
             'area_shield_fizzle_push': lambda r: (f"activated a Shield Rune with no lines to protect, instead pushing {r['pushed_points_count']} friendly points to de-clutter.", "[AEGIS->PUSH]"),
@@ -458,8 +458,8 @@ ACTIONS = {
     },
     'rune_shield_pulse': {
         'group': 'Rune', 'handler': 'rune_handler', 'method': 'shield_pulse',
-        'display_name': 'Rune: Shield Pulse',
-        'description': "A Shield-Rune emits a shockwave, pushing all nearby enemy points away. If no enemies are in range, it gently pulls friendly points in.",
+        'display_name': 'Rune: Shield Pulse', 'no_cost': True,
+        'description': "A Shield-Rune emits a shockwave, pushing all nearby enemy points away. If no enemies are in range, it gently pulls friendly points in. This action has no cost.",
         'log_generators': {
             'rune_shield_pulse': lambda r: (f"unleashed a shockwave from a Shield Rune, pushing back {r['pushed_points_count']} enemy points.", "[PULSE!]"),
             'shield_pulse_fizzle_pull': lambda r: (f"unleashed a shockwave from a Shield Rune with no enemies in range, instead pulling in {r['pulled_points_count']} friendly points to consolidate.", "[PULSE->PULL]"),

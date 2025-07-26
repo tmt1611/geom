@@ -1,17 +1,17 @@
-This iteration focused on improving action robustness to better respect the `design.md` rule: "Action pool should NEVER be empty".
+This iteration focused on better aligning actions with the design document, specifically the rule: "Action that does not generate points or deal damage (like rotations, push, pull, etc) must not cost points."
 
-1.  **Identified Brittle Action**: The `expand_spawn` action was identified as a potential point of failure. If a team had only one point and no lines, `can_perform_spawn_point` would return true, but the action itself could fail if the local area was crowded, causing the team to pass its turn unnecessarily.
+1.  **Identified Costed Utility Actions**: Reviewed `action_data.py` and identified three actions that performed utility functions (push, pull, apply status) but were not marked as `'no_cost'`.
+    *   `fight_purify_territory`: Removes a territory status or pushes points.
+    *   `rune_area_shield`: Applies shields or pushes points.
+    *   `rune_shield_pulse`: Pushes or pulls points.
 
-2.  **Refactored `spawn_point` Action**:
-    *   In `game_app/actions/expand_actions.py`, the `spawn_point` method was refactored to include a hierarchy of fallbacks.
-    *   **Primary Effect:** Tries to spawn a point near an existing friendly point.
-    *   **Fallback 1:** If the primary effect fails, it attempts to strengthen a friendly line (the original fallback).
-    *   **Fallback 2:** If strengthening a line is not possible (e.g., no lines exist), it now attempts to project a ray from a random friendly point to the border and create a new point there. This provides a robust last-resort option.
-    *   This change makes the action significantly more likely to succeed, preventing a team from passing its turn when it has at least one point.
+2.  **Updated Actions to be No-Cost**:
+    *   In `game_app/action_data.py`, added `'no_cost': True` to `fight_purify_territory`, `rune_area_shield`, and `rune_shield_pulse`.
+    *   Updated the descriptions for these actions to inform the user that they are free.
+    *   The game logic already handles `no_cost` actions by granting a bonus action, so this change integrates seamlessly.
 
-3.  **Simplified Precondition Check**:
-    *   The `can_perform_spawn_point` method was simplified. Since the action is now guaranteed to have a possible outcome if at least one point exists, the check no longer needs to consider the existence of lines.
+3.  **Corrected Action Precondition**:
+    *   The precondition check for `fight_purify_territory` in `game_app/actions/fight_actions.py` was too strict. It required an enemy territory to exist, ignoring its fallback effect. The check was corrected to only require an active Purifier structure, making the action always available when the structure is present.
 
-4.  **Updated Action Metadata**:
-    *   The description for `expand_spawn` in `game_app/action_data.py` was updated to reflect its new multi-level fallback logic.
-    *   A new log generator for `'spawn_fizzle_border_spawn'` was added to provide clear feedback to the user when the new fallback is triggered.
+4.  **Improved Frontend Display**:
+    *   Added a CSS rule in `static/css/style.css` for the `.no-cost-tag` class to visually highlight free actions in the UI, improving clarity for the player.

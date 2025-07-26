@@ -43,10 +43,9 @@ class FightActionsHandler:
         return can_perform, "Requires a Trebuchet."
 
     def can_perform_purify_territory(self, teamId):
-        has_purifier = bool(self.state.get('purifiers', {}).get(teamId, []))
-        has_enemy_territory = any(t['teamId'] != teamId for t in self.state.get('territories', []))
-        can_perform = has_purifier and has_enemy_territory
-        return can_perform, "Requires a Purifier and an enemy territory."
+        # Action is possible if a purifier exists, due to the fallback push effect.
+        can_perform = bool(self.state.get('purifiers', {}).get(teamId, []))
+        return can_perform, "Requires a Purifier."
 
     def can_perform_isolate_point(self, teamId):
         # Primary effect needs >= 1 point and a valid target.
