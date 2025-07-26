@@ -1,14 +1,7 @@
-Refactored several actions to better align with the `no_cost` action design rules from `design.md`.
-
-1.  **Corrected Action Costs:**
-    *   The `design.md` rule states that actions not generating points or dealing damage should be free. Based on this, several actions were updated.
-    *   `fortify_shield`, `terraform_create_fissure`, `fortify_create_ley_line`, and `rune_hourglass_stasis` were all made `no_cost` as their primary effects are buffs, terraforming, or control effects, not direct damage or point generation.
-    *   Descriptions in `action_data.py` and `rules.md` were updated to reflect these changes.
-
-2.  **Fixed `rune_cardinal_pulse` Cost:**
-    *   This action was incorrectly marked as `no_cost` in a previous refactor.
-    *   Since it destroys enemy lines (deals damage) and can create points, it should have a cost. The `no_cost` flag was removed.
-
-3.  **Updated Documentation:**
-    *   The description for the Plus-Rune in `rules.md` was corrected to remove the "one-use sacrificial" text, as the `cardinal_pulse` action no longer consumes the rune.
-    *   The description for `rune_hourglass_stasis` was also corrected to clarify its fallback mechanism does not involve a sacrifice.
+*   **Improved Action Robustness:** Refactored several actions to ensure they always have a successful outcome, aligning with the design principle that the action pool should never be empty. This prevents situations where a team might pass its turn because its only available action could fail.
+*   **Added Fallbacks:**
+    *   `territory_bisector_strike`: Now reinforces its own territory boundaries if all three of its beams are blocked or miss, instead of failing.
+    *   `sentry_zap`: Now reinforces the Sentry (I-Rune) lines if its attack path is blocked or if spawning a point on the border fails.
+    *   `refraction_beam`: Now reinforces the Prism rune's lines if no valid refraction path can be found or if its miss-spawn fails.
+    *   `rune_shoot_bisector`: Now reinforces the V-Rune's lines if its attack path is blocked.
+*   **Updated Action Logs:** Added new log messages in `action_data.py` to reflect these new fallback behaviors, providing clearer feedback to the user (e.g., `[TRI-BEAM->REINFORCE]`).

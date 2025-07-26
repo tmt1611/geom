@@ -112,7 +112,7 @@ ACTIONS = {
         'description': "A claimed territory fires three beams of energy along the bisectors of its angles. Each beam destroys the first enemy line it hits. If a beam misses, it creates a new point on the border.",
         'log_generators': {
             'territory_bisector_strike': lambda r: (f"unleashed a Tri-Beam from a territory, destroying {len(r['destroyed_lines'])} lines and creating {len(r['created_points'])} points.", "[TRI-BEAM!]"),
-            'territory_bisector_strike_fizzle': lambda r: ("attempted a Tri-Beam strike, but all paths were blocked.", "[TRI-BEAM->FIZZLE]"),
+            'territory_bisector_strike_fizzle': lambda r: ("attempted a Tri-Beam strike but all paths were blocked, and instead reinforced its territory.", "[TRI-BEAM->REINFORCE]"),
         }
     },
     'fight_territory_strike': {
@@ -131,6 +131,7 @@ ACTIONS = {
         'log_generators': {
             'sentry_zap': lambda r: (f"fired a precision shot from a Sentry, obliterating a point from {r['destroyed_team_name']}.", "[ZAP!]"),
             'sentry_zap_miss_spawn': lambda r: ("a Sentry fired a beam that missed all targets, creating a new point on the border.", "[ZAP->SPAWN]"),
+            'sentry_zap_fizzle_strengthen': lambda r: ("a Sentry's zap was blocked, and it reinforced its own structure instead.", "[ZAP->REINFORCE]"),
         }
     },
     'fight_refraction_beam': {
@@ -140,6 +141,7 @@ ACTIONS = {
         'log_generators': {
             'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
             'refraction_miss_spawn': lambda r: ("fired a refracted beam from a Prism that missed, creating a new point on the border.", "[REFRACT->SPAWN]"),
+            'refraction_fizzle_strengthen': lambda r: ("failed to find a target for a refracted beam, and instead reinforced its Prism structure.", "[REFRACT->REINFORCE]"),
         }
     },
     'fight_launch_payload': {
@@ -413,6 +415,7 @@ ACTIONS = {
         'log_generators': {
             'rune_shoot_bisector': lambda r: ("unleashed a powerful beam from a V-Rune, destroying an enemy line.", "[V-BEAM!]"),
             'vbeam_miss_fissure': lambda r: ("unleashed a V-Rune beam that missed, scarring the earth with a temporary fissure.", "[V-BEAM->FISSURE]"),
+            'vbeam_fizzle_strengthen': lambda r: ("a V-Rune's beam was blocked, so it reinforced its own structure instead.", "[V-BEAM->REINFORCE]"),
         }
     },
     'rune_area_shield': {

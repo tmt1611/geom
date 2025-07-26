@@ -84,6 +84,26 @@ class RuneActionsHandler:
         """Provides direct access to the game's current state dictionary."""
         return self.game.state
 
+    def _shoot_bisector_fallback_strengthen(self, teamId, rune):
+        strengthened_lines = []
+        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+        
+        # Strengthen the two legs of the V
+        key1 = tuple(sorted((rune['vertex_id'], rune['leg1_id'])))
+        key2 = tuple(sorted((rune['vertex_id'], rune['leg2_id'])))
+
+        if key1 in all_lines_by_points and self.game._strengthen_line(all_lines_by_points[key1]):
+            strengthened_lines.append(all_lines_by_points[key1])
+        if key2 in all_lines_by_points and self.game._strengthen_line(all_lines_by_points[key2]):
+            strengthened_lines.append(all_lines_by_points[key2])
+
+        return {
+            'success': True,
+            'type': 'vbeam_fizzle_strengthen',
+            'strengthened_lines': strengthened_lines,
+            'rune_points': [rune['vertex_id'], rune['leg1_id'], rune['leg2_id']]
+        }
+
     def shoot_bisector(self, teamId):
         """[RUNE ACTION]: Fires a powerful beam from a V-Rune. If it misses, it creates a fissure."""
         active_v_runes = self.state.get('runes', {}).get(teamId, {}).get('v_shape', [])
@@ -109,7 +129,8 @@ class RuneActionsHandler:
             p_vertex, p_end, self.state['grid_size'],
             self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
         )
-        if not border_point: return {'success': False, 'reason': 'bisector attack path blocked'}
+        if not border_point:
+            return self._shoot_bisector_fallback_strengthen(teamId, rune)
         
         attack_ray_p1, attack_ray_p2 = p_vertex, border_point
 

@@ -306,6 +306,44 @@ class FightActionsHandler:
                 'territory_point_ids': territory['point_ids'], 'strengthened_lines': strengthened_lines
             }
 
+    def _sentry_zap_fallback_strengthen(self, teamId, rune):
+        strengthened_lines = []
+        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+        for i in range(len(rune['point_ids']) - 1):
+            p1_id, p2_id = rune['point_ids'][i], rune['point_ids'][i+1]
+            line_key = tuple(sorted((p1_id, p2_id)))
+            if line_key in all_lines_by_points:
+                line_to_strengthen = all_lines_by_points[line_key]
+                if self.game._strengthen_line(line_to_strengthen):
+                    strengthened_lines.append(line_to_strengthen)
+        return {
+            'success': True,
+            'type': 'sentry_zap_fizzle_strengthen',
+            'strengthened_lines': strengthened_lines,
+            'rune_points': rune['point_ids']
+        }
+
+    def _refraction_beam_fallback_strengthen(self, teamId, prism):
+        all_prism_pids = prism['all_point_ids']
+        strengthened_lines = []
+        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+
+        # A prism is two triangles sharing an edge. Total 4 points.
+        # This will try to strengthen any of the 5 outer lines plus the shared inner line if they exist.
+        for p1_id, p2_id in combinations(all_prism_pids, 2):
+            line_key = tuple(sorted((p1_id, p2_id)))
+            if line_key in all_lines_by_points:
+                line_to_strengthen = all_lines_by_points[line_key]
+                if self.game._strengthen_line(line_to_strengthen):
+                    strengthened_lines.append(line_to_strengthen)
+        
+        return {
+            'success': True,
+            'type': 'refraction_fizzle_strengthen',
+            'strengthened_lines': strengthened_lines,
+            'prism_point_ids': all_prism_pids
+        }
+
     def territory_bisector_strike(self, teamId):
         """[FIGHT ACTION]: A claimed territory fires three beams along its angle bisectors."""
         team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
@@ -364,11 +402,14 @@ class FightActionsHandler:
                     attack_rays.append({'p1': attack_ray_p1, 'p2': border_point})
 
         if not destroyed_lines and not created_points:
+            # Fallback: Reinforce the territory's boundaries
+            strengthened_lines = self.game._reinforce_territory_boundaries(territory)
             return {
-                'success': False, 
+                'success': True,
                 'type': 'territory_bisector_strike_fizzle',
                 'territory_point_ids': territory['point_ids'],
-                'reason': 'all beams were blocked'
+                'strengthened_lines': strengthened_lines,
+                'reason': 'all beams were blocked, reinforcing instead'
             }
 
         return {
@@ -551,11 +592,11 @@ class FightActionsHandler:
             )
             
             if not border_point or is_ray_blocked(p_eye, border_point, self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])):
-                 return {'success': False, 'reason': 'zap path to border was blocked'}
+                 return self._sentry_zap_fallback_strengthen(teamId, rune)
 
             new_point = self.game._helper_spawn_on_border(teamId, border_point)
             if not new_point:
-                return {'success': False, 'reason': 'no valid spawn location on border for zap miss'}
+                return self._sentry_zap_fallback_strengthen(teamId, rune)
             
             return {
                 'success': True, 'type': 'sentry_zap_miss_spawn',
@@ -647,7 +688,10 @@ class FightActionsHandler:
                     })
 
         if not potential_outcomes:
-            return {'success': False, 'reason': 'no valid refraction paths found'}
+            if team_prisms:
+                # Fallback if no paths could be calculated at all.
+                return self._refraction_beam_fallback_strengthen(teamId, random.choice(team_prisms))
+            return {'success': False, 'reason': 'no valid refraction paths or prisms found'}
 
         # Prioritize hits over misses
         hits = [o for o in potential_outcomes if o['type'] == 'hit']
@@ -675,7 +719,9 @@ class FightActionsHandler:
                 }
 
         # If we got here, it means we only had miss options but none were valid spawn locations
-        return {'success': False, 'reason': 'no valid spawn location for refracted beam miss'}
+        else:
+            # If spawn fails, strengthen the prism as a final fallback.
+            return self._refraction_beam_fallback_strengthen(teamId, chosen_miss['prism'])
 
     def purify_territory(self, teamId):
         """[FIGHT ACTION]: A Purifier cleanses an enemy territory. If none, it pushes enemy points."""
