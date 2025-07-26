@@ -1,7 +1,5 @@
-Improved the `isolate_point` action to increase action pool robustness.
+Improved action robustness to reduce cases where actions can fail, in line with the "action pool never empty" design goal.
 
-1.  **Ensured Action Availability**: Modified the `isolate_point` action to ensure it's always possible if a team has at least one point. This helps fulfill the "action pool never empty" design requirement, especially for teams with very few assets left.
+1.  **`hull_breach` Improvement**: Added a third-level fallback to the `hull_breach` action. If the primary effect (convert point) and secondary effect (reinforce hull lines) are not possible, the action will now emit a weak pulse to push nearby enemies away, preventing the action from failing if the hull is already complete and max-strength. Updated `action_data.py` with a new log generator and description for this outcome.
 
-2.  **Added New Fallback**: Implemented a new fallback behavior for `isolate_point` in `fight_actions.py`. When a team has only one point and cannot find a primary target, instead of failing, it now emits a weak repulsive pulse to push nearby enemies. The existing fallback (creating a barricade) is kept for when the team has two or more points.
-
-3.  **Updated Action Metadata**: Updated `action_data.py` to include a new log generator for the `isolate_fizzle_push` result type and revised the action's description to reflect its new, more robust fallback logic.
+2.  **`parallel_strike` Fix**: Corrected the `parallel_strike` action logic. It no longer requires enemy points to be present to be considered a valid action, as its design includes creating a point on the border if it misses. This makes the action more reliable and always available as long as the team has a valid point/line combination.

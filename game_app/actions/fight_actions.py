@@ -70,7 +70,7 @@ class FightActionsHandler:
         return False, "No valid point/line combination found for a parallel strike."
 
     def can_perform_hull_breach(self, teamId):
-        # Primary or fallback effect is possible if team has >= 3 points.
+        # With the push fallback, action is always possible if team has at least 3 points.
         return len(self.game.get_team_point_ids(teamId)) >= 3, "Requires at least 3 points to form a hull."
 
     # --- End Precondition Checks ---
@@ -808,7 +808,7 @@ class FightActionsHandler:
         team_point_ids = self.game.get_team_point_ids(teamId)
         enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
 
-        if not team_lines or not team_point_ids or not enemy_points:
+        if not team_lines or not team_point_ids:
             return {'success': False, 'reason': 'missing required elements for parallel strike'}
 
         points = self.state['points']
@@ -954,14 +954,26 @@ class FightActionsHandler:
                     self.state['lines'].append(new_line)
                     created_lines.append(new_line)
             
-            # Only count as a success if something actually happened
-            if not strengthened_lines and not created_lines:
-                return {'success': False, 'reason': 'hull already fully reinforced and connected'}
-
+            # If reinforcement/creation happened, it's a success
+            if strengthened_lines or created_lines:
+                return {
+                    'success': True,
+                    'type': 'hull_breach_fizzle_reinforce',
+                    'strengthened_lines': strengthened_lines,
+                    'created_lines': created_lines,
+                    'hull_points': hull_points
+                }
+            
+            # --- Final Fallback: Pulse ---
+            # If hull is fully reinforced and connected, pulse to push nearby enemies.
+            hull_centroid = points_centroid(hull_points)
+            pulse_radius_sq = (self.game.state['grid_size'] * 0.2)**2
+            points_to_push = [p for p in self.game.state['points'].values() if p['teamId'] != teamId]
+            pushed_points = self.game._push_points_in_radius(hull_centroid, pulse_radius_sq, 1.5, points_to_push)
+            
             return {
                 'success': True,
-                'type': 'hull_breach_fizzle_reinforce',
-                'strengthened_lines': strengthened_lines,
-                'created_lines': created_lines,
-                'hull_points': hull_points
+                'type': 'hull_breach_fizzle_push',
+                'hull_points': hull_points,
+                'pushed_points_count': len(pushed_points)
             }
