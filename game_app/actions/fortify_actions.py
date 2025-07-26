@@ -184,14 +184,14 @@ class FortifyActionsHandler:
         return can_perform, "Requires a charged Rift Spire."
 
     def can_perform_reposition_point(self, teamId):
-        can_reposition = bool(self.game._find_non_critical_sacrificial_point(teamId))
+        can_reposition = bool(self.game._find_repositionable_point(teamId))
         can_strengthen = len(self.game.get_team_lines(teamId)) > 0
         can_perform = can_reposition or can_strengthen
         reason = "" if can_perform else "No free points to reposition and no lines to strengthen."
         return can_perform, reason
 
     def can_perform_rotate_point(self, teamId):
-        can_rotate = bool(self.game._find_non_critical_sacrificial_point(teamId))
+        can_rotate = bool(self.game._find_repositionable_point(teamId))
         can_strengthen = len(self.game.get_team_lines(teamId)) > 0
         can_perform = can_rotate or can_strengthen
         reason = "" if can_perform else "No free points to rotate and no lines to strengthen."
@@ -467,8 +467,7 @@ class FortifyActionsHandler:
 
     def reposition_point(self, teamId):
         """[FORTIFY ACTION]: Moves a single non-critical point to a new nearby location. If not possible, strengthens a line."""
-        # We can reuse the logic for finding a "non-critical" point, as it effectively finds a "free" point.
-        point_to_move_id = self.game._find_non_critical_sacrificial_point(teamId)
+        point_to_move_id = self.game._find_repositionable_point(teamId)
         
         if not point_to_move_id or point_to_move_id not in self.state['points']:
             return self.game._fallback_strengthen_random_line(teamId, 'reposition')
@@ -513,7 +512,7 @@ class FortifyActionsHandler:
 
     def rotate_point(self, teamId):
         """[FORTIFY ACTION]: Rotates a free point around a pivot. Falls back to strengthening a line."""
-        point_to_move_id = self.game._find_non_critical_sacrificial_point(teamId)
+        point_to_move_id = self.game._find_repositionable_point(teamId)
         
         if not point_to_move_id or point_to_move_id not in self.state['points']:
             return self.game._fallback_strengthen_random_line(teamId, 'rotate')
