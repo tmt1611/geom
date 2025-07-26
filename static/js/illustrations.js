@@ -249,7 +249,7 @@ const illustrationDrawers = {
         // Blast on enemy
         illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
     },
-    'fight_convert': (ctx, w, h) => {
+    'sacrifice_convert_point': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
 
@@ -434,19 +434,9 @@ const illustrationDrawers = {
     'fortify_anchor': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
-        const p_sac = {x: w*0.2, y: h*0.5};
         const p_anchor = {x: w*0.4, y: h*0.5};
         const ep1 = {x: w*0.8, y: h*0.3};
         const ep2 = {x: w*0.8, y: h*0.7};
-
-        // Sacrificed point
-        illustrationHelpers.drawPoints(ctx, [p_sac], team1_color);
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
-        ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
-        ctx.stroke();
 
         // Anchor point
         ctx.fillStyle = team1_color;
@@ -979,7 +969,7 @@ const illustrationDrawers = {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         ctx.fill();
     },
-    'fortify_build_wonder': (ctx, w, h) => {
+    'sacrifice_build_wonder': (ctx, w, h) => {
         const team1_color = 'hsl(50, 80%, 60%)'; // Gold for wonder
         const center = {x: w*0.5, y: h*0.5};
         const radius = w * 0.3;
