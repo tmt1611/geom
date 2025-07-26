@@ -718,10 +718,9 @@ class FightActionsHandler:
                     'refracted_ray': chosen_miss['refracted_ray'], 'prism_point_ids': chosen_miss['prism']['all_point_ids']
                 }
 
-        # If we got here, it means we only had miss options but none were valid spawn locations
-        else:
-            # If spawn fails, strengthen the prism as a final fallback.
-            return self._refraction_beam_fallback_strengthen(teamId, chosen_miss['prism'])
+            else:
+                # If spawn fails, strengthen the prism as a final fallback.
+                return self._refraction_beam_fallback_strengthen(teamId, chosen_miss['prism'])
 
     def purify_territory(self, teamId):
         """[FIGHT ACTION]: A Purifier cleanses an enemy territory. If none, it pushes enemy points."""
