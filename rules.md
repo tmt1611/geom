@@ -44,7 +44,7 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
     *   **Bonus:** Unlocks the **[RUNE] Time Stasis** action.
 *   **Barricade-Rune:**
     *   **Formation:** Four points that form a rectangle, with all four of its sides existing as connected lines.
-    *   **Bonus:** Unlocks the **[TERRAFORM] Raise Barricade** action.
+    *   **Bonus:** Unlocks the **[RUNE] Raise Barricade** action.
 *   **Parallelogram-Rune:**
     *   **Formation:** Four points that form a non-rectangular parallelogram, with all four of its sides existing as connected lines.
     *   **Bonus:** Unlocks the **[RUNE] Parallel Discharge** action.
