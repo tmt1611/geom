@@ -333,7 +333,7 @@ js_copy_module = copy
             
             // Using JSON serialization is more robust than toJs for complex states,
             // as it avoids potential bugs in the Pyodide proxy conversion layer that can cause WASM errors.
-            const augmented_state_json_proxy = this._pyodide.runPython(`
+            const augmented_state_json_string = this._pyodide.runPython(`
 import json
 augmented_state = js_game_instance.augment_state_for_frontend(json.loads(state_json_str_for_augment))
 
@@ -348,9 +348,9 @@ class SetEncoder(json.JSONEncoder):
 json.dumps(augmented_state, cls=SetEncoder)
             `);
             
-            const result_json = augmented_state_json_proxy.toString();
-            augmented_state_json_proxy.destroy(); // Clean up the proxy
-            return JSON.parse(result_json);
+            // runPython returns a JS string directly when the Python result is a string.
+            // It is not a PyProxy, so it doesn't need to be (and cannot be) destroyed.
+            return JSON.parse(augmented_state_json_string);
         }
         // This is not needed for HTTP mode, as augmentation is done on the server.
         // We can just return the state as is.
