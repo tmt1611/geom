@@ -357,13 +357,16 @@ class Game:
         self.state['grid_size'] = grid_size
         
         # Validate and convert points list to a dictionary with unique IDs
+        # JS numbers are floats, so we need to accept both int and float.
         valid_points = [p for p in points if 
-                        isinstance(p.get('x'), int) and isinstance(p.get('y'), int) and
+                        isinstance(p.get('x'), (int, float)) and isinstance(p.get('y'), (int, float)) and
                         0 <= p['x'] < grid_size and 0 <= p['y'] < grid_size]
 
         for p in valid_points:
             point_id = self._generate_id('p')
-            self.state['points'][point_id] = {**p, 'id': point_id}
+            # Ensure coordinates are rounded integers after validation
+            clamped_coords = clamp_and_round_point_coords({'x': p['x'], 'y': p['y']}, grid_size)
+            self.state['points'][point_id] = {**p, **clamped_coords, 'id': point_id}
         
         self.state['game_phase'] = "RUNNING" if len(self.state['points']) > 0 else "SETUP"
         self.state['game_log'].append({'message': "Game initialized.", 'short_message': '[INIT]'})
