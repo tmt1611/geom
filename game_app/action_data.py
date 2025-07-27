@@ -497,7 +497,7 @@ ACTIONS = {
     'rune_t_hammer_slam': {
         'group': 'Rune', 'handler': 'rune_handler', 'method': 't_hammer_slam',
         'display_name': 'Rune: T-Hammer Slam', 'no_cost': True,
-        'description': "A T-Rune creates a shockwave along its 'stem', pushing all nearby points away perpendicularly from the stem line. If no points are hit, it reinforces its own stem lines. This action costs no points.",
+        'description': "A T-Rune creates a shockwave along its 'stem', pushing all nearby points away perpendicularly from the stem line. If no points are hit, it reinforces its own stem lines. This action has no cost.",
         'log_generators': {
             'rune_t_hammer_slam': lambda r: (f"used a T-Rune to unleash a shockwave, pushing back {r['pushed_points_count']} points.", "[HAMMER!]"),
             't_slam_fizzle_reinforce': lambda r: ("attempted a T-Hammer Slam that found no targets, and instead reinforced the rune's own structure.", "[HAMMER->REINFORCE]"),

@@ -544,8 +544,9 @@ class SacrificeActionsHandler:
             attack_ray_p1 = midpoint
             attack_ray_p2 = border_point
 
-            closest_hit = self.game.fight_handler._find_closest_attack_hit(
-                attack_ray_p1, attack_ray_p2, enemy_lines, team_has_cross_rune, bastion_line_ids
+            closest_hit = self.game._find_first_ray_hit(
+                attack_ray_p1, attack_ray_p2, enemy_lines,
+                can_bypass_shields=team_has_cross_rune, ignored_line_ids=bastion_line_ids
             )
 
             if closest_hit:

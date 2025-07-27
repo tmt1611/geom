@@ -236,6 +236,44 @@ class Game:
         """Generates a unique ID with a given prefix."""
         return f"{prefix}_{uuid.uuid4().hex[:6]}"
 
+    def _find_first_ray_hit(self, ray_p1, ray_p2, target_lines, can_bypass_shields=False, ignored_line_ids=None):
+        """
+        Finds the closest intersection of a ray with a list of target lines.
+        Returns a dictionary with hit details or None.
+        """
+        if ignored_line_ids is None:
+            ignored_line_ids = set()
+
+        points = self.state['points']
+        closest_hit = None
+        min_dist_sq = float('inf')
+
+        for target_line in target_lines:
+            is_shielded = target_line.get('id') in self.state['shields']
+            if is_shielded and not can_bypass_shields:
+                continue
+            
+            if target_line.get('id') in ignored_line_ids:
+                continue
+            
+            if target_line['p1_id'] not in points or target_line['p2_id'] not in points:
+                continue
+            
+            ep1 = points[target_line['p1_id']]
+            ep2 = points[target_line['p2_id']]
+
+            intersection_point = get_segment_intersection_point(ray_p1, ray_p2, ep1, ep2)
+            if intersection_point:
+                dist_sq = distance_sq(ray_p1, intersection_point)
+                if dist_sq < min_dist_sq:
+                    min_dist_sq = dist_sq
+                    closest_hit = {
+                        'target_line': target_line,
+                        'intersection_point': intersection_point,
+                        'bypassed_shield': is_shielded and can_bypass_shields
+                    }
+        return closest_hit
+
     def _iterate_structures(self, definition, teamId_filter=None):
         """
         A generator that yields structures from the game state based on a definition

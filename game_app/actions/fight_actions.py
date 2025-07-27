@@ -80,35 +80,6 @@ class FightActionsHandler:
         """Provides direct access to the game's current state dictionary."""
         return self.game.state
 
-    def _find_closest_attack_hit(self, attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune, bastion_line_ids):
-        points = self.state['points']
-        closest_hit = None
-        min_dist_sq = float('inf')
-
-        for enemy_line in enemy_lines:
-            is_shielded = enemy_line.get('id') in self.state['shields']
-            if is_shielded and not team_has_cross_rune:
-                continue
-            
-            if enemy_line.get('id') in bastion_line_ids:
-                continue
-            
-            if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
-            ep1 = points[enemy_line['p1_id']]
-            ep2 = points[enemy_line['p2_id']]
-
-            intersection_point = get_segment_intersection_point(attack_segment_p1, attack_segment_p2, ep1, ep2)
-            if intersection_point:
-                dist_sq = distance_sq(attack_segment_p1, intersection_point)
-                if dist_sq < min_dist_sq:
-                    min_dist_sq = dist_sq
-                    closest_hit = {
-                        'target_line': enemy_line,
-                        'intersection_point': intersection_point,
-                        'bypassed_shield': is_shielded and team_has_cross_rune
-                    }
-        return closest_hit
-
     def _handle_attack_hit(self, closest_hit, attacker_line, attack_segment_p1):
         enemy_line = closest_hit['target_line']
         is_energized_attack = self.game._is_line_energized(attacker_line)
@@ -187,7 +158,10 @@ class FightActionsHandler:
             if is_ray_blocked(attack_segment_p1, attack_segment_p2, self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])):
                 continue
 
-            closest_hit = self._find_closest_attack_hit(attack_segment_p1, attack_segment_p2, enemy_lines, team_has_cross_rune, bastion_line_ids)
+            closest_hit = self.game._find_first_ray_hit(
+                attack_segment_p1, attack_segment_p2, enemy_lines,
+                can_bypass_shields=team_has_cross_rune, ignored_line_ids=bastion_line_ids
+            )
             
             if closest_hit:
                 return self._handle_attack_hit(closest_hit, line, attack_segment_p1)
@@ -383,7 +357,10 @@ class FightActionsHandler:
             attack_ray_p1 = p_vertex
             attack_ray_p2 = border_point
 
-            closest_hit = self._find_closest_attack_hit(attack_ray_p1, attack_ray_p2, enemy_lines, team_has_cross_rune, bastion_line_ids)
+            closest_hit = self.game._find_first_ray_hit(
+                attack_ray_p1, attack_ray_p2, enemy_lines,
+                can_bypass_shields=team_has_cross_rune, ignored_line_ids=bastion_line_ids
+            )
 
             if closest_hit:
                 # To prevent destroying the same line twice.
@@ -540,8 +517,7 @@ class FightActionsHandler:
         zap_range_sq = (self.state['grid_size'] * 0.35)**2
         
         # Get list of vulnerable enemy points
-        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
-        vulnerable_enemy_points = [p for p in points.values() if p['teamId'] != teamId and p['id'] not in stasis_point_ids]
+        vulnerable_enemy_points = self.game._get_vulnerable_enemy_points(teamId)
         
         possible_targets = []
         if vulnerable_enemy_points:
