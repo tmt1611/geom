@@ -18,29 +18,53 @@ class FormationManager:
             return []
 
         existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in team_lines}
-        nexuses = []
+        adj = {pid: set() for pid in team_point_ids}
+        for line in team_lines:
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
 
-        for p_ids_tuple in combinations(team_point_ids, 4):
-            p_list = [all_points.get(pid) for pid in p_ids_tuple]
-            if not all(p_list): continue
+        nexuses, checked_quads = [], set()
+
+        for p1_id in team_point_ids:
+            if len(adj.get(p1_id, [])) < 2: continue
             
-            is_rect, aspect_ratio = is_rectangle(*p_list)
-            if is_rect and abs(aspect_ratio - 1.0) < 0.05:
-                edge_data = get_edges_by_distance(p_list)
-                side_pairs = edge_data['sides']
-                diag_pairs = edge_data['diagonals']
+            p1 = all_points[p1_id]
+            neighbors_of_p1 = list(adj[p1_id])
 
-                if sum(1 for p1_id, p2_id in side_pairs if tuple(sorted((p1_id, p2_id))) in existing_lines) < 4:
-                    continue
-
-                if any(tuple(sorted((p1_id, p2_id))) in existing_lines for p1_id, p2_id in diag_pairs):
-                    center_x = sum(p['x'] for p in p_list) / 4
-                    center_y = sum(p['y'] for p in p_list) / 4
+            for i in range(len(neighbors_of_p1)):
+                for j in range(i + 1, len(neighbors_of_p1)):
+                    p2_id, p3_id = neighbors_of_p1[i], neighbors_of_p1[j]
                     
-                    nexuses.append({
-                        'point_ids': list(p_ids_tuple),
-                        'center': {'x': center_x, 'y': center_y}
-                    })
+                    p2, p3 = all_points[p2_id], all_points[p3_id]
+                    v1 = {'x': p2['x'] - p1['x'], 'y': p2['y'] - p1['y']}
+                    v2 = {'x': p3['x'] - p1['x'], 'y': p3['y'] - p1['y']}
+                    if abs(v1['x'] * v2['x'] + v1['y'] * v2['y']) > 0.1: continue
+
+                    p4_coords = {'x': p2['x'] + v2['x'], 'y': p2['y'] + v2['y']}
+                    
+                    p4_id = None
+                    p4_candidates = adj.get(p2_id, set()).intersection(adj.get(p3_id, set()))
+                    for pid_candidate in p4_candidates:
+                        if pid_candidate != p1_id:
+                            p_candidate = all_points.get(pid_candidate)
+                            if p_candidate and distance_sq(p_candidate, p4_coords) < 0.5:
+                                p4_id = pid_candidate; break
+                    
+                    if p4_id:
+                        p_ids_tuple = tuple(sorted((p1_id, p2_id, p3_id, p4_id)))
+                        if p_ids_tuple in checked_quads: continue
+                        checked_quads.add(p_ids_tuple)
+
+                        p_list = [p1, p2, p3, all_points[p4_id]]
+                        is_rect, aspect_ratio = is_rectangle(*p_list)
+
+                        if is_rect and abs(aspect_ratio - 1.0) < 0.05:
+                            edge_data = get_edges_by_distance(p_list)
+                            if any(tuple(sorted(pair)) in existing_lines for pair in edge_data['diagonals']):
+                                center_x = sum(p['x'] for p in p_list) / 4
+                                center_y = sum(p['y'] for p in p_list) / 4
+                                nexuses.append({'point_ids': list(p_ids_tuple), 'center': {'x': center_x, 'y': center_y}})
         return nexuses
 
     def check_i_rune(self, team_point_ids, team_lines, all_points):
@@ -91,19 +115,16 @@ class FormationManager:
         """Finds Barricade Runes: a rectangle with all four sides present as lines."""
         if len(team_point_ids) < 4: return []
 
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in team_lines}
-        barricade_runes, used_points = [], set()
-
         adj = {pid: set() for pid in team_point_ids}
         for line in team_lines:
             if line['p1_id'] in adj and line['p2_id'] in adj:
                 adj[line['p1_id']].add(line['p2_id'])
                 adj[line['p2_id']].add(line['p1_id'])
         
-        barricade_runes, used_points = [], set()
+        barricade_runes, checked_quads = [], set()
 
         for p1_id in team_point_ids:
-            if p1_id in used_points or len(adj.get(p1_id, [])) < 2: continue
+            if len(adj.get(p1_id, [])) < 2: continue
             
             p1 = all_points[p1_id]
             neighbors_of_p1 = list(adj[p1_id])
@@ -111,8 +132,7 @@ class FormationManager:
             for i in range(len(neighbors_of_p1)):
                 for j in range(i + 1, len(neighbors_of_p1)):
                     p2_id, p3_id = neighbors_of_p1[i], neighbors_of_p1[j]
-                    if p2_id in used_points or p3_id in used_points: continue
-
+                    
                     p2, p3 = all_points[p2_id], all_points[p3_id]
                     v1 = {'x': p2['x'] - p1['x'], 'y': p2['y'] - p1['y']}
                     v2 = {'x': p3['x'] - p1['x'], 'y': p3['y'] - p1['y']}
@@ -123,28 +143,22 @@ class FormationManager:
                     p4_id = None
                     p4_candidates = adj.get(p2_id, set()).intersection(adj.get(p3_id, set()))
                     for pid_candidate in p4_candidates:
-                        if pid_candidate != p1_id and pid_candidate not in used_points:
+                        if pid_candidate != p1_id:
                             p_candidate = all_points.get(pid_candidate)
                             if p_candidate and distance_sq(p_candidate, p4_coords) < 0.5:
                                 p4_id = pid_candidate
                                 break
                     
                     if p4_id:
-                        p_ids_tuple = (p1_id, p2_id, p3_id, p4_id)
+                        p_ids_tuple = tuple(sorted((p1_id, p2_id, p3_id, p4_id)))
+                        if p_ids_tuple in checked_quads: continue
+                        checked_quads.add(p_ids_tuple)
+                        
                         p_list = [p1, p2, p3, all_points[p4_id]]
                         is_rect, _ = is_rectangle(*p_list)
 
                         if is_rect:
-                            edge_data = get_edges_by_distance(p_list)
-                            side_pairs = edge_data['sides']
-                            
-                            if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
-                                barricade_runes.append(list(p_ids_tuple))
-                                used_points.update(p_ids_tuple)
-                                # Break from inner loops since we've used these points
-                                break
-                if p1_id in used_points: break
-            if p1_id in used_points: continue
+                            barricade_runes.append(list(p_ids_tuple))
         return barricade_runes
 
     def _find_all_triangles(self, team_point_ids, team_lines):
@@ -323,10 +337,13 @@ class FormationManager:
         if len(team_point_ids) < 4: return []
         
         existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in team_lines}
-        cross_runes, used_points = [], set()
+        cross_runes, checked_quads = [], set()
 
         for p_ids_tuple in combinations(team_point_ids, 4):
-            if any(pid in used_points for pid in p_ids_tuple): continue
+            # Sort to ensure we only check each unique combination once
+            sorted_p_ids = tuple(sorted(p_ids_tuple))
+            if sorted_p_ids in checked_quads: continue
+            checked_quads.add(sorted_p_ids)
             
             p_list = [all_points.get(pid) for pid in p_ids_tuple]
             if not all(p_list): continue
@@ -338,7 +355,6 @@ class FormationManager:
 
             if tuple(sorted(diag1_pair)) in existing_lines and tuple(sorted(diag2_pair)) in existing_lines:
                 cross_runes.append(list(p_ids_tuple))
-                used_points.update(p_ids_tuple)
         return cross_runes
 
     def check_t_rune(self, team_point_ids, team_lines, all_points):
@@ -448,22 +464,46 @@ class FormationManager:
     def check_parallel_rune(self, team_point_ids, team_lines, all_points):
         """Finds Parallel Runes: a non-rectangular parallelogram with all four sides."""
         if len(team_point_ids) < 4: return []
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in team_lines}
-        parallel_runes, used_points = [], set()
+        
+        adj = {pid: set() for pid in team_point_ids}
+        for line in team_lines:
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+        
+        parallel_runes, checked_quads = [], set()
 
-        for p_ids_tuple in combinations(team_point_ids, 4):
-            if any(pid in used_points for pid in p_ids_tuple): continue
+        for p1_id in team_point_ids:
+            if len(adj.get(p1_id, [])) < 2: continue
             
-            p_list = [all_points.get(pid) for pid in p_ids_tuple]
-            if not all(p_list): continue
-            is_para, is_rect = is_parallelogram(*p_list)
-            if is_para and not is_rect:
-                edge_data = get_edges_by_distance(p_list)
-                side_pairs = edge_data['sides']
-                
-                if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
-                    parallel_runes.append(list(p_ids_tuple))
-                    used_points.update(p_ids_tuple)
+            p1 = all_points[p1_id]
+            neighbors_of_p1 = list(adj[p1_id])
+            
+            for i in range(len(neighbors_of_p1)):
+                for j in range(i + 1, len(neighbors_of_p1)):
+                    p2_id, p3_id = neighbors_of_p1[i], neighbors_of_p1[j]
+                    
+                    p2, p3 = all_points[p2_id], all_points[p3_id]
+                    # Expected p4 = p1 + (p2-p1) + (p3-p1) = p2+p3-p1
+                    p4_coords = {'x': p2['x'] + p3['x'] - p1['x'], 'y': p2['y'] + p3['y'] - p1['y']}
+
+                    p4_id = None
+                    p4_candidates = adj.get(p2_id, set()).intersection(adj.get(p3_id, set()))
+                    for pid_candidate in p4_candidates:
+                        if pid_candidate != p1_id:
+                            p_candidate = all_points.get(pid_candidate)
+                            if p_candidate and distance_sq(p_candidate, p4_coords) < 0.5:
+                                p4_id = pid_candidate; break
+
+                    if p4_id:
+                        p_ids_tuple = tuple(sorted((p1_id, p2_id, p3_id, p4_id)))
+                        if p_ids_tuple in checked_quads: continue
+                        checked_quads.add(p_ids_tuple)
+
+                        p_list = [p1, p2, p3, all_points[p4_id]]
+                        is_para, is_rect = is_parallelogram(*p_list)
+                        if is_para and not is_rect:
+                            parallel_runes.append(list(p_ids_tuple))
         return parallel_runes
 
     def check_hourglass_rune(self, team_point_ids, team_lines, all_points):

@@ -706,11 +706,9 @@ legend {
     font-size: 0.95em;
 }
 
-.no-cost-tag {
-    font-weight: bold;
+.action-prob-list li.free-action > span:first-child {
     color: #27ae60;
-    font-size: 0.9em;
-    margin-left: 4px;
+    font-weight: 500;
 }
 
 .log-container {

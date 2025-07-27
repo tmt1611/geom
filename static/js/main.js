@@ -481,8 +481,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <h6>${groupName} (${groupData.group_probability}%)</h6>
                     <ul class="action-prob-list">
                         ${groupData.actions.map(action => `
-                            <li>
-                                <span>${action.display_name}${action.no_cost ? '<span class="no-cost-tag">[Free]</span>' : ''}</span>
+                            <li class="${action.no_cost ? 'free-action' : ''}">
+                                <span>${action.display_name}</span>
                                 <div class="action-prob-bar-container">
                                     <div class="action-prob-bar" style="width: ${action.probability / maxProb * 100}%; background-color: ${probData.color};"></div>
                                 </div>
