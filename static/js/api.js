@@ -194,68 +194,15 @@ js_game_data = game_data
                         const total_progress = Math.round((turn_progress + action_progress_in_turn / max_turns) * 100);
                         
                         const currentStep = raw_history.length - 1;
-                        progressCallback(total_progress, currentStep);
-                    }
-
-                    setTimeout(step, 0); // Yield to event loop to update UI
-                } else {
-                    if (progressCallback) {
-                         const currentStep = raw_history.length - 1;
-                         progressCallback(100, currentStep);
-                    }
-                    resolve({ raw_history });
-                }
-            };
-            setTimeout(step, 0);
-        });
-    },
-
-    async startGameAsync(payload, progressCallback) {
-        if (this._mode !== 'pyodide') {
-            // Fallback for http mode - it doesn't support progress streaming this way.
-            return this.startGame(payload);
-        }
-
-        // This is a new method for pyodide that runs the simulation asynchronously.
-        this._game.start_game(
-            this._pyodide.toPy(payload.teams),
-            this._pyodide.toPy(payload.points),
-            payload.maxTurns,
-            payload.gridSize
-        );
-
-        const raw_history = [this._pyProxyToJs(this._game.state.copy())];
-
-        return new Promise((resolve) => {
-            const step = () => {
-                const game_phase = this._game.state.get('game_phase');
-                
-                if (game_phase === 'RUNNING') {
-                    this._game.run_next_action();
-                    raw_history.push(this._pyProxyToJs(this._game.state.copy()));
-                    
-                    if (progressCallback) {
-                        const turn = this._game.state.get('turn');
-                        const max_turns = this._game.state.get('max_turns');
-                        const action_in_turn = this._game.state.get('action_in_turn');
-                        const queue_py = this._game.state.get('actions_queue_this_turn');
-                        const actions_this_turn = queue_py ? queue_py.length : 0;
-                        queue_py?.destroy();
-
-                        // Progress based on completed turns + fraction of current turn
-                        const completed_turns = Math.max(0, turn - 1);
-                        const turn_progress = completed_turns / max_turns;
-                        const action_progress_in_turn = actions_this_turn > 0 ? (action_in_turn / actions_this_turn) : 0;
-                        const total_progress = Math.round((turn_progress + action_progress_in_turn / max_turns) * 100);
-                        
-                        progressCallback(total_progress, turn, max_turns);
+                        progressCallback(total_progress, turn, max_turns, currentStep);
                     }
 
                     setTimeout(step, 0); // Yield to event loop to update UI
                 } else {
                     if (progressCallback) {
                          const max_turns = this._game.state.get('max_turns');
-                         progressCallback(100, max_turns, max_turns);
+                         const currentStep = raw_history.length - 1;
+                         progressCallback(100, max_turns, max_turns, currentStep);
                     }
                     resolve({ raw_history });
                 }

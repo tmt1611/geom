@@ -676,20 +676,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 loaderProgress.style.display = 'block';
                 loaderProgress.value = 0;
                 
-                const progressCallback = (progress, turn, maxTurns) => {
+                const progressCallback = (progress, turn, maxTurns, currentStep) => {
                     loaderProgress.value = progress;
                     // The turn counter in the game logic starts at 0 and increments to 1 on the first turn.
                     // For display, we want to show "Turn 1" during the first turn's simulation.
                     const displayTurn = Math.max(1, turn);
-                    loaderText.textContent = `Simulating Turn ${displayTurn} / ${maxTurns}...`;
+                    loaderText.textContent = `Simulating Turn ${displayTurn}/${maxTurns} (Step: ${currentStep})...`;
                 };
 
                 simulationData = await api.startGameAsync(payload, progressCallback);
 
             } else {
                 loaderText.textContent = 'Simulating on server...';
-                loaderProgress.style.display = 'none';
+                loaderProgress.style.display = 'block'; // Show progress bar for server too
+                loaderProgress.removeAttribute('value'); // Make it indeterminate
                 simulationData = await api.startGame(payload);
+                loaderProgress.setAttribute('value', '0'); // Reset after
             }
             
             uiState.initialPoints = [];
