@@ -93,6 +93,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }, duration);
     }
 
+    /**
+     * Determines if a hex color is dark.
+     * @param {string} hexColor - The color in hex format (e.g., '#ff0000').
+     * @returns {boolean} True if the color is dark, false otherwise.
+     */
+    function isColorDark(hexColor) {
+        if (!hexColor) return false;
+        const color = (hexColor.charAt(0) === '#') ? hexColor.substring(1, 7) : hexColor;
+        if (color.length < 6) return false;
+        const r = parseInt(color.substring(0, 2), 16);
+        const g = parseInt(color.substring(2, 4), 16);
+        const b = parseInt(color.substring(4, 6), 16);
+        // Using the HSP (Highly Sensitive Poo) equation to determine perceived brightness
+        const hsp = Math.sqrt(0.299 * (r * r) + 0.587 * (g * g) + 0.114 * (b * b));
+        return hsp < 127.5;
+    }
+
     // --- Core Functions ---
 
     // Main animation loop

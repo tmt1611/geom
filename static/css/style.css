@@ -469,7 +469,7 @@ legend {
 }
 
 .log-entry.team-log {
-    color: white;
+    /* Color is now set dynamically in JS for better contrast */
 }
 
 .log-entry strong {
