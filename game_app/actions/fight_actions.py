@@ -765,7 +765,7 @@ class FightActionsHandler:
         possible_targets = []
         for enemy_team_id in enemy_team_ids:
             # Don't isolate points that are already isolated or in stasis
-            articulation_points = self.game._find_articulation_points(enemy_team_id)
+            articulation_points, _ = self.game._find_articulation_points(enemy_team_id)
             for pid in articulation_points:
                 if pid in self.state['points'] and \
                    pid not in self.state.get('isolated_points', {}) and \

@@ -1,3 +1,5 @@
-- **Code Optimization (Performance):**
-    - **Optimized Formation Finding:** The check for `Purifier` formations (regular pentagons) could be very slow with many points. It now checks a random sample of up to 500 combinations instead of all possible combinations, preventing game hangs while maintaining a good chance of finding a valid formation.
-    - **Streamlined Precondition Checks:** Several `Sacrifice` actions (`Nova Burst`, `Create Whirlpool`, `Rift Trap`) used an expensive precondition check that found a specific sacrificial point, including checking for graph articulation points. These checks have been replaced with a much faster version that only verifies if a non-critical point exists, improving performance. The full, expensive check is still performed within the action logic itself, ensuring correctness.
+- **Refactoring & Robustness (Sacrifice Logic):**
+    - Refactored the core logic for selecting a sacrificial point (`_find_non_critical_sacrificial_point`).
+    - The adjacency list for a team's graph is now computed once by a helper and reused for finding both articulation points and node degrees, improving efficiency slightly.
+    - Improved the selection criteria to not just prefer "leaf" nodes, but to sort all non-critical points by their number of connections and randomly choose one of the safest options.
+    - Added a fallback for sacrifice actions: if all non-critical points are technically articulation points (e.g., in a simple cycle), one can still be sacrificed. This aligns with the design rule that the action pool should never be empty and prevents the game from getting stuck.

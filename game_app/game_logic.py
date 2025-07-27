@@ -778,7 +778,7 @@ class Game:
         # Check for regeneration condition.
         # A point can regenerate if it's being sacrificed (allow_regeneration=True),
         # is not a critical articulation point, and is part of at least one line.
-        is_articulation = point_id in self._find_articulation_points(point_data['teamId'])
+        is_articulation = point_id in self._find_articulation_points(point_data['teamId'])[0]
         is_on_line = any(point_id in (l['p1_id'], l['p2_id']) for l in self.get_team_lines(point_data['teamId']))
         
         if allow_regeneration and is_on_line and not is_articulation:
@@ -932,39 +932,43 @@ class Game:
         if not candidate_pids:
             return None
 
-        # 2. Find and exclude articulation points.
-        articulation_point_pids = set(self._find_articulation_points(teamId))
+        # 2. Find and exclude articulation points. Also get the adjacency list.
+        articulation_points, adj = self._find_articulation_points(teamId)
+        articulation_point_pids = set(articulation_points)
         safe_candidates = [pid for pid in candidate_pids if pid not in articulation_point_pids]
+        
+        # Fallback: if all non-critical points are articulation points (e.g., in a line or simple cycle),
+        # allow sacrificing them to prevent actions from being blocked.
+        if not safe_candidates:
+            safe_candidates = candidate_pids
 
         if not safe_candidates:
             return None
+            
+        # 3. Prioritize points with fewer connections (leaves are degree 1, which is best).
+        safe_candidates.sort(key=lambda pid: len(adj.get(pid, [])), reverse=False)
 
-        # 3. Prioritize leaf nodes (degree 1) among safe candidates, as they are the safest.
+        # To add some randomness but still prefer safer points, we pick from the top N safest.
+        num_choices = min(3, len(safe_candidates))
+        return random.choice(safe_candidates[:num_choices])
+
+    def _get_team_adjacency_list(self, teamId):
+        """Builds and returns an adjacency list for a team's graph."""
+        team_point_ids = self.get_team_point_ids(teamId)
         adj = {pid: set() for pid in team_point_ids}
         for line in self.get_team_lines(teamId):
             if line['p1_id'] in adj and line['p2_id'] in adj:
                 adj[line['p1_id']].add(line['p2_id'])
                 adj[line['p2_id']].add(line['p1_id'])
-        
-        leaf_candidates = [pid for pid in safe_candidates if len(adj.get(pid, set())) == 1]
-        
-        if leaf_candidates:
-            return random.choice(leaf_candidates)
-        
-        # If no leaves, return any other safe candidate.
-        return random.choice(safe_candidates)
+        return adj
 
     def _find_articulation_points(self, teamId):
-        """Finds all articulation points (cut vertices) for a team's graph."""
+        """Finds all articulation points (cut vertices) for a team's graph. Returns (points, adj_list)."""
         team_point_ids = self.get_team_point_ids(teamId)
+        adj = self._get_team_adjacency_list(teamId)
+        
         if len(team_point_ids) < 3:
-            return []
-
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+            return [], adj
 
         # Standard algorithm for finding articulation points using DFS
         tin = {}  # discovery times
@@ -997,7 +1001,7 @@ class Game:
             if pid not in visited:
                 dfs(pid)
         
-        return list(articulation_points)
+        return list(articulation_points), adj
 
 
     def _get_all_actions_status(self, teamId):
