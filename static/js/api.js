@@ -5,6 +5,7 @@ const api = {
     _mode: 'http', // 'http' or 'pyodide'
     _pyodide: null,
     _game: null,
+    _game_data: null,
 
     /**
      * Initializes the API, loading Pyodide if specified.
@@ -21,21 +22,34 @@ const api = {
             // To ensure the Pyodide environment is as close to the server environment as possible,
             // we will reconstruct the package structure in the virtual filesystem by fetching all python files.
             console.log('Fetching Python source files for Pyodide...');
-            // We fetch all .py files except __init__.py, which has server-specific dependencies (Flask).
-            const pyFiles = ['game_logic.py', 'routes.py', 'utils.py'];
-            this._pyodide.FS.mkdir('/game_app');
+            // We fetch all .py files needed for the game logic to run in the browser.
+            const pyodideFileStructure = {
+                'game_app': [
+                    'action_data.py', 'game_data.py', 'game_logic.py', 'geometry.py',
+                    'formations.py', 'structure_data.py', 'turn_processor.py'
+                ],
+                'game_app/actions': [
+                    'expand_actions.py', 'fight_actions.py', 'fortify_actions.py', 'rune_actions.py', 'sacrifice_actions.py', 'terraform_actions.py'
+                ]
+            };
 
-            for (const file of pyFiles) {
-                const response = await fetch(`game_app/${file}`);
-                if (!response.ok) throw new Error(`Failed to fetch ${file}: ${response.statusText}`);
-                const code = await response.text();
-                this._pyodide.FS.writeFile(`/game_app/${file}`, code, { encoding: 'utf8' });
+            for (const dir in pyodideFileStructure) {
+                const pyodidePath = `/${dir}`;
+                this._pyodide.FS.mkdir(pyodidePath);
+                 // Create an __init__.py file in each directory to make it a package
+                this._pyodide.FS.writeFile(`${pyodidePath}/__init__.py`, '', { encoding: 'utf8' });
+
+                for (const file of pyodideFileStructure[dir]) {
+                    const response = await fetch(`${dir}/${file}`);
+                    if (!response.ok) throw new Error(`Failed to fetch ${dir}/${file}: ${response.statusText}`);
+                    const code = await response.text();
+                    this._pyodide.FS.writeFile(`${pyodidePath}/${file}`, code, { encoding: 'utf8' });
+                }
             }
-            
-            // Create a pyodide-specific __init__.py to make `game_app` a package.
-            // Its only job is to import game_logic, which creates the singleton `game` instance.
-            console.log('Creating Pyodide package initializer...');
+
+            // A custom __init__.py for the root game_app package to ensure game instance is created.
             this._pyodide.FS.writeFile('/game_app/__init__.py', 'from . import game_logic', { encoding: 'utf8' });
+            console.log('Pyodide filesystem populated.');
 
             console.log('Importing Python game logic and getting instance...');
             // Add root to path, import the module, and expose the 'game' instance globally for JS.
@@ -44,13 +58,15 @@ const api = {
             this._pyodide.runPython(`
 import sys
 sys.path.append('/')
-from game_app import game_logic
+from game_app import game_logic, game_data
 # Make the game instance available on Python's global scope under a specific name
 js_game_instance = game_logic.game
+js_game_data = game_data
             `);
 
             // Get a proxy to the game instance from the Python global scope.
             this._game = this._pyodide.globals.get('js_game_instance');
+            this._game_data = this._pyodide.globals.get('js_game_data');
             console.log('Pyodide backend ready.');
         } else {
             this._mode = 'http';
@@ -69,13 +85,36 @@ js_game_instance = game_logic.game
         return pyProxy.toJs({ dict_converter: Object.fromEntries });
     },
 
+    async _fetchJson(url, options) {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API Error Response:', errorText);
+            // Throwing an object allows us to pass more structured error information.
+            // The HTML traceback is often in errorText.
+            const error = new Error(`Server returned an error: ${response.status} ${response.statusText}`);
+            error.response_text = errorText;
+            throw error;
+        }
+        // Handle cases where the server returns 200 OK but with an empty body
+        const text = await response.text();
+        if (!text) {
+            return null; // Or {}, depending on what's more convenient for the caller
+        }
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error('Failed to parse JSON from server response:', text);
+            throw new Error('Server returned invalid JSON.');
+        }
+    },
+
     // --- MOCKED API calls for dev-only features ---
     async checkUpdates() {
         if (this._mode === 'pyodide') {
             return { updated: false };
         }
-        const response = await fetch('/api/check_updates');
-        return response.json();
+        return this._fetchJson('/api/check_updates');
     },
 
     async restartServer() {
@@ -83,8 +122,7 @@ js_game_instance = game_logic.game
             alert("Server restart is not available in GitHub Pages mode.");
             return { message: "Not available." };
         }
-        const response = await fetch('/api/dev/restart', { method: 'POST' });
-        return response.json();
+        return this._fetchJson('/api/dev/restart', { method: 'POST' });
     },
 
 
@@ -94,35 +132,199 @@ js_game_instance = game_logic.game
             const state = this._game.get_state();
             return this._pyProxyToJs(state);
         }
-        const response = await fetch('/api/game/state');
-        return response.json();
+        return this._fetchJson('/api/game/state');
     },
 
     async startGame(payload) {
-        if (this._mode === 'pyodide') {
-            this._game.start_game(
-                this._pyodide.toPy(payload.teams),
-                this._pyodide.toPy(payload.points),
-                payload.maxTurns,
-                payload.gridSize
-            );
-            return this.getState();
-        }
-        const response = await fetch('/api/game/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        return response.json();
+        // This is a simple, non-streaming start for dev tools or modes that don't need progress.
+        const result = await this.startGameAsync(payload);
+        return result; // It will return the full history object.
     },
 
-    async restart() {
-        if (this._mode === 'pyodide') {
-            const result = this._game.restart_game();
-            return this._pyProxyToJs(result);
+    async startGameAsync(payload, progressCallback) {
+        if (this._mode === 'http') {
+            // HTTP mode uses fetch streaming
+            const response = await fetch('/api/game/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                const error = new Error(`Server returned an error: ${response.status} ${response.statusText}`);
+                error.response_text = errorText;
+                throw error;
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const history = [];
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep partial line for the next chunk
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    try {
+                        const update = JSON.parse(line);
+                        if (update.type === 'progress' && progressCallback) {
+                            const pData = update.data;
+                            progressCallback(pData.progress, pData.turn, pData.max_turns, pData.step);
+                        } else if (update.type === 'state') {
+                            // The server now sends augmented states
+                            history.push(update.data);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse JSON stream line:", line, e);
+                    }
+                }
+            }
+            // Final progress update
+            if (progressCallback) {
+                if (history.length > 0) {
+                    const lastState = history[history.length - 1];
+                    progressCallback(100, lastState.max_turns, lastState.max_turns, history.length - 1);
+                } else {
+                    progressCallback(100, payload.maxTurns, payload.maxTurns, 0);
+                }
+            }
+            return { history }; // HTTP mode returns pre-augmented history
         }
-        const response = await fetch('/api/game/restart', { method: 'POST' });
-        return response.json();
+
+        // Pyodide mode simulation
+        this._game.start_game(
+            this._pyodide.toPy(payload.teams),
+            this._pyodide.toPy(payload.points),
+            payload.maxTurns,
+            payload.gridSize
+        );
+
+        const raw_history = [this._pyProxyToJs(this._game.state.copy())];
+
+        return new Promise((resolve) => {
+            const step = () => {
+                const game_phase = this._game.state.get('game_phase');
+                
+                if (game_phase === 'RUNNING') {
+                    this._game.run_next_action();
+                    raw_history.push(this._pyProxyToJs(this._game.state.copy()));
+                    
+                    if (progressCallback) {
+                        const turn = this._game.state.get('turn');
+                        const max_turns = this._game.state.get('max_turns');
+                        const action_in_turn = this._game.state.get('action_in_turn');
+                        const queue_py = this._game.state.get('actions_queue_this_turn');
+                        const actions_this_turn = queue_py ? queue_py.length : 0;
+                        queue_py?.destroy();
+
+                        // Progress based on completed turns + fraction of current turn
+                        const completed_turns = Math.max(0, turn - 1);
+                        const turn_progress = max_turns > 0 ? completed_turns / max_turns : 0;
+                        const action_progress_in_turn = actions_this_turn > 0 ? (action_in_turn / actions_this_turn) : 0;
+                        const total_progress = max_turns > 0 ? Math.round((turn_progress + action_progress_in_turn / max_turns) * 100) : 0;
+                        
+                        const currentStep = raw_history.length - 1;
+                        progressCallback(total_progress, turn, max_turns, currentStep);
+                    }
+
+                    setTimeout(step, 0); // Yield to event loop to update UI
+                } else {
+                    if (progressCallback) {
+                         const max_turns = this._game.state.get('max_turns');
+                         const currentStep = raw_history.length - 1;
+                         progressCallback(100, max_turns, max_turns, currentStep);
+                    }
+                    resolve({ raw_history }); // Pyodide mode returns raw history
+                }
+            };
+            setTimeout(step, 0);
+        });
+    },
+
+    async restartAsync(progressCallback) {
+        if (this._mode === 'http') {
+            // HTTP mode uses fetch streaming
+            const response = await fetch('/api/game/restart', { method: 'POST' });
+            if (!response.ok) {
+                const errorText = await response.text();
+                const error = new Error(`Server returned an error: ${response.status} ${response.statusText}`);
+                error.response_text = errorText;
+                throw error;
+            }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const history = [];
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    try {
+                        const update = JSON.parse(line);
+                         if (update.type === 'error') {
+                            throw new Error(`Server error during restart: ${update.data}`);
+                        }
+                        if (update.type === 'progress' && progressCallback) {
+                            const pData = update.data;
+                            progressCallback(pData.progress, pData.turn, pData.max_turns, pData.step);
+                        } else if (update.type === 'state') {
+                            history.push(update.data);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse JSON stream line:", line, e);
+                    }
+                }
+            }
+            if (progressCallback) {
+                if (history.length > 0) {
+                    const lastState = history[history.length - 1];
+                    progressCallback(100, lastState.max_turns, lastState.max_turns, history.length - 1);
+                } else {
+                     progressCallback(100, 0, 0, 0); // fallback
+                }
+            }
+            return { history };
+
+        }
+
+        // Pyodide mode simulation for restart
+        const initial_state_py = this._game.state.get('initial_state');
+        if (!initial_state_py) {
+            throw new Error("No initial state saved to restart from.");
+        }
+        const initial_state = this._pyProxyToJs(initial_state_py);
+        initial_state_py.destroy();
+
+        return this.startGameAsync({
+            teams: initial_state.teams,
+            points: initial_state.points,
+            maxTurns: initial_state.max_turns,
+            gridSize: initial_state.gridSize
+        }, progressCallback);
+    },
+
+    async augmentState(state) {
+        if (this._mode === 'pyodide') {
+            const augmented_state_py = this._game.augment_state_for_frontend(this._pyodide.toPy(state));
+            return this._pyProxyToJs(augmented_state_py);
+        }
+        // This is not needed for HTTP mode, as augmentation is done on the server.
+        // We can just return the state as is.
+        return state;
     },
 
     async reset() {
@@ -130,25 +332,29 @@ js_game_instance = game_logic.game
             this._game.reset();
             return this.getState();
         }
-        const response = await fetch('/api/game/reset', { method: 'POST' });
-        return response.json();
+        return this._fetchJson('/api/game/reset', { method: 'POST' });
     },
 
-    async nextAction() {
+
+
+    async getAllActions() {
         if (this._mode === 'pyodide') {
-            this._game.run_next_action();
-            return this.getState();
+            // Call the centralized Python function to get the data structure.
+            const all_actions_py = this._game_data.get_all_actions_data();
+            return this._pyProxyToJs(all_actions_py);
         }
-        const response = await fetch('/api/game/next_action', { method: 'POST' });
-        return response.json();
+        return this._fetchJson('/api/actions/all');
     },
 
-    async getActionProbabilities(teamId, includeInvalid) {
+    async saveIllustration(actionName, imageDataUrl) {
         if (this._mode === 'pyodide') {
-            const probabilities = this._game.get_action_probabilities(teamId, includeInvalid);
-            return this._pyProxyToJs(probabilities);
+            console.warn("Saving illustrations is not supported in Pyodide mode.");
+            return { success: false, error: "Not supported in Pyodide mode" };
         }
-        const response = await fetch(`/api/game/action_probabilities?teamId=${teamId}&include_invalid=${includeInvalid}`);
-        return response.json();
+        return this._fetchJson('/api/dev/save_illustration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action_name: actionName, image_data: imageDataUrl })
+        });
     }
 };

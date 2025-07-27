@@ -11,9 +11,17 @@
     <div id="dev-corner-buttons">
         <button id="restart-server-btn" class="dev-btn" title="Restart Server (Dev)">&#8635;</button>
     </div>
-    <div class="container">
-        <!-- Setup phase columns -->
-        <div class="setup-column" id="setup-column-left">
+    <div class="main-layout">
+        <header class="main-header">
+            <nav class="tabs">
+                <button class="tab-link active" data-tab="game-tab">Game</button>
+                <button class="tab-link" data-tab="guide-tab">Action Guide</button>
+            </nav>
+        </header>
+        <div id="game-tab" class="tab-content active">
+            <div class="container">
+                <!-- Setup phase columns -->
+                <div class="setup-column" id="setup-column-left">
             <h1>Geometric Divination</h1>
             <h2>Setup</h2>
             <fieldset>
@@ -39,7 +47,12 @@
         <!-- Grid (always visible) -->
         <div class="grid-container">
             <canvas id="grid" width="600" height="600"></canvas>
-            <div id="status-bar">Waiting for game to start...</div>
+            <div id="simulation-loader" style="display: none;">
+                <div class="loader-content">
+                    <p id="loader-text">Simulating...</p>
+                    <progress id="loader-progress" value="0" max="100"></progress>
+                </div>
+            </div>
         </div>
 
         <div class="setup-column" id="setup-column-right">
@@ -49,18 +62,25 @@
                     <span>Select a team, then click on the grid to place points.</span>
                     <button id="undo-point-btn">Undo Last Point</button>
                     <button id="clear-points-btn">Clear All Points</button>
-                    <button id="randomize-points-btn">Randomize Points</button>
+                    <div class="randomize-controls">
+                        <label for="random-points-count">Points per team:</label>
+                        <input type="number" id="random-points-count" value="5" min="1" max="50">
+                        <button id="randomize-points-btn">Randomize</button>
+                    </div>
                 </div>
             </fieldset>
              <div id="setup-actions">
                 <fieldset>
                     <legend>3. Game Settings</legend>
                      <div class="start-section">
-                        <label for="grid-size">Grid Size:</label>
-                        <input type="number" id="grid-size" value="10" min="5" max="50" style="width: 60px;">
-                        <br><br>
-                        <label for="max-turns">Max Turns:</label>
-                        <input type="number" id="max-turns" value="100" style="width: 60px;">
+                        <div class="setting-item">
+                            <label for="grid-size">Grid Size:</label>
+                            <input type="number" id="grid-size" value="10" min="5" max="50">
+                        </div>
+                        <div class="setting-item">
+                            <label for="max-turns">Max Turns:</label>
+                            <input type="number" id="max-turns" value="100">
+                        </div>
                      </div>
                 </fieldset>
                 <button id="start-game-btn">Start Game</button>
@@ -72,8 +92,12 @@
             <fieldset id="live-controls">
                 <legend>Game Controls</legend>
                 <div class="control-buttons-row">
-                    <button id="next-action-btn">Next Action</button>
-                    <button id="auto-play-btn">Auto-Play</button>
+                    <button id="playback-prev-btn">Prev Step</button>
+                    <button id="playback-play-pause-btn">Play</button>
+                    <button id="playback-next-btn">Next Step</button>
+                </div>
+                <div class="progress-container">
+                    <progress id="playback-progress-bar" value="0" max="100"></progress>
                 </div>
                 <div class="speed-control">
                     <label for="auto-play-speed">Speed:</label>
@@ -85,26 +109,24 @@
                     <button id="reset-btn" title="End the current game and return to the setup screen.">End Game</button>
                 </div>
             </fieldset>
-             <details class="debug-fieldset">
+            <div id="turn-counter">Turn: 0 / 100</div>
+            <div id="stats"></div>
+            <details class="debug-fieldset">
                 <summary>Developer Tools</summary>
                 <div class="debug-options">
                     <label><input type="checkbox" id="debug-point-ids"> Show Point IDs</label>
                     <label><input type="checkbox" id="debug-line-ids"> Show Line IDs</label>
                     <label><input type="checkbox" id="debug-last-action"> Highlight Last Action</label>
                     <button id="copy-state-btn">Copy Game State to Clipboard</button>
+                    <button id="generate-illustrations-btn" class="dev-btn-action">Generate Illustrations</button>
                 </div>
             </details>
-            <div id="turn-counter">Turn: 0 / 100</div>
-            <div id="stats"></div>
         </div>
 
         <div class="game-column" id="game-preview-column">
             <div id="action-preview-panel">
                 <div class="action-preview-header">
-                    <h4>Action Preview</h4>
-                    <label title="Show actions that cannot be performed and why.">
-                        <input type="checkbox" id="show-invalid-actions"> Show Invalid
-                    </label>
+                    <h4>Next Step Preview</h4>
                 </div>
                 <div id="action-preview-content"></div>
             </div>
@@ -119,16 +141,35 @@
             </div>
         </div>
 
-        <div class="game-column" id="game-log-column">
-            <div class="log-container">
-                <div class="log-header">
-                    <h3>Game Log</h3>
-                    <div>
-                        <button id="copy-log-btn" style="font-size: 0.8em; padding: 2px 5px;" title="Copy Log">Copy</button>
-                        <label title="Use short-form action log"><input type="checkbox" id="compact-log-toggle"> Compact</label>
+                <div class="game-column" id="game-log-column">
+                    <div class="log-container">
+                        <div class="log-header">
+                            <h3>Game Log</h3>
+                            <div>
+                                <button id="copy-log-btn" style="font-size: 0.8em; padding: 2px 5px;" title="Copy Log">Copy</button>
+                                <label title="Use short-form action log"><input type="checkbox" id="compact-log-toggle" checked> Compact</label>
+                            </div>
+                        </div>
+                        <div id="log" class="log-box">Awaiting game start...</div>
                     </div>
                 </div>
-                <div id="log" class="log-box">Awaiting game start...</div>
+                <div id="status-bar">Waiting for game to start...</div>
+            </div>
+        </div>
+        <div id="guide-tab" class="tab-content">
+            <div class="guide-container">
+                <div class="guide-header">
+                    <p>A visual guide to all possible actions in the game.</p>
+                    <div class="guide-controls">
+                        <input type="search" id="guide-search" placeholder="Search by name or description...">
+                        <div id="guide-group-toggles">
+                            <!-- Toggles will be dynamically inserted here -->
+                        </div>
+                    </div>
+                </div>
+                <div id="action-guide-content">
+                    <!-- Action cards will be dynamically inserted here -->
+                </div>
             </div>
         </div>
     </div>
@@ -146,6 +187,9 @@
     </div>
 
     <script src="static/js/api.js"></script>
+    <script src="static/js/illustration_generator.js"></script>
+    <script src="static/js/renderer.js"></script>
+    <script src="static/js/visuals.js"></script>
     <script src="static/js/main.js"></script>
 </body>
 </html>

@@ -9,10 +9,11 @@ html {
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     display: flex;
+    flex-direction: column;
     background-color: #f4f7f9;
     color: #333;
     margin: 0;
-    padding: 10px;
+    padding: 0; /* Padding moved to main-layout */
     height: 100vh;
     box-sizing: border-box;
     overflow: hidden; /* Prevent body from scrolling */
@@ -26,6 +27,50 @@ h1 { font-size: 2.2em; margin-bottom: 1rem; margin-top: 0;}
 h2 { font-size: 1.5em; border-bottom: 1px solid #dfe4ea; padding-bottom: 10px; margin-top: 0;}
 h3 { font-size: 1.2em; }
 
+.main-layout {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    flex-grow: 1; /* Fill available height */
+    min-height: 0; /* Prevent overflow */
+    padding: 10px;
+    gap: 10px;
+}
+.main-header {
+    flex-shrink: 0;
+}
+.tabs {
+    display: flex;
+    border-bottom: 1px solid #dfe4ea;
+}
+.tab-link {
+    padding: 10px 20px;
+    cursor: pointer;
+    border: none;
+    background-color: transparent;
+    border-bottom: 3px solid transparent;
+    font-size: 1em;
+    color: #555;
+}
+.tab-link.active {
+    border-bottom-color: #3498db;
+    color: #2c3e50;
+    font-weight: 500;
+}
+.tab-content {
+    display: none;
+    flex-grow: 1;
+    min-height: 0; /* Important for flex children */
+    overflow: hidden; /* Prevent content from breaking out */
+}
+.tab-content.active {
+    display: flex; /* Use flex to allow child to grow */
+    flex-direction: column;
+    height: 100%; /* Take up remaining space */
+}
+#game-tab, #guide-tab {
+    height: 100%;
+}
 
 .container {
     display: grid;
@@ -34,7 +79,7 @@ h3 { font-size: 1.2em; }
     height: 100%;
     /* A consistent 4-column layout for all phases */
     grid-template-columns: minmax(260px, 1fr) auto minmax(280px, 1.2fr) minmax(260px, 1.1fr);
-    grid-template-rows: 1fr;
+    grid-template-rows: 1fr auto;
     align-items: stretch;
 }
 
@@ -57,20 +102,59 @@ h3 { font-size: 1.2em; }
     height: 100%;
 }
 
-#status-bar {
+#simulation-loader {
     position: absolute;
-    bottom: 5px;
-    left: 5px;
-    right: 5px;
-    background-color: rgba(0, 0, 0, 0.6);
-    color: white;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.85);
+    display: flex; /* Centering */
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    border-radius: 4px;
+    flex-direction: column; /* To stack text and progress bar */
+}
+
+.loader-content {
+    text-align: center;
+    padding: 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.loader-content p {
+    margin: 0 0 10px 0;
+    font-size: 1.2em;
+    font-weight: 500;
+    color: #34495e;
+}
+
+#loader-progress {
+    width: 200px;
+}
+
+#status-bar {
+    grid-row: 2 / 3;
+    grid-column: 1 / -1;
+    background-color: #f8f9fa;
+    color: #333;
     padding: 8px 12px;
     border-radius: 4px;
     font-size: 0.9em;
     text-align: center;
     opacity: 0; /* Initially hidden */
     transition: opacity 0.5s;
-    pointer-events: none; /* Don't intercept clicks */
+    border: 1px solid #ddd;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    text-shadow: 0 0 4px rgba(0,0,0,0.3); /* Add shadow to main text for light colors */
+}
+
+#status-bar strong {
+    /* Add a slightly stronger shadow to make colored team names pop */
+    text-shadow: 0 0 5px rgba(0,0,0,0.6);
 }
 
 .setup-column, .game-column {
@@ -111,8 +195,8 @@ h3 { font-size: 1.2em; }
 }
 
 #game-controls-column { grid-column: 1 / 2; grid-row: 1 / 2; }
-#game-preview-column { grid-column: 3 / 4; grid-row: 1 / 2; }
-#game-log-column { grid-column: 4 / 5; grid-row: 1 / 2; }
+#game-log-column { grid-column: 3 / 4; grid-row: 1 / 2; }
+#game-preview-column { grid-column: 4 / 5; grid-row: 1 / 2; }
 
 fieldset {
     border: 1px solid #dfe4ea;
@@ -132,16 +216,35 @@ legend {
     margin-bottom: 15px;
 }
 
+.start-section {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.setting-item input[type="number"] {
+    width: 70px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
 .placement-section {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
 
-.placement-section button {
-    padding: 12px 15px;
-    font-size: 1.05em;
-    font-weight: 600;
+.placement-section button, .randomize-controls button {
+    padding: 8px 12px;
+    font-size: 1em;
+    font-weight: 500;
     border-radius: 5px;
     cursor: pointer;
     transition: background-color 0.2s, color 0.2s, border-color 0.2s;
@@ -165,9 +268,33 @@ legend {
 
 #randomize-points-btn {
     background-color: #3498db;
+    width: 100%;
 }
 #randomize-points-btn:hover {
     background-color: #2980b9;
+}
+
+.randomize-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #dfe4ea;
+}
+.randomize-controls label {
+    font-size: 0.9em;
+    font-weight: 500;
+}
+.randomize-controls input[type="number"] {
+    width: 60px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.randomize-controls button {
+    flex-grow: 1;
 }
 
 .teams-section > * {
@@ -300,6 +427,33 @@ legend {
     background-color: #ecf5fa;
 }
 
+.progress-container {
+    margin-top: 10px;
+}
+
+#playback-progress-bar {
+    width: 100%;
+    height: 12px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #bdc3c7;
+    cursor: pointer;
+}
+
+#playback-progress-bar::-webkit-progress-bar {
+    background-color: #ecf0f1;
+}
+
+#playback-progress-bar::-webkit-progress-value {
+    background-color: var(--progress-bar-color, #3498db);
+    transition: width 0.2s ease-in-out, background-color 0.3s ease;
+}
+
+#playback-progress-bar::-moz-progress-bar {
+    background-color: var(--progress-bar-color, #3498db);
+    transition: width 0.2s ease-in-out, background-color 0.3s ease;
+}
+
 .speed-control {
     display: grid;
     grid-template-areas:
@@ -358,10 +512,23 @@ legend {
 
 .log-entry {
     padding: 3px 8px;
-    border-left: 4px solid #ccc;
     margin-bottom: 5px;
+    border-radius: 3px;
+    color: #333;
     background-color: #f9f9f9;
-    border-radius: 0 3px 3px 0;
+}
+
+.log-entry.team-log {
+    /* Color is now set dynamically in JS for better contrast */
+}
+
+.log-entry strong {
+    font-weight: bold;
+}
+
+.log-entry.team-log strong {
+    /* To ensure nested team names are visible on colored backgrounds */
+    text-shadow: 0 0 3px rgba(0,0,0,0.7);
 }
 
 #final-interpretation .victory-condition {
@@ -486,11 +653,18 @@ legend {
 }
 .action-prob-list li {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    font-size: 0.8em;
+    gap: 5px;
+    font-size: 0.85em;
     padding: 1px 2px;
     border-bottom: 1px solid #eee;
+}
+.action-prob-list li > span:first-child {
+    flex-grow: 1;
+    flex-shrink: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .action-prob-list li:last-child {
     border-bottom: none;
@@ -510,10 +684,10 @@ legend {
 }
 
 .action-prob-bar-container {
-    flex-grow: 1;
+    flex-basis: 80px;
+    flex-shrink: 0;
     background-color: #e9ecef;
     border-radius: 3px;
-    margin: 0 8px;
     height: 12px;
     display: flex;
     align-items: center;
@@ -526,9 +700,15 @@ legend {
 }
 .action-prob-percent {
     font-weight: bold;
-    min-width: 45px;
+    min-width: 40px;
+    flex-shrink: 0;
     text-align: right;
     font-size: 0.95em;
+}
+
+.action-prob-list li.free-action > span:first-child {
+    color: #27ae60;
+    font-weight: 500;
 }
 
 .log-container {
@@ -566,11 +746,13 @@ legend {
     margin: 0;
 }
 
+
+
 details.debug-fieldset {
     border: 1px solid #dfe4ea;
     border-radius: 5px;
     padding: 0 15px 10px 15px;
-    margin-top: 15px;
+    margin-top: auto; /* Push to bottom of column */
 }
 
 details.debug-fieldset summary {
@@ -619,6 +801,15 @@ details[open] > summary::before {
 }
 .debug-options button:hover {
     background-color: #eee;
+}
+
+.dev-btn-action {
+    color: #fff !important;
+    background-color: #3498db !important;
+    border-color: #2980b9 !important;
+}
+.dev-btn-action:hover {
+    background-color: #2980b9 !important;
 }
 
 .debug-options .btn-danger {
@@ -775,7 +966,8 @@ body.game-running .game-column {
 }
 
 .control-buttons-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
     width: 100%;
 }
@@ -824,4 +1016,157 @@ body.game-running .game-column {
 
 #final-interpretation {
     order: 10; /* Move to the bottom when it appears */
+}
+
+/* Action Guide Styles */
+.guide-container {
+    padding: 15px;
+    background-color: #fff;
+    border-radius: 8px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+.guide-header {
+    flex-shrink: 0;
+}
+.guide-header p {
+    margin-top: 0;
+}
+.guide-controls {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: row;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap; /* Allow wrapping on small screens */
+}
+#guide-search {
+    flex-grow: 1;
+    min-width: 200px; /* Ensure it has a minimum size */
+    max-width: 300px;
+    padding: 8px 12px;
+    font-size: 1em;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+#guide-group-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+#guide-group-toggles button {
+    padding: 5px 12px;
+    font-size: 0.9em;
+    border-radius: 15px;
+    border: 1px solid #ccc;
+    background-color: #f8f8f8;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+#guide-group-toggles button.active {
+    background-color: #3498db;
+    color: white;
+    border-color: #2980b9;
+}
+#guide-group-toggles button:hover:not(.active) {
+    background-color: #eee;
+}
+
+#action-guide-content {
+    overflow-y: auto;
+    flex-grow: 1;
+    padding: 10px;
+    background-color: #f0f2f5;
+}
+
+.guide-group-section {
+    margin-bottom: 25px;
+}
+
+.guide-group-header {
+    font-size: 1.6em;
+    font-weight: 300;
+    color: #34495e;
+    border-bottom: 2px solid #dfe4ea;
+    padding-bottom: 8px;
+    margin-bottom: 15px;
+    position: sticky;
+    top: -10px; /* Aligns with padding of parent */
+    background-color: #f0f2f5; /* Match parent background for clean sticky effect */
+    z-index: 10;
+    padding-top: 10px; /* Prevent content from being cut off by top edge */
+}
+
+.action-guide-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+    gap: 15px;
+}
+.action-card {
+    border: 1px solid #dfe4ea;
+    border-radius: 6px;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: row; /* Illustration on the side */
+    padding: 0;
+    transition: box-shadow 0.2s;
+    overflow: hidden;
+}
+.action-card:hover {
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+.action-card-text {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    gap: 4px;
+    padding: 12px 15px;
+    min-width: 0; /* Fix flexbox overflow */
+}
+.action-card-header {
+    padding: 0;
+    border-bottom: none;
+    display: flex;
+    align-items: baseline; /* Align title and tag nicely */
+    gap: 10px;
+    flex-wrap: wrap; /* Allow wrapping if title is long */
+}
+.action-card-header h4 {
+    margin: 0;
+    font-size: 1.15em;
+    color: #2c3e50;
+    flex-shrink: 0;
+}
+.action-card-header .action-group {
+    font-size: 0.75em;
+    color: #fff;
+    background-color: #7f8c8d;
+    padding: 2px 6px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+.action-card-header .action-group--expand { background-color: #27ae60; }
+.action-card-header .action-group--fight { background-color: #c0392b; }
+.action-card-header .action-group--fortify { background-color: #2980b9; }
+.action-card-header .action-group--sacrifice { background-color: #d35400; }
+.action-card-header .action-group--rune { background-color: #8e44ad; }
+.action-card-illustration, .action-card canvas {
+    width: 150px;
+    height: 150px;
+    aspect-ratio: 1 / 1;
+    background-color: #fdfdfd;
+    border-right: 1px solid #dfe4ea;
+    border-radius: 0;
+    flex-shrink: 0;
+    object-fit: contain; /* Ensure image fits well */
+}
+.action-card-description {
+    padding: 0;
+    font-size: 0.85em;
+    line-height: 1.45;
+    color: #34495e;
+    flex-grow: 1;
 }

@@ -1,6 +1,10 @@
 import os
-from flask import Blueprint, render_template, jsonify, request, current_app, send_from_directory
+import base64
+import json
+from flask import Blueprint, render_template, jsonify, request, current_app, send_from_directory, Response, stream_with_context
 from . import game_logic
+from .game_logic import game # Explicitly import the instance
+from . import game_data
 from . import utils
 
 # Using a Blueprint to organize routes.
@@ -26,62 +30,135 @@ def check_updates():
 @main_routes.route('/api/game/state', methods=['GET'])
 def get_game_state():
     """Returns the complete current game state."""
-    return jsonify(game_logic.game.get_state())
+    return jsonify(game.get_state())
 
 @main_routes.route('/api/game/start', methods=['POST'])
 def start_game():
-    """Resets and initializes the game with settings from the client."""
+    """Runs a full simulation, then streams the results to the client."""
     data = request.json
     teams = data.get('teams', {})
     points = data.get('points', [])
-    # Add some basic validation
     try:
         max_turns = int(data.get('maxTurns', 100))
         grid_size = int(data.get('gridSize', 10))
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid maxTurns or gridSize"}), 400
 
-    game_logic.game.start_game(teams, points, max_turns, grid_size)
-    return jsonify(game_logic.game.get_state())
+    # Run the entire simulation first. This returns a list of raw state objects.
+    raw_history = game.run_full_simulation(teams, points, max_turns, grid_size)
+
+    def generate():
+        total_steps = len(raw_history)
+        if total_steps == 0:
+            return
+
+        for i, state in enumerate(raw_history):
+            # 1. Yield a progress update
+            progress = round((i / (total_steps - 1)) * 100) if total_steps > 1 else 100
+            progress_update = {
+                "type": "progress",
+                "data": {
+                    "progress": progress,
+                    "turn": state['turn'],
+                    "max_turns": state['max_turns'],
+                    "step": i + 1, # a 1-based step counter for display
+                }
+            }
+            yield json.dumps(progress_update) + '\n'
+
+            # 2. Augment and yield the state update
+            augmented_state = game.augment_state_for_frontend(state)
+            state_update = {
+                "type": "state",
+                "data": augmented_state
+            }
+            yield json.dumps(state_update) + '\n'
+
+    return Response(stream_with_context(generate()), mimetype='application/x-json-stream')
 
 @main_routes.route('/api/game/restart', methods=['POST'])
 def restart_game():
-    """Restarts the simulation with the same initial settings."""
-    result = game_logic.game.restart_game()
-    if "error" in result:
-        return jsonify(result), 400
-    return jsonify(result)
+    """Restarts the simulation with the same initial settings, streaming updates."""
+    
+    raw_history = game.restart_and_run_simulation()
+
+    def generate():
+        total_steps = len(raw_history)
+        if total_steps == 0:
+            # This can happen if there's no initial_state to restart from.
+            yield json.dumps({"type": "error", "data": "No initial state saved to restart from."}) + '\n'
+            return
+
+        for i, state in enumerate(raw_history):
+            # 1. Yield a progress update
+            progress = round((i / (total_steps - 1)) * 100) if total_steps > 1 else 100
+            progress_update = {
+                "type": "progress",
+                "data": {
+                    "progress": progress,
+                    "turn": state['turn'],
+                    "max_turns": state['max_turns'],
+                    "step": i + 1,
+                }
+            }
+            yield json.dumps(progress_update) + '\n'
+
+            # 2. Augment and yield the state update
+            augmented_state = game.augment_state_for_frontend(state)
+            state_update = {
+                "type": "state",
+                "data": augmented_state
+            }
+            yield json.dumps(state_update) + '\n'
+
+    return Response(stream_with_context(generate()), mimetype='application/x-json-stream')
 
 @main_routes.route('/api/game/reset', methods=['POST'])
 def reset_game():
     """Resets the game to its initial empty state (SETUP phase)."""
-    game_logic.game.reset()
-    return jsonify(game_logic.game.get_state())
+    game.reset()
+    return jsonify(game.get_state())
 
-@main_routes.route('/api/game/next_action', methods=['POST'])
-def next_action():
-    """Processes the next single action in a turn."""
-    game_logic.game.run_next_action()
-    return jsonify(game_logic.game.get_state())
+@main_routes.route('/api/actions/all', methods=['GET'])
+def get_all_actions():
+    """Returns a structured list of all possible actions with their descriptions."""
+    return jsonify(game_data.get_all_actions_data())
 
-@main_routes.route('/api/game/action_probabilities', methods=['GET'])
-def get_action_probabilities():
-    """
-    Returns a list of possible actions and their probabilities for a given team.
-    Can optionally include invalid actions by setting ?include_invalid=true
-    """
-    teamId = request.args.get('teamId')
-    if not teamId:
-        return jsonify({"error": "teamId parameter is required"}), 400
-    
-    include_invalid_str = request.args.get('include_invalid', 'false').lower()
-    include_invalid = include_invalid_str == 'true'
-    
-    probabilities = game_logic.game.get_action_probabilities(teamId, include_invalid=include_invalid)
-    if "error" in probabilities:
-        return jsonify(probabilities), 404
+@main_routes.route('/api/dev/save_illustration', methods=['POST'])
+def save_illustration():
+    """(Dev only) Saves a base64 encoded PNG image for the action guide."""
+    if not current_app.debug:
+        return jsonify({"success": False, "error": "This function is only available in debug mode."}), 403
+
+    data = request.json
+    action_name = data.get('action_name')
+    image_data_url = data.get('image_data')
+
+    if not action_name or not image_data_url:
+        return jsonify({"success": False, "error": "Missing action_name or image_data"}), 400
+
+    try:
+        # The data URL is in the format 'data:image/png;base64,iVBORw0KGgo...'
+        header, encoded = image_data_url.split(",", 1)
+        if not header.startswith('data:image/png;base64'):
+            return jsonify({"success": False, "error": "Invalid image data format"}), 400
         
-    return jsonify(probabilities)
+        image_data = base64.b64decode(encoded)
+
+        # Create directory if it doesn't exist
+        illustrations_dir = os.path.join(current_app.static_folder, 'illustrations')
+        os.makedirs(illustrations_dir, exist_ok=True)
+        
+        file_path = os.path.join(illustrations_dir, f"{action_name}.png")
+        
+        with open(file_path, 'wb') as f:
+            f.write(image_data)
+        
+        return jsonify({"success": True, "path": file_path})
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to save illustration for {action_name}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @main_routes.route('/api/dev/restart', methods=['POST'])
 def restart_server():
@@ -105,6 +182,9 @@ def serve_game_app_files(filename):
     Serve files from the game_app directory.
     This is needed for Pyodide to fetch the Python source in development mode.
     """
+    if not current_app.debug:
+        return jsonify({"error": "This function is only available in development mode."}), 403
+        
     # current_app.root_path is the absolute path to the 'game_app' directory.
     py_dir = os.path.abspath(current_app.root_path)
     return send_from_directory(py_dir, filename)
