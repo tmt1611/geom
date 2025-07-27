@@ -2,6 +2,7 @@ import random
 import math
 from itertools import combinations
 from ..geometry import distance_sq, get_extended_border_point, clamp_and_round_point_coords, get_angle_bisector_vector
+from .. import game_data
 
 class ExpandActionsHandler:
     def __init__(self, game):
@@ -203,7 +204,7 @@ class ExpandActionsHandler:
             if line['p1_id'] in points and line['p2_id'] in points:
                 p1 = points[line['p1_id']]
                 p2 = points[line['p2_id']]
-                if distance_sq(p1, p2) >= 4.0: # min length of 2
+                if distance_sq(p1, p2) >= game_data.GAME_PARAMETERS['FRACTURE_LINE_MIN_LENGTH_SQ']:
                     fracturable_lines.append(line)
         return fracturable_lines
 

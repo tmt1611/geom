@@ -1,6 +1,7 @@
 import random
 import math
 from itertools import combinations
+from .. import game_data
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
     get_extended_border_point, is_ray_blocked,
@@ -195,8 +196,8 @@ class FightActionsHandler:
         enemy_points = self.game._get_vulnerable_enemy_points(teamId)
 
         points_map = self.state['points']
-        max_range_sq = (self.state['grid_size'] * 0.4)**2
-        pincer_angle_threshold = -0.866  # cos(150 deg)
+        max_range_sq = (self.state['grid_size'] * game_data.GAME_PARAMETERS['PINCER_ATTACK_RANGE_FACTOR'])**2
+        pincer_angle_threshold = game_data.GAME_PARAMETERS['PINCER_ATTACK_ANGLE_COS']
         
         pincer_candidates = list(combinations(team_point_ids, 2))
         random.shuffle(pincer_candidates)
@@ -237,7 +238,7 @@ class FightActionsHandler:
         team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
         if not team_territories: return []
         points_map = self.state['points']
-        MIN_AREA = 10.0
+        MIN_AREA = game_data.GAME_PARAMETERS['TERRITORY_STRIKE_MIN_AREA']
         large_territories = []
         for territory in team_territories:
             p_ids = territory['point_ids']
@@ -456,7 +457,7 @@ class FightActionsHandler:
         else:
             # --- Fallback Effect: Create Fissure ---
             grid_size = self.state['grid_size']
-            fissure_len = grid_size * 0.3
+            fissure_len = grid_size * game_data.GAME_PARAMETERS['LAUNCH_PAYLOAD_FISSURE_FACTOR']
             
             # Create fissure at a random location
             center_x = random.uniform(fissure_len, grid_size - fissure_len)
@@ -508,7 +509,7 @@ class FightActionsHandler:
         # Perpendicular vector (for the zap), randomized direction
         zap_vx, zap_vy = random.choice([(-vy, vx), (vy, -vx)])
         
-        zap_range_sq = (self.state['grid_size'] * 0.35)**2
+        zap_range_sq = (self.state['grid_size'] * game_data.GAME_PARAMETERS['SENTRY_ZAP_RANGE_FACTOR'])**2
         
         # Get list of vulnerable enemy points
         vulnerable_enemy_points = self.game._get_vulnerable_enemy_points(teamId)

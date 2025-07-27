@@ -1243,9 +1243,8 @@ class Game:
         # --- Perform a successful action for this team, trying until one succeeds ---
         result = None
         failed_actions = []
-        MAX_ACTION_ATTEMPTS = 15 # Avoid infinite loops if no action can ever succeed
         
-        for _ in range(MAX_ACTION_ATTEMPTS):
+        for _ in range(game_data.GAME_PARAMETERS['MAX_ACTION_ATTEMPTS']):
             action_name, action_func = self._choose_action_for_team(teamId, exclude_actions=failed_actions)
             
             if not action_func:

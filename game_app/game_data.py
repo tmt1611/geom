@@ -9,6 +9,17 @@ DEFAULT_TEAMS = [
 
 # --- Static Game Data ---
 
+GAME_PARAMETERS = {
+    # Action preconditions and logic
+    'FRACTURE_LINE_MIN_LENGTH_SQ': 4.0,  # min length of 2
+    'PINCER_ATTACK_RANGE_FACTOR': 0.4,
+    'PINCER_ATTACK_ANGLE_COS': -0.866,  # cos(150 degrees)
+    'TERRITORY_STRIKE_MIN_AREA': 10.0,
+    'LAUNCH_PAYLOAD_FISSURE_FACTOR': 0.3,
+    'SENTRY_ZAP_RANGE_FACTOR': 0.35,
+    'MAX_ACTION_ATTEMPTS': 15,
+}
+
 GROUP_BASE_WEIGHTS = {
     'Expand': 30,
     'Fight': 30,

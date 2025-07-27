@@ -517,7 +517,7 @@ const illustrationDrawers = {
         ctx.fill();
         ctx.globalAlpha = 1.0;
     },
-    'fortify_mirror': (ctx, w, h) => {
+    'fortify_mirror_structure': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const axis1 = {x: w*0.5, y: h*0.1};
         const axis2 = {x: w*0.5, y: h*0.9};

@@ -263,6 +263,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateLiveStats(teams, live_stats, gameState) {
+        const structureUiMap = {
+            // UI Name: [state key in gameState, subtype key (if applicable)]
+            'Nexus': ['runes', 'nexus'],
+            'Prism': ['runes', 'prism'],
+            'Trebuchet-Rune': ['runes', 'trebuchet'],
+            'Star-Rune': ['runes', 'star'],
+            'I-Rune': ['runes', 'i_shape'],
+            'V-Rune': ['runes', 'v_shape'],
+            'Shield-Rune': ['runes', 'shield'],
+            'Trident-Rune': ['runes', 'trident'],
+            'Cross-Rune': ['runes', 'cross'],
+            'Plus-Rune': ['runes', 'plus_shape'],
+            'T-Rune': ['runes', 't_shape'],
+            'Hourglass-Rune': ['runes', 'hourglass'],
+            'Barricade-Rune': ['runes', 'barricade'],
+            'Parallelogram-Rune': ['runes', 'parallel'],
+            'Bastion': ['bastions'],
+            'Monolith': ['monoliths'],
+            'Purifier': ['purifiers'],
+            'Rift Spire': ['rift_spires'],
+            'Wonder': ['wonders'],
+        };
+
         let statsHTML = '<h4>Live Stats</h4>';
         if (teams && Object.keys(teams).length > 0 && live_stats) {
             for (const teamId in teams) {
@@ -274,14 +297,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     <strong style="color:${team.color};">${team.name}</strong>: 
                     ${stats.point_count} pts, ${stats.line_count} lines, ${stats.controlled_area} area`;
                 
-                const allStructures = ['I-Rune', 'Cross', 'V-Rune', 'Prism', 'Nexus', 'Bastion', 'Monolith', 'Trebuchet', 'Purifier', 'Rift Spire', 'Wonder'];
-                const structureStrings = allStructures.map(name => {
-                    const stateKey = name.toLowerCase().replace('-', '_');
+                const structureStrings = Object.entries(structureUiMap).map(([uiName, keys]) => {
+                    const [stateKey, subtypeKey] = keys;
                     let count = 0;
-                    if (gameState.runes?.[teamId]?.[stateKey]) count = gameState.runes[teamId][stateKey].length;
-                    else if (gameState[stateKey + 's']?.[teamId]) count = gameState[stateKey + 's'][teamId].length;
-                    else if (gameState[stateKey + 's']) count = Object.values(gameState[stateKey + 's']).filter(s => s.teamId === teamId).length;
-                    return count > 0 ? `${name}(${count})` : '';
+                    const stateObject = gameState[stateKey];
+                    if (!stateObject) return '';
+
+                    if (subtypeKey) { // Stored in runes dict e.g. state.runes[teamId][subtypeKey]
+                        count = stateObject[teamId]?.[subtypeKey]?.length || 0;
+                    } else if (stateKey === 'purifiers') { // Special case: {teamId: [list]}
+                        count = stateObject[teamId]?.length || 0;
+                    } else { // Stored as list or dict of objects at top level, needs filtering by teamId
+                        count = Object.values(stateObject).filter(s => s.teamId === teamId).length;
+                    }
+                    return count > 0 ? `${uiName}(${count})` : '';
                 }).filter(Boolean);
 
                 if (structureStrings.length > 0) {
