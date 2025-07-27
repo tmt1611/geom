@@ -57,7 +57,11 @@
                     <span>Select a team, then click on the grid to place points.</span>
                     <button id="undo-point-btn">Undo Last Point</button>
                     <button id="clear-points-btn">Clear All Points</button>
-                    <button id="randomize-points-btn">Randomize Points</button>
+                    <div class="randomize-controls">
+                        <label for="random-points-count">Points per team:</label>
+                        <input type="number" id="random-points-count" value="5" min="1" max="50">
+                        <button id="randomize-points-btn">Randomize</button>
+                    </div>
                 </div>
             </fieldset>
              <div id="setup-actions">
@@ -95,16 +99,6 @@
             </fieldset>
             <div id="turn-counter">Turn: 0 / 100</div>
             <div id="stats"></div>
-             <details class="debug-fieldset">
-                <summary>Developer Tools</summary>
-                <div class="debug-options">
-                    <label><input type="checkbox" id="debug-point-ids"> Show Point IDs</label>
-                    <label><input type="checkbox" id="debug-line-ids"> Show Line IDs</label>
-                    <label><input type="checkbox" id="debug-last-action"> Highlight Last Action</label>
-                    <button id="copy-state-btn">Copy Game State to Clipboard</button>
-                    <button id="generate-illustrations-btn" class="dev-btn-action">Generate Illustrations</button>
-                </div>
-            </details>
         </div>
 
         <div class="game-column" id="game-preview-column">
@@ -136,6 +130,16 @@
                         </div>
                         <div id="log" class="log-box">Awaiting game start...</div>
                     </div>
+                    <details class="debug-fieldset">
+                        <summary>Developer Tools</summary>
+                        <div class="debug-options">
+                            <label><input type="checkbox" id="debug-point-ids"> Show Point IDs</label>
+                            <label><input type="checkbox" id="debug-line-ids"> Show Line IDs</label>
+                            <label><input type="checkbox" id="debug-last-action"> Highlight Last Action</label>
+                            <button id="copy-state-btn">Copy Game State to Clipboard</button>
+                            <button id="generate-illustrations-btn" class="dev-btn-action">Generate Illustrations</button>
+                        </div>
+                    </details>
                 </div>
             </div>
         </div>

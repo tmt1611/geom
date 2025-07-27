@@ -107,8 +107,8 @@ h3 { font-size: 1.2em; }
     bottom: 5px;
     left: 5px;
     right: 5px;
-    background-color: rgba(0, 0, 0, 0.6);
-    color: white;
+    background-color: rgba(255, 255, 255, 0.9);
+    color: #333;
     padding: 8px 12px;
     border-radius: 4px;
     font-size: 0.9em;
@@ -116,6 +116,8 @@ h3 { font-size: 1.2em; }
     opacity: 0; /* Initially hidden */
     transition: opacity 0.5s;
     pointer-events: none; /* Don't intercept clicks */
+    border: 1px solid #ddd;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
 .setup-column, .game-column {
@@ -183,7 +185,7 @@ legend {
     gap: 10px;
 }
 
-.placement-section button {
+.placement-section button, .randomize-controls button {
     padding: 12px 15px;
     font-size: 1.05em;
     font-weight: 600;
@@ -210,9 +212,35 @@ legend {
 
 #randomize-points-btn {
     background-color: #3498db;
+    width: 100%;
 }
 #randomize-points-btn:hover {
     background-color: #2980b9;
+}
+
+.randomize-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #dfe4ea;
+}
+.randomize-controls label {
+    font-size: 0.9em;
+    font-weight: 500;
+}
+.randomize-controls input[type="number"] {
+    width: 60px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.randomize-controls button {
+    flex-grow: 1;
+    padding: 8px 12px !important;
+    font-size: 1em !important;
 }
 
 .teams-section > * {
@@ -403,10 +431,23 @@ legend {
 
 .log-entry {
     padding: 3px 8px;
-    border-left: 4px solid #ccc;
     margin-bottom: 5px;
+    border-radius: 3px;
+    color: #333;
     background-color: #f9f9f9;
-    border-radius: 0 3px 3px 0;
+}
+
+.log-entry.team-log {
+    color: white;
+}
+
+.log-entry strong {
+    font-weight: bold;
+}
+
+.log-entry.team-log strong {
+    /* To ensure nested team names are visible on colored backgrounds */
+    text-shadow: 0 0 3px rgba(0,0,0,0.7);
 }
 
 #final-interpretation .victory-condition {

@@ -213,28 +213,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const message = (uiState.debugOptions.compactLog && entry.short_message) ? entry.short_message : entry.message;
             if (entry.teamId && teams[entry.teamId]) {
                 const team = teams[entry.teamId];
-                logEntryDiv.style.borderLeftColor = team.color;
-                if (!uiState.debugOptions.compactLog && message.includes(team.name)) {
-                    let finalMessage = message;
-                    for (const otherTeamId in teams) {
-                        const otherTeam = teams[otherTeamId];
-                        finalMessage = finalMessage.replace(new RegExp(`\\b${otherTeam.name}\\b`, 'g'), `<strong style="color: ${otherTeam.color};">${otherTeam.name}</strong>`);
-                    }
-                    logEntryDiv.innerHTML = finalMessage;
-                } else {
-                    logEntryDiv.textContent = message;
+                logEntryDiv.classList.add('team-log');
+                logEntryDiv.style.backgroundColor = team.color;
+
+                let finalMessage = message;
+                // Always color team names in the message
+                for (const otherTeamId in teams) {
+                    const otherTeam = teams[otherTeamId];
+                    finalMessage = finalMessage.replace(new RegExp(`\\b${otherTeam.name}\\b`, 'g'), `<strong style="color: ${otherTeam.color};">${otherTeam.name}</strong>`);
                 }
+                logEntryDiv.innerHTML = finalMessage;
+                
                 if (uiState.debugOptions.compactLog) {
-                    logEntryDiv.style.color = team.color;
                     logEntryDiv.style.fontWeight = 'bold';
                 }
             } else {
+                // Environment event
                 logEntryDiv.textContent = message;
-                logEntryDiv.style.textAlign = 'center';
-                logEntryDiv.style.borderLeftColor = '#ccc';
-                logEntryDiv.style.background = '#f0f0f0';
-                if (uiState.debugOptions.compactLog) {
-                    logEntryDiv.style.fontWeight = 'bold';
+                if (message.startsWith('--- Turn')) {
+                     logEntryDiv.style.textAlign = 'center';
+                     logEntryDiv.style.background = '#e9ecef';
+                     logEntryDiv.style.fontWeight = 'bold';
+                } else {
+                     logEntryDiv.style.background = '#f8f9fa';
+                     logEntryDiv.style.borderLeft = `3px solid #ccc`;
                 }
             }
             logDiv.prepend(logEntryDiv);
@@ -504,19 +506,32 @@ document.addEventListener('DOMContentLoaded', () => {
     randomizePointsBtn.addEventListener('click', () => {
         if (Object.keys(uiState.localTeams).length === 0) return alert("Please add at least one team.");
         if (uiState.initialPoints.length > 0 && !confirm("Replace all existing points?")) return;
-        const pointsPerTeam = parseInt(prompt("How many points per team?", "5"));
-        if (isNaN(pointsPerTeam) || pointsPerTeam <= 0) return;
+        
+        const pointsCountInput = document.getElementById('random-points-count');
+        const pointsPerTeam = parseInt(pointsCountInput.value, 10);
+
+        if (isNaN(pointsPerTeam) || pointsPerTeam <= 0) {
+            alert("Please enter a valid number of points per team.");
+            return;
+        }
+
         uiState.initialPoints = [];
         const currentGridSize = parseInt(gridSizeInput.value) || 10;
         for (const teamId in uiState.localTeams) {
             for (let i = 0; i < pointsPerTeam; i++) {
                 let x, y, isUnique;
+                let attempts = 0;
                 do {
                     x = Math.floor(Math.random() * currentGridSize);
                     y = Math.floor(Math.random() * currentGridSize);
                     isUnique = !uiState.initialPoints.some(p => p.x === x && p.y === y);
-                } while (!isUnique);
-                uiState.initialPoints.push({ x, y, teamId });
+                    attempts++;
+                } while (!isUnique && attempts < currentGridSize * currentGridSize);
+                if(isUnique) {
+                    uiState.initialPoints.push({ x, y, teamId });
+                } else {
+                    console.warn(`Could not find a unique spot for a point for team ${teamId} after ${attempts} attempts. Grid may be full.`);
+                }
             }
         }
     });
