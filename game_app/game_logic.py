@@ -927,13 +927,8 @@ class Game:
         all_statuses = self._get_all_actions_status(teamId)
         possible_actions = []
 
-        has_used_no_cost = teamId in self.state.get('no_cost_action_used_by_team_this_turn', set())
-
         for name, status_info in all_statuses.items():
             if name not in exclude_actions and status_info['valid']:
-                # If team has already used its one no-cost action this turn, filter out other no-cost actions.
-                if has_used_no_cost and action_data.ACTIONS.get(name, {}).get('no_cost', False):
-                    continue
                 possible_actions.append(name)
         
         return possible_actions
@@ -1264,6 +1259,7 @@ class Game:
         # --- Perform a successful action for this team, trying until one succeeds ---
         result = None
         failed_actions = []
+        action_name = None
         
         for _ in range(game_data.GAME_PARAMETERS['MAX_ACTION_ATTEMPTS']):
             action_name, action_func = self._choose_action_for_team(teamId, exclude_actions=failed_actions)
@@ -1291,19 +1287,14 @@ class Game:
 
             is_no_cost_action = action_data.ACTIONS.get(action_name, {}).get('no_cost', False)
 
+            # Issue 2: Grant a single bonus action on the first no-cost action per turn.
             if is_no_cost_action:
-                self.state.setdefault('no_cost_action_used_by_team_this_turn', set()).add(teamId)
-
-            # Check if the executed action was a "no cost" action and grant a bonus
-            # The bonus is only granted if it's not already a bonus action.
-            if is_no_cost_action and not is_bonus_action:
-                log_message_bonus = f"The 'no cost' action grants {team_name} an extra action this turn."
-                short_log_bonus = "[+1 ACT]"
-                self.state['game_log'].append({'teamId': teamId, 'message': log_message_bonus, 'short_message': short_log_bonus})
-                
-                # Insert a bonus action for the same team right after the current one
-                bonus_action = {'teamId': teamId, 'is_bonus': True}
-                self.state['actions_queue_this_turn'].insert(self.state['action_in_turn'] + 1, bonus_action)
+                if teamId not in self.state.get('no_cost_action_used_by_team_this_turn', set()):
+                    self.state.setdefault('no_cost_action_used_by_team_this_turn', set()).add(teamId)
+                    
+                    # Insert a bonus action for the same team right after the current one
+                    bonus_action = {'teamId': teamId, 'is_bonus': True}
+                    self.state['actions_queue_this_turn'].insert(self.state['action_in_turn'] + 1, bonus_action)
         else:
             self.state['last_action_details'] = {}
         
@@ -1317,6 +1308,11 @@ class Game:
         if result.get('success'):
             long_msg_part, short_log_message = self._get_action_log_messages(result)
             log_message += long_msg_part
+
+            # Issue 1: Add [no-cost] tag to log message
+            is_no_cost_action = action_data.ACTIONS.get(action_name, {}).get('no_cost', False)
+            if is_no_cost_action:
+                short_log_message += " [no-cost]"
         else:
             log_message += "could not find a valid move and passed its turn."
             short_log_message = "[PASS]"
