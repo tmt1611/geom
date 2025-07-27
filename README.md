@@ -54,7 +54,7 @@ As per the design, this is a minimal viable product (MVP) of a game where users 
 3.  **Interpretation Phase (Right Panel):**
     - Once the game stops (either by reaching max turns or another condition), observe the final geometric patterns.
     - The "Final Analysis" table will appear, providing detailed statistics for each team (e.g., area controlled, triangles formed) to aid in your "divination" or analysis.
-    - **Reset Game:** Click "Reset Game" to start over from the beginning.
+    - **Reset Game:** Click "End Game" to start over from the beginning.
 
 ## Game Actions
 

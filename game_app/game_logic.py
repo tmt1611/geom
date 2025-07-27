@@ -400,6 +400,23 @@ class Game:
 
         return { "history": history_states }
 
+    def run_full_simulation(self, teams, points, max_turns, grid_size):
+        """
+        Runs a complete game simulation from a given setup and returns the history
+        of states.
+        """
+        self.start_game(teams, points, max_turns, grid_size)
+        
+        history_states = [self.get_state()] # Start with initial state
+        
+        # Main simulation loop
+        while self.state['game_phase'] == 'RUNNING':
+            self.run_next_action()
+            # Append a deep copy of the state after each action
+            history_states.append(self.get_state())
+
+        return { "history": history_states }
+
     def _get_all_point_flags(self):
         """
         Returns a dictionary mapping frontend flag names to sets of point IDs that have that flag.

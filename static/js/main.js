@@ -92,8 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Core Functions ---
 
-
-
     // Main animation loop
     function animationLoop() {
         // The main loop is simple: it asks the renderer to draw the current state.
@@ -432,7 +430,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Handlers & API Calls ---
 
-    document.getElementById('show-invalid-actions').addEventListener('change', () => updateActionPreview(currentGameState));
     compactLogToggle.addEventListener('click', () => {
         uiState.debugOptions.compactLog = compactLogToggle.checked;
         updateLog(currentGameState.game_log, currentGameState.teams);
@@ -546,22 +543,26 @@ document.addEventListener('DOMContentLoaded', () => {
     startGameBtn.addEventListener('click', async () => {
         if (uiState.initialPoints.length === 0) return alert("Please add points to the grid.");
         try {
-            const gameState = await api.startGame({
+            const simulationData = await api.startGame({
                 teams: uiState.localTeams, points: uiState.initialPoints,
                 maxTurns: parseInt(maxTurnsInput.value), gridSize: parseInt(gridSizeInput.value)
             });
             uiState.initialPoints = [];
-            updateStateAndRender(gameState);
+            simulationHistory = simulationData.history;
+            playbackIndex = 0;
+            updateStateAndRender(simulationHistory[0]);
         } catch (error) { throw error; }
     });
 
     restartSimulationBtn.addEventListener('click', async () => {
         if (!confirm("Restart the simulation with the same setup?")) return;
-        stopAutoPlay();
+        stopPlayback();
         try {
-            const gameState = await api.restart();
-            if (gameState.error) throw new Error(`Failed to restart game: ${gameState.error}`);
-            updateStateAndRender(gameState);
+            const simulationData = await api.restart();
+            if (simulationData.error) throw new Error(`Failed to restart game: ${simulationData.error}`);
+            simulationHistory = simulationData.history;
+            playbackIndex = 0;
+            updateStateAndRender(simulationHistory[0]);
         } catch (error) { throw error; }
     });
 
@@ -614,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     resetBtn.addEventListener('click', async () => {
-        stopAutoPlay();
+        stopPlayback();
         if (confirm("End the current game and return to setup?")) {
             try {
                 const gameState = await api.reset();
@@ -763,7 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const closeErrorBtn = document.getElementById('close-error-btn');
     
         const showError = (errorText) => {
-            stopAutoPlay();
+            stopPlayback();
             errorDetails.textContent = errorText;
             errorOverlay.style.display = 'flex';
         };
