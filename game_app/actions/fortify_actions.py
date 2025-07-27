@@ -1,7 +1,7 @@
 import random
 import math
 from itertools import combinations
-from ..geometry import distance_sq, reflect_point, rotate_point, is_rectangle, is_regular_pentagon, points_centroid, clamp_and_round_point_coords, get_edges_by_distance
+from ..geometry import distance_sq, reflect_point, rotate_point, is_rectangle, is_regular_pentagon, points_centroid, clamp_and_round_point_coords, get_edges_by_distance, polygon_area
 
 class FortifyActionsHandler:
     def __init__(self, game):
