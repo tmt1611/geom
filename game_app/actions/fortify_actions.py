@@ -84,7 +84,8 @@ class FortifyActionsHandler:
                 center_y = sum(p['y'] for p in rect_data['points']) / 4
                 possible_monoliths.append({
                     'point_ids': list(p_ids_tuple),
-                    'center_coords': {'x': center_x, 'y': center_y}
+                    'center_coords': {'x': center_x, 'y': center_y},
+                    'aspect_ratio': rect_data['aspect_ratio']
                 })
             else:
                 edge_data = get_edges_by_distance(rect_data['points'])
@@ -324,7 +325,7 @@ class FortifyActionsHandler:
         if possible_monoliths:
             # --- Primary Action: Form Monolith ---
             # Choose the monolith candidate with the highest aspect ratio (tallest and thinnest)
-            chosen_monolith_data = max(possible_monoliths, key=lambda m: self.game.formation_manager.find_all_rectangles([m['point_ids']], [], self.state['points'])[0]['aspect_ratio'] if self.game.formation_manager.find_all_rectangles([m['point_ids']], [], self.state['points']) else 0)
+            chosen_monolith_data = max(possible_monoliths, key=lambda m: m.get('aspect_ratio', 0))
             monolith_id = self.game._generate_id('m')
             new_monolith = {
                 'id': monolith_id,
@@ -443,13 +444,13 @@ class FortifyActionsHandler:
             # Try angles in a deterministic order
             for angle in [math.pi / 2, -math.pi / 2, math.pi / 4, -math.pi/4, math.pi]:
             
-            new_p_coords_float = rotate_point(p_origin, pivot, angle)
-            new_p_coords = clamp_and_round_point_coords(new_p_coords_float, self.state['grid_size'])
+                new_p_coords_float = rotate_point(p_origin, pivot, angle)
+                new_p_coords = clamp_and_round_point_coords(new_p_coords_float, self.state['grid_size'])
 
-            # Temporarily remove the point to validate its new spot
-            temp_points = self.state['points'].copy()
-            del temp_points[point_to_move_id]
-            is_valid, _ = self.game.is_spawn_location_valid(new_p_coords, teamId, points_override=temp_points)
+                # Temporarily remove the point to validate its new spot
+                temp_points = self.state['points'].copy()
+                del temp_points[point_to_move_id]
+                is_valid, _ = self.game.is_spawn_location_valid(new_p_coords, teamId, points_override=temp_points)
                 if not is_valid:
                     continue
 

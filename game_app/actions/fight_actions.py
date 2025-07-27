@@ -274,9 +274,9 @@ class FightActionsHandler:
         if not team_territories:
             return {'success': False, 'reason': 'no territories to strike from'}
 
+        points_map = self.state['points']
         # Prioritize the largest territory for the tri-beam strike
         territory = max(team_territories, key=lambda t: polygon_area([points_map[pid] for pid in t['point_ids'] if pid in points_map]))
-        points_map = self.state['points']
         p_ids = territory['point_ids']
         if not all(pid in points_map for pid in p_ids):
             return {'success': False, 'reason': 'territory points no longer exist'}
@@ -863,67 +863,67 @@ class FightActionsHandler:
             sorted_origins = sorted(candidate_origin_ids, key=lambda pid: distance_sq(points[pid], enemy_centroid))
 
             for p_origin_id in sorted_origins:
-            p_origin = points.get(p_origin_id)
-            
-            if not p_origin or not (l_ref['p1_id'] in points and l_ref['p2_id'] in points):
-                continue
-
-            p_ref1 = points[l_ref['p1_id']]
-            p_ref2 = points[l_ref['p2_id']]
-            
-            ref_vx = p_ref2['x'] - p_ref1['x']
-            ref_vy = p_ref2['y'] - p_ref1['y']
-            
-            if ref_vx == 0 and ref_vy == 0: continue
-
-            # We check both parallel directions from the origin
-            for strike_vx, strike_vy in [(ref_vx, ref_vy), (-ref_vx, -ref_vy)]:
+                p_origin = points.get(p_origin_id)
                 
-                possible_targets = []
-                for enemy_p in enemy_points:
-                    enemy_vx = enemy_p['x'] - p_origin['x']
-                    enemy_vy = enemy_p['y'] - p_origin['y']
-                    
-                    # Collinearity check using cross-product (with tolerance)
-                    # A small cross product means the vectors are nearly parallel.
-                    if abs(strike_vx * enemy_vy - strike_vy * enemy_vx) > 0.5: continue
-                    # Direction check using dot-product (must be in the same direction)
-                    if (strike_vx * enemy_vx + strike_vy * enemy_vy) <= 0: continue
-                    
-                    possible_targets.append(enemy_p)
+                if not p_origin or not (l_ref['p1_id'] in points and l_ref['p2_id'] in points):
+                    continue
+
+                p_ref1 = points[l_ref['p1_id']]
+                p_ref2 = points[l_ref['p2_id']]
                 
-                if possible_targets:
-                    # Find the closest valid target along the ray
-                    target_point = min(possible_targets, key=lambda p: distance_sq(p_origin, p))
-                    
-                    # Check if the path to the target is blocked
-                    if is_ray_blocked(p_origin, target_point, self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])):
-                        continue
+                ref_vx = p_ref2['x'] - p_ref1['x']
+                ref_vy = p_ref2['y'] - p_ref1['y']
+                
+                if ref_vx == 0 and ref_vy == 0: continue
 
-                    destroyed_point_data = self.game._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
-                    if not destroyed_point_data: continue
+                # We check both parallel directions from the origin
+                for strike_vx, strike_vy in [(ref_vx, ref_vy), (-ref_vx, -ref_vy)]:
                     
-                    destroyed_team_name = self.state['teams'][destroyed_point_data['teamId']]['name']
-                    return {
-                        'success': True, 'type': 'parallel_strike_hit',
-                        'destroyed_point': destroyed_point_data, 'destroyed_team_name': destroyed_team_name,
-                        'attack_ray': {'p1': p_origin, 'p2': target_point}, 'ref_line': l_ref
-                    }
+                    possible_targets = []
+                    for enemy_p in enemy_points:
+                        enemy_vx = enemy_p['x'] - p_origin['x']
+                        enemy_vy = enemy_p['y'] - p_origin['y']
+                        
+                        # Collinearity check using cross-product (with tolerance)
+                        # A small cross product means the vectors are nearly parallel.
+                        if abs(strike_vx * enemy_vy - strike_vy * enemy_vx) > 0.5: continue
+                        # Direction check using dot-product (must be in the same direction)
+                        if (strike_vx * enemy_vx + strike_vy * enemy_vy) <= 0: continue
+                        
+                        possible_targets.append(enemy_p)
+                    
+                    if possible_targets:
+                        # Find the closest valid target along the ray
+                        target_point = min(possible_targets, key=lambda p: distance_sq(p_origin, p))
+                        
+                        # Check if the path to the target is blocked
+                        if is_ray_blocked(p_origin, target_point, self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])):
+                            continue
 
-                # If no targets were hit, try spawning on the border
-                dummy_end = {'x': p_origin['x'] + strike_vx, 'y': p_origin['y'] + strike_vy}
-                border_point = get_extended_border_point(
-                    p_origin, dummy_end, self.state['grid_size'],
-                    self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
-                )
-                if border_point:
-                    new_point = self.game._helper_spawn_on_border(teamId, border_point)
-                    if new_point:
+                        destroyed_point_data = self.game._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
+                        if not destroyed_point_data: continue
+                        
+                        destroyed_team_name = self.state['teams'][destroyed_point_data['teamId']]['name']
                         return {
-                            'success': True, 'type': 'parallel_strike_miss',
-                            'new_point': new_point,
-                            'attack_ray': {'p1': p_origin, 'p2': border_point}, 'ref_line': l_ref
+                            'success': True, 'type': 'parallel_strike_hit',
+                            'destroyed_point': destroyed_point_data, 'destroyed_team_name': destroyed_team_name,
+                            'attack_ray': {'p1': p_origin, 'p2': target_point}, 'ref_line': l_ref
                         }
+
+                    # If no targets were hit, try spawning on the border
+                    dummy_end = {'x': p_origin['x'] + strike_vx, 'y': p_origin['y'] + strike_vy}
+                    border_point = get_extended_border_point(
+                        p_origin, dummy_end, self.state['grid_size'],
+                        self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
+                    )
+                    if border_point:
+                        new_point = self.game._helper_spawn_on_border(teamId, border_point)
+                        if new_point:
+                            return {
+                                'success': True, 'type': 'parallel_strike_miss',
+                                'new_point': new_point,
+                                'attack_ray': {'p1': p_origin, 'p2': border_point}, 'ref_line': l_ref
+                            }
 
         return {'success': False, 'reason': 'no valid parallel strike could be found'}
 

@@ -51,7 +51,6 @@ class RuneActionsHandler:
             return min(distance_sq(points[v_rune['vertex_id']], ep) for ep in enemy_points)
             
         rune = min(active_v_runes, key=get_v_rune_proximity)
-        points = self.state['points']
         
         p_vertex = points.get(rune['vertex_id'])
         p_leg1 = points.get(rune['leg1_id'])

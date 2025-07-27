@@ -1,5 +1,6 @@
 import random
 import math
+from ..geometry import distance_sq, points_centroid
 
 class TerraformActionsHandler:
     def __init__(self, game):
