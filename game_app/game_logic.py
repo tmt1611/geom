@@ -97,6 +97,7 @@ class Game:
             "new_turn_events": [], # For visualizing things that happen at turn start
             "action_in_turn": 0, # Which action index in the current turn's queue
             "actions_queue_this_turn": [], # List of action dicts {teamId, is_bonus} for the current turn
+            "no_cost_action_used_by_team_this_turn": set(), # Tracks which teams used a no-cost action
             "action_events": [] # For visualizing secondary effects of an action
         }
 
@@ -414,7 +415,9 @@ class Game:
 
     def get_team_point_ids(self, teamId):
         """Returns IDs of points belonging to a team."""
-        return [pid for pid, p in self.state['points'].items() if p['teamId'] == teamId]
+        # Iterating over a copy of items to prevent "dictionary changed size during iteration" errors
+        # that can occur if this function is called from within another loop over the points dictionary.
+        return [pid for pid, p in list(self.state['points'].items()) if p['teamId'] == teamId]
 
     def get_team_lines(self, teamId):
         """Returns lines belonging to a team."""
@@ -919,8 +922,14 @@ class Game:
 
         all_statuses = self._get_all_actions_status(teamId)
         possible_actions = []
+
+        has_used_no_cost = teamId in self.state.get('no_cost_action_used_by_team_this_turn', set())
+
         for name, status_info in all_statuses.items():
             if name not in exclude_actions and status_info['valid']:
+                # If team has already used its one no-cost action this turn, filter out other no-cost actions.
+                if has_used_no_cost and action_data.ACTIONS.get(name, {}).get('no_cost', False):
+                    continue
                 possible_actions.append(name)
         
         return possible_actions
@@ -1113,6 +1122,7 @@ class Game:
         self.state['action_in_turn'] = 0
         self.state['last_action_details'] = {}
         self.state['new_turn_events'] = []
+        self.state['no_cost_action_used_by_team_this_turn'] = set()
         
         game_ended = self.turn_processor.process_turn_start_effects()
         if game_ended:
@@ -1275,8 +1285,13 @@ class Game:
                 result['action_events'] = self.state['action_events'][:]
             self.state['last_action_details'] = result
 
-            # Check if the executed action was a "no cost" action and grant a bonus
             is_no_cost_action = action_data.ACTIONS.get(action_name, {}).get('no_cost', False)
+
+            if is_no_cost_action:
+                self.state.setdefault('no_cost_action_used_by_team_this_turn', set()).add(teamId)
+
+            # Check if the executed action was a "no cost" action and grant a bonus
+            # The bonus is only granted if it's not already a bonus action.
             if is_no_cost_action and not is_bonus_action:
                 log_message_bonus = f"The 'no cost' action grants {team_name} an extra action this turn."
                 short_log_bonus = "[+1 ACT]"

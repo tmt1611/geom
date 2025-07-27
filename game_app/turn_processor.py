@@ -144,7 +144,7 @@ class TurnProcessor:
         remaining_traps = []
         for trap in self.state['rift_traps']:
             triggered_point_id = None
-            for pid, point in self.state['points'].items():
+            for pid, point in list(self.state['points'].items()):
                 if point['teamId'] != trap['teamId'] and distance_sq(trap['coords'], point) < trap['radius_sq']:
                     triggered_point_id = pid
                     break
