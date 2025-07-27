@@ -853,7 +853,12 @@ class FightActionsHandler:
         # Sort reference lines (e.g., shortest first) and origin points (e.g., closest to enemy centroid).
         enemy_centroid = points_centroid(enemy_points) if enemy_points else {'x': self.state['grid_size']/2, 'y': self.state['grid_size']/2}
         
-        sorted_lines = sorted(team_lines, key=lambda l: distance_sq(points[l['p1_id']], points[l['p2_id']]))
+        # Filter out lines connected to regenerating points before sorting.
+        valid_team_lines = [l for l in team_lines if l['p1_id'] in points and l['p2_id'] in points]
+        if not valid_team_lines:
+            return {'success': False, 'reason': 'no valid lines with existing points'}
+        
+        sorted_lines = sorted(valid_team_lines, key=lambda l: distance_sq(points[l['p1_id']], points[l['p2_id']]))
 
         for l_ref in sorted_lines:
             candidate_origin_ids = [pid for pid in team_point_ids if pid != l_ref['p1_id'] and pid != l_ref['p2_id']]

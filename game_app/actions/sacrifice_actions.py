@@ -287,7 +287,10 @@ class SacrificeActionsHandler:
             line_to_sac = min(eligible_lines, key=get_line_proximity)
         else:
             # Fallback: sacrifice the shortest line
-            line_to_sac = min(eligible_lines, key=lambda l: distance_sq(points[l['p1_id']], points[l['p2_id']]))
+            valid_eligible_lines = [l for l in eligible_lines if l['p1_id'] in points and l['p2_id'] in points]
+            if not valid_eligible_lines:
+                return {'success': False, 'reason': 'no valid lines with existing points'}
+            line_to_sac = min(valid_eligible_lines, key=lambda l: distance_sq(points[l['p1_id']], points[l['p2_id']]))
         points = self.state['points']
         
         if line_to_sac['p1_id'] not in points or line_to_sac['p2_id'] not in points:
@@ -356,8 +359,13 @@ class SacrificeActionsHandler:
 
         # Choose the line that is furthest from the team's center, to attack from the periphery
         points = self.state['points']
+        # Filter for lines with existing points before calculating distances.
+        valid_eligible_lines = [l for l in eligible_lines if l['p1_id'] in points and l['p2_id'] in points]
+        if not valid_eligible_lines:
+            return {'success': False, 'reason': 'no valid lines with existing points'}
+        
         team_centroid = self.game.query.get_team_centroid(teamId)
-        line_to_unravel = max(eligible_lines, key=lambda l: distance_sq(points_centroid([points[l['p1_id']], points[l['p2_id']]]), team_centroid))
+        line_to_unravel = max(valid_eligible_lines, key=lambda l: distance_sq(points_centroid([points[l['p1_id']], points[l['p2_id']]]), team_centroid))
         points = self.state['points']
         
         p1_id, p2_id = line_to_unravel['p1_id'], line_to_unravel['p2_id']
