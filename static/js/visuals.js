@@ -654,7 +654,17 @@ const visualEffectsManager = (() => {
                     uiState.visualEffects.push({ type: 'point_implosion', x: event.point.x, y: event.point.y, startTime: Date.now(), duration: 800, color: 'rgba(100, 100, 100, 0.9)' });
                     break;
                 case 'heartwood_growth':
-                    uiState.visualEffects.push({ type: 'heartwood_growth_ray', heartwood: gameState.heartwoods[event.new_point.teamId], new_point: event.new_point, startTime: Date.now(), duration: 1500 });
+                    const heartwood = gameState.heartwoods[event.new_point.teamId];
+                    if (heartwood) {
+                        uiState.visualEffects.push({
+                            type: 'animated_ray',
+                            p1: heartwood.center_coords,
+                            p2: event.new_point,
+                            color: gameState.teams[event.new_point.teamId].color,
+                            startTime: Date.now(),
+                            duration: 1500,
+                        });
+                    }
                     break;
                 case 'monolith_wave':
                     uiState.visualEffects.push({ type: 'monolith_wave', center: event.center_coords, radius_sq: event.radius_sq, startTime: Date.now(), duration: 1200 });
