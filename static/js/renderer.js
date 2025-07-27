@@ -845,8 +845,7 @@ const renderer = (() => {
                     ctx.stroke();
                     break;
                 }
-                case 'line_flash':
-                case 'bastion_formation': {
+                case 'line_flash': {
                     const lines = effect.line ? [effect.line] : (effect.line_ids ? effect.line_ids.map(id => gameState.lines.find(l => l.id === id)).filter(Boolean) : []);
                     if (!gameState || !gameState.points || lines.length === 0) break;
                     lines.forEach(line => {

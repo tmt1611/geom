@@ -105,7 +105,7 @@ const illustrationDrawers = {
         ctx.font = '16px Arial';
         ctx.fillText('No Illustration', w / 2, h / 2);
     },
-    'fortify_shield': (ctx, w, h) => {
+    'fortify_shield_line': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.3, y: h*0.5};
         const p2 = {x: w*0.7, y: h*0.5};
@@ -126,14 +126,14 @@ const illustrationDrawers = {
         // Redraw points on top of shield
         illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
     },
-    'expand_add': (ctx, w, h) => {
+    'expand_add_line': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.3, y: h*0.5};
         const p2 = {x: w*0.7, y: h*0.5};
         illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
         illustrationHelpers.drawDashedLine(ctx, p1, p2, team1_color);
     },
-    'expand_extend': (ctx, w, h) => {
+    'expand_extend_line': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.2, y: h*0.5};
         const p2 = {x: w*0.5, y: h*0.5};
@@ -143,7 +143,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawDashedLine(ctx, p2, p3, team1_color);
         illustrationHelpers.drawPoints(ctx, [p3], team1_color);
     },
-    'expand_fracture': (ctx, w, h) => {
+    'expand_fracture_line': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.2, y: h*0.5};
         const p2 = {x: w*0.8, y: h*0.5};
@@ -161,7 +161,7 @@ const illustrationDrawers = {
         ctx.fill();
         ctx.restore();
     },
-    'expand_orbital': (ctx, w, h) => {
+    'expand_create_orbital': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const center = {x: w*0.5, y: h*0.5};
         illustrationHelpers.drawPoints(ctx, [center], team1_color);
@@ -180,7 +180,7 @@ const illustrationDrawers = {
         }
         illustrationHelpers.drawPoints(ctx, satellites, team1_color);
     },
-    'expand_spawn': (ctx, w, h) => {
+    'expand_spawn_point': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.4, y: h*0.5};
         const p2 = {x: w*0.6, y: h*0.5};
@@ -188,7 +188,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawDashedLine(ctx, p1, p2, team1_color);
         illustrationHelpers.drawPoints(ctx, [p2], team1_color);
     },
-    'fight_attack': (ctx, w, h) => {
+    'fight_attack_line': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const p1 = {x: w*0.1, y: h*0.3};
@@ -482,7 +482,7 @@ const illustrationDrawers = {
 
         illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
     },
-    'fortify_anchor': (ctx, w, h) => {
+    'fortify_create_anchor': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const p_anchor = {x: w*0.4, y: h*0.5};
@@ -500,7 +500,47 @@ const illustrationDrawers = {
         illustrationHelpers.drawArrow(ctx, ep1, p_anchor, '#aaa');
         illustrationHelpers.drawArrow(ctx, ep2, p_anchor, '#aaa');
     },
-    'fortify_claim': (ctx, w, h) => {
+    'fortify_reposition_point': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const p_orig = {x: w*0.3, y: h*0.5};
+        const p_new = {x: w*0.7, y: h*0.5};
+
+        // Original point (faded)
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        illustrationHelpers.drawPoints(ctx, [p_orig], team1_color);
+        ctx.restore();
+
+        // Arrow
+        illustrationHelpers.drawDashedLine(ctx, p_orig, p_new, '#aaa');
+        
+        // New point
+        illustrationHelpers.drawPoints(ctx, [p_new], team1_color);
+    },
+    'fortify_create_ley_line': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        
+        // I-Rune
+        const p1 = {x: w*0.2, y: h*0.5};
+        const p2 = {x: w*0.5, y: h*0.5};
+        const p3 = {x: w*0.8, y: h*0.5};
+        illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1:p1,p2:p2}, {p1:p2,p2:p3}], team1_color);
+        
+        // Ley line glow effect
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p3.x, p3.y);
+        ctx.strokeStyle = team1_color;
+        ctx.lineWidth = 10;
+        ctx.globalAlpha = 0.5;
+        ctx.filter = 'blur(4px)';
+        ctx.stroke();
+        ctx.filter = 'none';
+        ctx.restore();
+    },
+    'fortify_claim_territory': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.5, y: h*0.2};
         const p2 = {x: w*0.2, y: h*0.8};
@@ -582,23 +622,34 @@ const illustrationDrawers = {
         const team1_color = 'hsl(0, 70%, 50%)';
         const axis1 = {x: w*0.5, y: h*0.1};
         const axis2 = {x: w*0.5, y: h*0.9};
-        const p_orig = {x: w*0.3, y: h*0.3};
-        const p_refl = {x: w*0.7, y: h*0.3};
+        
+        // Original structure (a V-shape)
+        const p_orig1 = {x: w*0.3, y: h*0.3};
+        const p_orig2 = {x: w*0.2, y: h*0.5};
+        const p_orig_structure = [p_orig1, p_orig2];
+
+        // Reflected structure
+        const p_refl1 = {x: w*0.7, y: h*0.3};
+        const p_refl2 = {x: w*0.8, y: h*0.5};
+        const p_refl_structure = [p_refl1, p_refl2];
 
         // Axis
         illustrationHelpers.drawPoints(ctx, [axis1, axis2], team1_color);
         illustrationHelpers.drawDashedLine(ctx, axis1, axis2, '#aaa');
         
-        // Original point
-        illustrationHelpers.drawPoints(ctx, [p_orig], team1_color);
+        // Original line
+        illustrationHelpers.drawPoints(ctx, p_orig_structure, team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1: p_orig1, p2: p_orig2}], team1_color);
         
-        // Reflection line
-        illustrationHelpers.drawDashedLine(ctx, p_orig, p_refl, '#aaa');
+        // Reflection lines
+        illustrationHelpers.drawDashedLine(ctx, p_orig1, p_refl1, '#aaa');
+        illustrationHelpers.drawDashedLine(ctx, p_orig2, p_refl2, '#aaa');
         
-        // Reflected point
+        // Reflected structure (faded)
         ctx.save();
         ctx.globalAlpha = 0.5;
-        illustrationHelpers.drawPoints(ctx, [p_refl], team1_color);
+        illustrationHelpers.drawPoints(ctx, p_refl_structure, team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1: p_refl1, p2: p_refl2}], team1_color);
         ctx.restore();
     },
     'rune_area_shield': (ctx, w, h) => {
@@ -687,7 +738,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
         illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
     },
-    'rune_shoot_bisector': (ctx, w, h) => {
+    'rune_v_beam': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         
@@ -728,7 +779,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawArrow(ctx, ep1, {x:w*0.9, y:h*0.3}, '#aaa');
         illustrationHelpers.drawArrow(ctx, ep2, {x:w*0.9, y:h*0.7}, '#aaa');
     },
-    'sacrifice_nova': (ctx, w, h) => {
+    'sacrifice_nova_burst': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const center = {x: w*0.5, y: h*0.5};
@@ -780,7 +831,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawDashedLine(ctx, p1_orig, p1_new, '#aaa');
         illustrationHelpers.drawPoints(ctx, [p1_new], team1_color);
     },
-    'sacrifice_whirlpool': (ctx, w, h) => {
+    'sacrifice_create_whirlpool': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const center = {x: w*0.5, y: h*0.5};
@@ -928,7 +979,7 @@ const illustrationDrawers = {
         // New point
         illustrationHelpers.drawPoints(ctx, [p_new], team1_color);
     },
-    'rune_hourglass_stasis': (ctx, w, h) => {
+    'rune_time_stasis': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const v = {x: w*0.4, y: h*0.5};
@@ -950,7 +1001,7 @@ const illustrationDrawers = {
         ctx.moveTo(ep.x, ep.y - cage_r); ctx.lineTo(ep.x, ep.y + cage_r); ctx.stroke();
         ctx.beginPath(); ctx.arc(ep.x, ep.y, cage_r, 0, 2 * Math.PI); ctx.stroke();
     },
-    'sacrifice_rift_trap': (ctx, w, h) => {
+    'sacrifice_create_rift_trap': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const center = {x: w*0.5, y: h*0.5};
         

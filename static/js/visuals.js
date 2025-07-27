@@ -316,7 +316,7 @@ const visualEffectsManager = (() => {
         'shield_line': (details, gameState) => {
             uiState.lastActionHighlights.lines.add(details.shielded_line.id);
              uiState.visualEffects.push({
-                type: 'bastion_formation',
+                type: 'line_flash',
                 line_ids: [details.shielded_line.id],
                 startTime: Date.now(),
                 duration: 800
@@ -337,16 +337,6 @@ const visualEffectsManager = (() => {
         },
         'create_anchor': (details, gameState) => {
             uiState.lastActionHighlights.points.add(details.anchor_point.id);
-            if(details.sacrificed_point) {
-                 uiState.visualEffects.push({
-                    type: 'point_implosion',
-                    x: details.sacrificed_point.x,
-                    y: details.sacrificed_point.y,
-                    startTime: Date.now(),
-                    duration: 800,
-                    color: gameState.teams[details.sacrificed_point.teamId]?.color
-                });
-            }
         },
         'create_whirlpool': (details, gameState) => {
             uiState.visualEffects.push({
@@ -402,7 +392,7 @@ const visualEffectsManager = (() => {
         },
         'form_bastion': (details, gameState) => {
             uiState.visualEffects.push({
-                type: 'bastion_formation',
+                type: 'line_flash',
                 line_ids: details.line_ids,
                 color: gameState.teams[details.bastion.teamId].color,
                 startTime: Date.now(),

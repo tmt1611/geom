@@ -1,6 +1,7 @@
-- **Illustration Review (FIGHT Actions):** Added new illustrations for `Parallel Strike` and `Territory Tri-Beam` to ensure all Fight actions have visual representations in the guide.
+- **Illustration Review (FORTIFY Actions):** Added new illustrations for `Reposition Point` and `Create Ley Line`. Redesigned the illustration for `Mirror Structure` to better reflect its function of mirroring a structure rather than a single point.
 - **Illustration Consistency:**
-    - Renamed several illustration functions (`fight_bastion_pulse`, `fight_chain_lightning`, etc.) to correctly match their action group (e.g., `sacrifice_bastion_pulse`). This improves code clarity and consistency with `rules.md`.
-    - Standardized the visual language for attack illustrations, using consistent arrow and explosion styles.
-- **Visual Effect Fix:** Corrected a bug in the renderer's `switch` statement where a duplicate case label for `animated_ray` existed, clarifying the logic for rendering different types of beam effects.
-- **Checked action coverage:** Ensured all actions in the "Fight" group now have corresponding illustration code in `illustration_generator.js`.
+    - Renamed several illustration functions to match their action names in `rules.md` for better consistency (e.g., `fortify_claim` to `fortify_claim_territory`, `fortify_shield` to `fortify_shield_line`, etc.). This was applied to multiple action groups (Expand, Fight, Fortify, Sacrifice, Rune) to improve overall code clarity.
+- **Visual Effect Streamlining:**
+    - Unified the `bastion_formation` visual effect into the more generic `line_flash` effect, as they produced identical visuals. This simplifies the effect map in `visuals.js` and `renderer.js`.
+    - Corrected the visualizer for the no-cost `Create Anchor` action by removing erroneous logic that checked for a sacrificed point.
+- **Checked action coverage:** Ensured all `FORTIFY` actions now have corresponding illustration code in `illustration_generator.js`, except for `Overcharge` which is a variant of `Shield Line`.
