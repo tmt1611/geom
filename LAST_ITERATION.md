@@ -1,5 +1,7 @@
-- **Refactoring (Code Correctness & Consistency):**
-  - Conducted a thorough review of action handlers (`fortify_actions.py`, `sacrifice_actions.py`) to ensure consistent use of the `GameStateQuery` API that was introduced in the previous iteration.
-  - Fixed multiple latent bugs in `fortify_actions.py` where methods were still calling old, non-existent functions on the main `game` object instead of the new `game.query` object. This affected actions like `mirror_structure`, `rotate_point`, `create_anchor`, and several formation-finding helpers.
-  - Corrected a significant bug in the `nova_burst` sacrifice action which contained unreachable code and was not correctly selecting a point to sacrifice. The logic was streamlined to properly use the query methods.
-  - These changes improve the overall stability and correctness of the game logic, ensuring that the recent refactoring is fully and properly integrated.
+- **Refactoring (Readability & Maintainability):**
+  - Refactored multiple complex lambda functions used for action preconditions in `action_data.py`.
+  - Removed the unpythonic `(var := value, (result))[1]` tuple-indexing trick used to assign variables inside lambdas.
+  - Replaced these with more conventional and readable constructs:
+    - For simple checks, a direct ternary expression is now used (e.g., `fight_parallel_strike`, `fortify_claim`).
+    - For more complex checks that required intermediate variables to avoid re-computation, a nested lambda was used as a readable and efficient alternative (e.g., `fortify_anchor`, `rune_hourglass_stasis`, `sacrifice_attune_nexus`).
+  - This significantly improves the readability and maintainability of the central action data definitions without sacrificing performance.

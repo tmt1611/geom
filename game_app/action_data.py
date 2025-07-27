@@ -51,13 +51,10 @@ ACTIONS = {
         'display_name': 'Bisect Angle',
         'description': "Finds a vertex point with two connected lines ('V' shape) and creates a new point along the angle's bisector. If it fails, it strengthens one of the angle's lines.",
         'precondition': lambda h, tid: (
-            (num_points := len(h.game.query.get_team_point_ids(tid))),
-            (
-                (False, "Requires at least 3 points to form an angle.") if num_points < 3
-                else (True, "") if any(d >= 2 for d in h.game.query.get_team_degrees(tid).values()) or h.game.query.get_team_lines(tid)
-                else (False, "No angles to bisect and no lines to strengthen.")
-            )
-        )[1],
+            (False, "Requires at least 3 points to form an angle.") if len(h.game.query.get_team_point_ids(tid)) < 3
+            else (True, "") if any(d >= 2 for d in h.game.query.get_team_degrees(tid).values()) or h.game.query.get_team_lines(tid)
+            else (False, "No angles to bisect and no lines to strengthen.")
+        ),
         'log_generators': {
             'bisect_angle': lambda r: ("bisected an angle, creating a new point.", "[BISECT]"),
             'bisect_fizzle_strengthen': lambda r: ("failed to bisect an angle and instead reinforced a line.", "[BISECT->REINFORCE]"),
@@ -196,13 +193,9 @@ ACTIONS = {
         'display_name': 'Refraction Beam',
         'description': "A Prism structure is used to 'bank' an attack shot. A beam is fired, reflects off the Prism's edge, and destroys the first enemy line it then hits. If it misses, it creates a point on the border.",
         'precondition': lambda h, tid: (
-            (
-                has_prism := bool(h.state.get('runes', {}).get(tid, {}).get('prism', [])),
-                num_enemy_lines := len(h.state['lines']) - len(h.game.query.get_team_lines(tid)),
-                (True, "") if has_prism and num_enemy_lines > 0
-                else (False, "Requires a Prism Rune and enemy lines.")
-            )
-        )[2],
+            (True, "") if bool(h.state.get('runes', {}).get(tid, {}).get('prism', [])) and (len(h.state['lines']) - len(h.game.query.get_team_lines(tid)) > 0)
+            else (False, "Requires a Prism Rune and enemy lines.")
+        ),
         'log_generators': {
             'refraction_beam': lambda r: ("fired a refracted beam from a Prism, destroying an enemy line.", "[REFRACT!]"),
             'refraction_miss_spawn': lambda r: ("fired a refracted beam from a Prism that missed, creating a new point on the border.", "[REFRACT->SPAWN]"),
@@ -255,13 +248,9 @@ ACTIONS = {
         'display_name': 'Parallel Strike',
         'description': "From a friendly point, projects a beam parallel to a friendly line. Destroys the first enemy point it hits, or creates a new point on the border if it misses.",
         'precondition': lambda h, tid: (
-            (
-                has_lines := len(h.game.query.get_team_lines(tid)) > 0,
-                has_enough_points := len(h.game.query.get_team_point_ids(tid)) > 2,
-                (True, "") if has_lines and has_enough_points
-                else (False, "Requires at least one line and at least 3 points in total.")
-            )
-        )[2],
+            (True, "") if len(h.game.query.get_team_lines(tid)) > 0 and len(h.game.query.get_team_point_ids(tid)) > 2
+            else (False, "Requires at least one line and at least 3 points in total.")
+        ),
         'log_generators': {
             'parallel_strike_hit': lambda r: (f"executed a parallel strike, destroying a point from {r['destroyed_team_name']}.", "[PARALLEL!]"),
             'parallel_strike_miss': lambda r: ("launched a parallel strike that missed, creating a new point on the border.", "[PARALLEL->SPAWN]"),
@@ -301,13 +290,9 @@ ACTIONS = {
         'display_name': 'Claim Territory',
         'description': "Forms a triangle of three points and their connecting lines into a claimed territory, making its points immune to conversion. If no new triangles can be formed, it reinforces an existing territory.",
         'precondition': lambda h, tid: (
-            (
-                can_claim := len(h.game.query.get_team_point_ids(tid)) >= 3 and len(h.game.query.get_team_lines(tid)) >= 3,
-                can_reinforce := any(t['teamId'] == tid for t in h.state.get('territories', [])),
-                (True, "") if can_claim or can_reinforce
-                else (False, "Requires at least 3 points and 3 lines to claim, or an existing territory to reinforce.")
-            )
-        )[2],
+            (True, "") if (len(h.game.query.get_team_point_ids(tid)) >= 3 and len(h.game.query.get_team_lines(tid)) >= 3) or any(t['teamId'] == tid for t in h.state.get('territories', []))
+            else (False, "Requires at least 3 points and 3 lines to claim, or an existing territory to reinforce.")
+        ),
         'log_generators': {
             'claim_territory': lambda r: ("fortified its position, claiming new territory.", "[CLAIM]"),
             'claim_fizzle_reinforce': lambda r: ("could not find a new territory to claim, and instead reinforced an existing one.", "[CLAIM->REINFORCE]"),
@@ -318,17 +303,16 @@ ACTIONS = {
         'display_name': 'Create Anchor', 'no_cost': True,
         'description': "Turns a non-critical point into a gravitational anchor, which pulls nearby enemy points towards it for several turns. This action has no cost.",
         'precondition': lambda h, tid: (
-            (pids := h.game.query.get_team_point_ids(tid)),
-            (
+            lambda pids: (
                 (False, "Requires at least one point.") if not pids
                 else (True, "") if any(
-                    pid not in h.game.query.get_critical_structure_point_ids(tid) and 
-                    pid not in h.state.get('anchors', {}) 
+                    pid not in h.game.query.get_critical_structure_point_ids(tid) and
+                    pid not in h.state.get('anchors', {})
                     for pid in pids
                 )
                 else (False, "No available non-critical points to turn into an anchor.")
-            )
-        )[1],
+            )(h.game.query.get_team_point_ids(tid))
+        ),
         'log_generators': {
             'create_anchor': lambda r: ("turned one of its points into a gravitational anchor.", "[ANCHOR]"),
         }
@@ -352,13 +336,9 @@ ACTIONS = {
         'display_name': 'Form Bastion',
         'description': "Converts a fortified point and its connections into a powerful defensive bastion, making its components immune to standard attacks. If not possible, it reinforces a key defensive point.",
         'precondition': lambda h, tid: (
-            (
-                can_form := len(h.game.query.find_possible_bastions(tid)) > 0,
-                can_reinforce := bool(h.game.query.get_fortified_point_ids().intersection(h.game.query.get_team_point_ids(tid))),
-                (True, "") if can_form or can_reinforce
-                else (False, "No valid bastion formation and no fortified points to reinforce.")
-            )
-        )[2],
+            (True, "") if len(h.game.query.find_possible_bastions(tid)) > 0 or bool(h.game.query.get_fortified_point_ids().intersection(h.game.query.get_team_point_ids(tid)))
+            else (False, "No valid bastion formation and no fortified points to reinforce.")
+        ),
         'log_generators': {
             'form_bastion': lambda r: ("consolidated its power, forming a new bastion.", "[BASTION!]"),
             'bastion_fizzle_reinforce': lambda r: (f"failed to form a Bastion and instead reinforced {len(r['strengthened_lines'])} lines around a key defensive point.", "[BASTION->REINFORCE]"),
@@ -581,16 +561,14 @@ ACTIONS = {
         'display_name': 'Attune Nexus',
         'description': "Sacrifices a diagonal line from one of its Nexuses to supercharge it. For several turns, the Attuned Nexus energizes all nearby friendly lines, causing their attacks to also destroy the target line's endpoints.",
         'precondition': lambda h, tid: (
-            (
-                nexuses := h.state.get('runes', {}).get(tid, {}).get('nexus', []),
+            lambda nexuses: (
                 (False, "Requires an active Nexus Rune.") if not nexuses
-                else (
-                    attuned_pids := {frozenset(an['point_ids']) for an in h.state.get('attuned_nexuses', {}).values()},
+                else (lambda attuned_pids:
                     (True, "") if any(frozenset(n.get('point_ids', [])) not in attuned_pids for n in nexuses)
                     else (False, "All active Nexuses are already attuned.")
-                )[1]
-            )
-        )[1],
+                )({frozenset(an['point_ids']) for an in h.state.get('attuned_nexuses', {}).values()})
+            )(h.state.get('runes', {}).get(tid, {}).get('nexus', []))
+        ),
         'log_generators': {
             'attune_nexus': lambda r: ("attuned a Nexus, sacrificing a line to energize its surroundings.", "[ATTUNED!]"),
         }
@@ -684,16 +662,14 @@ ACTIONS = {
         'display_name': 'Rune: Time Stasis',
         'description': "An Hourglass-Rune freezes a nearby enemy point in time for several turns, making it immune but unable to be used. If no target is found, it creates an anchor. This action has no cost.",
         'precondition': lambda h, tid: (
-            (
-                runes := h.state.get('runes', {}).get(tid, {}).get('hourglass', []),
-                (False, "Requires an active Hourglass Rune.") if not runes else
-                (True, "") if h.game.query.get_vulnerable_enemy_points(tid) else
-                (True, "") if any(
-                    pid != r.get('vertex_id') and pid not in h.state.get('anchors', {}) 
+            lambda runes: (
+                (False, "Requires an active Hourglass Rune.") if not runes
+                else (True, "") if h.game.query.get_vulnerable_enemy_points(tid)
+                else (True, "") if any(
+                    pid != r.get('vertex_id') and pid not in h.state.get('anchors', {})
                     for r in runes for pid in r.get('all_points', [])
-                ) else
-                (False, "Requires a valid target or a point to convert to an anchor.")
-            )[1]
+                ) else (False, "Requires a valid target or a point to convert to an anchor.")
+            )(h.state.get('runes', {}).get(tid, {}).get('hourglass', []))
         ),
         'log_generators': {
             'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from {r['target_team_name']} in time.", "[STASIS!]"),
@@ -705,13 +681,9 @@ ACTIONS = {
         'display_name': 'Rune: Focus Beam',
         'description': "A Star-Rune fires a beam from its center to destroy a high-value enemy structure (like a Wonder or Bastion core). If none exist, it targets a regular point. If no targets exist at all, it creates a fissure.",
         'precondition': lambda h, tid: (
-            (
-                has_rune := bool(h.state.get('runes', {}).get(tid, {}).get('star', [])),
-                num_enemy := len(h.state['points']) - len(h.game.query.get_team_point_ids(tid)),
-                (True, "") if has_rune and num_enemy > 0
-                else (False, "Requires a Star Rune and an enemy point.")
-            )
-        )[2],
+            (True, "") if bool(h.state.get('runes', {}).get(tid, {}).get('star', [])) and (len(h.state['points']) - len(h.game.query.get_team_point_ids(tid)) > 0)
+            else (False, "Requires a Star Rune and an enemy point.")
+        ),
         'log_generators': {
             'rune_focus_beam': lambda r: (f"fired a focused beam from a Star Rune, destroying a high-value point from {r['destroyed_team_name']}.", "[FOCUS BEAM!]"),
             'focus_beam_fallback_hit': lambda r: (f"found no high-value structures and instead used its Focus Beam to destroy a standard point from {r['destroyed_team_name']}.", "[FOCUS BEAM]"),
