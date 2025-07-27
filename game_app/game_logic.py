@@ -12,6 +12,7 @@ from .geometry import (
     clamp_and_round_point_coords
 )
 from .formations import FormationManager
+from .game_state_query import GameStateQuery
 from . import game_data
 from . import action_data
 from . import structure_data
@@ -30,6 +31,8 @@ class Game:
     def __init__(self):
         self.formation_manager = FormationManager()
         self.reset()
+        # Query object for read-only state access
+        self.query = GameStateQuery(self)
         # Action handlers
         self.expand_handler = ExpandActionsHandler(self)
         self.fortify_handler = FortifyActionsHandler(self)
@@ -112,7 +115,7 @@ class Game:
 
     def _augment_lines_for_frontend(self, lines):
         """Adds transient frontend-specific data to lines."""
-        bastion_line_ids = self._get_bastion_line_ids()
+        bastion_line_ids = self.query.get_bastion_line_ids()
         augmented_lines = []
         for line in lines:
             augmented_line = line.copy()
@@ -210,8 +213,8 @@ class Game:
         live_stats = {}
         all_points = self.state['points']
         for teamId, team_data in self.state['teams'].items():
-            team_point_ids = self.get_team_point_ids(teamId)
-            team_lines = self.get_team_lines(teamId)
+            team_point_ids = self.query.get_team_point_ids(teamId)
+            team_lines = self.query.get_team_lines(teamId)
             team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
 
             controlled_area = 0
@@ -504,15 +507,7 @@ class Game:
                                 flags[name].update(pids_to_flag)
         return flags
 
-    def get_team_point_ids(self, teamId):
-        """Returns IDs of points belonging to a team."""
-        # Iterating over a copy of items to prevent "dictionary changed size during iteration" errors
-        # that can occur if this function is called from within another loop over the points dictionary.
-        return [pid for pid, p in list(self.state['points'].items()) if p['teamId'] == teamId]
 
-    def get_team_lines(self, teamId):
-        """Returns lines belonging to a team."""
-        return [l for l in self.state['lines'] if l['teamId'] == teamId]
 
     def _get_territory_boundary_line_keys(self, territory):
         """Returns a list of line keys for a single territory's boundaries."""
@@ -538,53 +533,13 @@ class Game:
         teamId = territory['teamId']
         boundary_lines_keys = self._get_territory_boundary_line_keys(territory)
         strengthened_lines = []
-        for line in self.get_team_lines(teamId):
+        for line in self.query.get_team_lines(teamId):
             if tuple(sorted((line['p1_id'], line['p2_id']))) in boundary_lines_keys:
                 if self._strengthen_line(line):
                     strengthened_lines.append(line)
         return strengthened_lines
 
-    def _get_fortified_point_ids(self):
-        """Returns a set of all point IDs that are part of any claimed territory."""
-        return {pid for t in self.state.get('territories', []) for pid in t['point_ids']}
 
-    def _is_line_energized(self, line):
-        """Checks if a line is within range of a friendly Attuned Nexus."""
-        if not self.state.get('attuned_nexuses'):
-            return False
-        
-        if line['p1_id'] not in self.state['points'] or line['p2_id'] not in self.state['points']:
-            return False
-            
-        p1 = self.state['points'][line['p1_id']]
-        p2 = self.state['points'][line['p2_id']]
-        midpoint = points_centroid([p1, p2])
-
-        for nexus in self.state['attuned_nexuses'].values():
-            if nexus['teamId'] == line['teamId']:
-                if distance_sq(midpoint, nexus['center']) < nexus['radius_sq']:
-                    return True
-        return False
-
-    def _get_bastion_point_ids(self):
-        """Returns a dict of bastion core and prong point IDs."""
-        bastions = self.state.get('bastions', {}).values()
-        core_ids = {b['core_id'] for b in bastions if 'core_id' in b}
-        prong_ids = {pid for b in bastions if 'prong_ids' in b for pid in b['prong_ids']}
-        return {'cores': core_ids, 'prongs': prong_ids}
-
-    def _get_bastion_line_ids(self):
-        """Returns a set of line IDs that are part of any bastion."""
-        bastion_lines = set()
-        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l['id'] for l in self.state['lines']}
-
-        for bastion in self.state.get('bastions', {}).values():
-            core_id = bastion['core_id']
-            for prong_id in bastion['prong_ids']:
-                line_key = tuple(sorted((core_id, prong_id)))
-                if line_key in all_lines_by_points:
-                    bastion_lines.add(all_lines_by_points[line_key])
-        return bastion_lines
 
     def _trigger_nexus_detonation(self, nexus, aggressor_team_id):
         """Handles the logic for a Nexus exploding when one of its points is destroyed."""
@@ -769,8 +724,8 @@ class Game:
         # Check for regeneration condition.
         # A point can regenerate if it's being sacrificed (allow_regeneration=True),
         # is not a critical articulation point, and is part of at least one line.
-        is_articulation = point_id in self._find_articulation_points(point_data['teamId'])[0]
-        is_on_line = any(point_id in (l['p1_id'], l['p2_id']) for l in self.get_team_lines(point_data['teamId']))
+        is_articulation = point_id in self.query.find_articulation_points(point_data['teamId'])[0]
+        is_on_line = any(point_id in (l['p1_id'], l['p2_id']) for l in self.query.get_team_lines(point_data['teamId']))
         
         if allow_regeneration and is_on_line and not is_articulation:
             # Point will be regenerated. Move it from `points` to `regenerating_points`.
@@ -809,23 +764,7 @@ class Game:
         
         return deleted_point_data
 
-    def _get_all_immune_point_ids(self):
-        """Returns a set of all point IDs that are currently immune to standard attacks."""
-        fortified_point_ids = self._get_fortified_point_ids()
-        bastion_point_ids = self._get_bastion_point_ids()
-        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
-        return fortified_point_ids.union(
-            bastion_point_ids['cores'], bastion_point_ids['prongs'], stasis_point_ids
-        )
 
-    def _get_vulnerable_enemy_points(self, teamId, immune_point_ids=None):
-        """
-        Returns a list of enemy points that are not immune to standard attacks.
-        Can accept a pre-calculated set of immune point IDs for optimization.
-        """
-        if immune_point_ids is None:
-            immune_point_ids = self._get_all_immune_point_ids()
-        return [p for p in self.state['points'].values() if p['teamId'] != teamId and p['id'] not in immune_point_ids]
 
     def is_spawn_location_valid(self, new_point_coords, teamId, min_dist_sq=1.0, points_override=None):
         """A wrapper for the geometry function to pass game state automatically."""
@@ -851,7 +790,7 @@ class Game:
 
     def _fallback_strengthen_random_line(self, teamId, action_type_prefix):
         """Generic fallback to strengthen a random line."""
-        team_lines = self.get_team_lines(teamId)
+        team_lines = self.query.get_team_lines(teamId)
         if not team_lines:
             return {'success': False, 'reason': 'no lines to perform action on or strengthen'}
         
@@ -863,140 +802,7 @@ class Game:
             'strengthened_line': line_to_strengthen
         }
 
-    def _get_critical_structure_point_ids(self, teamId):
-        """Returns a set of point IDs that are part of critical structures for a team, using the structure registry."""
-        critical_pids = set()
-        
-        for definition in structure_data.STRUCTURE_DEFINITIONS.values():
-            if not definition.get('is_critical'):
-                continue
-            
-            if definition['storage_type'] == 'dict_keyed_by_pid':
-                for pid, data in self._iterate_structures(definition, teamId):
-                    critical_pids.add(pid)
-                continue
 
-            for struct in self._iterate_structures(definition, teamId):
-                pids = self._get_pids_from_struct(struct, definition.get('point_id_keys', []))
-                critical_pids.update(pids)
-        
-        return critical_pids
-
-    def _find_repositionable_point(self, teamId):
-        """
-        Finds a point that can be freely moved without breaking critical formations.
-        A "free" point is not part of a critical structure. The check for articulation points
-        is omitted for these non-destructive actions to improve performance.
-        Returns a point_id or None.
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if not team_point_ids:
-            return None
-
-        critical_pids = self._get_critical_structure_point_ids(teamId)
-
-        repositionable_pids = [
-            pid for pid in team_point_ids 
-            if pid not in critical_pids
-        ]
-
-        if not repositionable_pids:
-            return None
-
-        return random.choice(repositionable_pids)
-
-    def _find_non_critical_sacrificial_point(self, teamId):
-        """
-        Finds a point that can be sacrificed without crippling the team.
-        A non-critical point is not part of a major structure and is not an articulation point.
-        A team must have more than 2 points to be able to sacrifice one.
-        Returns a point_id or None.
-        """
-        team_point_ids = self.get_team_point_ids(teamId)
-        if len(team_point_ids) <= 2:
-            return None
-
-        # 1. Exclude points from critical structures
-        critical_structure_pids = self._get_critical_structure_point_ids(teamId)
-        candidate_pids = [pid for pid in team_point_ids if pid not in critical_structure_pids]
-
-        if not candidate_pids:
-            return None
-
-        # 2. Find and exclude articulation points. Also get the adjacency list.
-        articulation_points, adj = self._find_articulation_points(teamId)
-        articulation_point_pids = set(articulation_points)
-        safe_candidates = [pid for pid in candidate_pids if pid not in articulation_point_pids]
-        
-        # Fallback: if all non-critical points are articulation points (e.g., in a line or simple cycle),
-        # allow sacrificing them to prevent actions from being blocked.
-        if not safe_candidates:
-            safe_candidates = candidate_pids
-
-        if not safe_candidates:
-            return None
-            
-        # 3. Prioritize points with fewer connections (leaves are degree 1, which is best).
-        safe_candidates.sort(key=lambda pid: len(adj.get(pid, [])), reverse=False)
-
-        # To add some randomness but still prefer safer points, we pick from the top N safest.
-        num_choices = min(3, len(safe_candidates))
-        return random.choice(safe_candidates[:num_choices])
-
-    def _get_team_adjacency_list(self, teamId):
-        """Builds and returns an adjacency list for a team's graph by calling the formation manager."""
-        return self.formation_manager.get_adjacency_list(
-            self.get_team_point_ids(teamId),
-            self.get_team_lines(teamId)
-        )
-
-    def _get_team_degrees(self, teamId):
-        """Calculates point degrees for a team's graph by calling the formation manager."""
-        return self.formation_manager.get_degrees(
-            self.get_team_point_ids(teamId),
-            self.get_team_lines(teamId)
-        )
-
-    def _find_articulation_points(self, teamId):
-        """Finds all articulation points (cut vertices) for a team's graph. Returns (points, adj_list)."""
-        team_point_ids = self.get_team_point_ids(teamId)
-        adj = self._get_team_adjacency_list(teamId)
-        
-        if len(team_point_ids) < 3:
-            return [], adj
-
-        # Standard algorithm for finding articulation points using DFS
-        tin = {}  # discovery times
-        low = {}  # lowest discovery time reachable
-        timer = 0
-        visited = set()
-        articulation_points = set()
-
-        def dfs(v, p=None):
-            nonlocal timer
-            visited.add(v)
-            tin[v] = low[v] = timer
-            timer += 1
-            children = 0
-            for to in adj.get(v, set()):
-                if to == p:
-                    continue
-                if to in visited:
-                    low[v] = min(low[v], tin[to])
-                else:
-                    dfs(to, v)
-                    low[v] = min(low[v], low[to])
-                    if low[to] >= tin[v] and p is not None:
-                        articulation_points.add(v)
-                    children += 1
-            if p is None and children > 1:
-                articulation_points.add(v)
-
-        for pid in team_point_ids:
-            if pid not in visited:
-                dfs(pid)
-        
-        return list(articulation_points), adj
 
 
     def _get_all_actions_status(self, teamId):
@@ -1161,7 +967,7 @@ class Game:
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
         
         # Determine the order of teams for this turn
-        active_teams_ordered = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
+        active_teams_ordered = [teamId for teamId in self.state['teams'] if len(self.query.get_team_point_ids(teamId)) > 0]
         random.shuffle(active_teams_ordered)
         
         final_actions_queue = []
@@ -1214,7 +1020,7 @@ class Game:
         """Checks for victory conditions that are evaluated at the end of a full turn."""
         
         # Check based on current point counts, not the action queue from the start of the turn.
-        teams_with_points = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
+        teams_with_points = [teamId for teamId in self.state['teams'] if len(self.query.get_team_point_ids(teamId)) > 0]
         
         # 1. Sole Survivor Victory (triggers immediately when only one team is left)
         if len(teams_with_points) == 1:
@@ -1258,8 +1064,8 @@ class Game:
         """
         # --- Pre-fetch common inputs for formation checkers ---
         formation_inputs = {
-            'team_point_ids': self.get_team_point_ids(teamId),
-            'team_lines': self.get_team_lines(teamId),
+            'team_point_ids': self.query.get_team_point_ids(teamId),
+            'team_lines': self.query.get_team_lines(teamId),
             'all_points': self.state['points'],
             'team_territories': [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
         }
@@ -1455,11 +1261,11 @@ class Game:
         interpretation = {}
         all_points = self.state['points']
         for teamId, team_data in self.state['teams'].items():
-            team_point_ids = self.get_team_point_ids(teamId)
+            team_point_ids = self.query.get_team_point_ids(teamId)
             team_points_dict = {pid: all_points[pid] for pid in team_point_ids if pid in all_points}
             team_points_list = list(team_points_dict.values())
             
-            team_lines = self.get_team_lines(teamId)
+            team_lines = self.query.get_team_lines(teamId)
             team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
 
             if len(team_points_list) < 1:

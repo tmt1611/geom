@@ -22,7 +22,7 @@ ACTIONS = {
         'display_name': 'Add Line',
         'description': "Connects two of the team's points with a new line. If no more lines can be drawn, it strengthens an existing line instead.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_point_ids(tid)) >= 2
+            (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 2
             else (False, "Requires at least 2 points.")
         ),
         'log_generators': {
@@ -35,7 +35,7 @@ ACTIONS = {
         'display_name': 'Extend Line',
         'description': "Extends a line between two points outwards to the grid border, creating a new point there. Can be empowered by an I-Rune to also create a line to the new point. If no valid extensions are possible, it strengthens an existing line.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_lines(tid)) > 0
+            (True, "") if len(h.game.query.get_team_lines(tid)) > 0
             else (False, "No lines to extend or strengthen.")
         ),
         'log_generators': {
@@ -51,10 +51,10 @@ ACTIONS = {
         'display_name': 'Bisect Angle',
         'description': "Finds a vertex point with two connected lines ('V' shape) and creates a new point along the angle's bisector. If it fails, it strengthens one of the angle's lines.",
         'precondition': lambda h, tid: (
-            (num_points := len(h.game.get_team_point_ids(tid))),
+            (num_points := len(h.game.query.get_team_point_ids(tid))),
             (
                 (False, "Requires at least 3 points to form an angle.") if num_points < 3
-                else (True, "") if any(d >= 2 for d in h.game._get_team_degrees(tid).values()) or h.game.get_team_lines(tid)
+                else (True, "") if any(d >= 2 for d in h.game.query.get_team_degrees(tid).values()) or h.game.query.get_team_lines(tid)
                 else (False, "No angles to bisect and no lines to strengthen.")
             )
         )[1],
@@ -68,7 +68,7 @@ ACTIONS = {
         'display_name': 'Fracture Line',
         'description': "Splits a long line into two smaller lines by creating a new point in the middle. If no lines are long enough, it strengthens one.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_lines(tid)) > 0
+            (True, "") if len(h.game.query.get_team_lines(tid)) > 0
             else (False, "No lines to fracture or strengthen.")
         ),
         'log_generators': {
@@ -81,7 +81,7 @@ ACTIONS = {
         'display_name': 'Spawn Point',
         'description': "Creates a new point in a random empty space near an existing friendly point. If it fails, it strengthens a line, and if that also fails, it creates a new point on the border.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_point_ids(tid)) > 0
+            (True, "") if len(h.game.query.get_team_point_ids(tid)) > 0
             else (False, "Requires at least one point to spawn from.")
         ),
         'log_generators': {
@@ -96,7 +96,7 @@ ACTIONS = {
         'description': "Reflects a friendly point through another friendly point to create a new symmetrical point. If no valid reflection is found, it attempts to strengthen the line between a pair of points, or any random line as a final fallback.",
         'precondition': lambda h, tid: (
             (
-                (True, "") if len(h.game.get_team_point_ids(tid)) >= 2 or len(h.game.get_team_lines(tid)) > 0
+                (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 2 or len(h.game.query.get_team_lines(tid)) > 0
                 else (False, "Requires at least 2 points to mirror or a line to strengthen.")
             )
         ),
@@ -110,7 +110,7 @@ ACTIONS = {
         'display_name': 'Create Orbital',
         'description': "Creates a constellation of 3-5 new 'satellite' points in a circle around an existing point. If it fails, it reinforces all lines connected to the chosen center.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_point_ids(tid)) >= 1
+            (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 1
             else (False, "Requires at least one point to be the center of an orbital.")
         ),
         'log_generators': {
@@ -125,7 +125,7 @@ ACTIONS = {
         'display_name': 'Attack Line',
         'description': "Extends a line outwards. If it intersects an enemy line, the enemy line is destroyed. If it misses, a new point is created on the border.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_lines(tid)) > 0
+            (True, "") if len(h.game.query.get_team_lines(tid)) > 0
             else (False, "Requires at least 1 line to attack from.")
         ),
         'log_generators': {
@@ -143,7 +143,7 @@ ACTIONS = {
         'display_name': 'Pincer Attack',
         'description': "Two friendly points flank and destroy a vulnerable enemy point between them. If no target is found, two random friendly points form a temporary defensive barricade instead.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_point_ids(tid)) >= 2
+            (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 2
             else (False, "Requires at least 2 points.")
         ),
         'log_generators': {
@@ -169,7 +169,7 @@ ACTIONS = {
         'display_name': 'Territory Strike',
         'description': "Launches an attack from the center of a large claimed territory, destroying the nearest vulnerable enemy point. If no targets exist, it reinforces its own territory's borders.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h._get_large_territories(tid)) > 0
+            (True, "") if len(h.game.query.get_large_territories(tid)) > 0
             else (False, "No large territories available.")
         ),
         'log_generators': {
@@ -198,7 +198,7 @@ ACTIONS = {
         'precondition': lambda h, tid: (
             (
                 has_prism := bool(h.state.get('runes', {}).get(tid, {}).get('prism', [])),
-                num_enemy_lines := len(h.state['lines']) - len(h.game.get_team_lines(tid)),
+                num_enemy_lines := len(h.state['lines']) - len(h.game.query.get_team_lines(tid)),
                 (True, "") if has_prism and num_enemy_lines > 0
                 else (False, "Requires a Prism Rune and enemy lines.")
             )
@@ -241,7 +241,7 @@ ACTIONS = {
         'display_name': 'Isolate Point', 'no_cost': True,
         'description': "Projects an isolation field onto a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. This action has no cost. If no such point is found, it creates a defensive barricade (with 2+ points) or a weak repulsive pulse (with 1 point).",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_point_ids(tid)) >= 1
+            (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 1
             else (False, "Requires at least one point to act.")
         ),
         'log_generators': {
@@ -256,8 +256,8 @@ ACTIONS = {
         'description': "From a friendly point, projects a beam parallel to a friendly line. Destroys the first enemy point it hits, or creates a new point on the border if it misses.",
         'precondition': lambda h, tid: (
             (
-                has_lines := len(h.game.get_team_lines(tid)) > 0,
-                has_enough_points := len(h.game.get_team_point_ids(tid)) > 2,
+                has_lines := len(h.game.query.get_team_lines(tid)) > 0,
+                has_enough_points := len(h.game.query.get_team_point_ids(tid)) > 2,
                 (True, "") if has_lines and has_enough_points
                 else (False, "Requires at least one line and at least 3 points in total.")
             )
@@ -272,7 +272,7 @@ ACTIONS = {
         'display_name': 'Hull Breach',
         'description': "Projects the team's convex hull as an energy field, converting the most central enemy point found inside. If no enemy points are inside, it creates or reinforces the hull's boundary lines. If the hull is already fully reinforced, it emits a weak pulse that pushes nearby enemies away.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_point_ids(tid)) >= 3
+            (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 3
             else (False, "Requires at least 3 points to form a hull.")
         ),
         'log_generators': {
@@ -288,7 +288,7 @@ ACTIONS = {
         'display_name': 'Shield Line / Overcharge',
         'description': "Applies a temporary shield to a line, making it immune to one standard attack. If all lines are shielded, it overcharges an existing shield to extend its duration. This action has no cost.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_lines(tid)) > 0
+            (True, "") if len(h.game.query.get_team_lines(tid)) > 0
             else (False, "Requires at least one line to shield or overcharge.")
         ),
         'log_generators': {
@@ -302,7 +302,7 @@ ACTIONS = {
         'description': "Forms a triangle of three points and their connecting lines into a claimed territory, making its points immune to conversion. If no new triangles can be formed, it reinforces an existing territory.",
         'precondition': lambda h, tid: (
             (
-                can_claim := len(h.game.get_team_point_ids(tid)) >= 3 and len(h.game.get_team_lines(tid)) >= 3,
+                can_claim := len(h.game.query.get_team_point_ids(tid)) >= 3 and len(h.game.query.get_team_lines(tid)) >= 3,
                 can_reinforce := any(t['teamId'] == tid for t in h.state.get('territories', [])),
                 (True, "") if can_claim or can_reinforce
                 else (False, "Requires at least 3 points and 3 lines to claim, or an existing territory to reinforce.")
@@ -318,11 +318,11 @@ ACTIONS = {
         'display_name': 'Create Anchor', 'no_cost': True,
         'description': "Turns a non-critical point into a gravitational anchor, which pulls nearby enemy points towards it for several turns. This action has no cost.",
         'precondition': lambda h, tid: (
-            (pids := h.game.get_team_point_ids(tid)),
+            (pids := h.game.query.get_team_point_ids(tid)),
             (
                 (False, "Requires at least one point.") if not pids
                 else (True, "") if any(
-                    pid not in h.game._get_critical_structure_point_ids(tid) and 
+                    pid not in h.game.query.get_critical_structure_point_ids(tid) and 
                     pid not in h.state.get('anchors', {}) 
                     for pid in pids
                 )
@@ -338,7 +338,7 @@ ACTIONS = {
         'display_name': 'Mirror Structure',
         'description': "Creates a symmetrical structure by reflecting some of its points across an axis defined by two other points. If it fails, it reinforces several existing lines around random points. If that also fails, it adds a new line as a last resort.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_point_ids(tid)) >= 2 or len(h.game.get_team_lines(tid)) > 0
+            (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 2 or len(h.game.query.get_team_lines(tid)) > 0
             else (False, "Requires at least 2 points or 1 line.")
         ),
         'log_generators': {
@@ -353,8 +353,8 @@ ACTIONS = {
         'description': "Converts a fortified point and its connections into a powerful defensive bastion, making its components immune to standard attacks. If not possible, it reinforces a key defensive point.",
         'precondition': lambda h, tid: (
             (
-                can_form := len(h._find_possible_bastions(tid)) > 0,
-                can_reinforce := bool(h.game._get_fortified_point_ids().intersection(h.game.get_team_point_ids(tid))),
+                can_form := len(h.game.query.find_possible_bastions(tid)) > 0,
+                can_reinforce := bool(h.game.query.get_fortified_point_ids().intersection(h.game.query.get_team_point_ids(tid))),
                 (True, "") if can_form or can_reinforce
                 else (False, "No valid bastion formation and no fortified points to reinforce.")
             )
@@ -369,7 +369,7 @@ ACTIONS = {
         'display_name': 'Form Monolith',
         'description': "Forms a tall, thin rectangle of points into a Monolith. Every few turns, the Monolith emits a wave that strengthens nearby friendly lines.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_point_ids(tid)) >= 4
+            (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 4
             else (False, "Requires at least 4 points to form a rectangle.")
         ),
         'log_generators': {
@@ -382,7 +382,7 @@ ACTIONS = {
         'display_name': 'Form Purifier',
         'description': "Forms a regular pentagon of points into a Purifier, which unlocks the 'Purify Territory' action. If no valid formation is found, it reinforces the lines between a cluster of five points instead.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_point_ids(tid)) >= 5
+            (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 5
             else (False, "Requires at least 5 points to form a pentagon.")
         ),
         'log_generators': {
@@ -395,7 +395,7 @@ ACTIONS = {
         'display_name': 'Reposition Point', 'no_cost': True,
         'description': "Moves a single 'free' (non-structural) point to a better tactical position nearby. A subtle but important move for setting up future formations. This action has no cost and will fail if no point can be moved.",
         'precondition': lambda h, tid: (
-            (True, "") if h.game._find_repositionable_point(tid)
+            (True, "") if h.game.query.find_repositionable_point(tid)
             else (False, "No free points to reposition.")
         ),
         'log_generators': {
@@ -408,7 +408,7 @@ ACTIONS = {
         'display_name': 'Rotate Point', 'no_cost': True,
         'description': "Rotates a single 'free' (non-structural) point around the grid center or another friendly point. This action has no cost and will fail if no valid rotation can be found.",
         'precondition': lambda h, tid: (
-            (True, "") if h.game._find_repositionable_point(tid)
+            (True, "") if h.game.query.find_repositionable_point(tid)
             else (False, "No free points to rotate.")
         ),
         'log_generators': {
@@ -436,7 +436,7 @@ ACTIONS = {
         'display_name': 'Nova Burst',
         'description': "Sacrifices a point to destroy all nearby enemy lines. If no lines are in range, it creates a shockwave that pushes all points away.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h._find_possible_nova_bursts(tid)) > 0 or h._has_sacrificial_point(tid)
+            (True, "") if len(h.game.query.find_possible_nova_bursts(tid)) > 0 or h.game.query.has_sacrificial_point(tid)
             else (False, "No suitable point to sacrifice for Nova Burst.")
         ),
         'log_generators': {
@@ -449,7 +449,7 @@ ACTIONS = {
         'display_name': 'Create Whirlpool',
         'description': "Sacrifices a point to create a vortex that pulls all nearby points towards its center for several turns. If no points are nearby on creation, it creates a small fissure instead.",
         'precondition': lambda h, tid: (
-            (True, "") if h._has_sacrificial_point(tid)
+            (True, "") if h.game.query.has_sacrificial_point(tid)
             else (False, "No non-critical point available to sacrifice.")
         ),
         'log_generators': {
@@ -462,7 +462,7 @@ ACTIONS = {
         'display_name': 'Phase Shift',
         'description': "Sacrifices a line to instantly 'teleport' one of the line's endpoints to a new random location. If it fails, the other endpoint becomes a temporary gravitational anchor.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h._get_eligible_phase_shift_lines(tid)) > 0
+            (True, "") if len(h.game.query.get_eligible_phase_shift_lines(tid)) > 0
             else (False, "Requires a non-critical/safe line to sacrifice.")
         ),
         'log_generators': {
@@ -475,7 +475,7 @@ ACTIONS = {
         'display_name': 'Create Rift Trap',
         'description': "Sacrifices a point to lay a temporary, invisible trap. If an enemy point enters its radius, the trap destroys it. If untriggered, it collapses into a new friendly point.",
         'precondition': lambda h, tid: (
-            (True, "") if h._has_sacrificial_point(tid)
+            (True, "") if h.game.query.has_sacrificial_point(tid)
             else (False, "No non-critical point available to sacrifice.")
         ),
         'log_generators': {
@@ -499,7 +499,7 @@ ACTIONS = {
         'display_name': 'Convert Point',
         'description': "Sacrifices a friendly line to convert the nearest vulnerable enemy point to its team. If no target is in range, it creates a repulsive pulse that pushes enemies away.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h.game.get_team_lines(tid)) > 0
+            (True, "") if len(h.game.query.get_team_lines(tid)) > 0
             else (False, "Requires a line to sacrifice.")
         ),
         'log_generators': {
@@ -512,7 +512,7 @@ ACTIONS = {
         'display_name': 'Line Retaliation',
         'description': "Sacrifices a point on a line to unleash two projectiles from the line's former position. One continues along the line's path, the other fires perpendicularly. Each projectile destroys the first enemy line it hits, or creates a new point on the border if it misses.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h._get_eligible_phase_shift_lines(tid)) > 0
+            (True, "") if len(h.game.query.get_eligible_phase_shift_lines(tid)) > 0
             else (False, "Requires a non-critical line to sacrifice.")
         ),
         'log_generators': {
@@ -525,7 +525,7 @@ ACTIONS = {
         'display_name': 'Bastion Pulse',
         'description': "An active Bastion sacrifices one of its outer points to destroy all enemy lines crossing its perimeter. If the action fizzles, it creates a local shockwave.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h._find_possible_bastion_pulses(tid)) > 0
+            (True, "") if len(h.game.query.find_possible_bastion_pulses(tid)) > 0
             else (False, "No bastion with enemy lines crossing its perimeter.")
         ),
         'log_generators': {
@@ -555,7 +555,7 @@ ACTIONS = {
         'display_name': 'Cultivate Heartwood',
         'description': "A unique action where a central point and at least 5 connected 'branch' points are sacrificed to create a Heartwood. The Heartwood passively generates new points and prevents enemy spawns nearby.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h._find_heartwood_candidates(tid)) > 0
+            (True, "") if len(h.game.query.find_heartwood_candidates(tid)) > 0
             else (False, "Requires a central point connected to at least 5 other points, and team cannot have an existing Heartwood.")
         ),
         'log_generators': {
@@ -603,7 +603,7 @@ ACTIONS = {
         'display_name': 'Form Rift Spire', 'no_cost': True,
         'description': "At a point that is a vertex of 3 or more territories, erects a Rift Spire. The Spire charges up to unlock the 'Create Fissure' action. This action costs no points.",
         'precondition': lambda h, tid: (
-            (True, "") if len(h._find_rift_spire_candidates(tid)) > 0
+            (True, "") if len(h.game.query.find_rift_spire_candidates(tid)) > 0
             else (False, "Requires a point that is a vertex of at least 3 territories.")
         ),
         'log_generators': {
@@ -687,7 +687,7 @@ ACTIONS = {
             (
                 runes := h.state.get('runes', {}).get(tid, {}).get('hourglass', []),
                 (False, "Requires an active Hourglass Rune.") if not runes else
-                (True, "") if h.game._get_vulnerable_enemy_points(tid) else
+                (True, "") if h.game.query.get_vulnerable_enemy_points(tid) else
                 (True, "") if any(
                     pid != r.get('vertex_id') and pid not in h.state.get('anchors', {}) 
                     for r in runes for pid in r.get('all_points', [])
@@ -707,7 +707,7 @@ ACTIONS = {
         'precondition': lambda h, tid: (
             (
                 has_rune := bool(h.state.get('runes', {}).get(tid, {}).get('star', [])),
-                num_enemy := len(h.state['points']) - len(h.game.get_team_point_ids(tid)),
+                num_enemy := len(h.state['points']) - len(h.game.query.get_team_point_ids(tid)),
                 (True, "") if has_rune and num_enemy > 0
                 else (False, "Requires a Star Rune and an enemy point.")
             )

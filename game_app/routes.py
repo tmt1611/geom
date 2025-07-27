@@ -3,6 +3,7 @@ import base64
 import json
 from flask import Blueprint, render_template, jsonify, request, current_app, send_from_directory, Response, stream_with_context
 from . import game_logic
+from .game_logic import game # Explicitly import the instance
 from . import game_data
 from . import utils
 
@@ -29,7 +30,7 @@ def check_updates():
 @main_routes.route('/api/game/state', methods=['GET'])
 def get_game_state():
     """Returns the complete current game state."""
-    return jsonify(game_logic.game.get_state())
+    return jsonify(game.get_state())
 
 @main_routes.route('/api/game/start', methods=['POST'])
 def start_game():
@@ -44,10 +45,10 @@ def start_game():
         return jsonify({"error": "Invalid maxTurns or gridSize"}), 400
 
     def generate():
-        for update in game_logic.game.run_full_simulation_streamed(teams, points, max_turns, grid_size):
+        for update in game.run_full_simulation_streamed(teams, points, max_turns, grid_size):
             # For streaming, we send augmented states so the client doesn't need to request them.
             if update['type'] == 'state':
-                update['data'] = game_logic.game.augment_state_for_frontend(update['data'])
+                update['data'] = game.augment_state_for_frontend(update['data'])
             
             # Send each update as a newline-delimited JSON object
             yield json.dumps(update) + '\n'
@@ -60,14 +61,14 @@ def restart_game():
     """Restarts the simulation with the same initial settings, streaming updates."""
     
     def generate():
-        for update in game_logic.game.restart_game_and_run_simulation_streamed():
+        for update in game.restart_game_and_run_simulation_streamed():
             if update.get('type') == 'error':
                 yield json.dumps(update) + '\n'
                 return
 
             # For streaming, we send augmented states so the client doesn't need to request them.
             if update['type'] == 'state':
-                update['data'] = game_logic.game.augment_state_for_frontend(update['data'])
+                update['data'] = game.augment_state_for_frontend(update['data'])
             
             # Send each update as a newline-delimited JSON object
             yield json.dumps(update) + '\n'
@@ -77,8 +78,8 @@ def restart_game():
 @main_routes.route('/api/game/reset', methods=['POST'])
 def reset_game():
     """Resets the game to its initial empty state (SETUP phase)."""
-    game_logic.game.reset()
-    return jsonify(game_logic.game.get_state())
+    game.reset()
+    return jsonify(game.get_state())
 
 @main_routes.route('/api/actions/all', methods=['GET'])
 def get_all_actions():

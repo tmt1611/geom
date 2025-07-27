@@ -9,50 +9,15 @@ class SacrificeActionsHandler:
     def __init__(self, game):
         self.game = game
 
-    def _has_sacrificial_point(self, teamId):
-        """A cheaper check if any sacrificial point exists, without finding the specific one."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) <= 2:
-            return False
-        critical_pids = self.game._get_critical_structure_point_ids(teamId)
-        return any(pid not in critical_pids for pid in team_point_ids)
-
-    def _find_heartwood_candidates(self, teamId):
-        """Helper to find points suitable to become the center of a Heartwood."""
-        if teamId in self.state.get('heartwoods', {}):
-            return [] # Can only have one heartwood
-
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        adj = self.game._get_team_adjacency_list(teamId)
-        
-        candidates = []
-        for pid, neighbors in adj.items():
-            if len(neighbors) >= 5:
-                candidates.append({'center_id': pid, 'branch_ids': list(neighbors)})
-        return candidates
-
     @property
     def state(self):
         """Provides direct access to the game's current state dictionary."""
         return self.game.state
 
-    def _find_possible_nova_bursts(self, teamId):
-        """Finds non-critical points that are also 'ideal' for a nova burst (i.e., have an enemy line in range)."""
-        # First, find all points that are eligible for sacrifice at all.
-        critical_pids = self.game._get_critical_structure_point_ids(teamId)
-        all_team_pids = self.game.get_team_point_ids(teamId)
-        non_critical_pids = [pid for pid in all_team_pids if pid not in critical_pids]
-
-        if len(non_critical_pids) == 0:
-            return []
-
-        blast_radius_sq = (self.state['grid_size'] * 0.25)**2
-        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        if not enemy_lines:
-            return []
-
-        points = self.state['points']
-        bastion_line_ids = self.game._get_bastion_line_ids()
+    def nova_burst(self, teamId):
+        """[SACRIFICE ACTION]: A point is destroyed. If near enemy lines, it destroys them. Otherwise, it pushes all nearby points away."""
+        # Find ideal sacrifice points (guarantee primary effect)
+        ideal_sac_points = self.game.query.find_possible_nova_bursts(teamId)
         
         ideal_sac_points = []
         for pid in non_critical_pids:
@@ -72,10 +37,7 @@ class SacrificeActionsHandler:
                     break 
         return ideal_sac_points
 
-    def nova_burst(self, teamId):
-        """[SACRIFICE ACTION]: A point is destroyed. If near enemy lines, it destroys them. Otherwise, it pushes all nearby points away."""
-        # Find ideal sacrifice points (guarantee primary effect)
-        ideal_sac_points = self._find_possible_nova_bursts(teamId)
+
         
         sac_point_id = None
         if ideal_sac_points:
@@ -96,7 +58,7 @@ class SacrificeActionsHandler:
         # --- Check for Primary Effect (Line Destruction) ---
         lines_to_remove_by_proximity = []
         points_to_check = self.state['points']
-        bastion_line_ids = self.game._get_bastion_line_ids()
+        bastion_line_ids = self.game.query.get_bastion_line_ids()
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
 
         for line in enemy_lines:
@@ -134,7 +96,7 @@ class SacrificeActionsHandler:
 
     def create_whirlpool(self, teamId):
         """[SACRIFICE ACTION]: A point is destroyed. If points are nearby, it creates a vortex. Otherwise, it creates a small fissure."""
-        p_to_sac_id = self.game._find_non_critical_sacrificial_point(teamId)
+        p_to_sac_id = self.game.query.find_non_critical_sacrificial_point(teamId)
         if not p_to_sac_id:
             # This should not happen if precondition is correct, but is a good safeguard.
             return {'success': False, 'reason': 'no non-critical points available to sacrifice'}
@@ -176,42 +138,9 @@ class SacrificeActionsHandler:
                 'fissure': new_fissure, 'sacrificed_point': sacrificed_point_data
             }
 
-    def _get_eligible_phase_shift_lines(self, teamId):
-        """Helper to find lines eligible for phase shift sacrifice."""
-        team_lines = self.game.get_team_lines(teamId)
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        
-        adj_degree = self.game._get_team_degrees(teamId)
-
-        fortified_point_ids = self.game._get_fortified_point_ids()
-        bastion_point_ids = self.game._get_bastion_point_ids()
-        monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m.get('point_ids', [])}
-        nexus_point_ids = {pid for nexus_list in self.state.get('nexuses', {}).values() for nexus in nexus_list for pid in nexus.get('point_ids', [])}
-        critical_point_ids = fortified_point_ids.union(
-            bastion_point_ids['cores'], bastion_point_ids['prongs'],
-            monolith_point_ids, nexus_point_ids
-        )
-
-        eligible_lines = [
-            line for line in team_lines
-            if adj_degree.get(line['p1_id'], 0) > 1 and \
-               adj_degree.get(line['p2_id'], 0) > 1 and \
-               line['p1_id'] not in critical_point_ids and \
-               line['p2_id'] not in critical_point_ids
-        ]
-        if not eligible_lines:
-            eligible_lines = [
-                line for line in team_lines
-                if line['p1_id'] not in critical_point_ids and line['p2_id'] not in critical_point_ids
-            ]
-        if not eligible_lines and len(team_point_ids) > 3:
-            eligible_lines = team_lines
-        
-        return eligible_lines
-
     def phase_shift(self, teamId):
         """[SACRIFICE ACTION]: Sacrifice a line to teleport one of its points. If teleport fails, the other point becomes a temporary anchor."""
-        eligible_lines = self._get_eligible_phase_shift_lines(teamId)
+        eligible_lines = self.game.query.get_eligible_phase_shift_lines(teamId)
         if not eligible_lines:
             return {'success': False, 'reason': 'no non-critical/safe lines to sacrifice'}
 
@@ -262,7 +191,7 @@ class SacrificeActionsHandler:
     def rift_trap(self, teamId):
         """[SACRIFICE ACTION]: Sacrifices a point to create a temporary trap. If an enemy enters, it's destroyed. If not, the trap becomes a new point."""
         # Find a non-critical point to sacrifice
-        p_to_sac_id = self.game._find_non_critical_sacrificial_point(teamId)
+        p_to_sac_id = self.game.query.find_non_critical_sacrificial_point(teamId)
         if not p_to_sac_id:
             return {'success': False, 'reason': 'no non-critical points available to sacrifice'}
         sac_point_coords = self.state['points'][p_to_sac_id].copy()
@@ -341,10 +270,10 @@ class SacrificeActionsHandler:
     def convert_point(self, teamId):
         """[SACRIFICE ACTION]: Sacrifices a line to convert a nearby enemy point. If not possible, creates a repulsive pulse."""
         # We should sacrifice a non-critical line if possible
-        eligible_lines = self._get_eligible_phase_shift_lines(teamId)
+        eligible_lines = self.game.query.get_eligible_phase_shift_lines(teamId)
         if not eligible_lines:
             # Fallback to any line if no "safe" lines are found
-            eligible_lines = self.game.get_team_lines(teamId)
+            eligible_lines = self.game.query.get_team_lines(teamId)
         
         if not eligible_lines:
             return {'success': False, 'reason': 'no lines to sacrifice'}
@@ -363,7 +292,7 @@ class SacrificeActionsHandler:
         self.game._delete_line(line_to_sac)
 
         # --- Find Primary Target ---
-        vulnerable_enemies = self.game._get_vulnerable_enemy_points(teamId)
+        vulnerable_enemies = self.game.query.get_vulnerable_enemy_points(teamId)
         max_range_sq = (self.state['grid_size'] * 0.3)**2
         
         closest_target = None
@@ -412,7 +341,7 @@ class SacrificeActionsHandler:
 
     def line_retaliation(self, teamId):
         """[SACRIFICE ACTION]: Sacrifices a point on a line to fire two projectiles from the line's former position."""
-        eligible_lines = self._get_eligible_phase_shift_lines(teamId)
+        eligible_lines = self.game.query.get_eligible_phase_shift_lines(teamId)
         if not eligible_lines:
             return {'success': False, 'reason': 'no eligible line to sacrifice a point from'}
 
@@ -443,7 +372,7 @@ class SacrificeActionsHandler:
         
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
         team_has_cross_rune = len(self.state.get('runes', {}).get(teamId, {}).get('cross', [])) > 0
-        bastion_line_ids = self.game._get_bastion_line_ids()
+        bastion_line_ids = self.game.query.get_bastion_line_ids()
 
         vx_ext, vy_ext = p2_orig['x'] - p1_orig['x'], p2_orig['y'] - p1_orig['y']
         vectors_to_try = [(vx_ext, vy_ext), (-vy_ext, vx_ext)]
@@ -497,41 +426,9 @@ class SacrificeActionsHandler:
             'unraveled_line': line_to_unravel
         }
 
-    def _find_possible_bastion_pulses(self, teamId):
-        team_bastions = [b for b in self.state.get('bastions', {}).values() if b['teamId'] == teamId and len(b['prong_ids']) > 0]
-        if not team_bastions: return []
-
-        points_map = self.state['points']
-        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        if not enemy_lines: return []
-
-        possible_pulses = []
-        for bastion in team_bastions:
-            prong_points = [points_map[pid] for pid in bastion['prong_ids'] if pid in points_map]
-            if len(prong_points) < 2: continue
-
-            centroid = points_centroid(prong_points)
-            prong_points.sort(key=lambda p: math.atan2(p['y'] - centroid['y'], p['x'] - centroid['x']))
-            
-            has_crossing_line = False
-            for enemy_line in enemy_lines:
-                if enemy_line['p1_id'] not in points_map or enemy_line['p2_id'] not in points_map: continue
-                ep1 = points_map[enemy_line['p1_id']]
-                ep2 = points_map[enemy_line['p2_id']]
-                for i in range(len(prong_points)):
-                    perimeter_p1 = prong_points[i]
-                    perimeter_p2 = prong_points[(i + 1) % len(prong_points)]
-                    if segments_intersect(ep1, ep2, perimeter_p1, perimeter_p2):
-                        possible_pulses.append(bastion)
-                        has_crossing_line = True
-                        break
-                if has_crossing_line:
-                    break
-        return possible_pulses
-
     def bastion_pulse(self, teamId):
         """[SACRIFICE ACTION]: A bastion sacrifices a prong to destroy crossing enemy lines. If it fizzles, it creates a shockwave."""
-        possible_bastions = self._find_possible_bastion_pulses(teamId)
+        possible_bastions = self.game.query.find_possible_bastion_pulses(teamId)
         if not possible_bastions:
             return {'success': False, 'reason': 'no bastion with crossing lines found'}
         
@@ -615,7 +512,7 @@ class SacrificeActionsHandler:
         p_list = [points[pid] for pid in pids]
         edge_data = get_edges_by_distance(p_list)
         
-        all_team_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+        all_team_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
 
         line_to_sac = None
         for d_p1_id, d_p2_id in edge_data['diagonals']:
@@ -712,7 +609,7 @@ class SacrificeActionsHandler:
         p_to_sac = self.state['points'][p_to_sac_id]
 
         # --- Find Target ---
-        vulnerable_enemies = self.game._get_vulnerable_enemy_points(teamId)
+        vulnerable_enemies = self.game.query.get_vulnerable_enemy_points(teamId)
         if vulnerable_enemies:
             target_point = min(vulnerable_enemies, key=lambda p: distance_sq(p_to_sac, p))
             
@@ -765,7 +662,7 @@ class SacrificeActionsHandler:
 
     def cultivate_heartwood(self, teamId):
         """[SACRIFICE ACTION]: Sacrifices a central point and its branches to create a Heartwood."""
-        candidates = self._find_heartwood_candidates(teamId)
+        candidates = self.game.query.find_heartwood_candidates(teamId)
         if not candidates:
             return {'success': False, 'reason': 'no valid formation for Heartwood found'}
 

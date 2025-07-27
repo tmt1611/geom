@@ -1,7 +1,6 @@
-- **Refactoring & Optimization (Action Efficiency):**
-  - Optimized the precondition checks for `add_line` and `parallel_strike` to remove inefficient loops and rely on faster, direct calculations. This improves performance during the action selection phase of a turn.
-  - Refactored the `parallel_strike` action implementation to avoid pre-calculating and storing a potentially large list of all valid action combinations. It now finds a valid combination on-the-fly, making it significantly more performant.
 - **Refactoring (Code Organization):**
-  - Centralized all action precondition checks (`can_perform_*` methods) from the various `actions/*.py` files into the main `game_app/action_data.py` file.
-  - Each action in `action_data.py` now has a `precondition` key containing a lambda function that defines its validity.
-  - This refactoring simplifies the action handler files and makes `action_data.py` a more complete single source of truth for action metadata, improving maintainability.
+  - Created a new `GameStateQuery` class in a new file (`game_app/game_state_query.py`) to encapsulate all read-only logic for inspecting the game state.
+  - Moved over 20 helper methods from the main `Game` class and the various action handler files into `GameStateQuery`. This includes methods for finding points/lines, checking for structures, identifying critical/vulnerable points, and calculating graph properties.
+  - The `Game` class is now significantly smaller and more focused on its core responsibilities: managing the game lifecycle, state mutations, and action execution flow.
+  - All action handlers and precondition checks in `action_data.py` have been updated to use the new `game.query` object, creating a cleaner and more consistent API for accessing game state information.
+  - This architectural improvement enhances modularity, separates concerns (reading vs. writing state), and makes the codebase easier to maintain and reason about.

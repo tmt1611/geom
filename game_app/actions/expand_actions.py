@@ -15,7 +15,7 @@ class ExpandActionsHandler:
 
     def add_line(self, teamId):
         """[EXPAND ACTION]: Add a line between two random points. If not possible, strengthens an existing line."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if len(team_point_ids) < 2:
             return {'success': False, 'reason': 'not enough points'}
 
@@ -37,39 +37,9 @@ class ExpandActionsHandler:
             # Fallback effect: Strengthen an existing line
             return self.game._fallback_strengthen_random_line(teamId, 'add_line')
 
-    def _check_and_add_extension(self, p_start, p_end, origin_point_id, teamId, extensions_list):
-        """Helper to check if a line extension is valid and add it to a list."""
-        border_point = get_extended_border_point(
-            p_start, p_end, self.state['grid_size'],
-            self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
-        )
-        if border_point:
-            is_valid, _ = self.game.is_spawn_location_valid(border_point, teamId)
-            if is_valid:
-                extensions_list.append({'origin_point_id': origin_point_id, 'border_point': border_point})
-
-    def _find_possible_extensions(self, teamId):
-        """Finds all possible line extensions to the border."""
-        team_lines = self.game.get_team_lines(teamId)
-        points = self.state['points']
-        possible_extensions = []
-        for line in team_lines:
-            if line['p1_id'] not in points or line['p2_id'] not in points:
-                continue
-            p1 = points[line['p1_id']]
-            p2 = points[line['p2_id']]
-            
-            # Try extending from p1 through p2
-            self._check_and_add_extension(p1, p2, p2['id'], teamId, possible_extensions)
-            
-            # Try extending from p2 through p1
-            self._check_and_add_extension(p2, p1, p1['id'], teamId, possible_extensions)
-            
-        return possible_extensions
-
     def extend_line(self, teamId):
         """[EXPAND ACTION]: Extend a line to the border to create a new point. If not possible, strengthens a line."""
-        possible_extensions = self._find_possible_extensions(teamId)
+        possible_extensions = self.game.query.find_possible_extensions(teamId)
 
         if not possible_extensions:
             # Fallback: Strengthen an existing line
@@ -108,28 +78,9 @@ class ExpandActionsHandler:
         
         return result_payload
 
-    def _find_fracturable_lines(self, teamId):
-        """Finds all lines that are eligible for fracturing."""
-        team_lines = self.game.get_team_lines(teamId)
-        points = self.state['points']
-        fracturable_lines = []
-        
-        # Get territory boundary lines to exclude them from fracturing
-        territory_line_keys = self.game._get_all_territory_boundary_line_keys(teamId)
-
-        for line in team_lines:
-            if tuple(sorted((line['p1_id'], line['p2_id']))) in territory_line_keys:
-                continue
-            if line['p1_id'] in points and line['p2_id'] in points:
-                p1 = points[line['p1_id']]
-                p2 = points[line['p2_id']]
-                if distance_sq(p1, p2) >= game_data.GAME_PARAMETERS['FRACTURE_LINE_MIN_LENGTH_SQ']:
-                    fracturable_lines.append(line)
-        return fracturable_lines
-
     def fracture_line(self, teamId):
         """[EXPAND ACTION]: Splits a line into two, creating a new point. If not possible, strengthens a line."""
-        fracturable_lines = self._find_fracturable_lines(teamId)
+        fracturable_lines = self.game.query.find_fracturable_lines(teamId)
         if not fracturable_lines:
             # Fallback: Strengthen an existing line
             return self.game._fallback_strengthen_random_line(teamId, 'fracture')
@@ -179,7 +130,7 @@ class ExpandActionsHandler:
 
     def spawn_point(self, teamId):
         """[EXPAND ACTION]: Creates a new point near an existing one. If not possible, strengthens a line or spawns on border."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if not team_point_ids:
             return {'success': False, 'reason': 'no points to spawn from'}
 
@@ -236,7 +187,7 @@ class ExpandActionsHandler:
 
     def mirror_point(self, teamId):
         """[EXPAND ACTION]: Reflects a friendly point through another to create a new symmetrical point."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if len(team_point_ids) < 2:
             return self.game._fallback_strengthen_random_line(teamId, 'mirror_point')
 
@@ -276,7 +227,7 @@ class ExpandActionsHandler:
                     return result_payload
         
         # --- Fallback: Strengthen the line between a pair ---
-        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
         for p1_id, p2_id in possible_pairs:
             line_key = tuple(sorted((p1_id, p2_id)))
             if line_key in all_lines_by_points:
@@ -292,12 +243,12 @@ class ExpandActionsHandler:
 
     def _create_orbital_fallback_strengthen(self, teamId):
         """Helper for the orbital fallback logic: strengthen lines around a central point."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if not team_point_ids:
              return {'success': False, 'reason': 'no points to use for fallback'}
 
         p_center_id_fallback = random.choice(team_point_ids)
-        lines_to_strengthen = [l for l in self.game.get_team_lines(teamId) if l['p1_id'] == p_center_id_fallback or l['p2_id'] == p_center_id_fallback]
+        lines_to_strengthen = [l for l in self.game.query.get_team_lines(teamId) if l['p1_id'] == p_center_id_fallback or l['p2_id'] == p_center_id_fallback]
         
         if not lines_to_strengthen:
              return {'success': False, 'reason': 'no lines to strengthen for orbital fallback'}
@@ -317,7 +268,7 @@ class ExpandActionsHandler:
 
     def create_orbital(self, teamId):
         """[EXPAND ACTION]: Creates a new orbital structure. If not possible, strengthens lines around a potential center."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if not team_point_ids:
              return {'success': False, 'reason': 'no points to use as center'}
 
@@ -387,11 +338,11 @@ class ExpandActionsHandler:
 
     def bisect_angle(self, teamId):
         """[EXPAND ACTION]: Creates a new point by bisecting an angle. If not possible, strengthens a line."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        team_lines = self.game.get_team_lines(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
+        team_lines = self.game.query.get_team_lines(teamId)
         
         # Build adjacency list to find vertices
-        adj_sets = self.game._get_team_adjacency_list(teamId)
+        adj_sets = self.game.query.get_team_adjacency_list(teamId)
         # Convert to list for sampling logic below
         adj = {pid: list(neighbors) for pid, neighbors in adj_sets.items()}
         
@@ -451,7 +402,7 @@ class ExpandActionsHandler:
                 return self.game._fallback_strengthen_random_line(teamId, 'bisect')
             
             lines_of_angle = []
-            all_team_lines = self.game.get_team_lines(teamId)
+            all_team_lines = self.game.query.get_team_lines(teamId)
             for l in all_team_lines:
                 if (l['p1_id'] == vertex_id and l['p2_id'] in leg_ids) or \
                    (l['p2_id'] == vertex_id and l['p1_id'] in leg_ids):

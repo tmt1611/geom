@@ -20,7 +20,7 @@ class FightActionsHandler:
 
     def _handle_attack_hit(self, closest_hit, attacker_line, attack_segment_p1):
         enemy_line = closest_hit['target_line']
-        is_energized_attack = self.game._is_line_energized(attacker_line)
+        is_energized_attack = self.game.query.is_line_energized(attacker_line)
 
         line_strength = self.state.get('line_strengths', {}).get(enemy_line['id'])
         if line_strength and line_strength > 0:
@@ -67,14 +67,14 @@ class FightActionsHandler:
 
     def attack_line(self, teamId):
         """[FIGHT ACTION]: Extend a line to hit an enemy line. If it misses, it creates a new point on the border."""
-        team_lines = self.game.get_team_lines(teamId)
+        team_lines = self.game.query.get_team_lines(teamId)
         if not team_lines:
             return {'success': False, 'reason': 'no lines to attack from'}
         
         points = self.state['points']
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
         team_has_cross_rune = len(self.state.get('runes', {}).get(teamId, {}).get('cross', [])) > 0
-        bastion_line_ids = self.game._get_bastion_line_ids()
+        bastion_line_ids = self.game.query.get_bastion_line_ids()
         
         random.shuffle(team_lines)
         for line in team_lines:
@@ -126,11 +126,11 @@ class FightActionsHandler:
 
     def pincer_attack(self, teamId):
         """[FIGHT ACTION]: Two points flank and destroy an enemy point. If not possible, they form a defensive barricade."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if len(team_point_ids) < 2:
             return {'success': False, 'reason': 'not enough points for pincer attack'}
 
-        enemy_points = self.game._get_vulnerable_enemy_points(teamId)
+        enemy_points = self.game.query.get_vulnerable_enemy_points(teamId)
 
         points_map = self.state['points']
         max_range_sq = (self.state['grid_size'] * game_data.GAME_PARAMETERS['PINCER_ATTACK_RANGE_FACTOR'])**2
@@ -171,23 +171,9 @@ class FightActionsHandler:
         p1_id, p2_id = random.sample(team_point_ids, 2)
         return self._pincer_attack_fallback_barricade(teamId, p1_id, p2_id)
 
-    def _get_large_territories(self, teamId):
-        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
-        if not team_territories: return []
-        points_map = self.state['points']
-        MIN_AREA = game_data.GAME_PARAMETERS['TERRITORY_STRIKE_MIN_AREA']
-        large_territories = []
-        for territory in team_territories:
-            p_ids = territory['point_ids']
-            if all(pid in points_map for pid in p_ids):
-                triangle_points = [points_map[pid] for pid in p_ids]
-                if len(triangle_points) == 3 and polygon_area(triangle_points) >= MIN_AREA:
-                    large_territories.append(territory)
-        return large_territories
-
     def territory_strike(self, teamId):
         """[FIGHT ACTION]: Launches an attack from a large territory. If no targets, reinforces the territory."""
-        large_territories = self._get_large_territories(teamId)
+        large_territories = self.game.query.get_large_territories(teamId)
         if not large_territories:
             return {'success': False, 'reason': 'no large territories to strike from'}
 
@@ -199,7 +185,7 @@ class FightActionsHandler:
         triangle_points = [points_map[pid] for pid in territory['point_ids']]
         centroid = points_centroid(triangle_points)
 
-        enemy_points = self.game._get_vulnerable_enemy_points(teamId)
+        enemy_points = self.game.query.get_vulnerable_enemy_points(teamId)
         if enemy_points:
             target_point = min(enemy_points, key=lambda p: distance_sq(centroid, p))
             destroyed_point_data = self.game._delete_point_and_connections(target_point['id'], aggressor_team_id=teamId)
@@ -220,7 +206,7 @@ class FightActionsHandler:
 
     def _sentry_zap_fallback_strengthen(self, teamId, rune):
         strengthened_lines = []
-        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
         for i in range(len(rune['point_ids']) - 1):
             p1_id, p2_id = rune['point_ids'][i], rune['point_ids'][i+1]
             line_key = tuple(sorted((p1_id, p2_id)))
@@ -238,7 +224,7 @@ class FightActionsHandler:
     def _refraction_beam_fallback_strengthen(self, teamId, prism):
         all_prism_pids = prism['all_point_ids']
         strengthened_lines = []
-        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
 
         # A prism is two triangles sharing an edge. Total 4 points.
         # This will try to strengthen any of the 5 outer lines plus the shared inner line if they exist.
@@ -277,7 +263,7 @@ class FightActionsHandler:
         
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
         team_has_cross_rune = len(self.state.get('runes', {}).get(teamId, {}).get('cross', [])) > 0
-        bastion_line_ids = self.game._get_bastion_line_ids()
+        bastion_line_ids = self.game.query.get_bastion_line_ids()
 
         for p_vertex, p_leg1, p_leg2 in vertices:
             bisector_v = get_angle_bisector_vector(p_vertex, p_leg1, p_leg2)
@@ -354,8 +340,8 @@ class FightActionsHandler:
         stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
         
         # Define what constitutes a high-value target
-        fortified_ids = self.game._get_fortified_point_ids()
-        bastion_cores = self.game._get_bastion_point_ids()['cores']
+        fortified_ids = self.game.query.get_fortified_point_ids()
+        bastion_cores = self.game.query.get_bastion_point_ids()['cores']
         monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
 
         high_value_target_ids = (fortified_ids | bastion_cores | monolith_point_ids) - stasis_point_ids
@@ -449,7 +435,7 @@ class FightActionsHandler:
         zap_range_sq = (self.state['grid_size'] * game_data.GAME_PARAMETERS['SENTRY_ZAP_RANGE_FACTOR'])**2
         
         # Get list of vulnerable enemy points
-        vulnerable_enemy_points = self.game._get_vulnerable_enemy_points(teamId)
+        vulnerable_enemy_points = self.game.query.get_vulnerable_enemy_points(teamId)
         
         possible_targets = []
         if vulnerable_enemy_points:
@@ -522,7 +508,7 @@ class FightActionsHandler:
         points = self.state['points']
         
         prism_point_ids = {pid for p in team_prisms for pid in p['all_point_ids']}
-        source_lines = [l for l in self.game.get_team_lines(teamId) if l['p1_id'] not in prism_point_ids and l['p2_id'] not in prism_point_ids]
+        source_lines = [l for l in self.game.query.get_team_lines(teamId) if l['p1_id'] not in prism_point_ids and l['p2_id'] not in prism_point_ids]
         if not source_lines:
             return {'success': False, 'reason': 'no valid source lines for refraction'}
 
@@ -574,7 +560,7 @@ class FightActionsHandler:
                 # Check this ray for hits
                 hit_found = False
                 if enemy_lines:
-                    bastion_line_ids = self.game._get_bastion_line_ids()
+                    bastion_line_ids = self.game.query.get_bastion_line_ids()
                     for enemy_line in enemy_lines:
                         if enemy_line.get('id') in bastion_line_ids: continue
                         if enemy_line['p1_id'] not in points or enemy_line['p2_id'] not in points: continue
@@ -691,7 +677,7 @@ class FightActionsHandler:
 
     def isolate_point(self, teamId):
         """[FIGHT ACTION]: Uses a point to project an isolation field onto a critical enemy point. Fallback to create a barricade."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if not team_point_ids:
             return {'success': False, 'reason': 'no points to project from'}
 
@@ -702,7 +688,7 @@ class FightActionsHandler:
         possible_targets = []
         for enemy_team_id in enemy_team_ids:
             # Don't isolate points that are already isolated or in stasis
-            articulation_points, _ = self.game._find_articulation_points(enemy_team_id)
+            articulation_points, _ = self.game.query.find_articulation_points(enemy_team_id)
             for pid in articulation_points:
                 if pid in self.state['points'] and \
                    pid not in self.state.get('isolated_points', {}) and \
@@ -759,8 +745,8 @@ class FightActionsHandler:
 
     def parallel_strike(self, teamId):
         """[FIGHT ACTION]: From a point, draw a line parallel to a friendly line. If it hits an enemy point, destroy it. If it hits the border, generate a point."""
-        team_lines = self.game.get_team_lines(teamId)
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_lines = self.game.query.get_team_lines(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         
         # This check aligns with the optimized precondition check.
         if not team_lines or len(team_point_ids) < 3:
@@ -845,7 +831,7 @@ class FightActionsHandler:
 
     def hull_breach(self, teamId):
         """[FIGHT ACTION]: Converts an enemy point inside the team's hull. If none, reinforces the hull."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if len(team_point_ids) < 3:
             return {'success': False, 'reason': 'not enough points to form a hull'}
 
@@ -856,7 +842,7 @@ class FightActionsHandler:
         if len(hull_points) < 3:
             return {'success': False, 'reason': 'could not form a valid hull polygon'}
 
-        vulnerable_enemies = self.game._get_vulnerable_enemy_points(teamId)
+        vulnerable_enemies = self.game.query.get_vulnerable_enemy_points(teamId)
         
         targets_inside_hull = [
             p for p in vulnerable_enemies 
@@ -889,7 +875,7 @@ class FightActionsHandler:
             # --- Fallback Effect: Reinforce or Create Hull Lines ---
             strengthened_lines = []
             created_lines = []
-            team_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+            team_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
             
             for i in range(len(hull_points)):
                 p1 = hull_points[i]

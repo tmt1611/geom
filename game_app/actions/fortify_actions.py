@@ -140,7 +140,7 @@ class FortifyActionsHandler:
 
     def shield_line(self, teamId):
         """[FORTIFY ACTION]: Applies a temporary shield to a line. If all lines are shielded, it overcharges one."""
-        team_lines = self.game.get_team_lines(teamId)
+        team_lines = self.game.query.get_team_lines(teamId)
         if not team_lines:
             return {'success': False, 'reason': 'no lines to shield'}
 
@@ -173,21 +173,9 @@ class FortifyActionsHandler:
             # This should be very rare (e.g., lines have no IDs)
             return {'success': False, 'reason': 'no valid shield to overcharge'}
 
-    def _find_claimable_triangles(self, teamId):
-        """Finds all triangles for a team that have not yet been claimed."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        team_lines = self.game.get_team_lines(teamId)
-        
-        all_triangles = self.game.formation_manager._find_all_triangles(team_point_ids, team_lines)
-        if not all_triangles:
-            return []
-            
-        claimed_triangles = {tuple(sorted(t['point_ids'])) for t in self.state['territories']}
-        return list(all_triangles - claimed_triangles)
-
     def claim_territory(self, teamId):
         """[FORTIFY ACTION]: Find a triangle and claim it. If not possible, reinforces an existing territory."""
-        newly_claimable_triangles = self._find_claimable_triangles(teamId)
+        newly_claimable_triangles = self.game.query.find_claimable_triangles(teamId)
 
         if newly_claimable_triangles:
             # --- Primary Effect: Claim Territory ---
@@ -214,52 +202,26 @@ class FortifyActionsHandler:
                 'territory_point_ids': territory_to_reinforce['point_ids'], 'strengthened_lines': strengthened_lines
             }
 
-    def _find_possible_bastions(self, teamId):
-        """Finds all valid formations for creating a new bastion."""
-        fortified_point_ids = self.game._get_fortified_point_ids()
-        if not fortified_point_ids:
-            return []
 
-        adj = self.game._get_team_adjacency_list(teamId)
-        
-        existing_bastion_points = self.game._get_bastion_point_ids()
-        used_points = existing_bastion_points['cores'].union(existing_bastion_points['prongs'])
-
-        possible_bastions = []
-        for core_candidate_id in fortified_point_ids:
-            if core_candidate_id not in team_point_ids or core_candidate_id in used_points:
-                continue
-            
-            prong_candidates = [
-                pid for pid in adj.get(core_candidate_id, set())
-                if pid not in fortified_point_ids and pid not in used_points
-            ]
-
-            if len(prong_candidates) >= 3:
-                possible_bastions.append({
-                    'core_id': core_candidate_id,
-                    'prong_ids': prong_candidates
-                })
-        return possible_bastions
 
     def form_bastion(self, teamId):
         """[FORTIFY ACTION]: Converts a fortified point and its connections into a defensive bastion. If not possible, reinforces a key point."""
-        possible_bastions = self._find_possible_bastions(teamId)
+        possible_bastions = self.game.query.find_possible_bastions(teamId)
 
         if not possible_bastions:
             # --- Fallback: Reinforce most connected fortified point ---
-            fortified_point_ids = self.game._get_fortified_point_ids().intersection(self.game.get_team_point_ids(teamId))
+            fortified_point_ids = self.game.query.get_fortified_point_ids().intersection(self.game.query.get_team_point_ids(teamId))
             if not fortified_point_ids:
                 return {'success': False, 'reason': 'no valid bastion formation and no fortified points to reinforce'}
             
-            degrees = self.game._get_team_degrees(teamId)
+            degrees = self.game.query.get_team_degrees(teamId)
             # Find the fortified point with the highest degree
             point_to_reinforce_id = max(fortified_point_ids, key=lambda pid: degrees.get(pid, 0), default=None)
 
             if not point_to_reinforce_id:
                 return {'success': False, 'reason': 'could not find a fortified point to reinforce'}
             
-            lines_to_strengthen = [l for l in self.game.get_team_lines(teamId) if l['p1_id'] == point_to_reinforce_id or l['p2_id'] == point_to_reinforce_id]
+            lines_to_strengthen = [l for l in self.game.query.get_team_lines(teamId) if l['p1_id'] == point_to_reinforce_id or l['p2_id'] == point_to_reinforce_id]
             
             strengthened_lines = []
             for line in lines_to_strengthen:

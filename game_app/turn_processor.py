@@ -247,7 +247,7 @@ class TurnProcessor:
                 self.state['new_turn_events'].append({'type': 'monolith_wave', 'monolith_id': monolith_id, 'center_coords': monolith['center_coords'], 'radius_sq': monolith['wave_radius_sq']})
 
                 center, radius_sq = monolith['center_coords'], monolith['wave_radius_sq']
-                for line in self.game.get_team_lines(monolith['teamId']):
+                for line in self.game.query.get_team_lines(monolith['teamId']):
                     if line['p1_id'] not in self.state['points'] or line['p2_id'] not in self.state['points']: continue
                     p1, p2 = self.state['points'][line['p1_id']], self.state['points'][line['p2_id']]
                     midpoint = {'x': (p1['x'] + p2['x']) / 2, 'y': (p1['y'] + p2['y']) / 2}

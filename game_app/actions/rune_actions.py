@@ -18,7 +18,7 @@ class RuneActionsHandler:
 
     def _shoot_bisector_fallback_strengthen(self, teamId, rune):
         strengthened_lines = []
-        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+        all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
         
         # Strengthen the two legs of the V
         key1 = tuple(sorted((rune['vertex_id'], rune['leg1_id'])))
@@ -116,7 +116,7 @@ class RuneActionsHandler:
         
         # --- Find Primary Targets ---
         lines_to_shield = []
-        for line in self.game.get_team_lines(teamId):
+        for line in self.game.query.get_team_lines(teamId):
             if line.get('id') in self.state['shields']: continue
             line_p1, line_p2 = points.get(line['p1_id']), points.get(line['p2_id'])
             if line_p1 and line_p2 and line_p1['id'] not in rune['triangle_ids'] and line_p2['id'] not in rune['triangle_ids']:
@@ -673,7 +673,7 @@ class RuneActionsHandler:
         else:
             # Fallback: Reinforce the stem lines
             strengthened = []
-            all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+            all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
             key1 = tuple(sorted((rune['mid_id'], rune['stem1_id'])))
             key2 = tuple(sorted((rune['mid_id'], rune['stem2_id'])))
             
@@ -703,7 +703,7 @@ class RuneActionsHandler:
         created_points = []
         attack_rays = []
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
-        bastion_line_ids = self.game._get_bastion_line_ids()
+        bastion_line_ids = self.game.query.get_bastion_line_ids()
         
         for arm_id in rune['arm_ids']:
             arm_point = points.get(arm_id)
