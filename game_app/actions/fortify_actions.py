@@ -119,30 +119,66 @@ class FortifyActionsHandler:
         possible_monoliths = []
         fallback_candidates = []
         
-        for p_ids_tuple in combinations(team_point_ids, 4):
-            if any(pid in existing_monolith_points for pid in p_ids_tuple):
-                continue
-            
-            if not all(pid in points for pid in p_ids_tuple):
-                continue
-            
-            p_list = [points[pid] for pid in p_ids_tuple]
-            is_rect, aspect_ratio = is_rectangle(*p_list)
+        adj = {pid: set() for pid in team_point_ids}
+        for line in self.game.get_team_lines(teamId):
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
 
-            if is_rect:
-                edge_data = get_edges_by_distance(p_list)
-                side_pairs = edge_data['sides']
+        checked_quads = set()
+        for p1_id in team_point_ids:
+            if len(adj.get(p1_id, [])) < 2: continue
+            
+            p1 = points[p1_id]
+            neighbors_of_p1 = list(adj[p1_id])
 
-                if all(tuple(sorted(pair)) in existing_lines_by_points for pair in side_pairs):
-                    if aspect_ratio > 3.0:
-                        center_x = sum(p['x'] for p in p_list) / 4
-                        center_y = sum(p['y'] for p in p_list) / 4
-                        possible_monoliths.append({
-                            'point_ids': list(p_ids_tuple),
-                            'center_coords': {'x': center_x, 'y': center_y}
-                        })
-                    else:
-                        fallback_candidates.append({'point_ids': list(p_ids_tuple), 'side_pairs': side_pairs})
+            for i in range(len(neighbors_of_p1)):
+                for j in range(i + 1, len(neighbors_of_p1)):
+                    p2_id, p3_id = neighbors_of_p1[i], neighbors_of_p1[j]
+                    p2, p3 = points[p2_id], points[p3_id]
+
+                    # Check for a right angle at p1
+                    v1 = {'x': p2['x'] - p1['x'], 'y': p2['y'] - p1['y']}
+                    v2 = {'x': p3['x'] - p1['x'], 'y': p3['y'] - p1['y']}
+                    if abs(v1['x'] * v2['x'] + v1['y'] * v2['y']) > 0.1: continue
+
+                    # Potential rectangle found, calculate expected p4
+                    p4_coords = {'x': p2['x'] + v2['x'], 'y': p2['y'] + v2['y']}
+                    
+                    # Find a point close to p4_coords that completes the quad
+                    p4_id = None
+                    p4_candidates = adj.get(p2_id, set()).intersection(adj.get(p3_id, set()))
+                    for pid_candidate in p4_candidates:
+                        if pid_candidate != p1_id:
+                            p_candidate = points.get(pid_candidate)
+                            if p_candidate and distance_sq(p_candidate, p4_coords) < 0.5:
+                                p4_id = pid_candidate
+                                break
+                    
+                    if p4_id:
+                        p_ids_tuple = tuple(sorted((p1_id, p2_id, p3_id, p4_id)))
+                        if p_ids_tuple in checked_quads: continue
+                        checked_quads.add(p_ids_tuple)
+                        
+                        if any(pid in existing_monolith_points for pid in p_ids_tuple): continue
+
+                        p_list = [p1, p2, p3, points[p4_id]]
+                        is_rect, aspect_ratio = is_rectangle(*p_list)
+
+                        if is_rect:
+                            edge_data = get_edges_by_distance(p_list)
+                            side_pairs = edge_data['sides']
+
+                            if all(tuple(sorted(pair)) in existing_lines_by_points for pair in side_pairs):
+                                if aspect_ratio > 3.0:
+                                    center_x = sum(p['x'] for p in p_list) / 4
+                                    center_y = sum(p['y'] for p in p_list) / 4
+                                    possible_monoliths.append({
+                                        'point_ids': list(p_ids_tuple),
+                                        'center_coords': {'x': center_x, 'y': center_y}
+                                    })
+                                else:
+                                    fallback_candidates.append({'point_ids': list(p_ids_tuple), 'side_pairs': side_pairs})
         return possible_monoliths, fallback_candidates
 
     def can_perform_form_monolith(self, teamId):

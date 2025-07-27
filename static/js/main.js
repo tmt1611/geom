@@ -670,6 +670,11 @@ document.addEventListener('DOMContentLoaded', () => {
     startGameBtn.addEventListener('click', async () => {
         if (uiState.initialPoints.length === 0) return alert("Please add points to the grid.");
         
+        // Explicitly clear any previous simulation data
+        simulationHistory = [];
+        augmentedHistoryCache = {};
+        playbackIndex = 0;
+        
         const loader = document.getElementById('simulation-loader');
         const loaderText = document.getElementById('loader-text');
         const loaderProgress = document.getElementById('loader-progress');
@@ -715,6 +720,11 @@ document.addEventListener('DOMContentLoaded', () => {
     restartSimulationBtn.addEventListener('click', async () => {
         if (!confirm("Restart the simulation with the same setup?")) return;
         stopPlayback();
+        
+        // Explicitly clear history before starting new simulation
+        simulationHistory = [];
+        augmentedHistoryCache = {};
+        playbackIndex = 0;
 
         const loader = document.getElementById('simulation-loader');
         const loaderText = document.getElementById('loader-text');

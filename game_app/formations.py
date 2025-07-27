@@ -94,20 +94,57 @@ class FormationManager:
         existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in team_lines}
         barricade_runes, used_points = [], set()
 
-        for p_ids_tuple in combinations(team_point_ids, 4):
-            if any(pid in used_points for pid in p_ids_tuple): continue
-            
-            p_list = [all_points.get(pid) for pid in p_ids_tuple]
-            if not all(p_list): continue
-            is_rect, _ = is_rectangle(*p_list)
+        adj = {pid: set() for pid in team_point_ids}
+        for line in team_lines:
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+        
+        barricade_runes, used_points = [], set()
 
-            if is_rect:
-                edge_data = get_edges_by_distance(p_list)
-                side_pairs = edge_data['sides']
-                
-                if sum(1 for p1_id, p2_id in side_pairs if tuple(sorted((p1_id, p2_id))) in existing_lines) == 4:
-                    barricade_runes.append(list(p_ids_tuple))
-                    used_points.update(p_ids_tuple)
+        for p1_id in team_point_ids:
+            if p1_id in used_points or len(adj.get(p1_id, [])) < 2: continue
+            
+            p1 = all_points[p1_id]
+            neighbors_of_p1 = list(adj[p1_id])
+
+            for i in range(len(neighbors_of_p1)):
+                for j in range(i + 1, len(neighbors_of_p1)):
+                    p2_id, p3_id = neighbors_of_p1[i], neighbors_of_p1[j]
+                    if p2_id in used_points or p3_id in used_points: continue
+
+                    p2, p3 = all_points[p2_id], all_points[p3_id]
+                    v1 = {'x': p2['x'] - p1['x'], 'y': p2['y'] - p1['y']}
+                    v2 = {'x': p3['x'] - p1['x'], 'y': p3['y'] - p1['y']}
+                    if abs(v1['x'] * v2['x'] + v1['y'] * v2['y']) > 0.1: continue
+
+                    p4_coords = {'x': p2['x'] + v2['x'], 'y': p2['y'] + v2['y']}
+                    
+                    p4_id = None
+                    p4_candidates = adj.get(p2_id, set()).intersection(adj.get(p3_id, set()))
+                    for pid_candidate in p4_candidates:
+                        if pid_candidate != p1_id and pid_candidate not in used_points:
+                            p_candidate = all_points.get(pid_candidate)
+                            if p_candidate and distance_sq(p_candidate, p4_coords) < 0.5:
+                                p4_id = pid_candidate
+                                break
+                    
+                    if p4_id:
+                        p_ids_tuple = (p1_id, p2_id, p3_id, p4_id)
+                        p_list = [p1, p2, p3, all_points[p4_id]]
+                        is_rect, _ = is_rectangle(*p_list)
+
+                        if is_rect:
+                            edge_data = get_edges_by_distance(p_list)
+                            side_pairs = edge_data['sides']
+                            
+                            if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
+                                barricade_runes.append(list(p_ids_tuple))
+                                used_points.update(p_ids_tuple)
+                                # Break from inner loops since we've used these points
+                                break
+                if p1_id in used_points: break
+            if p1_id in used_points: continue
         return barricade_runes
 
     def _find_all_triangles(self, team_point_ids, team_lines):
