@@ -9,18 +9,28 @@ class SacrificeActionsHandler:
     def __init__(self, game):
         self.game = game
 
+    def _has_sacrificial_point(self, teamId):
+        """A cheaper check if any sacrificial point exists, without finding the specific one."""
+        team_point_ids = self.game.get_team_point_ids(teamId)
+        if len(team_point_ids) <= 2:
+            return False
+        critical_pids = self.game._get_critical_structure_point_ids(teamId)
+        return any(pid not in critical_pids for pid in team_point_ids)
+
     # --- Action Precondition Checks ---
 
     def can_perform_nova_burst(self, teamId):
         # Action is possible if either an "ideal" target exists (guaranteeing primary effect)
         # or if a "non-critical" point exists to sacrifice for the fallback effect.
         has_ideal_target = len(self._find_possible_nova_bursts(teamId)) > 0
-        has_fallback_target = self.game._find_non_critical_sacrificial_point(teamId) is not None
+        # Use a cheaper check for the fallback, as the action itself will do the full check.
+        has_fallback_target = self._has_sacrificial_point(teamId)
         can_perform = has_ideal_target or has_fallback_target
         return can_perform, "No suitable point to sacrifice for Nova Burst."
 
     def can_perform_create_whirlpool(self, teamId):
-        can_perform = self.game._find_non_critical_sacrificial_point(teamId) is not None
+        # Use a cheaper check for the precondition. The action itself will do the full check.
+        can_perform = self._has_sacrificial_point(teamId)
         return can_perform, "No non-critical point available to sacrifice."
 
     def can_perform_phase_shift(self, teamId):
@@ -28,7 +38,8 @@ class SacrificeActionsHandler:
         return can_perform, "Requires a non-critical/safe line to sacrifice."
 
     def can_perform_rift_trap(self, teamId):
-        can_perform = self.game._find_non_critical_sacrificial_point(teamId) is not None
+        # Use a cheaper check for the precondition. The action itself will do the full check.
+        can_perform = self._has_sacrificial_point(teamId)
         return can_perform, "No non-critical point available to sacrifice."
 
     def can_perform_scorch_territory(self, teamId):

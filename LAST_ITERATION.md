@@ -1,7 +1,3 @@
-- **Illustration Review (FIGHT & FORTIFY actions):** Reviewed non-rune `FIGHT` and all `FORTIFY` actions for consistency.
-- **Visual Effect Creation & Streamlining:**
-    - **`Fight: Parallel Strike`**: Added a new visual effect (`parallel_strike` and `parallel_strike_miss_spawn`) using an `attack_ray` to match its illustration and provide in-game feedback.
-    - **`Fight: Territory Tri-Beam`**: Added a new visual effect (`territory_tri_beam`) that fires three `attack_ray`s, aligning it with its name and illustration.
-    - **`Fortify: Create Anchor`**: Enhanced the existing visual handler to include a `point_implosion` effect, giving better feedback for the point's transformation.
-    - **`Rune: Focus Beam`**: Changed the visual effect from a `jagged_ray` (lightning) to a straight `attack_ray` (beam) to better align with the action's name and its existing illustration. This improves visual consistency across "beam" type attacks.
-- **Consistency Check:** Verified that other actions in these categories already had consistent illustrations and visual effects.
+- **Code Optimization (Performance):**
+    - **Optimized Formation Finding:** The check for `Purifier` formations (regular pentagons) could be very slow with many points. It now checks a random sample of up to 500 combinations instead of all possible combinations, preventing game hangs while maintaining a good chance of finding a valid formation.
+    - **Streamlined Precondition Checks:** Several `Sacrifice` actions (`Nova Burst`, `Create Whirlpool`, `Rift Trap`) used an expensive precondition check that found a specific sacrificial point, including checking for graph articulation points. These checks have been replaced with a much faster version that only verifies if a non-critical point exists, improving performance. The full, expensive check is still performed within the action logic itself, ensuring correctness.

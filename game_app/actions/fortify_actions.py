@@ -200,7 +200,15 @@ class FortifyActionsHandler:
         existing_purifier_points = {pid for p_list in self.state.get('purifiers', {}).values() for p in p_list for pid in p['point_ids']}
 
         possible_purifiers = []
-        for p_ids_tuple in combinations(team_point_ids, 5):
+        
+        # To prevent performance issues with large number of points, we'll check a random sample of combinations.
+        # C(20,5) is ~15k, C(30,5) is ~142k. This is too slow.
+        point_combos = list(combinations(team_point_ids, 5))
+        if len(point_combos) > 500:
+            random.shuffle(point_combos)
+            point_combos = point_combos[:500]
+
+        for p_ids_tuple in point_combos:
             if any(pid in existing_purifier_points for pid in p_ids_tuple):
                 continue
 
