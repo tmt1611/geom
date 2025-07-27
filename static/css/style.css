@@ -184,6 +184,25 @@ legend {
     margin-bottom: 15px;
 }
 
+.start-section {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.setting-item input[type="number"] {
+    width: 70px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
 .placement-section {
     display: flex;
     flex-direction: column;
@@ -244,8 +263,6 @@ legend {
 }
 .randomize-controls button {
     flex-grow: 1;
-    padding: 8px 12px !important;
-    font-size: 1em !important;
 }
 
 .teams-section > * {

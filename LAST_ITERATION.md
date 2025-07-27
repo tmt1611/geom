@@ -1,1 +1,4 @@
-- **Improved Status Bar Readability:** The narration text in the status bar at the bottom of the grid now consistently uses a dark color for the main text, while team names within the narration are highlighted in their specific colors. This ensures high contrast and readability regardless of the acting team's color.
+- **Restored Status Bar Readability:** Corrected the status bar narration to consistently use high-contrast dark text, with only team names highlighted in their specific color. This enhances readability and fixes a regression.
+- **Refactored UI Code:** Cleaned up the "Game Settings" section in the setup panel, replacing `<br>` tags and inline styles with a more robust and maintainable CSS-based layout.
+- **Minor CSS Cleanup:** Removed unnecessary `!important` rules from the stylesheet.
+- **Feature Confirmation:** Verified that other requested features, such as the explicit point randomization control, progress visualization, action probability previews, previous step navigation, developer tools visibility, and conditional log coloring, are already implemented correctly.

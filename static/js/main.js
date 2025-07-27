@@ -293,11 +293,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentGameState.game_phase === 'RUNNING' || currentGameState.game_phase === 'FINISHED') {
             if (lastMessageEntry) {
                 let finalMessage = lastMessageEntry.message;
-                const actionTeam = teams[lastMessageEntry.teamId];
-                // Set the base color for the whole message
-                statusBar.style.color = actionTeam ? actionTeam.color : '#333';
+                // Set the base color for the message to a readable dark color.
+                statusBar.style.color = '#333';
 
-                // Individually color any team names mentioned in the message
+                // Individually color any team names mentioned in the message for emphasis.
                 for (const teamId in teams) {
                     finalMessage = finalMessage.replace(new RegExp(`\\b${teams[teamId].name}\\b`, 'g'), `<strong style="color: ${teams[teamId].color};">${teams[teamId].name}</strong>`);
                 }
