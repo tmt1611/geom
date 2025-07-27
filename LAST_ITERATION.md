@@ -1,1 +1,4 @@
-*   **Refactor (JS):** Removed the redundant `illustrationHelpers` and `illustrationDrawers` objects from `main.js`. This functionality is already provided by the globally-loaded `illustrations.js` file, which defines these objects. This change removes a large block of duplicated code (approximately 700 lines) from `main.js`, significantly reducing its size and improving readability and maintainability.
+*   **Refactor (JS):** Abstracted all canvas drawing logic from `main.js` into the dedicated `renderer.js` module. This separates concerns, making `main.js` the controller and `renderer.js` the view.
+*   **Refactor (JS):** Removed ~1700 lines of duplicated code from `main.js`, including all canvas drawing functions (`drawGrid`, `drawPoints`, etc.) and the `illustrationHelpers`/`illustrationDrawers` objects. `main.js` is now significantly smaller and more maintainable.
+*   **Refactor (JS):** Updated `main.js` to initialize and use the new `renderer` module for the animation loop and canvas resizing.
+*   **Fix (JS):** Corrected the canvas click handler in `main.js` to properly calculate grid coordinates after removing the now-encapsulated `cellSize` variable.
