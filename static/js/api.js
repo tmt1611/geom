@@ -326,8 +326,19 @@ js_copy_module = copy
 
     async augmentState(state) {
         if (this._mode === 'pyodide') {
-            const augmented_state_py = this._game.augment_state_for_frontend(this._pyodide.toPy(state));
-            return this._pyProxyToJs(augmented_state_py);
+            // Using JSON stringify/parse is more robust for passing complex nested JS objects
+            // to Pyodide than the automatic `toPy` conversion, which can cause memory errors.
+            const state_json = JSON.stringify(state);
+            this._pyodide.globals.set('state_json_str_for_augment', state_json);
+            
+            const augmented_state_py = this._pyodide.runPython(`
+import json
+js_game_instance.augment_state_for_frontend(json.loads(state_json_str_for_augment))
+            `);
+            
+            const result = this._pyProxyToJs(augmented_state_py);
+            augmented_state_py.destroy(); // Clean up the proxy
+            return result;
         }
         // This is not needed for HTTP mode, as augmentation is done on the server.
         // We can just return the state as is.
