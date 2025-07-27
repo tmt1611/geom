@@ -470,9 +470,12 @@ const visualEffectsManager = (() => {
             });
         },
         'create_ley_line': (details, gameState) => {
-            details.ley_line_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
-            if (details.ley_line_line_ids && details.ley_line_points.length > 0) {
-                const first_point = gameState.points[details.ley_line_points[0]];
+            if (!details.ley_line || !details.ley_line.point_ids) return;
+            const ley_line_points = details.ley_line.point_ids;
+
+            ley_line_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            if (details.ley_line_line_ids && ley_line_points.length > 0) {
+                const first_point = gameState.points[ley_line_points[0]];
                 if (!first_point) return;
                 const team = gameState.teams[first_point.teamId];
                 if (!team) return;

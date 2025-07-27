@@ -556,14 +556,13 @@ ACTIONS = {
         'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'attune_nexus',
         'display_name': 'Attune Nexus',
         'description': "Sacrifices a diagonal line from one of its Nexuses to supercharge it. For several turns, the Attuned Nexus energizes all nearby friendly lines, causing their attacks to also destroy the target line's endpoints.",
-        'precondition': lambda h, tid: (
-            lambda nexuses: (
-                (False, "Requires an active Nexus Rune.") if not nexuses
-                else (lambda attuned_pids:
-                    (True, "") if any(frozenset(n.get('point_ids', [])) not in attuned_pids for n in nexuses)
-                    else (False, "All active Nexuses are already attuned.")
-                )({frozenset(an['point_ids']) for an in h.state.get('attuned_nexuses', {}).values()})
-            )(h.state.get('runes', {}).get(tid, {}).get('nexus', []))
+        'precondition': lambda h, tid: (lambda nexuses, attuned_pids:
+            (False, "Requires an active Nexus Rune.") if not nexuses
+            else (True, "") if any(frozenset(n.get('point_ids', [])) not in attuned_pids for n in nexuses)
+            else (False, "All active Nexuses are already attuned.")
+        )(
+            h.state.get('runes', {}).get(tid, {}).get('nexus', []),
+            {frozenset(an['point_ids']) for an in h.state.get('attuned_nexuses', {}).values()}
         ),
         'log_generators': {
             'attune_nexus': lambda r: ("attuned a Nexus, sacrificing a line to energize its surroundings.", "[ATTUNED!]"),
@@ -657,16 +656,16 @@ ACTIONS = {
         'group': 'Rune', 'handler': 'rune_handler', 'method': 'hourglass_stasis', 'no_cost': True,
         'display_name': 'Rune: Time Stasis',
         'description': "An Hourglass-Rune freezes a nearby enemy point in time for several turns, making it immune but unable to be used. If no target is found, it creates an anchor. This action has no cost.",
-        'precondition': lambda h, tid: (
-            lambda runes: (
+        'precondition': lambda h, tid: (lambda runes:
+            (
                 (False, "Requires an active Hourglass Rune.") if not runes
                 else (True, "") if h.game.query.get_vulnerable_enemy_points(tid)
                 else (True, "") if any(
                     pid != r.get('vertex_id') and pid not in h.state.get('anchors', {})
                     for r in runes for pid in r.get('all_points', [])
                 ) else (False, "Requires a valid target or a point to convert to an anchor.")
-            )(h.state.get('runes', {}).get(tid, {}).get('hourglass', []))
-        ),
+            )
+        )(h.state.get('runes', {}).get(tid, {}).get('hourglass', [])),
         'log_generators': {
             'rune_hourglass_stasis': lambda r: (f"used an Hourglass Rune to freeze a point from {r['target_team_name']} in time.", "[STASIS!]"),
             'hourglass_fizzle_anchor': lambda r: ("failed to find a target for Time Stasis, and instead converted one of the rune's points into a temporary anchor.", "[STASIS->ANCHOR]"),

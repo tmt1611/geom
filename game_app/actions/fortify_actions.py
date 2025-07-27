@@ -603,10 +603,21 @@ class FortifyActionsHandler:
                 self.state['ley_lines'] = {}
             self.state['ley_lines'][ley_line_id] = new_ley_line
 
+            # Find the line IDs connecting the points of the rune for the visual effect
+            all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l['id'] for l in self.game.query.get_team_lines(teamId)}
+            ley_line_line_ids = []
+            rune_pids = rune_to_activate['point_ids']
+            for i in range(len(rune_pids) - 1):
+                p1_id, p2_id = rune_pids[i], rune_pids[i+1]
+                line_key = tuple(sorted((p1_id, p2_id)))
+                if line_key in all_lines_by_points:
+                    ley_line_line_ids.append(all_lines_by_points[line_key])
+
             return {
                 'success': True,
                 'type': 'create_ley_line',
-                'ley_line': new_ley_line
+                'ley_line': new_ley_line,
+                'ley_line_line_ids': ley_line_line_ids
             }
         else:
             # --- Fallback Effect: Pulse an existing Ley Line ---
