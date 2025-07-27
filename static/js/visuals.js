@@ -984,11 +984,11 @@ const visualEffectsManager = (() => {
             uiState.lastActionHighlights.points.add(details.converted_point.id);
             details.hull_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
             uiState.visualEffects.push({
-                type: 'polygon_flash',
+                type: 'hull_breach_visual',
                 points: details.hull_points,
                 color: gameState.teams[details.converted_point.teamId].color,
                 startTime: Date.now(),
-                duration: 1000
+                duration: 1200
             });
             uiState.visualEffects.push({
                 type: 'energy_spiral',
@@ -1002,11 +1002,11 @@ const visualEffectsManager = (() => {
         'hull_breach_fizzle_reinforce': (details, gameState) => {
             details.hull_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
             uiState.visualEffects.push({
-                type: 'polygon_flash',
+                type: 'hull_breach_visual',
                 points: details.hull_points,
                 color: gameState.teams[details.hull_points[0].teamId].color,
                 startTime: Date.now(),
-                duration: 1000
+                duration: 1200
             });
             (details.strengthened_lines || []).forEach(line => {
                 uiState.lastActionHighlights.lines.add(line.id);
@@ -1021,11 +1021,11 @@ const visualEffectsManager = (() => {
             details.hull_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
             const center = {x: details.hull_points.reduce((a,b)=>a+b.x,0)/details.hull_points.length, y: details.hull_points.reduce((a,b)=>a+b.y,0)/details.hull_points.length};
             uiState.visualEffects.push({
-                type: 'polygon_flash',
+                type: 'hull_breach_visual',
                 points: details.hull_points,
                 color: gameState.teams[details.hull_points[0].teamId].color,
                 startTime: Date.now(),
-                duration: 1000
+                duration: 1200
             });
             uiState.visualEffects.push({
                 type: 'shield_pulse',

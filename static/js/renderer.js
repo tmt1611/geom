@@ -1029,6 +1029,34 @@ const renderer = (() => {
                     }
                     break;
                 }
+                case 'hull_breach_visual': {
+                    if (effect.points && effect.points.length >= 3) {
+                        const easeOutQuad = t => t * (2 - t);
+                        const progress = Math.min(1, (Date.now() - effect.startTime) / effect.duration);
+                        const easedProgress = easeOutQuad(progress);
+
+                        ctx.beginPath();
+                        ctx.moveTo((effect.points[0].x + 0.5) * cellSize, (effect.points[0].y + 0.5) * cellSize);
+                        for(let i=1; i<effect.points.length; i++) {
+                            ctx.lineTo((effect.points[i].x + 0.5) * cellSize, (effect.points[i].y + 0.5) * cellSize);
+                        }
+                        ctx.closePath();
+                        
+                        // Light, transparent fill
+                        ctx.fillStyle = effect.color;
+                        ctx.globalAlpha = (1 - easedProgress) * 0.15; // Lighter than territory fill
+                        ctx.fill();
+
+                        // Dotted border
+                        ctx.strokeStyle = effect.color;
+                        ctx.lineWidth = 3;
+                        ctx.globalAlpha = (1 - easedProgress) * 0.8;
+                        ctx.setLineDash([6, 6]);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    }
+                    break;
+                }
                 case 'polygon_flash':
                 case 'territory_fill': {
                     if (effect.points && effect.points.length >= 3) {

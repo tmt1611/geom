@@ -696,6 +696,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loader.style.display = 'flex';
         loaderProgress.style.display = 'block';
         loaderProgress.value = 0;
+        loaderText.textContent = 'Initializing Simulation...';
         
         try {
             const payload = {
@@ -747,6 +748,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loader.style.display = 'flex';
         loaderProgress.style.display = 'block';
         loaderProgress.value = 0;
+        loaderText.textContent = 'Initializing Restart...';
 
         try {
             const progressCallback = (progress, turn, maxTurns, currentStep) => {
