@@ -78,6 +78,26 @@ const visualEffectsManager = (() => {
             uiState.lastActionHighlights.lines.add(details.strengthened_line.id);
             uiState.visualEffects.push({ type: 'line_flash', line: details.strengthened_line, startTime: Date.now(), duration: 800 });
         },
+        'bisect_angle': (details, gameState) => {
+            uiState.lastActionHighlights.points.add(details.new_point.id);
+            uiState.lastActionHighlights.lines.add(details.new_line.id);
+            const vertex = gameState.points[details.new_line.p1_id] || gameState.points[details.new_line.p2_id];
+            if(vertex) {
+                 uiState.visualEffects.push({
+                    type: 'animated_ray',
+                    p1: vertex,
+                    p2: details.new_point,
+                    startTime: Date.now(),
+                    duration: 600,
+                    color: gameState.teams[details.new_point.teamId].color,
+                    lineWidth: 2
+                });
+            }
+        },
+        'bisect_fizzle_strengthen': (details, gameState) => {
+            uiState.lastActionHighlights.lines.add(details.strengthened_line.id);
+            uiState.visualEffects.push({ type: 'line_flash', line: details.strengthened_line, startTime: Date.now(), duration: 800 });
+        },
         'fracture_line': (details, gameState) => {
             uiState.visualEffects.push({
                 type: 'line_crack',
@@ -90,6 +110,68 @@ const visualEffectsManager = (() => {
             uiState.lastActionHighlights.points.add(details.new_point.id);
             uiState.lastActionHighlights.lines.add(details.new_line1.id);
             uiState.lastActionHighlights.lines.add(details.new_line2.id);
+        },
+        'spawn_point': (details, gameState) => {
+            uiState.lastActionHighlights.points.add(details.new_point.id);
+            uiState.visualEffects.push({
+                type: 'point_formation',
+                x: details.new_point.x,
+                y: details.new_point.y,
+                color: gameState.teams[details.new_point.teamId].color,
+                startTime: Date.now(),
+                duration: 600
+            });
+        },
+        'spawn_fizzle_strengthen': (details, gameState) => {
+            uiState.lastActionHighlights.lines.add(details.strengthened_line.id);
+            uiState.visualEffects.push({ type: 'line_flash', line: details.strengthened_line, startTime: Date.now(), duration: 800 });
+        },
+        'spawn_fizzle_border_spawn': (details, gameState) => {
+            uiState.lastActionHighlights.points.add(details.new_point.id);
+            if (details.origin_point) {
+                 uiState.visualEffects.push({
+                    type: 'animated_ray',
+                    p1: details.origin_point,
+                    p2: details.new_point,
+                    startTime: Date.now(),
+                    duration: 700,
+                    color: gameState.teams[details.new_point.teamId].color,
+                    lineWidth: 2
+                });
+            } else {
+                 uiState.visualEffects.push({
+                    type: 'point_formation',
+                    x: details.new_point.x,
+                    y: details.new_point.y,
+                    color: gameState.teams[details.new_point.teamId].color,
+                    startTime: Date.now(),
+                    duration: 800
+                });
+            }
+        },
+         'mirror_point': (details, gameState) => {
+            uiState.lastActionHighlights.points.add(details.new_point.id);
+            uiState.lastActionHighlights.points.add(details.source_point_id);
+            uiState.lastActionHighlights.points.add(details.pivot_point_id);
+
+            const source = gameState.points[details.source_point_id];
+            const pivot = gameState.points[details.pivot_point_id];
+            const teamColor = gameState.teams[details.new_point.teamId].color;
+
+            if (source && pivot) {
+                uiState.visualEffects.push({
+                    type: 'animated_ray',
+                    p1: source, p2: pivot, startTime: Date.now(), duration: 500, color: teamColor, lineWidth: 1.5
+                });
+                 uiState.visualEffects.push({
+                    type: 'animated_ray',
+                    p1: pivot, p2: details.new_point, startTime: Date.now() + 200, duration: 500, color: teamColor, lineWidth: 3
+                });
+            }
+        },
+        'mirror_point_fizzle_strengthen': (details, gameState) => {
+             uiState.lastActionHighlights.lines.add(details.strengthened_line.id);
+             uiState.visualEffects.push({ type: 'line_flash', line: details.strengthened_line, startTime: Date.now(), duration: 800 });
         },
         'convert_point': (details, gameState) => {
             uiState.lastActionHighlights.points.add(details.converted_point.id);

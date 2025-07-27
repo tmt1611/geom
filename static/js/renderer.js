@@ -791,6 +791,17 @@ const renderer = (() => {
                     ctx.fill();
                     break;
                 }
+                case 'point_formation': {
+                    const cx = (effect.x + 0.5) * cellSize;
+                    const cy = (effect.y + 0.5) * cellSize;
+                    const radius = (15 * easedProgress) * (cellSize/10);
+                    ctx.fillStyle = effect.color;
+                    ctx.globalAlpha = 1 - easedProgress;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                    ctx.fill();
+                    break;
+                }
                 case 'point_implosion': {
                     const cx = (effect.x + 0.5) * cellSize;
                     const cy = (effect.y + 0.5) * cellSize;

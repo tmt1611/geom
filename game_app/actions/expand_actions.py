@@ -69,15 +69,11 @@ class ExpandActionsHandler:
         return can_perform, reason
 
     def can_perform_create_orbital(self, teamId):
-        # Primary needs >= 5 points. Fallback needs >=1 point and >0 lines.
-        num_points = len(self.game.get_team_point_ids(teamId))
-        if num_points >= 5:
-            return True, ""
-        
-        if num_points >= 1 and len(self.game.get_team_lines(teamId)) > 0:
-            return True, ""
-
-        return False, "Requires at least 5 points, or at least 1 point and 1 line for fallback."
+        # The action is possible if a point exists to act as a center.
+        # It can fail gracefully if no space is found, triggering a fallback if possible.
+        can_perform = len(self.game.get_team_point_ids(teamId)) >= 1
+        reason = "" if can_perform else "Requires at least one point to be the center of an orbital."
+        return can_perform, reason
 
     def can_perform_mirror_point(self, teamId):
         # Primary needs >= 2 points. Fallback needs any line.
@@ -311,7 +307,7 @@ class ExpandActionsHandler:
             if border_point:
                 new_point = self.game._helper_spawn_on_border(teamId, border_point)
                 if new_point:
-                    return {'success': True, 'type': 'spawn_fizzle_border_spawn', 'new_point': new_point}
+                    return {'success': True, 'type': 'spawn_fizzle_border_spawn', 'new_point': new_point, 'origin_point': p_origin}
 
         return {'success': False, 'reason': 'all spawn strategies, including fallbacks, failed'}
 
@@ -399,70 +395,71 @@ class ExpandActionsHandler:
     def create_orbital(self, teamId):
         """[EXPAND ACTION]: Creates a new orbital structure. If not possible, strengthens lines around a potential center."""
         team_point_ids = self.game.get_team_point_ids(teamId)
+        if not team_point_ids:
+             return {'success': False, 'reason': 'no points to use as center'}
 
-        # Primary effect requires at least 5 points.
-        if len(team_point_ids) >= 5:
-            shuffled_point_ids = random.sample(team_point_ids, len(team_point_ids))
+        shuffled_point_ids = random.sample(team_point_ids, len(team_point_ids))
 
-            # Try a few times to find a valid spot
-            for p_center_id in shuffled_point_ids[:5]:
-                p_center = self.state['points'][p_center_id]
-                
-                num_satellites = random.randint(3, 5)
-                radius = self.state['grid_size'] * random.uniform(0.15, 0.25)
-                angle_offset = random.uniform(0, 2 * math.pi)
-                
-                new_points_to_create = []
-                valid_orbital = True
+        # Try a few times to find a valid spot using different centers
+        for p_center_id in shuffled_point_ids:
+            p_center = self.state['points'].get(p_center_id)
+            if not p_center: continue
+            
+            num_satellites = random.randint(3, 5)
+            radius = self.state['grid_size'] * random.uniform(0.15, 0.25)
+            angle_offset = random.uniform(0, 2 * math.pi)
+            
+            new_points_to_create = []
+            valid_orbital = True
 
-                for i in range(num_satellites):
-                    angle = angle_offset + (2 * math.pi * i / num_satellites)
-                    new_x = p_center['x'] + math.cos(angle) * radius
-                    new_y = p_center['y'] + math.sin(angle) * radius
-                    
-                    new_p_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
-                    is_valid, _ = self.game.is_spawn_location_valid(new_p_coords, teamId, min_dist_sq=2.0)
-                    if not is_valid:
-                        valid_orbital = False; break
-                    
-                    is_too_close_to_sibling = any(distance_sq(new_p_coords, p_sib) < 2.0 for p_sib in new_points_to_create)
-                    if is_too_close_to_sibling:
-                        valid_orbital = False; break
-                    
-                    new_point_id = self.game._generate_id('p')
-                    new_points_to_create.append({**new_p_coords, "teamId": teamId, "id": new_point_id})
+            for i in range(num_satellites):
+                angle = angle_offset + (2 * math.pi * i / num_satellites)
+                new_x = p_center['x'] + math.cos(angle) * radius
+                new_y = p_center['y'] + math.sin(angle) * radius
                 
-                if not valid_orbital:
-                    continue
+                new_p_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
+                is_valid, _ = self.game.is_spawn_location_valid(new_p_coords, teamId, min_dist_sq=2.0)
+                if not is_valid:
+                    valid_orbital = False; break
+                
+                is_too_close_to_sibling = any(distance_sq(new_p_coords, p_sib) < 2.0 for p_sib in new_points_to_create)
+                if is_too_close_to_sibling:
+                    valid_orbital = False; break
+                
+                new_point_id = self.game._generate_id('p')
+                new_points_to_create.append({**new_p_coords, "teamId": teamId, "id": new_point_id})
+            
+            if not valid_orbital:
+                continue
 
-                # --- Primary Effect: Create Orbital ---
-                created_points = []
-                created_lines = []
-                bonus_lines = []
-                for new_p_data in new_points_to_create:
-                    self.state['points'][new_p_data['id']] = new_p_data
-                    created_points.append(new_p_data)
-                    
-                    # Check for Ley Line bonus on each created point
-                    bonus_line = self.game._check_and_apply_ley_line_bonus(new_p_data)
-                    if bonus_line:
-                        bonus_lines.append(bonus_line)
+            # --- Primary Effect: Create Orbital ---
+            created_points = []
+            created_lines = []
+            bonus_lines = []
+            for new_p_data in new_points_to_create:
+                self.state['points'][new_p_data['id']] = new_p_data
+                created_points.append(new_p_data)
+                
+                # Check for Ley Line bonus on each created point
+                bonus_line = self.game._check_and_apply_ley_line_bonus(new_p_data)
+                if bonus_line:
+                    bonus_lines.append(bonus_line)
 
-                    line_id = self.game._generate_id('l')
-                    new_line = {"id": line_id, "p1_id": p_center_id, "p2_id": new_p_data['id'], "teamId": teamId}
-                    self.state['lines'].append(new_line)
-                    created_lines.append(new_line)
-                
-                result_payload = {
-                    'success': True, 'type': 'create_orbital', 'center_point_id': p_center_id,
-                    'new_points': created_points, 'new_lines': created_lines
-                }
-                if bonus_lines:
-                    result_payload['bonus_lines'] = bonus_lines
-                
-                return result_payload
+                line_id = self.game._generate_id('l')
+                new_line = {"id": line_id, "p1_id": p_center_id, "p2_id": new_p_data['id'], "teamId": teamId}
+                self.state['lines'].append(new_line)
+                created_lines.append(new_line)
+            
+            result_payload = {
+                'success': True, 'type': 'create_orbital', 'center_point_id': p_center_id,
+                'new_points': created_points, 'new_lines': created_lines
+            }
+            if bonus_lines:
+                result_payload['bonus_lines'] = bonus_lines
+            
+            return result_payload
         
-        # This is reached if len < 5 OR if the primary effect failed to find a spot.
+        # This is reached if the primary effect failed to find a spot for any center point.
         return self._create_orbital_fallback_strengthen(teamId)
 
     def bisect_angle(self, teamId):
