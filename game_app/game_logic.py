@@ -802,7 +802,20 @@ class Game:
         status = {}
         for action_name, precon_func in self.action_preconditions.items():
             handler = getattr(self, action_data.ACTIONS[action_name]['handler'])
-            is_valid, reason = precon_func(handler, teamId)
+            try:
+                result = precon_func(handler, teamId)
+                if not isinstance(result, tuple) or len(result) != 2:
+                    # This helps debug issues where a precondition returns something other than a (bool, str) tuple.
+                    print(f"ERROR: Precondition for action '{action_name}' returned an invalid type: {type(result)}. Expected a tuple of (bool, str).")
+                    is_valid, reason = False, "Internal error in precondition check."
+                else:
+                    is_valid, reason = result
+            except TypeError as e:
+                # Add more context to the error
+                print(f"TypeError in precondition for action '{action_name}': {e}")
+                # Re-raise the exception to keep the original behavior but with more context printed to the server log.
+                raise TypeError(f"Error unpacking precondition for '{action_name}'. Check its lambda function in action_data.py.") from e
+            
             status[action_name] = {'valid': is_valid, 'reason': "" if is_valid else reason}
         
         return status
