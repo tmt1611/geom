@@ -1,11 +1,9 @@
-- **Illustration Review (RUNE actions):** Reviewed all `RUNE` actions for illustration coverage and quality.
+- **Illustration Review (SACRIFICE actions):** Reviewed all `SACRIFICE` actions for visual consistency and accuracy.
+- **Code Optimization & Consistency:**
+    - Created a new `drawSacrificeSymbol` helper function in `illustration_generator.js` to standardize the visual representation of a sacrificed element (a red 'X').
+    - Refactored all sacrifice-related illustration functions (`sacrifice_chain_lightning`, `sacrifice_convert_point`, `sacrifice_bastion_pulse`, `sacrifice_line_retaliation`, etc.) to use this new helper. This improves code maintainability and ensures a consistent visual language.
 - **Visual Design Streamlining & Consistency:**
-    - **Improved `Rune: V-Beam` Illustration:** Added a thick, semi-transparent highlight to the V-Rune's lines, matching the visual effect used in the live game renderer to indicate an active rune.
-    - **Improved `Rune: Impale` Illustration:** The illustration now shows the beam piercing through *two* enemy lines and causing explosions on both, which better demonstrates its "pierces all" nature described in the rules. The beam was also changed from an arrow to a thick line to better represent a continuous beam.
-- **Live Renderer Improvement:**
-    - **Added Rune Highlighters:** Created new visual highlighters in the live game renderer for several rune types that were previously not visually distinguished when active. This improves player feedback and consistency with other runes.
-        - **Plus-Rune:** Now shows a glowing pulse from its center point.
-        - **T-Rune:** Highlights its "stem" line.
-        - **Parallelogram-Rune & Barricade-Rune:** Now show a visual highlight (fill or stroke) around their perimeter.
-        - **Star-Rune:** Now has a pulsing glow around its central point.
-- **Consistency Check:** The illustrations and in-game visuals for all `RUNE` actions are now more consistent, making it easier for players to understand which structure is performing an action.
+    - **Improved `Sacrifice: Create Whirlpool` Illustration:** Replaced the misleading `drawExplosion` effect with the new `drawSacrificeSymbol`. The illustration now correctly suggests an implosion/vortex, matching the `point_implosion` visual effect in the live game.
+    - **Improved `Sacrifice: Create Rift Trap` Illustration:** Replaced an incorrectly placed `drawExplosion` with `drawSacrificeSymbol`. The illustration now shows the point being sacrificed and the resulting trap symbol separately, which is clearer and more aligned with the `point_implosion` visual effect.
+    - **Improved `Sacrifice: Nova Burst` Illustration:** Enhanced the illustration to include the `drawSacrificeSymbol` over the explosion, making it clearer that the explosion is the result of a point sacrifice.
+- **Consistency Check:** The illustrations for all `SACRIFICE` actions now consistently use a red 'X' to denote the sacrificed element(s), improving clarity and player understanding. The illustrations for `Create Whirlpool` and `Create Rift Trap` are now more accurate representations of their in-game visual effects.

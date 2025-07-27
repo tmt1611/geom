@@ -86,6 +86,16 @@ const illustrationHelpers = {
         ctx.stroke();
         ctx.restore();
     },
+    drawSacrificeSymbol: (ctx, x, y, size = 8) => {
+        ctx.save();
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x - size, y - size); ctx.lineTo(x + size, y + size);
+        ctx.moveTo(x + size, y - size); ctx.lineTo(x - size, y + size);
+        ctx.stroke();
+        ctx.restore();
+    },
     drawFortifiedPoint: (ctx, p, color) => {
         ctx.fillStyle = color;
         const radius = 5;
@@ -278,12 +288,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawLines(ctx, [{p1:p1,p2:p_sac}, {p1:p_sac,p2:p3}], team1_color);
 
         // Sacrifice center point
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
-        ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
-        ctx.stroke();
+        illustrationHelpers.drawSacrificeSymbol(ctx, p_sac.x, p_sac.y);
 
         // Enemy point
         const ep1 = {x: w*0.8, y: h*0.3};
@@ -311,12 +316,8 @@ const illustrationDrawers = {
         // Sacrificed line with 'X'
         illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
         illustrationHelpers.drawLines(ctx, [{p1,p2}], team1_color, 1);
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(w*0.25, h*0.4); ctx.lineTo(w*0.35, h*0.6);
-        ctx.moveTo(w*0.25, h*0.6); ctx.lineTo(w*0.35, h*0.4);
-        ctx.stroke();
+        const mid = {x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2};
+        illustrationHelpers.drawSacrificeSymbol(ctx, mid.x, mid.y);
 
         // Enemy point
         illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
@@ -362,12 +363,7 @@ const illustrationDrawers = {
         prongs.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: core, p2: p}], team1_color));
 
         // Sacrificed point
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
-        ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
-        ctx.stroke();
+        illustrationHelpers.drawSacrificeSymbol(ctx, p_sac.x, p_sac.y);
 
         // Enemy line crossing perimeter
         const ep1 = {x: w*0.8, y: h*0.1};
@@ -907,7 +903,8 @@ const illustrationDrawers = {
         
         // Sacrificed point
         illustrationHelpers.drawPoints(ctx, [center], team1_color);
-        illustrationHelpers.drawExplosion(ctx, center.x, center.y, 'red', 15);
+        illustrationHelpers.drawExplosion(ctx, center.x, center.y, 'red', 25);
+        illustrationHelpers.drawSacrificeSymbol(ctx, center.x, center.y, 10);
         
         // Enemy lines being destroyed
         const ep1 = {x: w*0.8, y: h*0.3};
@@ -935,12 +932,8 @@ const illustrationDrawers = {
 
         // Sacrificed line
         illustrationHelpers.drawLines(ctx, [{p1:p1_orig, p2:p2}], team1_color, 1);
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(w*0.3, h*0.4); ctx.lineTo(w*0.4, h*0.6);
-        ctx.moveTo(w*0.3, h*0.6); ctx.lineTo(w*0.4, h*0.4);
-        ctx.stroke();
+        const mid = {x: (p1_orig.x+p2.x)/2, y: (p1_orig.y+p2.y)/2};
+        illustrationHelpers.drawSacrificeSymbol(ctx, mid.x, mid.y);
 
         // Original points
         illustrationHelpers.drawPoints(ctx, [p1_orig, p2], team1_color);
@@ -958,7 +951,8 @@ const illustrationDrawers = {
         const center = {x: w*0.5, y: h*0.5};
 
         // Sacrificed point
-        illustrationHelpers.drawExplosion(ctx, center.x, center.y);
+        illustrationHelpers.drawPoints(ctx, [center], team1_color);
+        illustrationHelpers.drawSacrificeSymbol(ctx, center.x, center.y);
 
         const pointsToPull = [
             {x: w*0.2, y: h*0.2},
@@ -1000,13 +994,8 @@ const illustrationDrawers = {
         branches.forEach(b => illustrationHelpers.drawLines(ctx, [{p1: center, p2: b}], team1_color));
         
         // Draw sacrifice 'X' over them
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
         [center, ...branches].forEach(p => {
-            ctx.beginPath();
-            ctx.moveTo(p.x - 6, p.y - 6); ctx.lineTo(p.x + 6, p.y + 6);
-            ctx.moveTo(p.x - 6, p.y + 6); ctx.lineTo(p.x + 6, p.y - 6);
-            ctx.stroke();
+            illustrationHelpers.drawSacrificeSymbol(ctx, p.x, p.y, 6);
         });
 
         // Draw Heartwood symbol
@@ -1157,22 +1146,24 @@ const illustrationDrawers = {
         const team1_color = 'hsl(0, 70%, 50%)';
         const center = {x: w*0.5, y: h*0.5};
         
-        // Sacrificed point
+        // Sacrificed point (implodes to create trap)
         illustrationHelpers.drawPoints(ctx, [center], team1_color);
-        illustrationHelpers.drawExplosion(ctx, center.x - 20, center.y - 20);
+        illustrationHelpers.drawSacrificeSymbol(ctx, center.x, center.y);
 
-        // Trap symbol
+        // Trap symbol is shown near the sacrifice
+        const trap_center = { x: center.x + 30, y: center.y };
         const radius = 12;
+        ctx.save();
         ctx.strokeStyle = team1_color;
         ctx.lineWidth = 2;
         ctx.globalAlpha = 0.6;
         ctx.beginPath();
-        ctx.arc(center.x, center.y, radius, 0.2, Math.PI - 0.2);
+        ctx.arc(trap_center.x, trap_center.y, radius, 0.2, Math.PI - 0.2);
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(center.x, center.y, radius, Math.PI + 0.2, 2 * Math.PI - 0.2);
+        ctx.arc(trap_center.x, trap_center.y, radius, Math.PI + 0.2, 2 * Math.PI - 0.2);
         ctx.stroke();
-        ctx.globalAlpha = 1.0;
+        ctx.restore();
     },
     'fight_purify_territory': (ctx, w, h) => {
         const team1_color = 'hsl(50, 80%, 60%)'; // Light yellow for purify
@@ -1246,13 +1237,8 @@ const illustrationDrawers = {
         }
         
         // Draw sacrifice 'X' over them
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
         [center, ...cycle_points].forEach(p => {
-            ctx.beginPath();
-            ctx.moveTo(p.x - 4, p.y - 4); ctx.lineTo(p.x + 4, p.y + 4);
-            ctx.moveTo(p.x - 4, p.y + 4); ctx.lineTo(p.x + 4, p.y - 4);
-            ctx.stroke();
+            illustrationHelpers.drawSacrificeSymbol(ctx, p.x, p.y, 4);
         });
 
         // Draw Spire symbol at center
@@ -1596,12 +1582,8 @@ const illustrationDrawers = {
         
         // Draw sacrificed diagonal
         illustrationHelpers.drawLines(ctx, [{p1:p1, p2:p3}], team1_color, 1);
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(w*0.4, h*0.4); ctx.lineTo(w*0.6, h*0.6);
-        ctx.moveTo(w*0.4, h*0.6); ctx.lineTo(w*0.6, h*0.4);
-        ctx.stroke();
+        const mid_sac = {x: (p1.x+p3.x)/2, y: (p1.y+p3.y)/2};
+        illustrationHelpers.drawSacrificeSymbol(ctx, mid_sac.x, mid_sac.y);
 
         // Draw attuned effect
         const pulse = 0.5; // static for illustration
@@ -1629,12 +1611,7 @@ const illustrationDrawers = {
         ctx.restore();
 
         // Sacrificed point
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
-        ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
-        ctx.stroke();
+        illustrationHelpers.drawSacrificeSymbol(ctx, p_sac.x, p_sac.y);
 
         // Projectiles
         const target1 = {x: w*0.9, y: h*0.5}; // along the line
@@ -1661,13 +1638,8 @@ const illustrationDrawers = {
         illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p1}], team1_color);
         
         // Draw sacrifice 'X' over points
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
         points.forEach(p => {
-            ctx.beginPath();
-            ctx.moveTo(p.x - 8, p.y - 8); ctx.lineTo(p.x + 8, p.y + 8);
-            ctx.moveTo(p.x - 8, p.y + 8); ctx.lineTo(p.x + 8, p.y - 8);
-            ctx.stroke();
+            illustrationHelpers.drawSacrificeSymbol(ctx, p.x, p.y);
         });
 
         // Draw scorched area
