@@ -1000,7 +1000,7 @@ const visualEffectsManager = (() => {
                 target_point: details.converted_point,
                 color: gameState.teams[details.converted_point.teamId].color,
                 startTime: Date.now(),
-                duration: 1200
+                duration: 800 // Faster animation
             });
 
             // Find original team color
@@ -1014,8 +1014,8 @@ const visualEffectsManager = (() => {
                 x: details.converted_point.x,
                 y: details.converted_point.y,
                 color: originalColor,
-                startTime: Date.now() + 200,
-                duration: 400
+                startTime: Date.now() + 100, // Start sooner
+                duration: 300 // Faster
             });
 
             // Effect 2: Explosion of new color
@@ -1024,8 +1024,8 @@ const visualEffectsManager = (() => {
                 x: details.converted_point.x,
                 y: details.converted_point.y,
                 color: newColor,
-                startTime: Date.now() + 600,
-                duration: 600
+                startTime: Date.now() + 400, // Start right after implosion
+                duration: 400 // Faster
             });
         },
         'hull_breach_fizzle_reinforce': (details, gameState) => {

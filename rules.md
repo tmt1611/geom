@@ -105,7 +105,7 @@ These actions focus on strengthening a team's position, building defenses, and c
 *   **[FORTIFY] Claim Territory:** Forms a triangle of three points and their connecting lines into a claimed territory, making its points immune to conversion. If no new triangles can be formed, it reinforces an existing territory.
 
 #### Condition: Team has at least 3 points
-*   **[FORTIFY] Mirror Structure:** Creates a symmetrical structure by reflecting some of its points across an axis defined by two other points. If it fails, it reinforces several existing lines.
+*   **[FORTIFY] Mirror Structure:** Creates a symmetrical structure by reflecting some of its points across an axis defined by two other points. If it fails, it reinforces lines connected to the team's two closest points. If that also fails, it adds a new line as a last resort.
 
 #### Condition: Team has a fortified point
 *   **[FORTIFY] Form Bastion:** Converts a fortified point and its connections into a powerful defensive bastion, making its components immune to standard attacks. If not possible, it reinforces a key defensive point.

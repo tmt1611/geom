@@ -316,7 +316,7 @@ ACTIONS = {
     'fortify_mirror_structure': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'mirror_structure',
         'display_name': 'Mirror Structure',
-        'description': "Creates a symmetrical structure by reflecting some of its points across an axis defined by two other points. If it fails, it reinforces several existing lines around random points. If that also fails, it adds a new line as a last resort.",
+        'description': "Creates a symmetrical structure by reflecting some of its points across an axis defined by two other points. If it fails, it reinforces lines connected to the team's two closest points. If that also fails, it adds a new line as a last resort.",
         'precondition': lambda h, tid: (
             (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 2 or len(h.game.query.get_team_lines(tid)) > 0
             else (False, "Requires at least 2 points or 1 line.")
@@ -473,7 +473,7 @@ ACTIONS = {
     'sacrifice_convert_point': {
         'group': 'Sacrifice', 'handler': 'sacrifice_handler', 'method': 'convert_point',
         'display_name': 'Convert Point',
-        'description': "Sacrifices a friendly line to convert the nearest vulnerable enemy point to its team. If no target is in range, it creates a repulsive pulse that pushes enemies away.",
+        'description': "Sacrifices a friendly line (preferring non-critical ones) to convert the nearest vulnerable enemy point to its team. If no target is in range, it creates a repulsive pulse that pushes enemies away.",
         'precondition': lambda h, tid: (
             (True, "") if len(h.game.query.get_team_lines(tid)) > 0
             else (False, "Requires a line to sacrifice.")
