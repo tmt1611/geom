@@ -1,7 +1,6 @@
-- **Illustration Review (FORTIFY Actions):** Added new illustrations for `Reposition Point` and `Create Ley Line`. Redesigned the illustration for `Mirror Structure` to better reflect its function of mirroring a structure rather than a single point.
-- **Illustration Consistency:**
-    - Renamed several illustration functions to match their action names in `rules.md` for better consistency (e.g., `fortify_claim` to `fortify_claim_territory`, `fortify_shield` to `fortify_shield_line`, etc.). This was applied to multiple action groups (Expand, Fight, Fortify, Sacrifice, Rune) to improve overall code clarity.
-- **Visual Effect Streamlining:**
-    - Unified the `bastion_formation` visual effect into the more generic `line_flash` effect, as they produced identical visuals. This simplifies the effect map in `visuals.js` and `renderer.js`.
-    - Corrected the visualizer for the no-cost `Create Anchor` action by removing erroneous logic that checked for a sacrificed point.
-- **Checked action coverage:** Ensured all `FORTIFY` actions now have corresponding illustration code in `illustration_generator.js`, except for `Overcharge` which is a variant of `Shield Line`.
+- **Illustration Review (SACRIFICE Actions):** Added new illustrations for `Line Retaliation`, `Scorch Territory`, and `Attune Nexus`, which were previously missing. This completes the illustration coverage for all `SACRIFICE` actions listed in `rules.md`.
+- **Illustration Design:** The new illustrations were designed to visually represent the core mechanics of each action:
+    - `Line Retaliation`: Shows a point on a line being sacrificed to launch two perpendicular projectiles.
+    - `Scorch Territory`: Depicts a friendly territory's points being sacrificed, leaving behind a blackened, impassable area.
+    - `Attune Nexus`: Illustrates a diagonal line of a Nexus being sacrificed to create a glowing, "attuned" core.
+- **Checked action coverage:** Confirmed that all `SACRIFICE` actions now have corresponding illustration code in `illustration_generator.js`.

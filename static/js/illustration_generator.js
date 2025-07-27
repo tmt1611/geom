@@ -1405,6 +1405,110 @@ const illustrationDrawers = {
         // Blast on enemy line
         illustrationHelpers.drawExplosion(ctx, w*0.5, h*0.5);
     },
+    'sacrifice_attune_nexus': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const p1 = {x: w*0.2, y: h*0.2};
+        const p2 = {x: w*0.8, y: h*0.2};
+        const p3 = {x: w*0.8, y: h*0.8};
+        const p4 = {x: w*0.2, y: h*0.8};
+        const points = [p1, p2, p3, p4];
+        const center = {x: w*0.5, y: h*0.5};
+
+        // Draw Nexus
+        illustrationHelpers.drawPoints(ctx, points, team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p4},{p1:p4,p2:p1}], team1_color);
+        // Draw other diagonal as existing
+        illustrationHelpers.drawLines(ctx, [{p1:p2, p2:p4}], team1_color);
+        
+        // Draw sacrificed diagonal
+        illustrationHelpers.drawLines(ctx, [{p1:p1, p2:p3}], team1_color, 1);
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(w*0.4, h*0.4); ctx.lineTo(w*0.6, h*0.6);
+        ctx.moveTo(w*0.4, h*0.6); ctx.lineTo(w*0.6, h*0.4);
+        ctx.stroke();
+
+        // Draw attuned effect
+        const pulse = 0.5; // static for illustration
+        const glow_radius = 15 + pulse * 5;
+        const gradient = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, glow_radius);
+        gradient.addColorStop(0, `rgba(255, 255, 255, ${0.8 - pulse * 0.3})`);
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath(); ctx.arc(center.x, center.y, glow_radius, 0, 2 * Math.PI); ctx.fill();
+        ctx.fillStyle = team1_color;
+        ctx.beginPath(); ctx.arc(center.x, center.y, 6 + pulse * 2, 0, 2 * Math.PI); ctx.fill();
+    },
+    'sacrifice_line_retaliation': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const team2_color = 'hsl(240, 70%, 50%)';
+        const p1 = {x: w*0.2, y: h*0.5};
+        const p_sac = {x: w*0.4, y: h*0.5};
+        const p2 = {x: w*0.6, y: h*0.5};
+        
+        // Faded original line
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        illustrationHelpers.drawPoints(ctx, [p1, p_sac, p2], team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1:p1, p2:p2}], team1_color, 2);
+        ctx.restore();
+
+        // Sacrificed point
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(p_sac.x - 8, p_sac.y - 8); ctx.lineTo(p_sac.x + 8, p_sac.y + 8);
+        ctx.moveTo(p_sac.x - 8, p_sac.y + 8); ctx.lineTo(p_sac.x + 8, p_sac.y - 8);
+        ctx.stroke();
+
+        // Projectiles
+        const target1 = {x: w*0.9, y: h*0.5}; // along the line
+        const target2 = {x: w*0.4, y: h*0.1}; // perpendicular
+        illustrationHelpers.drawArrow(ctx, p_sac, target1, team1_color);
+        illustrationHelpers.drawArrow(ctx, p_sac, target2, team1_color);
+
+        // Enemy line to hit
+        const ep1 = {x: w*0.9, y: h*0.3};
+        const ep2 = {x: w*0.9, y: h*0.7};
+        illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+        illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color, 1);
+        illustrationHelpers.drawExplosion(ctx, target1.x, target1.y);
+    },
+    'sacrifice_scorch_territory': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const p1 = {x: w*0.5, y: h*0.1};
+        const p2 = {x: w*0.1, y: h*0.8};
+        const p3 = {x: w*0.9, y: h*0.8};
+        const points = [p1, p2, p3];
+
+        // Draw original territory
+        illustrationHelpers.drawPoints(ctx, points, team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p1}], team1_color);
+        
+        // Draw sacrifice 'X' over points
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        points.forEach(p => {
+            ctx.beginPath();
+            ctx.moveTo(p.x - 8, p.y - 8); ctx.lineTo(p.x + 8, p.y + 8);
+            ctx.moveTo(p.x - 8, p.y + 8); ctx.lineTo(p.x + 8, p.y - 8);
+            ctx.stroke();
+        });
+
+        // Draw scorched area
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+        ctx.fillStyle = 'rgba(50, 50, 50, 0.7)';
+        ctx.fill();
+        ctx.strokeStyle = `rgba(200, 80, 0, 0.8)`;
+        ctx.lineWidth = 2;
+        illustrationHelpers.drawJaggedLine(ctx, p1, p2, 10, 3);
+        illustrationHelpers.drawJaggedLine(ctx, p2, p3, 10, 3);
+        illustrationHelpers.drawJaggedLine(ctx, p3, p1, 10, 3);
+        ctx.restore();
+    },
 };
 
 /**
