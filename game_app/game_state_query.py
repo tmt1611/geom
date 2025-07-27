@@ -172,6 +172,71 @@ class GameStateQuery:
             
         return points_centroid(team_points)
 
+    def find_loneliest_point(self, teamId):
+        """
+        Finds the team's point that is furthest from its nearest friendly neighbor.
+        Returns the ID of the loneliest point, or None if no points exist.
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if not team_point_ids:
+            return None
+        if len(team_point_ids) == 1:
+            return team_point_ids[0]
+
+        points_map = self.state['points']
+        team_points = [points_map[pid] for pid in team_point_ids if pid in points_map]
+        
+        # Guard against points being deleted between getting IDs and getting points
+        if len(team_points) <= 1:
+            return team_points[0]['id'] if team_points else None
+
+        loneliest_point_id = None
+        max_min_dist_sq = -1
+
+        for p1 in team_points:
+            min_dist_sq_for_p1 = float('inf')
+            for p2 in team_points:
+                if p1['id'] == p2['id']:
+                    continue
+                dist_sq = distance_sq(p1, p2)
+                if dist_sq < min_dist_sq_for_p1:
+                    min_dist_sq_for_p1 = dist_sq
+            
+            if min_dist_sq_for_p1 > max_min_dist_sq:
+                max_min_dist_sq = min_dist_sq_for_p1
+                loneliest_point_id = p1['id']
+                
+        return loneliest_point_id
+
+    def find_most_central_point(self, teamId):
+        """
+        Finds the team's point that is closest to the team's centroid.
+        Returns the ID of the most central point, or None if no points exist.
+        """
+        team_point_ids = self.get_team_point_ids(teamId)
+        if not team_point_ids:
+            return None
+        
+        team_centroid = self.get_team_centroid(teamId)
+        if not team_centroid:
+            # Fallback to first point if centroid fails (e.g. no points)
+            return team_point_ids[0] if team_point_ids else None
+        
+        points_map = self.state['points']
+        
+        most_central_point_id = None
+        min_dist_sq = float('inf')
+
+        for pid in team_point_ids:
+            if pid in points_map:
+                point = points_map[pid]
+                dist_sq = distance_sq(point, team_centroid)
+                if dist_sq < min_dist_sq:
+                    min_dist_sq = dist_sq
+                    most_central_point_id = pid
+                    
+        return most_central_point_id
+
     # --- Action-Specific Pre-computation Queries ---
 
     def find_possible_extensions(self, teamId):
