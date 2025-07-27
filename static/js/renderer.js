@@ -168,6 +168,17 @@ const renderer = (() => {
                     ctx.beginPath(); ctx.arc(cx, cy, cage_radius, 0, 2 * Math.PI); ctx.stroke();
                 }
 
+                if (p.is_isolated) {
+                    const pulse = Math.abs(Math.sin(Date.now() / 300));
+                    ctx.strokeStyle = `rgba(200, 100, 255, ${0.5 + pulse * 0.4})`;
+                    ctx.lineWidth = 2;
+                    const cage_r = radius + 4;
+                    ctx.beginPath();
+                    ctx.moveTo(cx - cage_r, cy - cage_r); ctx.lineTo(cx + cage_r, cy + cage_r);
+                    ctx.moveTo(cx - cage_r, cy + cage_r); ctx.lineTo(cx + cage_r, cy - cage_r);
+                    ctx.stroke();
+                }
+
                 if (uiState.debugOptions.showPointIds) {
                     ctx.fillStyle = '#000'; ctx.font = '10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                     ctx.fillText(p.id, cx, cy - (radius + 2));

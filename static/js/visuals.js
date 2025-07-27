@@ -221,6 +221,13 @@ const visualEffectsManager = (() => {
                 duration: 600,
                 color: details.bypassed_shield ? 'rgba(255, 100, 255, 1.0)' : 'rgba(255, 0, 0, 1.0)'
             });
+            uiState.visualEffects.push({
+                type: 'point_explosion',
+                x: details.attack_ray.p2.x,
+                y: details.attack_ray.p2.y,
+                startTime: Date.now() + 200,
+                duration: 500
+            });
         },
         'attack_line_energized': (details, gameState) => {
             uiState.lastActionHighlights.lines.add(details.attacker_line.id);
@@ -464,6 +471,13 @@ const visualEffectsManager = (() => {
             });
             uiState.visualEffects.push({
                 type: 'attack_ray', p1: details.refracted_ray.p1, p2: details.refracted_ray.p2, startTime: Date.now() + 200, duration: 1000, color: `rgba(255, 100, 100, 1)`, lineWidth: 4
+            });
+            uiState.visualEffects.push({
+                type: 'point_explosion',
+                x: details.refracted_ray.p2.x,
+                y: details.refracted_ray.p2.y,
+                startTime: Date.now() + 400,
+                duration: 500
             });
         },
         'bastion_pulse': (details, gameState) => {
@@ -754,6 +768,23 @@ const visualEffectsManager = (() => {
             uiState.visualEffects.push({
                 type: 'territory_fade', territory: details.cleansed_territory, startTime: Date.now(), duration: 1500
             });
+            // Add shockwave from purifier to match illustration
+            const purifier_points = details.purifier_point_ids.map(pid => gameState.points[pid]).filter(Boolean);
+            if (purifier_points.length > 0) {
+                const center = {
+                    x: purifier_points.reduce((sum, p) => sum + p.x, 0) / purifier_points.length,
+                    y: purifier_points.reduce((sum, p) => sum + p.y, 0) / purifier_points.length
+                };
+                const radius_sq = (gameState.grid_size * 0.3)**2;
+                uiState.visualEffects.push({
+                    type: 'shield_pulse',
+                    center: center,
+                    radius_sq: radius_sq,
+                    color: 'rgba(255, 255, 220, 1.0)', // Purifier yellow
+                    startTime: Date.now(),
+                    duration: 1000,
+                });
+            }
         },
         'build_chronos_spire': (details, gameState) => {
             if(details.sacrificed_point_ids) {

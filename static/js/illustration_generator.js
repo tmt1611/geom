@@ -424,9 +424,9 @@ const illustrationDrawers = {
         const ep_convert = {x: w*0.5, y: h*0.5};
         illustrationHelpers.drawPoints(ctx, [ep_convert], team2_color);
 
-        // Conversion arrow
-        const center = {x: w*0.5, y: h*0.6};
-        illustrationHelpers.drawArrow(ctx, center, {x:ep_convert.x, y:ep_convert.y + 10}, '#f1c40f');
+        // Conversion effect
+        const center = {x: w*0.5, y: h*0.6}; // Approx center of hull
+        illustrationHelpers.drawSpiral(ctx, center, ep_convert, '#f1c40f');
         
         // Converted point halo
         ctx.beginPath();
@@ -475,8 +475,12 @@ const illustrationDrawers = {
         illustrationHelpers.drawLines(ctx, [{p1,p2}, {p1:p2,p2:p3}], team1_color);
         illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
 
-        const beam_end = {x: w*0.4, y: h*0.05};
-        illustrationHelpers.drawArrow(ctx, p2, beam_end, 'rgba(255, 100, 100, 1.0)');
+        // Use jagged line to match "zap" / "lightning" visual effect
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 100, 1.0)'; // Yellowish for electricity
+        ctx.lineWidth = 2;
+        illustrationHelpers.drawJaggedLine(ctx, p2, ep1, 5, 8);
+        ctx.restore();
 
         illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
     },
@@ -963,16 +967,10 @@ const illustrationDrawers = {
 
         illustrationHelpers.drawPoints(ctx, pointsToPull, team2_color);
 
-        // Draw spiral lines
+        // Draw spiral lines using helper
         pointsToPull.forEach(p => {
-            ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
-            ctx.quadraticCurveTo((p.x+center.x)/2 + (p.y-center.y)*0.3, (p.y+center.y)/2 - (p.x-center.x)*0.3, center.x, center.y);
-            ctx.strokeStyle = '#aaa';
-            ctx.setLineDash([3,3]);
-            ctx.stroke();
+            illustrationHelpers.drawSpiral(ctx, p, center, '#aaa');
         });
-        ctx.setLineDash([]);
     },
     'sacrifice_cultivate_heartwood': (ctx, w, h) => {
         const team1_color = 'hsl(120, 70%, 50%)'; // Green for nature
