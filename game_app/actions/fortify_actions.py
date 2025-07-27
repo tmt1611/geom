@@ -550,7 +550,7 @@ class FortifyActionsHandler:
 
             points_to_reinforce_ids = random.sample(team_point_ids, 5)
             strengthened_lines = []
-            all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+            all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
 
             for p1_id, p2_id in combinations(points_to_reinforce_ids, 2):
                 line_key = tuple(sorted((p1_id, p2_id)))
