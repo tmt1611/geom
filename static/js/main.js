@@ -37,8 +37,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const newTeamTraitSelect = document.getElementById('new-team-trait');
     const addTeamBtn = document.getElementById('add-team-btn');
     const startGameBtn = document.getElementById('start-game-btn');
+    const playbackPrevBtn = document.getElementById('playback-prev-btn');
     const playbackNextBtn = document.getElementById('playback-next-btn');
     const playbackPlayPauseBtn = document.getElementById('playback-play-pause-btn');
+    const playbackProgressBar = document.getElementById('playback-progress-bar');
     const autoPlaySpeedSlider = document.getElementById('auto-play-speed');
     const speedValueSpan = document.getElementById('speed-value');
     const resetBtn = document.getElementById('reset-btn');
@@ -373,40 +375,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateActionPreview(gameState) {
+        function updateActionPreview(gameState) {
         const content = document.getElementById('action-preview-content');
-        
+        const probData = gameState.action_probabilities;
+
         if (gameState.game_phase === 'SETUP') {
             actionPreviewPanel.style.display = 'none';
             return;
         }
         actionPreviewPanel.style.display = 'block';
 
-        if (gameState.game_phase === 'FINISHED') {
+        if (gameState.game_phase === 'FINISHED' || !probData) {
             content.innerHTML = '<h5>Simulation Complete</h5>';
             return;
         }
 
-        // For running phase, the preview is about the *next* step in history
-        const nextPlaybackIndex = playbackIndex + 1;
-        if (nextPlaybackIndex >= simulationHistory.length) {
-            content.innerHTML = '<h5>End of Simulation</h5>';
-            return;
-        }
-
-        const nextState = simulationHistory[nextPlaybackIndex];
-        const lastAction = nextState.last_action_details;
-        const logEntry = nextState.game_log[nextState.game_log.length - 1];
+        let html = `<h5 style="border-color:${probData.color};">Action Probs: ${probData.team_name}</h5>`;
         
-        if (!lastAction || !logEntry || !logEntry.teamId) {
-            content.innerHTML = '<h5>Preparing next step...</h5>';
-            return;
+        const sortedGroups = Object.entries(probData.groups).sort(([, a], [, b]) => b.group_probability - a.group_probability);
+
+        if (sortedGroups.length === 0) {
+            html += '<p>No valid actions available.</p>';
         }
 
-        const team = gameState.teams[logEntry.teamId];
-        let html = `<h5 style="border-color:${team.color};">Next: ${team.name}</h5>`;
-        html += `<p>${logEntry.message}</p>`;
-
+        for (const [groupName, groupData] of sortedGroups) {
+            html += `
+                <div class="action-category">
+                    <h6>${groupName} (${groupData.group_probability}%)</h6>
+                    <ul class="action-prob-list">
+                        ${groupData.actions.map(action => `
+                            <li>
+                                <span>${action.display_name}${action.no_cost ? '<span class="no-cost-tag">[Free]</span>' : ''}</span>
+                                <div class="action-prob-bar-container">
+                                    <div class="action-prob-bar" style="width: ${action.probability / groupData.group_probability * 100}%; background-color: ${probData.color};"></div>
+                                </div>
+                                <span class="action-prob-percent">${action.probability}%</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            `;
+        }
         content.innerHTML = html;
     }
 
@@ -417,15 +426,27 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.toggle('game-running', isRunning);
         document.body.classList.toggle('game-finished', gamePhase === 'FINISHED');
 
+        const isAtStart = playbackIndex <= 0;
         const isAtEnd = playbackIndex >= simulationHistory.length - 1;
 
         if (gamePhase === 'SETUP') {
              // Handled by the class toggles
         } else if (isRunning) {
+            playbackPrevBtn.disabled = isAtStart;
             playbackNextBtn.disabled = isAtEnd;
             playbackPlayPauseBtn.disabled = isAtEnd;
+            
             if (isAtEnd) {
                 stopPlayback();
+            }
+
+            // Update progress bar
+            if (simulationHistory.length > 1) {
+                playbackProgressBar.max = simulationHistory.length - 1;
+                playbackProgressBar.value = playbackIndex;
+            } else {
+                playbackProgressBar.max = 1;
+                playbackProgressBar.value = 1;
             }
         }
     }
@@ -581,6 +602,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { throw error; }
     });
 
+    playbackPrevBtn.addEventListener('click', () => {
+        stopPlayback();
+        playbackPreviousStep();
+    });
+
     playbackNextBtn.addEventListener('click', () => {
         stopPlayback();
         playbackNextStep();
@@ -591,6 +617,15 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(uiState.playbackInterval);
             uiState.playbackInterval = null;
             playbackPlayPauseBtn.textContent = 'Play';
+        }
+    }
+
+    function playbackPreviousStep() {
+        if (playbackIndex > 0) {
+            playbackIndex--;
+            // When going back, we don't pass the "previous" state to avoid trying to animate backwards.
+            // This just snaps to the previous state.
+            updateStateAndRender(simulationHistory[playbackIndex], null); 
         }
     }
     

@@ -407,6 +407,22 @@ class Game:
                 
                 # This logic is a safe version of get_state() for historical states
                 state_copy = self.state.copy()
+                
+                # --- Calculate action probabilities for the team about to act in this state ---
+                next_team_id = None
+                if state_copy['game_phase'] == 'RUNNING' and state_copy.get('actions_queue_this_turn'):
+                    action_idx = state_copy['action_in_turn']
+                    queue = state_copy['actions_queue_this_turn']
+                    if action_idx < len(queue):
+                        next_team_id = queue[action_idx]['teamId']
+                
+                if next_team_id:
+                    # get_action_probabilities uses self.state, which we've set to the historical one
+                    state_copy['action_probabilities'] = self.get_action_probabilities(next_team_id, include_invalid=False)
+                else:
+                    state_copy['action_probabilities'] = None
+                # --- End probability calculation ---
+
                 if state_copy['game_phase'] == 'FINISHED' and not state_copy.get('interpretation'):
                     state_copy['interpretation'] = self.calculate_interpretation()
                 
@@ -1374,45 +1390,6 @@ class Game:
         if self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
             self._check_end_of_turn_victory_conditions()
     
-    def run_full_simulation(self, teams, points, max_turns, grid_size):
-        """
-        Runs a complete game simulation from a given setup and returns the history
-        of states, with each state augmented for frontend display.
-        """
-        self.start_game(teams, points, max_turns, grid_size)
-        
-        # Store deep copies of the raw state at each step.
-        raw_history = [copy.deepcopy(self.state)]
-        
-        while self.state['game_phase'] == 'RUNNING':
-            self.run_next_action()
-            raw_history.append(copy.deepcopy(self.state))
-
-        # Augment each state for the frontend
-        augmented_history = []
-        original_live_state = copy.deepcopy(self.state) # Save final state
-        try:
-            for historical_state in raw_history:
-                self.state = historical_state # Temporarily swap state
-                
-                # This logic is a safe version of get_state() for historical states
-                state_copy = self.state.copy()
-                if state_copy['game_phase'] == 'FINISHED' and not state_copy.get('interpretation'):
-                    state_copy['interpretation'] = self.calculate_interpretation()
-                
-                if 'no_cost_action_used_by_team_this_turn' in state_copy:
-                    state_copy['no_cost_action_used_by_team_this_turn'] = list(state_copy['no_cost_action_used_by_team_this_turn'])
-
-                state_copy['lines'] = self._augment_lines_for_frontend(self.state['lines'])
-                state_copy['points'] = self._augment_points_for_frontend(self.state['points'])
-                state_copy['live_stats'] = self._calculate_live_stats()
-
-                augmented_history.append(state_copy)
-        finally:
-            self.state = original_live_state # Ensure we restore state
-
-        return { "history": augmented_history }
-
     def restart_game_and_run_simulation(self):
         """Restarts the game from its initial configuration and runs the full simulation."""
         if not self.state.get('initial_state'):

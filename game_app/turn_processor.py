@@ -53,13 +53,13 @@ class TurnProcessor:
             if is_valid:
                 self.state['points'][point_id] = point_data
                 team_name = self.state['teams'][point_data['teamId']]['name']
-                log_msg = {'teamId': point_data['teamId'], 'message': f"A point for {team_name} regenerated from a past sacrifice.", 'short_message': '[REGEN]'}
+                log_msg = {'message': f"A point for {team_name} regenerated from a past sacrifice.", 'short_message': '[REGEN]'}
                 self.state['game_log'].append(log_msg)
                 self.state['new_turn_events'].append({'type': 'point_regenerate', 'point': point_data})
             else:
                 # Point failed to regenerate
                 team_name = self.state['teams'][point_data['teamId']]['name']
-                log_msg = {'teamId': point_data['teamId'], 'message': f"A point for {team_name} failed to regenerate as its location was blocked.", 'short_message': '[REGEN->FAIL]'}
+                log_msg = {'message': f"A point for {team_name} failed to regenerate as its location was blocked.", 'short_message': '[REGEN->FAIL]'}
                 self.state['game_log'].append(log_msg)
 
     def _process_attuned_nexuses(self):
@@ -76,7 +76,7 @@ class TurnProcessor:
         for nexus_id in expired_nexus_ids:
             nexus = self.state['attuned_nexuses'].pop(nexus_id)
             team_name = self.state['teams'][nexus['teamId']]['name']
-            log_msg = {'teamId': nexus['teamId'], 'message': f"An Attuned Nexus from {team_name} has lost its charge.", 'short_message': '[NEXUS:FADE]'}
+            log_msg = {'message': f"An Attuned Nexus from {team_name} has lost its charge.", 'short_message': '[NEXUS:FADE]'}
             self.state['game_log'].append(log_msg)
             self.state['new_turn_events'].append({'type': 'attuned_nexus_fade', 'nexus': nexus})
 
@@ -94,7 +94,7 @@ class TurnProcessor:
         for ll_id in expired_ley_line_ids:
             ley_line = self.state['ley_lines'].pop(ll_id)
             team_name = self.state['teams'][ley_line['teamId']]['name']
-            log_msg = {'teamId': ley_line['teamId'], 'message': f"A Ley Line from {team_name} has faded.", 'short_message': '[LEY LINE:FADE]'}
+            log_msg = {'message': f"A Ley Line from {team_name} has faded.", 'short_message': '[LEY LINE:FADE]'}
             self.state['game_log'].append(log_msg)
             self.state['new_turn_events'].append({'type': 'ley_line_fade', 'ley_line': ley_line})
 
@@ -132,7 +132,7 @@ class TurnProcessor:
                 point_data = self.state['points'][point_id]
                 team_name = self.state['teams'][point_data['teamId']]['name']
                 self.game._delete_point_and_connections(point_id, aggressor_team_id=None) # No aggressor, it's decay
-                log_msg = {'teamId': point_data['teamId'], 'message': f"An isolated point from {team_name} collapsed under pressure.", 'short_message': '[ISOLATED->COLLAPSE]'}
+                log_msg = {'message': f"An isolated point from {team_name} collapsed under pressure.", 'short_message': '[ISOLATED->COLLAPSE]'}
                 self.state['game_log'].append(log_msg)
                 self.state['new_turn_events'].append({'type': 'point_collapse', 'point': point_data})
 
@@ -168,7 +168,7 @@ class TurnProcessor:
                     self.state['points'][new_point_id] = new_point
                     
                     team_name = self.state['teams'][trap['teamId']]['name']
-                    log_msg = { 'teamId': trap['teamId'], 'message': f"An unused Rift Trap from {team_name} stabilized into a new point.", 'short_message': '[TRAP->SPAWN]' }
+                    log_msg = { 'message': f"An unused Rift Trap from {team_name} stabilized into a new point.", 'short_message': '[TRAP->SPAWN]' }
                     self.state['game_log'].append(log_msg)
                     self.state['new_turn_events'].append({ 'type': 'rift_trap_expire', 'trap': trap, 'new_point': new_point })
                 continue
@@ -242,7 +242,7 @@ class TurnProcessor:
                 monolith['charge_counter'] = 0
                 
                 team_name = self.state['teams'][monolith['teamId']]['name']
-                log_msg = {'teamId': monolith['teamId'], 'message': f"A Monolith from {team_name} emits a reinforcing wave.", 'short_message': '[MONOLITH:WAVE]'}
+                log_msg = {'message': f"A Monolith from {team_name} emits a reinforcing wave.", 'short_message': '[MONOLITH:WAVE]'}
                 self.state['game_log'].append(log_msg)
                 self.state['new_turn_events'].append({'type': 'monolith_wave', 'monolith_id': monolith_id, 'center_coords': monolith['center_coords'], 'radius_sq': monolith['wave_radius_sq']})
 
@@ -293,7 +293,7 @@ class TurnProcessor:
                     self.state['points'][new_point_id] = new_point
                     
                     team_name = self.state['teams'][teamId]['name']
-                    log_msg = {'teamId': teamId, 'message': f"The Heartwood of {team_name} birthed a new point.", 'short_message': '[HW:GROWTH]'}
+                    log_msg = {'message': f"The Heartwood of {team_name} birthed a new point.", 'short_message': '[HW:GROWTH]'}
                     self.state['game_log'].append(log_msg)
                     self.state['new_turn_events'].append({'type': 'heartwood_growth', 'new_point': new_point, 'heartwood_id': heartwood['id']})
                     break
@@ -307,13 +307,13 @@ class TurnProcessor:
             if wonder['type'] == 'ChronosSpire':
                 wonder['turns_to_victory'] -= 1
                 team_name = self.state['teams'][wonder['teamId']]['name']
-                log_msg = {'teamId': wonder['teamId'], 'message': f"The Chronos Spire of {team_name} pulses. Victory in {wonder['turns_to_victory']} turns.", 'short_message': f'[SPIRE: T-{wonder["turns_to_victory"]}]'}
+                log_msg = {'message': f"The Chronos Spire of {team_name} pulses. Victory in {wonder['turns_to_victory']} turns.", 'short_message': f'[SPIRE: T-{wonder["turns_to_victory"]}]'}
                 self.state['game_log'].append(log_msg)
                 
                 if wonder['turns_to_victory'] <= 0:
                     self.state['game_phase'] = 'FINISHED'
                     self.state['victory_condition'] = f"'{team_name}' achieved victory with the Chronos Spire."
-                    self.state['game_log'].append({'message': self.state['victory_condition'], 'short_message': '[WONDER VICTORY]'})
+                    self.state['game_log'].append({'teamId': wonder['teamId'], 'message': self.state['victory_condition'], 'short_message': '[WONDER VICTORY]'})
                     self.state['actions_queue_this_turn'] = []
                     return True
         return False
