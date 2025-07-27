@@ -384,6 +384,41 @@ class Game:
             'grid_size': grid_size
         }
 
+    def _augment_historical_state(self, historical_state):
+        """Augments a single historical state object for frontend display."""
+        # Temporarily swap state to use helper methods that rely on self.state
+        original_live_state = self.state
+        self.state = historical_state
+        try:
+            state_copy = self.state.copy()
+            
+            # --- Calculate action probabilities for the team about to act in this state ---
+            next_team_id = None
+            if state_copy['game_phase'] == 'RUNNING' and state_copy.get('actions_queue_this_turn'):
+                action_idx = state_copy['action_in_turn']
+                queue = state_copy['actions_queue_this_turn']
+                if action_idx < len(queue):
+                    next_team_id = queue[action_idx]['teamId']
+            
+            if next_team_id:
+                state_copy['action_probabilities'] = self.get_action_probabilities(next_team_id, include_invalid=False)
+            else:
+                state_copy['action_probabilities'] = None
+
+            if state_copy['game_phase'] == 'FINISHED' and not state_copy.get('interpretation'):
+                state_copy['interpretation'] = self.calculate_interpretation()
+            
+            if 'no_cost_action_used_by_team_this_turn' in state_copy:
+                state_copy['no_cost_action_used_by_team_this_turn'] = list(state_copy['no_cost_action_used_by_team_this_turn'])
+
+            state_copy['lines'] = self._augment_lines_for_frontend(self.state['lines'])
+            state_copy['points'] = self._augment_points_for_frontend(self.state['points'])
+            state_copy['live_stats'] = self._calculate_live_stats()
+
+            return state_copy
+        finally:
+            self.state = original_live_state # Ensure we restore state
+
     def run_full_simulation(self, teams, points, max_turns, grid_size):
         """
         Runs a complete game simulation from a given setup and returns the history
@@ -399,43 +434,7 @@ class Game:
             raw_history.append(copy.deepcopy(self.state))
 
         # Augment each state for the frontend
-        augmented_history = []
-        original_live_state = copy.deepcopy(self.state) # Save final state
-        try:
-            for historical_state in raw_history:
-                self.state = historical_state # Temporarily swap state
-                
-                # This logic is a safe version of get_state() for historical states
-                state_copy = self.state.copy()
-                
-                # --- Calculate action probabilities for the team about to act in this state ---
-                next_team_id = None
-                if state_copy['game_phase'] == 'RUNNING' and state_copy.get('actions_queue_this_turn'):
-                    action_idx = state_copy['action_in_turn']
-                    queue = state_copy['actions_queue_this_turn']
-                    if action_idx < len(queue):
-                        next_team_id = queue[action_idx]['teamId']
-                
-                if next_team_id:
-                    # get_action_probabilities uses self.state, which we've set to the historical one
-                    state_copy['action_probabilities'] = self.get_action_probabilities(next_team_id, include_invalid=False)
-                else:
-                    state_copy['action_probabilities'] = None
-                # --- End probability calculation ---
-
-                if state_copy['game_phase'] == 'FINISHED' and not state_copy.get('interpretation'):
-                    state_copy['interpretation'] = self.calculate_interpretation()
-                
-                if 'no_cost_action_used_by_team_this_turn' in state_copy:
-                    state_copy['no_cost_action_used_by_team_this_turn'] = list(state_copy['no_cost_action_used_by_team_this_turn'])
-
-                state_copy['lines'] = self._augment_lines_for_frontend(self.state['lines'])
-                state_copy['points'] = self._augment_points_for_frontend(self.state['points'])
-                state_copy['live_stats'] = self._calculate_live_stats()
-
-                augmented_history.append(state_copy)
-        finally:
-            self.state = original_live_state # Ensure we restore state
+        augmented_history = [self._augment_historical_state(s) for s in raw_history]
 
         return { "history": augmented_history }
 
@@ -1119,24 +1118,6 @@ class Game:
         return chosen_action_name, action_func
 
 
-    def restart_game_and_run_simulation(self):
-        """Restarts the game from its initial configuration and runs the full simulation."""
-        if not self.state.get('initial_state'):
-            return {"error": "No initial state saved to restart from."}
-        
-        initial_config = self.state['initial_state']
-        
-        # We need to create fresh copies of mutable objects
-        teams = {tid: t.copy() for tid, t in initial_config['teams'].items()}
-        points = [p.copy() for p in initial_config['points']]
-
-        return self.run_full_simulation(
-            teams=teams,
-            points=points,
-            max_turns=initial_config['max_turns'],
-            grid_size=initial_config['grid_size']
-        )
-
     # --- Start of Turn Processing ---
 
     def _build_action_queue(self):
@@ -1389,24 +1370,6 @@ class Game:
         # If this was the last action of the turn, check for victory conditions
         if self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
             self._check_end_of_turn_victory_conditions()
-    
-    def restart_game_and_run_simulation(self):
-        """Restarts the game from its initial configuration and runs the full simulation."""
-        if not self.state.get('initial_state'):
-            return {"error": "No initial state saved to restart from."}
-        
-        initial_config = self.state['initial_state']
-        
-        # We need to create fresh copies of mutable objects
-        teams = {tid: t.copy() for tid, t in initial_config['teams'].items()}
-        points = [p.copy() for p in initial_config['points']]
-
-        return self.run_full_simulation(
-            teams=teams,
-            points=points,
-            max_turns=initial_config['max_turns'],
-            grid_size=initial_config['grid_size']
-        )
     
     # --- Interpretation ---
 
