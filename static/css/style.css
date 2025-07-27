@@ -395,13 +395,13 @@ legend {
 }
 
 #playback-progress-bar::-webkit-progress-value {
-    background-color: #3498db;
-    transition: width 0.2s ease-in-out;
+    background-color: var(--progress-bar-color, #3498db);
+    transition: width 0.2s ease-in-out, background-color 0.3s ease;
 }
 
 #playback-progress-bar::-moz-progress-bar {
-    background-color: #3498db;
-    transition: width 0.2s ease-in-out;
+    background-color: var(--progress-bar-color, #3498db);
+    transition: width 0.2s ease-in-out, background-color 0.3s ease;
 }
 
 .speed-control {

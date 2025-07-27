@@ -1,3 +1,3 @@
-- **Improved Game Log Readability:** The text color for team-specific log entries now automatically adjusts to white or dark gray for optimal contrast against the team's colored background.
-- **Enhanced Status Bar Narration:** The acting team's name in the status bar narration is now rendered in white, making it stand out against the team-colored text. Other mentioned team names still use their own colors.
-- **Refined "Randomize Points" UI:** The controls for randomizing points on the setup screen have been visually grouped into a distinct component with a background and border for a clearer, more organized layout.
+- **Improved Status Bar Narration:** The narration text in the status bar now uses a default dark color for the main text, with team names highlighted in their specific colors for better readability and contrast.
+- **Dynamic Progress Bar Color:** The simulation playback progress bar now changes color to match the team that is next to act, providing a clear visual indicator of the current turn's context.
+- **Enhanced Progress Text:** The turn counter has been updated to display the current action number within the turn (e.g., "Turn: 5 / 100 (Action 2 / 3)"), offering a more granular view of the simulation's progress.

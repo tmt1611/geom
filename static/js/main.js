@@ -471,16 +471,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateControls(gameState) {
-        const gamePhase = gameState.game_phase;
-        const isRunning = gamePhase === 'RUNNING' || gamePhase === 'FINISHED';
+        const { game_phase, actions_queue_this_turn, action_in_turn, teams } = gameState;
+        const isRunning = game_phase === 'RUNNING' || game_phase === 'FINISHED';
         
         document.body.classList.toggle('game-running', isRunning);
-        document.body.classList.toggle('game-finished', gamePhase === 'FINISHED');
-
+        document.body.classList.toggle('game-finished', game_phase === 'FINISHED');
+    
         const isAtStart = playbackIndex <= 0;
         const isAtEnd = playbackIndex >= simulationHistory.length - 1;
-
-        if (gamePhase === 'SETUP') {
+    
+        if (game_phase === 'SETUP') {
              // Handled by the class toggles
         } else if (isRunning) {
             playbackPrevBtn.disabled = isAtStart;
@@ -490,8 +490,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isAtEnd) {
                 stopPlayback();
             }
-
-            // Update progress bar
+    
+            // Set progress bar color based on next team to act
+            let actorTeamColor = '#3498db'; // default blue
+            if (actions_queue_this_turn && actions_queue_this_turn.length > 0) {
+                // action_in_turn points to the action that will be taken *from* this state.
+                // If at the last state, there's no next action, so this might be out of bounds. Clamp it.
+                const currentActionIndex = Math.min(action_in_turn, actions_queue_this_turn.length - 1);
+                const actionInfo = actions_queue_this_turn[currentActionIndex];
+    
+                if (actionInfo && teams[actionInfo.teamId]) {
+                    actorTeamColor = teams[actionInfo.teamId].color;
+                }
+            }
+            document.documentElement.style.setProperty('--progress-bar-color', actorTeamColor);
+    
+            // Update progress bar value
             if (simulationHistory.length > 1) {
                 playbackProgressBar.max = simulationHistory.length - 1;
                 playbackProgressBar.value = playbackIndex;
