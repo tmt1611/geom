@@ -12,17 +12,19 @@ class ExpandActionsHandler:
 
     def can_perform_add_line(self, teamId):
         team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) < 2:
+        num_points = len(team_point_ids)
+        if num_points < 2:
             return False, "Requires at least 2 points."
 
-        # Check if primary effect is possible
-        max_lines = len(team_point_ids) * (len(team_point_ids) - 1) / 2
-        num_existing_lines = len({tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.state['lines'] if l['teamId'] == teamId})
-        if max_lines > num_existing_lines:
+        team_lines = self.game.get_team_lines(teamId)
+        
+        # Check if primary effect is possible (can add a new line).
+        # A fully connected graph of N points has N*(N-1)/2 edges.
+        if len(team_lines) < num_points * (num_points - 1) / 2:
             return True, ""
 
-        # If primary is not possible, check if fallback is possible
-        if self.game.get_team_lines(teamId):
+        # If primary is not possible, check if fallback is possible (strengthen existing line)
+        if team_lines:
             return True, ""
         
         return False, "No new lines can be added and no existing lines to strengthen."

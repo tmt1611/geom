@@ -1,4 +1,3 @@
-- **Refactoring & Centralization (Graph Logic):**
-  - Centralized the logic for calculating team graph structures (adjacency lists and point degrees) into new helper methods in `game_app/formations.py`. This removes significant code duplication.
-  - Refactored `game_logic.py` to create convenient wrapper methods (`_get_team_adjacency_list`, `_get_team_degrees`) that call the new centralized `FormationManager` methods.
-  - Updated all action handlers (`expand`, `fortify`, `sacrifice`) and all methods within `FormationManager` to use these new helpers instead of calculating graph properties locally. This improves code reuse, maintainability, and consistency.
+- **Refactoring & Optimization (Action Efficiency):**
+  - Optimized the precondition checks for `add_line` and `parallel_strike` to remove inefficient loops and rely on faster, direct calculations. This improves performance during the action selection phase of a turn.
+  - Refactored the `parallel_strike` action implementation to avoid pre-calculating and storing a potentially large list of all valid action combinations. It now finds a valid combination on-the-fly, making it significantly more performant.

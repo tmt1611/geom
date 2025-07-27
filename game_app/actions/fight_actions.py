@@ -55,20 +55,13 @@ class FightActionsHandler:
         return can_perform, reason
 
     def can_perform_parallel_strike(self, teamId):
-        team_lines = self.game.get_team_lines(teamId)
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        
-        if not team_lines or not team_point_ids:
-            return False, "Requires at least one point and one line."
-
-        # Since the action can create a point if it misses, we don't need to check for enemy points.
-        # We just need to check if a valid geometric setup exists: a point and a line it is not part of.
-        for p_id in team_point_ids:
-            for line in team_lines:
-                if p_id != line['p1_id'] and p_id != line['p2_id']:
-                    return True, "" # Found a valid combination, so action is possible.
-        
-        return False, "No valid point/line combination found for a parallel strike."
+        # A parallel strike requires a line to be parallel to, and a point that is not part of that line.
+        # This is geometrically possible if and only if the team has at least one line and more than two points.
+        has_lines = len(self.game.get_team_lines(teamId)) > 0
+        has_enough_points = len(self.game.get_team_point_ids(teamId)) > 2
+        can_perform = has_lines and has_enough_points
+        reason = "" if can_perform else "Requires at least one line and at least 3 points in total."
+        return can_perform, reason
 
     def can_perform_hull_breach(self, teamId):
         # With the push fallback, action is always possible if team has at least 3 points.
@@ -824,30 +817,25 @@ class FightActionsHandler:
         """[FIGHT ACTION]: From a point, draw a line parallel to a friendly line. If it hits an enemy point, destroy it. If it hits the border, generate a point."""
         team_lines = self.game.get_team_lines(teamId)
         team_point_ids = self.game.get_team_point_ids(teamId)
-        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
-
-        if not team_lines or not team_point_ids:
-            return {'success': False, 'reason': 'missing required elements for parallel strike'}
+        
+        # This check aligns with the optimized precondition check.
+        if not team_lines or len(team_point_ids) < 3:
+            return {'success': False, 'reason': 'requires at least one line and 3+ points'}
 
         points = self.state['points']
-        
-        # Create a list of potential origins and reference lines to try
-        potential_actions = []
-        for p_origin_id in team_point_ids:
-            for l_ref in team_lines:
-                # To be a true parallel strike, the origin point shouldn't be part of the reference line
-                if l_ref['p1_id'] != p_origin_id and l_ref['p2_id'] != p_origin_id:
-                    potential_actions.append({'p_id': p_origin_id, 'l_ref': l_ref})
-        
-        if not potential_actions:
-            return {'success': False, 'reason': 'no valid origin point / reference line pairs found'}
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
 
-        random.shuffle(potential_actions)
-        
-        # Try a few combinations
-        for action_combo in potential_actions[:15]:
-            p_origin = points.get(action_combo['p_id'])
-            l_ref = action_combo['l_ref']
+        # Try a number of random combinations to find a valid strike, instead of pre-calculating all possibilities.
+        for _ in range(15):
+            l_ref = random.choice(team_lines)
+            
+            # An origin point cannot be one of the line's own endpoints.
+            candidate_origin_ids = [pid for pid in team_point_ids if pid != l_ref['p1_id'] and pid != l_ref['p2_id']]
+            if not candidate_origin_ids:
+                continue
+
+            p_origin_id = random.choice(candidate_origin_ids)
+            p_origin = points.get(p_origin_id)
             
             if not p_origin or not (l_ref['p1_id'] in points and l_ref['p2_id'] in points):
                 continue
@@ -869,15 +857,18 @@ class FightActionsHandler:
                     enemy_vy = enemy_p['y'] - p_origin['y']
                     
                     # Collinearity check using cross-product (with tolerance)
+                    # A small cross product means the vectors are nearly parallel.
                     if abs(strike_vx * enemy_vy - strike_vy * enemy_vx) > 0.5: continue
-                    # Direction check using dot-product
+                    # Direction check using dot-product (must be in the same direction)
                     if (strike_vx * enemy_vx + strike_vy * enemy_vy) <= 0: continue
                     
                     possible_targets.append(enemy_p)
                 
                 if possible_targets:
+                    # Find the closest valid target along the ray
                     target_point = min(possible_targets, key=lambda p: distance_sq(p_origin, p))
                     
+                    # Check if the path to the target is blocked
                     if is_ray_blocked(p_origin, target_point, self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])):
                         continue
 
@@ -891,7 +882,7 @@ class FightActionsHandler:
                         'attack_ray': {'p1': p_origin, 'p2': target_point}, 'ref_line': l_ref
                     }
 
-                # If no targets were hit, try spawning on border
+                # If no targets were hit, try spawning on the border
                 dummy_end = {'x': p_origin['x'] + strike_vx, 'y': p_origin['y'] + strike_vy}
                 border_point = get_extended_border_point(
                     p_origin, dummy_end, self.state['grid_size'],
