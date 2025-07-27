@@ -110,6 +110,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return hsp < 127.5;
     }
 
+    function colorizeTeamNames(message, teams) {
+        let finalMessage = message;
+        for (const teamId in teams) {
+            const team = teams[teamId];
+            // Use a regex with word boundaries to avoid replacing parts of words
+            finalMessage = finalMessage.replace(new RegExp(`\\b${team.name}\\b`, 'g'), `<strong style="color: ${team.color};">${team.name}</strong>`);
+        }
+        return finalMessage;
+    }
+
     // --- Core Functions ---
 
     // Main animation loop
@@ -246,7 +256,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const logEntryDiv = document.createElement('div');
             logEntryDiv.className = 'log-entry';
             const message = (uiState.debugOptions.compactLog && entry.short_message) ? entry.short_message : entry.message;
-            
+            logEntryDiv.innerHTML = colorizeTeamNames(message, teams);
+
             // Standard action log: colored background
             if (entry.teamId && teams[entry.teamId] && !entry.is_event) {
                 const team = teams[entry.teamId];
@@ -254,25 +265,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 logEntryDiv.style.backgroundColor = team.color;
                 logEntryDiv.style.color = isColorDark(team.color) ? '#fff' : '#333';
 
-                let finalMessage = message;
-                // Color team names within the message for better readability, the text-shadow from CSS will help them stand out.
-                for (const otherTeamId in teams) {
-                    const otherTeam = teams[otherTeamId];
-                    finalMessage = finalMessage.replace(new RegExp(`\\b${otherTeam.name}\\b`, 'g'), `<strong style="color: ${otherTeam.color};">${otherTeam.name}</strong>`);
-                }
-                logEntryDiv.innerHTML = finalMessage;
-                
                 if (uiState.debugOptions.compactLog) {
                     logEntryDiv.style.fontWeight = 'bold';
                 }
             } else { // Environment or event log: default background
-                let finalMessage = message;
-                for (const teamId in teams) {
-                    const team = teams[teamId];
-                    finalMessage = finalMessage.replace(new RegExp(`\\b${team.name}\\b`, 'g'), `<strong style="color: ${team.color};">${team.name}</strong>`);
-                }
-                logEntryDiv.innerHTML = finalMessage;
-
                 if (message.startsWith('--- Turn')) {
                      logEntryDiv.style.textAlign = 'center';
                      logEntryDiv.style.background = '#e9ecef';
@@ -292,15 +288,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (currentGameState.game_phase === 'RUNNING' || currentGameState.game_phase === 'FINISHED') {
             if (lastMessageEntry) {
+                const team = teams[lastMessageEntry.teamId];
                 let finalMessage = lastMessageEntry.message;
-                // Set the base color for the message to a readable dark color.
-                statusBar.style.color = '#333';
+                // Set the base color for the message to the team's color.
+                statusBar.style.color = team.color;
 
                 // Individually color any team names mentioned in the message for emphasis.
-                for (const teamId in teams) {
-                    finalMessage = finalMessage.replace(new RegExp(`\\b${teams[teamId].name}\\b`, 'g'), `<strong style="color: ${teams[teamId].color};">${teams[teamId].name}</strong>`);
-                }
-                statusBar.innerHTML = finalMessage;
+                statusBar.innerHTML = colorizeTeamNames(finalMessage, teams);
             } else {
                 statusBar.textContent = currentGameState.game_phase === 'FINISHED' ? 'Simulation Complete.' : 'Starting game...';
                 statusBar.style.color = '#333'; // Reset to default
