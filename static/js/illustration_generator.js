@@ -1294,3 +1294,70 @@ const illustrationDrawers = {
         illustrationHelpers.drawExplosion(ctx, w*0.5, h*0.5);
     },
 };
+
+/**
+ * Generates PNGs for all illustrations and sends them to the server to be saved.
+ * This is a developer-only utility.
+ */
+async function generateAndSaveAllIllustrations() {
+    if (typeof api === 'undefined' || typeof api.getAllActions !== 'function' || typeof api.saveIllustration !== 'function') {
+        alert("API is not ready. Cannot generate illustrations.");
+        return;
+    }
+
+    const allActions = await api.getAllActions();
+    const actionNames = allActions.map(a => a.name);
+
+    console.log(`Starting generation of ${actionNames.length} illustrations...`);
+    const statusDiv = document.createElement('div');
+    statusDiv.style = "position: fixed; top: 10px; left: 10px; background: #333; color: white; padding: 10px; border-radius: 5px; z-index: 2000;";
+    document.body.appendChild(statusDiv);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const actionName of actionNames) {
+        statusDiv.textContent = `Generating ${actionName}... (${successCount + failCount + 1}/${actionNames.length})`;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 150;
+        canvas.height = 150;
+        const ctx = canvas.getContext('2d');
+        
+        const drawer = illustrationDrawers[actionName] || illustrationDrawers['default'];
+        
+        // Clear canvas with a transparent background
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        drawer(ctx, canvas.width, canvas.height);
+        
+        const dataUrl = canvas.toDataURL('image/png');
+        
+        try {
+            const response = await api.saveIllustration(actionName, dataUrl);
+            if (response.success) {
+                console.log(`Successfully saved ${actionName}.png`);
+                successCount++;
+            } else {
+                console.error(`Failed to save ${actionName}.png:`, response.error);
+                failCount++;
+            }
+        } catch (error) {
+            console.error(`Error sending ${actionName}.png to server:`, error);
+            failCount++;
+        }
+    }
+
+    statusDiv.textContent = `Generation complete! Success: ${successCount}, Failed: ${failCount}. Reloading guide...`;
+    
+    // Refresh the action guide to show the new images
+    if(typeof window.initActionGuide === 'function') {
+        await window.initActionGuide();
+    }
+    
+    setTimeout(() => {
+        if(document.body.contains(statusDiv)) {
+            document.body.removeChild(statusDiv);
+        }
+    }, 5000);
+}

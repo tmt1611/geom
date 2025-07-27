@@ -1,4 +1,5 @@
 import os
+import base64
 from flask import Blueprint, render_template, jsonify, request, current_app, send_from_directory
 from . import game_logic
 from . import game_data
@@ -88,6 +89,42 @@ def get_action_probabilities():
 def get_all_actions():
     """Returns a structured list of all possible actions with their descriptions."""
     return jsonify(game_data.get_all_actions_data())
+
+@main_routes.route('/api/dev/save_illustration', methods=['POST'])
+def save_illustration():
+    """(Dev only) Saves a base64 encoded PNG image for the action guide."""
+    if not current_app.debug:
+        return jsonify({"success": False, "error": "This function is only available in debug mode."}), 403
+
+    data = request.json
+    action_name = data.get('action_name')
+    image_data_url = data.get('image_data')
+
+    if not action_name or not image_data_url:
+        return jsonify({"success": False, "error": "Missing action_name or image_data"}), 400
+
+    try:
+        # The data URL is in the format 'data:image/png;base64,iVBORw0KGgo...'
+        header, encoded = image_data_url.split(",", 1)
+        if not header.startswith('data:image/png;base64'):
+            return jsonify({"success": False, "error": "Invalid image data format"}), 400
+        
+        image_data = base64.b64decode(encoded)
+
+        # Create directory if it doesn't exist
+        illustrations_dir = os.path.join(current_app.static_folder, 'illustrations')
+        os.makedirs(illustrations_dir, exist_ok=True)
+        
+        file_path = os.path.join(illustrations_dir, f"{action_name}.png")
+        
+        with open(file_path, 'wb') as f:
+            f.write(image_data)
+        
+        return jsonify({"success": True, "path": file_path})
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to save illustration for {action_name}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @main_routes.route('/api/dev/restart', methods=['POST'])
 def restart_server():

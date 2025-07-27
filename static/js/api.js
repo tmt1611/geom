@@ -191,5 +191,17 @@ js_game_data = game_data
             return this._pyProxyToJs(all_actions_py);
         }
         return this._fetchJson('/api/actions/all');
+    },
+
+    async saveIllustration(actionName, imageDataUrl) {
+        if (this._mode === 'pyodide') {
+            console.warn("Saving illustrations is not supported in Pyodide mode.");
+            return { success: false, error: "Not supported in Pyodide mode" };
+        }
+        return this._fetchJson('/api/dev/save_illustration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action_name: actionName, image_data: imageDataUrl })
+        });
     }
 };

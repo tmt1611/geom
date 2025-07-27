@@ -25,7 +25,7 @@ WATCHED_FILES = [
     'static/js/api.js',
     'static/js/renderer.js',
     'static/js/visuals.js',
-    'static/js/illustrations.js',
+    'static/js/illustration_generator.js',
     'static/css/style.css',
     'index.html',
     # Docs

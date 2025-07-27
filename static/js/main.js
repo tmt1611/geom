@@ -714,8 +714,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.dataset.group = action.group;
                 card.dataset.displayName = action.display_name;
                 card.dataset.description = action.description;
+                // Use an <img> tag now
                 card.innerHTML = `
-                    <canvas width="150" height="150"></canvas>
+                    <img src="static/illustrations/${action.name}.png" alt="Illustration for ${action.display_name}" width="150" height="150" class="action-card-illustration">
                     <div class="action-card-text">
                          <div class="action-card-header">
                             <h4>${action.display_name}</h4>
@@ -724,10 +725,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="action-card-description">${action.description}</div>
                     </div>`;
                 grid.appendChild(card);
-
-                const canvas = card.querySelector('canvas');
-                const drawer = illustrationDrawers[action.name] || illustrationDrawers['default'];
-                drawer(canvas.getContext('2d'), canvas.width, canvas.height);
             });
 
             section.appendChild(grid);
@@ -764,7 +761,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function initActionGuide() {
+    // --- Global Functions (for access from other scripts like illustration_generator.js) ---
+    window.initActionGuide = async function() {
         try {
             const allActions = await api.getAllActions();
             createActionGuideFilters(allActions);
@@ -886,7 +884,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateStateAndRender(gameState);
         setTimeout(() => resizeCanvas(), 50);
-        initActionGuide();
+        window.initActionGuide(); // Use the global function now
+        
+        // Add event listener for the new button
+        document.getElementById('generate-illustrations-btn').addEventListener('click', () => {
+             if (typeof generateAndSaveAllIllustrations === 'function') {
+                if(confirm('This will generate and save all illustration PNGs to static/illustrations/. This is a developer feature. Continue?')) {
+                    generateAndSaveAllIllustrations();
+                }
+            } else {
+                alert('Illustration generation function not found.');
+            }
+        });
         
         // Start the main animation loop
         animationLoop();

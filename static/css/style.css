@@ -673,6 +673,15 @@ details[open] > summary::before {
     background-color: #eee;
 }
 
+.dev-btn-action {
+    color: #fff !important;
+    background-color: #3498db !important;
+    border-color: #2980b9 !important;
+}
+.dev-btn-action:hover {
+    background-color: #2980b9 !important;
+}
+
 .debug-options .btn-danger {
     color: #fff;
     background-color: #e74c3c;
@@ -1013,14 +1022,15 @@ body.game-running .game-column {
 .action-card-header .action-group--fortify { background-color: #2980b9; }
 .action-card-header .action-group--sacrifice { background-color: #d35400; }
 .action-card-header .action-group--rune { background-color: #8e44ad; }
-.action-card canvas {
+.action-card-illustration, .action-card canvas {
     width: 150px;
-    height: auto; /* Let it scale with width */
+    height: 150px;
     aspect-ratio: 1 / 1;
     background-color: #fdfdfd;
     border-right: 1px solid #dfe4ea;
     border-radius: 0;
     flex-shrink: 0;
+    object-fit: contain; /* Ensure image fits well */
 }
 .action-card-description {
     padding: 0;
