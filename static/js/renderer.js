@@ -840,6 +840,7 @@ const renderer = (() => {
     
             switch (effect.type) {
                 case 'jagged_ray': {
+                    if (!effect.p1 || !effect.p2) break; // Defensive check
                     const p1 = { x: (effect.p1.x + 0.5) * cellSize, y: (effect.p1.y + 0.5) * cellSize };
                     const p2_full = { x: (effect.p2.x + 0.5) * cellSize, y: (effect.p2.y + 0.5) * cellSize };
                     const p2_current = {
@@ -854,6 +855,7 @@ const renderer = (() => {
                 }
                 case 'animated_ray':
                 case 'attack_ray': {
+                    if (!effect.p1 || !effect.p2) break; // Defensive check
                     const p1 = { x: (effect.p1.x + 0.5) * cellSize, y: (effect.p1.y + 0.5) * cellSize };
                     const p2_full = { x: (effect.p2.x + 0.5) * cellSize, y: (effect.p2.y + 0.5) * cellSize };
                     const p2_current = {

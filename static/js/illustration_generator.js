@@ -1864,6 +1864,51 @@ const illustrationDrawers = {
         ctx.stroke();
         ctx.restore();
     },
+    'fortify_point': (ctx, w, h) => {
+        const team1_color = 'hsl(40, 70%, 50%)'; // Defensive color
+        const p_orig = {x: w*0.3, y: h*0.5};
+        const p_fortified = {x: w*0.7, y: h*0.5};
+
+        // Original point (circle)
+        illustrationHelpers.drawPoints(ctx, [p_orig], team1_color);
+        
+        // Arrow
+        illustrationHelpers.drawArrow(ctx, {x:w*0.45, y:h*0.5}, {x:w*0.55, y:h*0.5}, '#aaa');
+        
+        // Fortified point (diamond)
+        illustrationHelpers.drawFortifiedPoint(ctx, p_fortified, team1_color);
+    },
+    'fight_trigger_retaliation': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const team2_color = 'hsl(240, 70%, 50%)';
+        const p1 = {x: w*0.2, y: h*0.5};
+        const p_trigger = {x: w*0.4, y: h*0.5};
+        
+        // The line
+        illustrationHelpers.drawPoints(ctx, [p1, p_trigger], team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1:p1, p2:p_trigger}], team1_color, 2);
+
+        // No sacrifice symbol on p_trigger
+        // Just a glow to show it's the trigger
+        ctx.beginPath();
+        ctx.arc(p_trigger.x, p_trigger.y, 10, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(255, 255, 150, 0.7)';
+        ctx.fill();
+        illustrationHelpers.drawPoints(ctx, [p_trigger], team1_color); // redraw on top
+
+        // Projectiles
+        const target1 = {x: w*0.8, y: h*0.5}; // along the line
+        const target2 = {x: w*0.4, y: h*0.1}; // perpendicular
+        illustrationHelpers.drawArrow(ctx, p_trigger, target1, team1_color);
+        illustrationHelpers.drawArrow(ctx, p_trigger, target2, team1_color);
+
+        // Enemy line to hit
+        const ep1 = {x: w*0.8, y: h*0.3};
+        const ep2 = {x: w*0.8, y: h*0.7};
+        illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+        illustrationHelpers.drawLines(ctx, [{p1:ep1, p2:ep2}], team2_color, 1);
+        illustrationHelpers.drawExplosion(ctx, target1.x, target1.y);
+    },
 };
 
 /**
