@@ -1,8 +1,8 @@
-- **Illustration Review (FORTIFY actions):** Reviewed all `FORTIFY` actions for visual consistency and clarity.
-- **Visual Effect Improvements:**
-    - **`Reposition Point`:** Added a new `reposition_trail` visual effect (a fading dashed line) to make this no-cost action more visually informative, matching its illustration's intent.
-    - **`Rotate Point`:** Added a new `rotation_arc` visual effect to draw the path of rotation, bringing the in-game effect in line with its excellent illustration.
-    - **`Mirror Structure`:** Enhanced the visual effect to show the new points and lines forming, making the action more dynamic and impactful.
-- **Visual Design Streamlining & Consistency:**
-    - **`Create Anchor` Illustration:** Updated the illustration to include a pulsing ring, aligning it with its in-game rendered effect and ensuring the guide and game visuals are identical.
-- **Consistency Check:** Confirmed that other `FORTIFY` actions (`Claim Territory`, `Form Bastion`, `Form Monolith`, `Shield Line`, etc.) already have a consistent visual language across their illustrations, effects, and final rendered states.
+- **Illustration Review (SACRIFICE actions):** Reviewed all `SACRIFICE` actions for visual consistency and to ensure they all had illustrations.
+- **Visual Design & Effect Consistency:**
+    - **`Fight: Hull Breach` & `Sacrifice: Convert Point`:** Updated illustrations to use a particle spiral effect, matching their `energy_spiral` in-game visual effect. This creates a consistent visual language for "point conversion".
+    - **`Sacrifice: Create Whirlpool`:** Simplified the illustration to use curved "pull" lines, which clearly communicates the action's intent without needing a complex new helper function.
+    - **`Sacrifice: Phase Shift`:** Updated illustration to include portal rings at the start and end points, aligning it with the `portal_link` in-game visual effect.
+    - **`Sacrifice: Attune Nexus`:** Redesigned the illustration to show pull arrows from the sacrificed line's points into the nexus center, matching the `point_pull` visual effect.
+    - **`Sacrifice: Bastion Pulse`:** Enhanced the illustration to include a "flash" fill over the bastion structure, matching its `polygon_flash` in-game effect.
+- **Consistency Check:** Confirmed that other `SACRIFICE` actions (`Nova Burst`, `Line Retaliation`, `Chain Lightning`, etc.) already have a consistent visual language (e.g., use of sacrifice symbol, explosion effects) across their illustrations and in-game effects.

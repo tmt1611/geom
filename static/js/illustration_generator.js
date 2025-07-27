@@ -322,8 +322,21 @@ const illustrationDrawers = {
         // Enemy point
         illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
         
-        // Arrow showing conversion
-        illustrationHelpers.drawArrow(ctx, {x: w*0.5, y: h*0.5}, {x: w*0.65, y: h*0.5}, '#f1c40f');
+        // Conversion effect matching 'energy_spiral'
+        const start_pos = {x: mid.x, y: mid.y};
+        const end_pos = ep1;
+        ctx.fillStyle = '#f1c40f'; // yellow for conversion
+        for (let i = 0; i < 5; i++) {
+            const t = (i+1)/6.0;
+            const x = start_pos.x * (1 - t) + end_pos.x * t;
+            const y = start_pos.y * (1 - t) + end_pos.y * t;
+            
+            const angle = t * 2.5 * 2 * Math.PI; // number of turns
+            const radius = (1 - t) * 10; // spiral gets tighter
+            ctx.beginPath();
+            ctx.arc(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius, 2, 0, 2*Math.PI);
+            ctx.fill();
+        }
         
         // Converted point (draw a halo of new color)
         ctx.beginPath();
@@ -352,6 +365,12 @@ const illustrationDrawers = {
         ctx.lineTo(prongs[1].x, prongs[1].y);
         ctx.lineTo(prongs[2].x, prongs[2].y);
         ctx.closePath();
+        
+        // Add polygon flash to match effect
+        ctx.fillStyle = team1_color;
+        ctx.globalAlpha = 0.5;
+        ctx.fill();
+
         ctx.strokeStyle = team1_color;
         ctx.lineWidth = 4;
         ctx.globalAlpha = 0.4;
@@ -426,7 +445,19 @@ const illustrationDrawers = {
 
         // Conversion effect
         const center = {x: w*0.5, y: h*0.6}; // Approx center of hull
-        illustrationHelpers.drawSpiral(ctx, center, ep_convert, '#f1c40f');
+        // Use particles to match the 'energy_spiral' visual effect
+        ctx.fillStyle = '#f1c40f'; // yellow for conversion
+        for (let i = 0; i < 5; i++) {
+            const t = (i+1)/6.0;
+            const x = center.x * (1 - t) + ep_convert.x * t;
+            const y = center.y * (1 - t) + ep_convert.y * t;
+            
+            const angle = t * 2.5 * 2 * Math.PI; // number of turns
+            const radius = (1 - t) * 10; // spiral gets tighter
+            ctx.beginPath();
+            ctx.arc(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius, 2, 0, 2*Math.PI);
+            ctx.fill();
+        }
         
         // Converted point halo
         ctx.beginPath();
@@ -954,7 +985,17 @@ const illustrationDrawers = {
         illustrationHelpers.drawPoints(ctx, [p1_orig], team1_color); // Redraw to fade it
         ctx.globalAlpha = 1.0;
 
-        // New point and path
+        // New point and path - use portals to match effect
+        ctx.strokeStyle = team1_color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p1_orig.x, p1_orig.y, 12, 0, 2*Math.PI);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(p1_new.x, p1_new.y, 6, 0, 2*Math.PI);
+        ctx.stroke();
+
         illustrationHelpers.drawDashedLine(ctx, p1_orig, p1_new, '#aaa');
         illustrationHelpers.drawPoints(ctx, [p1_new], team1_color);
     },
@@ -976,9 +1017,19 @@ const illustrationDrawers = {
 
         illustrationHelpers.drawPoints(ctx, pointsToPull, team2_color);
 
-        // Draw spiral lines using helper
+        // Draw curved lines to show pull
         pointsToPull.forEach(p => {
-            illustrationHelpers.drawSpiral(ctx, p, center, '#aaa');
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            // control point to make it curve
+            const cp_x = (p.x + center.x) / 2 + (center.y - p.y) * 0.4;
+            const cp_y = (p.y + center.y) / 2 - (center.x - p.x) * 0.4;
+            ctx.quadraticCurveTo(cp_x, cp_y, center.x, center.y);
+            ctx.strokeStyle = '#aaa';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.restore();
         });
     },
     'sacrifice_cultivate_heartwood': (ctx, w, h) => {
@@ -1592,16 +1643,12 @@ const illustrationDrawers = {
         const mid_sac = {x: (p1.x+p3.x)/2, y: (p1.y+p3.y)/2};
         illustrationHelpers.drawSacrificeSymbol(ctx, mid_sac.x, mid_sac.y);
 
-        // Draw attuned effect
-        const pulse = 0.5; // static for illustration
-        const glow_radius = 15 + pulse * 5;
-        const gradient = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, glow_radius);
-        gradient.addColorStop(0, `rgba(255, 255, 255, ${0.8 - pulse * 0.3})`);
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        ctx.fillStyle = gradient;
-        ctx.beginPath(); ctx.arc(center.x, center.y, glow_radius, 0, 2 * Math.PI); ctx.fill();
+        // Draw attuned effect - arrows to match pull effect
+        illustrationHelpers.drawArrow(ctx, p1, center, team1_color);
+        illustrationHelpers.drawArrow(ctx, p3, center, team1_color);
+
         ctx.fillStyle = team1_color;
-        ctx.beginPath(); ctx.arc(center.x, center.y, 6 + pulse * 2, 0, 2 * Math.PI); ctx.fill();
+        ctx.beginPath(); ctx.arc(center.x, center.y, 6, 0, 2 * Math.PI); ctx.fill();
     },
     'sacrifice_line_retaliation': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
