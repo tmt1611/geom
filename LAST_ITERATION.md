@@ -1,13 +1,8 @@
-- **Illustration Review (FIGHT actions):** Reviewed all `FIGHT` actions for visual consistency between illustrations and in-game effects.
-- **Code Optimization & Consistency:**
-    - Created a new `drawSpiral` helper function in `illustration_generator.js` to standardize the drawing of curved, energetic paths.
-    - Refactored the `sacrifice_create_whirlpool` illustration to use this new helper.
-- **Visual Design Streamlining & Consistency:**
-    - **Added `is_isolated` point rendering:** Implemented a new visual state in `renderer.js` for isolated points, making them appear with a purple 'X' cage. This brings the in-game visual in line with the `fight_isolate_point` illustration.
-    - **Improved `Fight: Hull Breach` Illustration:** Replaced the simple arrow with the new `drawSpiral` effect to better match the `energy_spiral` visual effect used for conversion in-game.
-    - **Improved `Fight: Sentry Zap` Illustration:** Replaced the straight arrow with a `drawJaggedLine` to better represent an electrical "zap" and match its corresponding `jagged_ray` visual effect.
+- **Illustration Review (FORTIFY actions):** Reviewed all `FORTIFY` actions for visual consistency and clarity.
 - **Visual Effect Improvements:**
-    - **`Fight: Attack Line`:** Added a `point_explosion` visual effect upon impact to match its illustration.
-    - **`Fight: Refraction Beam`:** Added a `point_explosion` visual effect upon final impact to match its illustration.
-    - **`Fight: Purify Territory`:** Added a radiating shockwave visual effect from the purifier structure to match its illustration.
-- **Consistency Check:** The illustrations and in-game visuals for several `FIGHT` actions are now more closely aligned, improving clarity and visual consistency.
+    - **`Reposition Point`:** Added a new `reposition_trail` visual effect (a fading dashed line) to make this no-cost action more visually informative, matching its illustration's intent.
+    - **`Rotate Point`:** Added a new `rotation_arc` visual effect to draw the path of rotation, bringing the in-game effect in line with its excellent illustration.
+    - **`Mirror Structure`:** Enhanced the visual effect to show the new points and lines forming, making the action more dynamic and impactful.
+- **Visual Design Streamlining & Consistency:**
+    - **`Create Anchor` Illustration:** Updated the illustration to include a pulsing ring, aligning it with its in-game rendered effect and ensuring the guide and game visuals are identical.
+- **Consistency Check:** Confirmed that other `FORTIFY` actions (`Claim Territory`, `Form Bastion`, `Form Monolith`, `Shield Line`, etc.) already have a consistent visual language across their illustrations, effects, and final rendered states.

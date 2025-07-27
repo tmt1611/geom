@@ -1185,6 +1185,49 @@ const renderer = (() => {
                      ctx.beginPath(); ctx.arc(p2_c.x, p2_c.y, radius2, 0, 2*Math.PI); ctx.stroke();
                      break;
                  }
+                 case 'reposition_trail': {
+                    const p1_coords = { x: (effect.p1.x + 0.5) * cellSize, y: (effect.p1.y + 0.5) * cellSize };
+                    const p2_coords = { x: (effect.p2.x + 0.5) * cellSize, y: (effect.p2.y + 0.5) * cellSize };
+                    ctx.strokeStyle = effect.color;
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = 1 - easedProgress;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(p1_coords.x, p1_coords.y);
+                    ctx.lineTo(p2_coords.x, p2_coords.y);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    break;
+                }
+                case 'rotation_arc': {
+                    const start_c = { x: (effect.start.x + 0.5) * cellSize, y: (effect.start.y + 0.5) * cellSize };
+                    let pivot_c;
+                    if (effect.is_grid_center) {
+                        pivot_c = { x: (effect.grid_size / 2) * cellSize, y: (effect.grid_size / 2) * cellSize };
+                    } else {
+                        pivot_c = { x: (effect.pivot.x + 0.5) * cellSize, y: (effect.pivot.y + 0.5) * cellSize };
+                    }
+                    const radius = Math.sqrt((start_c.x - pivot_c.x)**2 + (start_c.y - pivot_c.y)**2);
+                    const startAngle = Math.atan2(start_c.y - pivot_c.y, start_c.x - pivot_c.x);
+
+                    const end_c = { x: (effect.end.x + 0.5) * cellSize, y: (effect.end.y + 0.5) * cellSize };
+                    const endAngle = Math.atan2(end_c.y - pivot_c.y, end_c.x - pivot_c.x);
+                    
+                    let sweep = endAngle - startAngle;
+                    if (Math.abs(sweep) > Math.PI) {
+                        sweep = sweep - Math.sign(sweep) * 2 * Math.PI;
+                    }
+
+                    ctx.strokeStyle = effect.color;
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = 1 - progress;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.arc(pivot_c.x, pivot_c.y, radius, startAngle, startAngle + sweep * easedProgress, sweep < 0);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    break;
+                }
             }
         });
         ctx.restore();

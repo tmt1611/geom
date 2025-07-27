@@ -366,6 +366,21 @@ const visualEffectsManager = (() => {
                 startTime: Date.now(),
                 duration: 1500
             });
+            // Add effects for new points and lines
+            details.new_points.forEach((p, i) => {
+                uiState.visualEffects.push({
+                    type: 'point_formation',
+                    x: p.x,
+                    y: p.y,
+                    color: gameState.teams[details.team_id].color,
+                    startTime: Date.now() + i * 100,
+                    duration: 600
+                });
+            });
+            details.new_lines.forEach(line => {
+                uiState.lastActionHighlights.lines.add(line.id);
+                uiState.visualEffects.push({ type: 'new_line', line, startTime: Date.now() + 400, duration: 800 });
+            });
         },
         'mirror_fizzle_strengthen': (details, gameState) => {
             details.strengthened_lines.forEach(line => {
@@ -947,10 +962,36 @@ const visualEffectsManager = (() => {
                 duration: 800,
             });
         },
+        'reposition_point': (details, gameState) => {
+            uiState.lastActionHighlights.points.add(details.moved_point.id);
+            if (details.original_coords) {
+                uiState.visualEffects.push({
+                    type: 'reposition_trail',
+                    p1: details.original_coords,
+                    p2: details.moved_point,
+                    color: gameState.teams[details.moved_point.teamId].color,
+                    startTime: Date.now(),
+                    duration: 600
+                });
+            }
+        },
         'rotate_point': (details, gameState) => {
             uiState.lastActionHighlights.points.add(details.moved_point.id);
             if (details.pivot_point && !details.is_grid_center) {
                 uiState.lastActionHighlights.points.add(details.pivot_point.id);
+            }
+            if (details.original_coords) {
+                uiState.visualEffects.push({
+                    type: 'rotation_arc',
+                    start: details.original_coords,
+                    end: details.moved_point,
+                    pivot: details.pivot_point,
+                    is_grid_center: details.is_grid_center,
+                    grid_size: gameState.grid_size,
+                    color: gameState.teams[details.moved_point.teamId].color,
+                    startTime: Date.now(),
+                    duration: 800
+                });
             }
         },
         'impale_fizzle_barricade': (details, gameState) => {

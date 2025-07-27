@@ -567,6 +567,15 @@ const illustrationDrawers = {
         ctx.fillStyle = team1_color;
         ctx.fillRect(p_anchor.x - 8, p_anchor.y - 8, 16, 16);
 
+        // Add pulse effect to match renderer
+        ctx.beginPath();
+        ctx.arc(p_anchor.x, p_anchor.y, 20, 0, 2 * Math.PI);
+        ctx.strokeStyle = `rgba(200, 200, 255, 0.7)`;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([4,4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
         // Enemy points
         illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
         
