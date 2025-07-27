@@ -326,30 +326,19 @@ js_copy_module = copy
 
     async augmentState(state) {
         if (this._mode === 'pyodide') {
-            // Using JSON stringify/parse is more robust for passing complex nested JS objects
-            // to Pyodide than the automatic `toPy` conversion, which can cause memory errors.
             const state_json = JSON.stringify(state);
             this._pyodide.globals.set('state_json_str_for_augment', state_json);
             
-            // Using JSON serialization is more robust than toJs for complex states,
-            // as it avoids potential bugs in the Pyodide proxy conversion layer that can cause WASM errors.
+            // Call the Python function which now handles its own JSON serialization.
+            // The result is a JS string, not a PyProxy.
             const augmented_state_json_string = this._pyodide.runPython(`
 import json
-augmented_state = js_game_instance.augment_state_for_frontend(json.loads(state_json_str_for_augment))
-
-# A custom JSON encoder is needed to handle any 'set' objects that might
-# exist in the data, converting them to lists.
-class SetEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, set):
-            return list(obj)
-        return json.JSONEncoder.default(self, obj)
-
-json.dumps(augmented_state, cls=SetEncoder)
+js_game_instance.augment_state_for_frontend(
+    json.loads(state_json_str_for_augment),
+    as_json_string=True
+)
             `);
             
-            // runPython returns a JS string directly when the Python result is a string.
-            // It is not a PyProxy, so it doesn't need to be (and cannot be) destroyed.
             return JSON.parse(augmented_state_json_string);
         }
         // This is not needed for HTTP mode, as augmentation is done on the server.

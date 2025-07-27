@@ -2,6 +2,7 @@ import random
 import math
 import uuid  # For unique point IDs
 import copy
+import json
 from itertools import combinations
 from collections import defaultdict
 from .geometry import (
@@ -381,18 +382,19 @@ class Game:
             'grid_size': grid_size
         }
 
-    def augment_state_for_frontend(self, historical_state):
+    def augment_state_for_frontend(self, historical_state, as_json_string=False):
         """
         Augments a single historical state object with transient data for frontend display.
         This method is designed to be called on a raw state from the simulation history.
         It temporarily sets the game's state to the historical one to use its helper methods.
+        Can return a Python dict or a JSON string.
         """
         # Temporarily swap state to use helper methods that rely on self.state
         original_live_state = self.state
         self.state = historical_state
         try:
             state_copy = self.state.copy()
-            
+
             # --- Calculate action probabilities for the team about to act in this state ---
             next_team_id = None
             if state_copy['game_phase'] == 'RUNNING' and state_copy.get('actions_queue_this_turn'):
@@ -400,7 +402,7 @@ class Game:
                 queue = state_copy['actions_queue_this_turn']
                 if action_idx < len(queue):
                     next_team_id = queue[action_idx]['teamId']
-            
+
             if next_team_id:
                 state_copy['action_probabilities'] = self.get_action_probabilities(next_team_id, include_invalid=False)
             else:
@@ -408,13 +410,21 @@ class Game:
 
             if state_copy['game_phase'] == 'FINISHED' and not state_copy.get('interpretation'):
                 state_copy['interpretation'] = self.calculate_interpretation()
-            
+
             if 'no_cost_action_used_by_team_this_turn' in state_copy:
                 state_copy['no_cost_action_used_by_team_this_turn'] = list(state_copy['no_cost_action_used_by_team_this_turn'])
 
             state_copy['lines'] = self._augment_lines_for_frontend(self.state['lines'])
             state_copy['points'] = self._augment_points_for_frontend(self.state['points'])
             state_copy['live_stats'] = self._calculate_live_stats()
+            
+            if as_json_string:
+                class SetEncoder(json.JSONEncoder):
+                    def default(self, obj):
+                        if isinstance(obj, set):
+                            return list(obj)
+                        return json.JSONEncoder.default(self, obj)
+                return json.dumps(state_copy, cls=SetEncoder)
 
             return state_copy
         finally:

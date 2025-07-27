@@ -67,12 +67,10 @@ def start_game():
             yield json.dumps(progress_update) + '\n'
 
             # 2. Augment and yield the state update
-            augmented_state = game.augment_state_for_frontend(state)
-            state_update = {
-                "type": "state",
-                "data": augmented_state
-            }
-            yield json.dumps(state_update) + '\n'
+            augmented_state_json = game.augment_state_for_frontend(state, as_json_string=True)
+            # Manually construct the JSON string to avoid double-encoding
+            state_update_json = f'{{"type": "state", "data": {augmented_state_json}}}'
+            yield state_update_json + '\n'
 
     return Response(stream_with_context(generate()), mimetype='application/x-json-stream')
 
@@ -104,12 +102,9 @@ def restart_game():
             yield json.dumps(progress_update) + '\n'
 
             # 2. Augment and yield the state update
-            augmented_state = game.augment_state_for_frontend(state)
-            state_update = {
-                "type": "state",
-                "data": augmented_state
-            }
-            yield json.dumps(state_update) + '\n'
+            augmented_state_json = game.augment_state_for_frontend(state, as_json_string=True)
+            state_update_json = f'{{"type": "state", "data": {augmented_state_json}}}'
+            yield state_update_json + '\n'
 
     return Response(stream_with_context(generate()), mimetype='application/x-json-stream')
 
