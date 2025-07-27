@@ -1158,8 +1158,8 @@ const visualEffectsManager = (() => {
             }
         },
         'scorch_territory': (details, gameState) => {
-            const points = details.territory.points.map(p => gameState.points[p.id]).filter(Boolean);
-            if (points.length === 3) {
+            const points = details.scorched_zone.points;
+            if (points && points.length >= 3) {
                  points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
                  uiState.visualEffects.push({
                     type: 'polygon_flash',
