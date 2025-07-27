@@ -1,6 +1,11 @@
-- **Illustration Review (SACRIFICE Actions):** Added new illustrations for `Line Retaliation`, `Scorch Territory`, and `Attune Nexus`, which were previously missing. This completes the illustration coverage for all `SACRIFICE` actions listed in `rules.md`.
-- **Illustration Design:** The new illustrations were designed to visually represent the core mechanics of each action:
-    - `Line Retaliation`: Shows a point on a line being sacrificed to launch two perpendicular projectiles.
-    - `Scorch Territory`: Depicts a friendly territory's points being sacrificed, leaving behind a blackened, impassable area.
-    - `Attune Nexus`: Illustrates a diagonal line of a Nexus being sacrificed to create a glowing, "attuned" core.
-- **Checked action coverage:** Confirmed that all `SACRIFICE` actions now have corresponding illustration code in `illustration_generator.js`.
+- **Illustration Review (FIGHT & RUNE actions):** Added new illustrations for `Hull Breach`, `Isolate Point`, and `Gravity Well`, which were previously missing. This completes illustration coverage for all `FIGHT` actions and adds a missing `RUNE` action.
+- **Illustration Design & Consistency:**
+    - The new illustrations were designed to visually represent their mechanics: `Hull Breach` shows a convex hull converting an enemy, `Isolate Point` shows a debuffing beam, and `Gravity Well` shows a Star-Rune pushing enemies away.
+    - Corrected several illustrations that incorrectly showed a "sacrifice" visual (a red 'X') for non-sacrifice actions:
+        - `Rune: Starlight Cascade`
+        - `Terraform: Form Rift Spire`
+        - `Rune: Cardinal Pulse`
+    - The "push" visual (outward arrows) for `Gravity Well` is now consistent with other push effects like `Shield Pulse`.
+    - The "conversion" visual (halo) for `Hull Breach` is now consistent with `Convert Point`.
+- **Visual Polish:** Improved the symbol for the `Build Wonder` action to look more like a distinct spire rather than a simple triangle.
+- **Checked action coverage:** Confirmed that all `FIGHT` actions now have illustrations. One `RUNE` action (`Gravity Well`) was added.
