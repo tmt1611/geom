@@ -1799,6 +1799,71 @@ const illustrationDrawers = {
         illustrationHelpers.drawJaggedLine(ctx, p3, p1, 10, 3);
         ctx.restore();
     },
+    'attack_miss_spawn': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const team2_color = 'hsl(240, 70%, 50%)';
+        const p1 = {x: w*0.1, y: h*0.3};
+        const p2 = {x: w*0.4, y: h*0.3};
+        const ep1 = {x: w*0.7, y: h*0.6};
+        const ep2 = {x: w*0.7, y: h*0.9};
+        const p_new = {x: w*0.95, y: h*0.3};
+        illustrationHelpers.drawPoints(ctx, [p1,p2], team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
+        illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+        illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color);
+        illustrationHelpers.drawDashedLine(ctx, p2, p_new, team1_color);
+        illustrationHelpers.drawPoints(ctx, [p_new], team1_color);
+    },
+    'fight_parallel_strike_miss_spawn': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const team2_color = 'hsl(240, 70%, 50%)';
+        const p_source = {x: w*0.2, y: h*0.3};
+        const l1 = {x: w*0.3, y: h*0.8};
+        const l2 = {x: w*0.7, y: h*0.8};
+        illustrationHelpers.drawPoints(ctx, [p_source, l1, l2], team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1:l1, p2:l2}], team1_color);
+        const ep1 = {x: w*0.6, y: h*0.5};
+        illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+        const p_new = {x: w*0.95, y: h*0.3};
+        illustrationHelpers.drawDashedLine(ctx, p_source, p_new, team1_color);
+        illustrationHelpers.drawPoints(ctx, [p_new], team1_color);
+    },
+    'pincer_fizzle_barricade': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const p1 = {x: w*0.3, y: h*0.3};
+        const p2 = {x: w*0.3, y: h*0.7};
+        illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
+        ctx.save();
+        ctx.strokeStyle = team1_color;
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.globalAlpha = 0.8;
+        illustrationHelpers.drawJaggedLine(ctx, p1, p2, 8, 4);
+        ctx.restore();
+    },
+    'territory_fizzle_reinforce': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const p1 = {x: w*0.5, y: h*0.2};
+        const p2 = {x: w*0.2, y: h*0.8};
+        const p3 = {x: w*0.8, y: h*0.8};
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+        ctx.fillStyle = team1_color;
+        ctx.globalAlpha = 0.3;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+        illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p1}], team1_color, 4);
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 6;
+        ctx.filter = 'blur(2px)';
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+    },
 };
 
 /**

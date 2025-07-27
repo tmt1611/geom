@@ -1039,15 +1039,17 @@ const visualEffectsManager = (() => {
         'sentry_zap_miss_spawn': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             uiState.lastActionHighlights.points.add(details.new_point.id);
-            uiState.visualEffects.push({
-                type: 'attack_ray',
-                p1: details.attack_ray.p1,
-                p2: details.attack_ray.p2,
-                startTime: Date.now(),
-                duration: 700,
-                color: `rgba(255, 100, 100, 1)`,
-                lineWidth: 2
-            });
+            if (details.attack_ray.p1 && details.new_point) {
+                uiState.visualEffects.push({
+                    type: 'attack_ray',
+                    p1: details.attack_ray.p1,
+                    p2: details.new_point, // Use new_point which is guaranteed to exist
+                    startTime: Date.now(),
+                    duration: 700,
+                    color: `rgba(255, 100, 100, 1)`,
+                    lineWidth: 2
+                });
+            }
         },
         'scorch_territory': (details, gameState) => {
             const points = details.territory.points.map(p => gameState.points[p.id]).filter(Boolean);

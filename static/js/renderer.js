@@ -1186,6 +1186,7 @@ const renderer = (() => {
                      break;
                  }
                  case 'reposition_trail': {
+                    if (!effect.p1 || !effect.p2) break;
                     const p1_coords = { x: (effect.p1.x + 0.5) * cellSize, y: (effect.p1.y + 0.5) * cellSize };
                     const p2_coords = { x: (effect.p2.x + 0.5) * cellSize, y: (effect.p2.y + 0.5) * cellSize };
                     ctx.strokeStyle = effect.color;
