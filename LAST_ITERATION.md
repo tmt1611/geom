@@ -1,6 +1,9 @@
-- **Illustration Review (RUNE & TERRAFORM actions):** Reviewed all `RUNE` and `TERRAFORM` actions for illustration coverage and design. All actions were found to have illustrations.
-- **Visual Design Streamlining:**
-    - **Improved `Rune: Impale` Illustration:** The illustration was updated to include a thick, blurred highlight over the Trident-Rune's shape. This change makes the illustration more visually impressive and aligns it with the highlight style used by the live game renderer for active runes, improving consistency.
-    - **Improved `Rune: Focus Beam` Illustration:** The illustration's target, a Bastion core, was changed from a diamond shape to a square with a white border. This aligns the illustration with the specific visual used for Bastion cores in the game renderer, ensuring this important structure is represented consistently.
-- **Visual Effects Review (RUNE & TERRAFORM actions):** All visual effects were reviewed and found to be clear, impactful, and consistent. No changes were needed.
-- **Checked action coverage:** Confirmed all `RUNE` and `TERRAFORM` actions have illustrations and appropriate visual effects, enhancing UI consistency.
+- **Illustration Review (FORTIFY actions):** Reviewed all `FORTIFY` actions for illustration coverage. All actions were found to have corresponding illustration code.
+- **Visual Design Streamlining & Consistency:**
+    - **Improved `Fortify: Form Bastion` Illustration:** The illustration was updated to draw bastion "prong" points as squares and the connecting lines thicker, matching the specific visuals used for Bastion structures in the live game renderer.
+    - **Improved `Fortify: Form Monolith` Illustration:** The illustration was updated to draw the structure's points as tall, thin rectangles ("pillars") instead of circles, aligning it with the unique visual style of Monoliths in-game.
+    - **Improved `Fortify: Form Purifier` Illustration:** The illustration's points are now drawn as star-like shapes, and the pentagonal area is filled with a transparent color. This change matches the in-game renderer for Purifier points and makes the structure more visually distinct.
+    - **Improved `Fortify: Create Ley Line` Illustration:** The drawing order was adjusted to render the points on top of the glow effect, making them appear sharper and improving overall clarity.
+- **Visual Effects Improvement:**
+    - **Added `Create Ley Line` Effect:** A new `line_flash` visual effect was added for the `Create Ley Line` action. This provides immediate visual feedback when an I-Rune is activated into a Ley Line, which was previously a purely static state change.
+- **Consistency Check:** All `FORTIFY` action illustrations and their corresponding in-game visuals are now more consistent, improving the user's ability to connect the Action Guide with live gameplay.

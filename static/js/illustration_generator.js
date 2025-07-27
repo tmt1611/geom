@@ -598,7 +598,7 @@ const illustrationDrawers = {
         const p1 = {x: w*0.2, y: h*0.5};
         const p2 = {x: w*0.5, y: h*0.5};
         const p3 = {x: w*0.8, y: h*0.5};
-        illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
+        const points = [p1, p2, p3];
         illustrationHelpers.drawLines(ctx, [{p1:p1,p2:p2}, {p1:p2,p2:p3}], team1_color);
         
         // Ley line glow effect
@@ -611,8 +611,10 @@ const illustrationDrawers = {
         ctx.globalAlpha = 0.5;
         ctx.filter = 'blur(4px)';
         ctx.stroke();
-        ctx.filter = 'none';
         ctx.restore();
+
+        // Redraw points on top of glow
+        illustrationHelpers.drawPoints(ctx, points, team1_color);
     },
     'fortify_claim_territory': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
@@ -651,8 +653,12 @@ const illustrationDrawers = {
         ctx.strokeRect(core.x - core_size / 2, core.y - core_size / 2, core_size, core_size);
 
         // Draw prongs and lines
-        illustrationHelpers.drawPoints(ctx, prongs, team1_color);
-        prongs.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: core, p2: p}], team1_color));
+        const prong_size = 10;
+        prongs.forEach(p => {
+            ctx.fillStyle = team1_color;
+            ctx.fillRect(p.x - prong_size / 2, p.y - prong_size / 2, prong_size, prong_size);
+        });
+        prongs.forEach(p => illustrationHelpers.drawLines(ctx, [{p1: core, p2: p}], team1_color, 4));
 
         // Draw bastion outline
         ctx.save();
@@ -675,7 +681,13 @@ const illustrationDrawers = {
         const p4 = {x: w*0.4, y: h*0.9};
 
         const points = [p1, p2, p3, p4];
-        illustrationHelpers.drawPoints(ctx, points, team1_color);
+        // Draw points as monolith pillars
+        ctx.fillStyle = team1_color;
+        const pillar_w = 4;
+        const pillar_h = 12;
+        points.forEach(p => {
+            ctx.fillRect(p.x - pillar_w / 2, p.y - pillar_h / 2, pillar_w, pillar_h);
+        });
         illustrationHelpers.drawLines(ctx, [{p1, p2}, {p1:p2,p2:p3}, {p1:p3,p2:p4}, {p1:p4,p2:p1}], team1_color);
 
         ctx.beginPath();
@@ -998,10 +1010,41 @@ const illustrationDrawers = {
                 y: center.y + Math.sin(angle) * radius,
             });
         }
-        illustrationHelpers.drawPoints(ctx, points, team1_color);
+        
         for (let i = 0; i < num_points; i++) {
             illustrationHelpers.drawLines(ctx, [{p1: points[i], p2: points[(i+1)%num_points]}], team1_color);
         }
+        
+        // Add fill to indicate structure
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < num_points; i++) {
+            ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = team1_color;
+        ctx.globalAlpha = 0.2;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+
+        // Draw points as purifier stars on top
+        const pointRadius = 5;
+        points.forEach(p => {
+            ctx.beginPath();
+            const spikes = 5; const outerRadius = pointRadius * 2.2; const innerRadius = pointRadius * 1.1;
+            ctx.moveTo(p.x, p.y - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                let x_outer = p.x + Math.cos(i * 2 * Math.PI / spikes - Math.PI/2) * outerRadius;
+                let y_outer = p.y + Math.sin(i * 2 * Math.PI / spikes - Math.PI/2) * outerRadius;
+                ctx.lineTo(x_outer, y_outer);
+                let x_inner = p.x + Math.cos((i + 0.5) * 2 * Math.PI / spikes - Math.PI/2) * innerRadius;
+                let y_inner = p.y + Math.sin((i + 0.5) * 2 * Math.PI / spikes - Math.PI/2) * innerRadius;
+                ctx.lineTo(x_inner, y_inner);
+            }
+            ctx.closePath();
+            ctx.fillStyle = team1_color;
+            ctx.fill();
+        });
     },
     'fight_launch_payload': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';

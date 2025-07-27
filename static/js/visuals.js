@@ -424,6 +424,18 @@ const visualEffectsManager = (() => {
                 duration: 1500
             });
         },
+        'create_ley_line': (details, gameState) => {
+            details.ley_line_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            if (details.ley_line_line_ids) {
+                uiState.visualEffects.push({
+                    type: 'line_flash',
+                    line_ids: details.ley_line_line_ids,
+                    color: gameState.teams[details.team_id].color,
+                    startTime: Date.now(),
+                    duration: 1200
+                });
+            }
+        },
         'chain_lightning': (details, gameState) => {
             if (details.rune_points) { // It may not exist if structure was destroyed
                 details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
