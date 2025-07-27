@@ -459,9 +459,37 @@ const visualEffectsManager = (() => {
             if(bastion) {
                 uiState.lastActionHighlights.points.add(bastion.core_id);
                 bastion.prong_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+                
+                const prong_points = bastion.prong_ids.map(pid => gameState.points[pid]).filter(Boolean);
+                if (prong_points.length >= 3) {
+                     uiState.visualEffects.push({
+                        type: 'polygon_flash',
+                        points: prong_points,
+                        color: gameState.teams[bastion.teamId].color,
+                        startTime: Date.now(),
+                        duration: 800
+                    });
+                }
             }
+            // Show sacrificed point imploding
             uiState.visualEffects.push({
                 type: 'point_implosion', x: details.sacrificed_point.x, y: details.sacrificed_point.y, startTime: Date.now(), duration: 800, color: gameState.teams[details.sacrificed_point.teamId]?.color
+            });
+
+            // Show destroyed lines exploding
+            details.destroyed_lines.forEach((line, i) => {
+                 const p1 = gameState.points[line.p1_id];
+                 const p2 = gameState.points[line.p2_id];
+                 if(p1 && p2) {
+                     const midpoint = {x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2};
+                     uiState.visualEffects.push({
+                         type: 'point_explosion',
+                         x: midpoint.x,
+                         y: midpoint.y,
+                         startTime: Date.now() + 200 + i * 50,
+                         duration: 500
+                     });
+                 }
             });
         },
         'sentry_zap': (details, gameState) => {
@@ -716,8 +744,26 @@ const visualEffectsManager = (() => {
             });
         },
         'build_chronos_spire': (details, gameState) => {
+            if(details.sacrificed_point_ids) {
+                const sacrificed_points = details.sacrificed_point_ids.map(pid => gameState.points[pid]).filter(Boolean);
+                sacrificed_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
+                uiState.visualEffects.push({
+                    type: 'heartwood_creation', // Re-using this effect type for a dramatic build-up
+                    sacrificed_points: sacrificed_points,
+                    center_coords: details.wonder.coords,
+                    color: gameState.teams[details.wonder.teamId].color,
+                    startTime: Date.now(),
+                    duration: 2000
+                });
+            }
+            // Add a secondary flash for more impact
             uiState.visualEffects.push({
-                type: 'point_implosion', x: details.wonder.coords.x, y: details.wonder.coords.y, startTime: Date.now(), duration: 2000, color: `rgba(255, 255, 150, 1)`
+                type: 'starlight_cascade', // Re-using this for a bright flash
+                center: details.wonder.coords,
+                radius: gameState.grid_size * 0.1,
+                particles: [], // No particles, just the flash
+                startTime: Date.now() + 1500, // After the build-up
+                duration: 1000
             });
         },
         'create_fissure': (details, gameState) => {

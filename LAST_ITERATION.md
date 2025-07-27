@@ -1,12 +1,6 @@
-- **Illustration Review (RUNE actions):** Reviewed all `RUNE` action illustrations. All illustrations were present and found to be clear and consistent with their action descriptions and in-game visuals. No changes were made to illustration code.
-- **Visual Effects Review (RUNE actions):**
-    - Reviewed all `RUNE` actions for visual effects and identified several that were missing.
-    - **Added new effects:**
-        - `Rune: Hourglass Stasis`: Now shows an `energy_spiral` from the rune's vertex to the target point to represent the freezing action.
-        - `Rune: Cardinal Pulse`: Now shows four `attack_ray` effects firing from the rune's center, matching the action description.
-        - `Rune: T-Hammer Slam`: Now shows a `line_flash` along the rune's stem to visualize the "slam" shockwave.
-        - `Rune: Parallel Discharge`: Now shows a `polygon_flash` over the rune's area to represent the discharge effect.
-        - `Rune: Focus Beam`: Now fires a powerful `jagged_ray` from the star's center and creates a `point_explosion` on the target, making it feel impactful.
-        - `Rune: Starlight Cascade`: Added a new `starlight_cascade` effect, a radial blast of light with sparkling particles, to represent the AoE damage.
-        - `Rune: Gravity Well`: Now uses the standard `shield_pulse` effect to represent the AoE push, ensuring visual consistency for identical effects.
-- **Checked action coverage:** Confirmed all `RUNE` actions now have corresponding visual effects, improving game clarity and engagement.
+- **Illustration Review (SACRIFICE actions):** Reviewed all `SACRIFICE` action illustrations. All were found to be present, clear, and consistent with action descriptions. No changes were made.
+- **Visual Effects Review (SACRIFICE actions):**
+    - Reviewed all `SACRIFICE` actions for visual effects. All actions had an effect, but two were identified for significant improvement to better match their in-game impact.
+    - **Improved `Build Wonder` (`build_chronos_spire`):** The visual effect was changed from a simple `point_implosion` to a much more dramatic sequence. It now reuses the `heartwood_creation` effect to show energy from all sacrificed Star-Rune points converging on the center, followed by a `starlight_cascade` flash as the Wonder appears. This better reflects the creation of a game-winning structure.
+    - **Improved `Bastion Pulse`:** The original effect only showed the sacrificed point imploding. The new effect is more comprehensive: it now includes a `polygon_flash` over the bastion's area to show it activating, a `point_implosion` for the sacrifice, and `point_explosion` effects on all enemy lines that are destroyed by the pulse, providing full visual feedback for the action's outcome.
+- **Checked action coverage:** Confirmed all `SACRIFICE` actions have appropriate and clear visual effects, improving game clarity and engagement.
