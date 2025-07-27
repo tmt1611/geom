@@ -72,6 +72,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const restartServerBtn = document.getElementById('restart-server-btn');
 
     // --- Helper Functions ---
+
+    function setSetupControlsEnabled(enabled) {
+        const controls = [
+            newTeamNameInput, newTeamColorInput, newTeamTraitSelect, addTeamBtn,
+            startGameBtn, undoPointBtn, clearPointsBtn, randomizePointsBtn,
+            maxTurnsInput, gridSizeInput
+        ];
+        controls.forEach(control => { if(control) control.disabled = !enabled; });
+        if (teamsList) teamsList.style.pointerEvents = enabled ? 'auto' : 'none';
+        if (canvas) {
+             canvas.style.pointerEvents = enabled ? 'auto' : 'none';
+             canvas.style.cursor = enabled ? 'crosshair' : 'wait';
+        }
+    }
+
     function getRandomHslColor() {
         const hue = Math.floor(Math.random() * 360);
         return `hsl(${hue}, 70%, 50%)`;
