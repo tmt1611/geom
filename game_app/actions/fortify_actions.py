@@ -28,11 +28,12 @@ class FortifyActionsHandler:
             return False, "Requires at least one point."
 
         critical_pids = self.game._get_critical_structure_point_ids(teamId)
-        articulation_pids = set(self.game._find_articulation_points(teamId))
         anchor_pids = set(self.state.get('anchors', {}).keys())
 
+        # The articulation point check is removed for this non-destructive action's precondition
+        # to improve performance. The 'critical structure' check is sufficient.
         has_candidate = any(
-            pid not in critical_pids and pid not in articulation_pids and pid not in anchor_pids
+            pid not in critical_pids and pid not in anchor_pids
             for pid in team_point_ids
         )
         return has_candidate, "No available non-critical points to turn into an anchor."
@@ -574,18 +575,18 @@ class FortifyActionsHandler:
     def create_anchor(self, teamId):
         """[FORTIFY ACTION]: Turns a non-critical point into a gravity well. This action does not cost a point."""
         # Find a point that can be turned into an anchor.
-        # It must not be part of a critical structure or an articulation point, and not already an anchor.
+        # It must not be part of a critical structure and not already an anchor.
+        # The articulation point check is removed as this is a non-destructive action.
         team_point_ids = self.game.get_team_point_ids(teamId)
         if not team_point_ids:
             return {'success': False, 'reason': 'no points to create anchor from'}
         
         critical_pids = self.game._get_critical_structure_point_ids(teamId)
-        articulation_pids = set(self.game._find_articulation_points(teamId))
         anchor_pids = set(self.state.get('anchors', {}).keys())
         
         candidate_pids = [
             pid for pid in team_point_ids 
-            if pid not in critical_pids and pid not in articulation_pids and pid not in anchor_pids
+            if pid not in critical_pids and pid not in anchor_pids
         ]
 
         if not candidate_pids:
@@ -609,17 +610,40 @@ class FortifyActionsHandler:
         }
 
     def form_purifier(self, teamId):
-        """[FORTIFY ACTION]: Forms a Purifier from a regular pentagon of points."""
+        """[FORTIFY ACTION]: Forms a Purifier from a regular pentagon of points. If not possible, reinforces a potential formation."""
         possible_purifiers = self._find_possible_purifiers(teamId)
         
-        if not possible_purifiers:
-            return {'success': False, 'reason': 'no valid pentagon formation found'}
+        if possible_purifiers:
+            # --- Primary Effect: Form Purifier ---
+            chosen_purifier_data = random.choice(possible_purifiers)
+            self.state.setdefault('purifiers', {}).setdefault(teamId, []).append(chosen_purifier_data)
+            return {'success': True, 'type': 'form_purifier', 'purifier': chosen_purifier_data}
+        else:
+            # --- Fallback Effect: Reinforce a potential structure ---
+            team_point_ids = self.game.get_team_point_ids(teamId)
+            if len(team_point_ids) < 5:
+                return {'success': False, 'reason': 'not enough points for purifier or its fallback'}
 
-        chosen_purifier_data = random.choice(possible_purifiers)
-        
-        self.state.setdefault('purifiers', {}).setdefault(teamId, []).append(chosen_purifier_data)
-        
-        return {'success': True, 'type': 'form_purifier', 'purifier': chosen_purifier_data}
+            points_to_reinforce_ids = random.sample(team_point_ids, 5)
+            strengthened_lines = []
+            all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+
+            for p1_id, p2_id in combinations(points_to_reinforce_ids, 2):
+                line_key = tuple(sorted((p1_id, p2_id)))
+                if line_key in all_lines_by_points:
+                    line_to_strengthen = all_lines_by_points[line_key]
+                    if self.game._strengthen_line(line_to_strengthen):
+                        strengthened_lines.append(line_to_strengthen)
+            
+            if not strengthened_lines:
+                return {'success': False, 'reason': 'no valid pentagon formation found and no lines to reinforce'}
+            
+            return {
+                'success': True,
+                'type': 'purifier_fizzle_reinforce',
+                'strengthened_lines': strengthened_lines,
+                'reinforced_point_ids': points_to_reinforce_ids
+            }
 
     def create_ley_line(self, teamId):
         """[FORTIFY ACTION]: Activates an I-Rune into a Ley Line, granting bonuses to nearby point creation. If all are active, it pulses one."""

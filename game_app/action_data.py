@@ -251,9 +251,10 @@ ACTIONS = {
     'fortify_form_purifier': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'form_purifier',
         'display_name': 'Form Purifier',
-        'description': "Forms a regular pentagon of points into a Purifier, which unlocks the 'Purify Territory' action.",
+        'description': "Forms a regular pentagon of points into a Purifier, which unlocks the 'Purify Territory' action. If no valid formation is found, it reinforces the lines between a cluster of five points instead.",
         'log_generators': {
             'form_purifier': lambda r: ("aligned its points to form a territory Purifier.", "[PURIFIER]"),
+            'purifier_fizzle_reinforce': lambda r: (f"failed to form a Purifier and instead reinforced {len(r['strengthened_lines'])} lines of a potential structure.", "[PURIFIER->REINFORCE]"),
         }
     },
     'fortify_reposition_point': {

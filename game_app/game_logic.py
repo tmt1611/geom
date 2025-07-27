@@ -746,7 +746,8 @@ class Game:
     def _find_repositionable_point(self, teamId):
         """
         Finds a point that can be freely moved without breaking critical formations.
-        A "free" point is not part of a critical structure and is not an articulation point.
+        A "free" point is not part of a critical structure. The check for articulation points
+        is omitted for these non-destructive actions to improve performance.
         Returns a point_id or None.
         """
         team_point_ids = self.get_team_point_ids(teamId)
@@ -754,11 +755,10 @@ class Game:
             return None
 
         critical_pids = self._get_critical_structure_point_ids(teamId)
-        articulation_pids = set(self._find_articulation_points(teamId))
 
         repositionable_pids = [
             pid for pid in team_point_ids 
-            if pid not in critical_pids and pid not in articulation_pids
+            if pid not in critical_pids
         ]
 
         if not repositionable_pids:
