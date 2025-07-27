@@ -464,6 +464,17 @@ document.addEventListener('DOMContentLoaded', () => {
             html += '<p>No valid actions available.</p>';
         }
 
+        let maxProb = 0;
+        sortedGroups.forEach(([, groupData]) => {
+            groupData.actions.forEach(action => {
+                if (action.probability > maxProb) {
+                    maxProb = action.probability;
+                }
+            });
+        });
+        if (maxProb === 0) maxProb = 1; // Avoid division by zero
+
+
         for (const [groupName, groupData] of sortedGroups) {
             html += `
                 <div class="action-category">
@@ -473,7 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <li>
                                 <span>${action.display_name}${action.no_cost ? '<span class="no-cost-tag">[Free]</span>' : ''}</span>
                                 <div class="action-prob-bar-container">
-                                    <div class="action-prob-bar" style="width: ${action.probability / groupData.group_probability * 100}%; background-color: ${probData.color};"></div>
+                                    <div class="action-prob-bar" style="width: ${action.probability / maxProb * 100}%; background-color: ${probData.color};"></div>
                                 </div>
                                 <span class="action-prob-percent">${action.probability}%</span>
                             </li>
@@ -704,29 +715,70 @@ document.addEventListener('DOMContentLoaded', () => {
     restartSimulationBtn.addEventListener('click', async () => {
         if (!confirm("Restart the simulation with the same setup?")) return;
         stopPlayback();
+
+        const loader = document.getElementById('simulation-loader');
+        const loaderText = document.getElementById('loader-text');
+        const loaderProgress = document.getElementById('loader-progress');
+        loader.style.display = 'flex';
+        loaderProgress.style.display = 'block';
+        loaderProgress.value = 0;
+
         try {
-            const simulationData = await api.restart();
+            const progressCallback = (progress, turn, maxTurns, currentStep) => {
+                loaderProgress.value = progress;
+                const displayTurn = Math.max(1, turn);
+                loaderText.textContent = `Simulating Turn ${displayTurn}/${maxTurns} (Step: ${currentStep})...`;
+            };
+
+            const simulationData = await api.restartAsync(progressCallback);
+            
             if (simulationData.error) throw new Error(`Failed to restart game: ${simulationData.error}`);
+            
             simulationHistory = simulationData.history || simulationData.raw_history;
             augmentedHistoryCache = {};
-             if (simulationData.history) { // Pre-fill cache for HTTP mode
+            
+            if (simulationData.history) { // Pre-fill cache for HTTP mode
                 simulationData.history.forEach((state, index) => {
                     augmentedHistoryCache[index] = state;
                 });
             }
             await showStateAtIndex(0);
-        } catch (error) { throw error; }
+        } catch (error) { 
+            throw error; 
+        } finally {
+            loader.style.display = 'none';
+        }
     });
 
-    playbackPrevBtn.addEventListener('click', () => {
-        stopPlayback();
-        playbackPreviousStep();
-    });
+    function setupHoldableButton(button, actionFn) {
+        let timer;
+        let interval;
 
-    playbackNextBtn.addEventListener('click', () => {
-        stopPlayback();
-        playbackNextStep();
-    });
+        const startAction = (e) => {
+            if (e.type === 'touchstart') e.preventDefault(); // prevent mouse events from firing
+            stopPlayback();
+            actionFn();
+            // After an initial delay, start repeating
+            timer = setTimeout(() => {
+                interval = setInterval(actionFn, 60); // Repeat every 60ms
+            }, 500); // 500ms initial delay
+        };
+
+        const stopAction = () => {
+            clearTimeout(timer);
+            clearInterval(interval);
+        };
+
+        button.addEventListener('mousedown', startAction);
+        button.addEventListener('mouseup', stopAction);
+        button.addEventListener('mouseleave', stopAction);
+        button.addEventListener('touchstart', startAction);
+        button.addEventListener('touchend', stopAction);
+        button.addEventListener('touchcancel', stopAction);
+    }
+
+    setupHoldableButton(playbackPrevBtn, playbackPreviousStep);
+    setupHoldableButton(playbackNextBtn, playbackNextStep);
 
     function stopPlayback() {
         if (uiState.playbackInterval) {
@@ -751,6 +803,16 @@ document.addEventListener('DOMContentLoaded', () => {
             stopPlayback(); // Reached the end
         }
     }
+
+    playbackProgressBar.addEventListener('click', (e) => {
+        if (simulationHistory.length > 1) {
+            const rect = playbackProgressBar.getBoundingClientRect();
+            const clickRatio = (e.clientX - rect.left) / rect.width;
+            const targetIndex = Math.round(clickRatio * (simulationHistory.length - 1));
+            stopPlayback();
+            showStateAtIndex(targetIndex, playbackIndex); // Pass previous index for animations
+        }
+    });
 
     playbackPlayPauseBtn.addEventListener('click', () => {
         if (uiState.playbackInterval) {

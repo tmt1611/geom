@@ -464,13 +464,15 @@ class Game:
                 raw_history.append(update['data'])
         return { "raw_history": raw_history }
 
-    def restart_game_and_run_simulation(self):
-        """Restarts the game with its initial settings and runs a new simulation."""
+    def restart_game_and_run_simulation_streamed(self):
+        """Restarts the game with its initial settings and yields simulation updates."""
         initial_state = self.state.get('initial_state')
         if not initial_state:
-            return {"error": "No initial state saved to restart from."}
-        
-        return self.run_full_simulation(
+            yield {"type": "error", "data": "No initial state saved to restart from."}
+            return
+
+        # The 'yield from' keyword is perfect here.
+        yield from self.run_full_simulation_streamed(
             initial_state['teams'],
             initial_state['points'],
             initial_state['max_turns'],

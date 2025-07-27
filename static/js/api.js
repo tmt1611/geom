@@ -248,14 +248,73 @@ js_game_data = game_data
         });
     },
 
-    async restart() {
-        if (this._mode === 'pyodide') {
-            const result_py = this._game.restart_game_and_run_simulation();
-            const result_js = this._pyProxyToJs(result_py);
-            if (result_js.error) return result_js;
-            return { raw_history: result_js.raw_history };
+    async restartAsync(progressCallback) {
+        if (this._mode === 'http') {
+            // HTTP mode uses fetch streaming
+            const response = await fetch('/api/game/restart', { method: 'POST' });
+            if (!response.ok) {
+                const errorText = await response.text();
+                const error = new Error(`Server returned an error: ${response.status} ${response.statusText}`);
+                error.response_text = errorText;
+                throw error;
+            }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const history = [];
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    try {
+                        const update = JSON.parse(line);
+                         if (update.type === 'error') {
+                            throw new Error(`Server error during restart: ${update.data}`);
+                        }
+                        if (update.type === 'progress' && progressCallback) {
+                            const pData = update.data;
+                            progressCallback(pData.progress, pData.turn, pData.max_turns, pData.step);
+                        } else if (update.type === 'state') {
+                            history.push(update.data);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse JSON stream line:", line, e);
+                    }
+                }
+            }
+            if (progressCallback) {
+                if (history.length > 0) {
+                    const lastState = history[history.length - 1];
+                    progressCallback(100, lastState.max_turns, lastState.max_turns, history.length - 1);
+                } else {
+                     progressCallback(100, 0, 0, 0); // fallback
+                }
+            }
+            return { history };
+
         }
-        return this._fetchJson('/api/game/restart', { method: 'POST' });
+
+        // Pyodide mode simulation for restart
+        const initial_state_py = this._game.state.get('initial_state');
+        if (!initial_state_py) {
+            throw new Error("No initial state saved to restart from.");
+        }
+        const initial_state = this._pyProxyToJs(initial_state_py);
+        initial_state_py.destroy();
+
+        return this.startGameAsync({
+            teams: initial_state.teams,
+            points: initial_state.points,
+            maxTurns: initial_state.max_turns,
+            gridSize: initial_state.gridSize
+        }, progressCallback);
     },
 
     async augmentState(state) {

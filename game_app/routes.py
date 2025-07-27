@@ -57,15 +57,22 @@ def start_game():
 
 @main_routes.route('/api/game/restart', methods=['POST'])
 def restart_game():
-    """Restarts the simulation with the same initial settings and returns the history."""
-    result = game_logic.game.restart_game_and_run_simulation()
-    if "error" in result:
-        return jsonify(result), 400
+    """Restarts the simulation with the same initial settings, streaming updates."""
     
-    raw_history = result.get("raw_history", [])
-    augmented_history = [game_logic.game.augment_state_for_frontend(s) for s in raw_history]
+    def generate():
+        for update in game_logic.game.restart_game_and_run_simulation_streamed():
+            if update.get('type') == 'error':
+                yield json.dumps(update) + '\n'
+                return
 
-    return jsonify({ "history": augmented_history })
+            # For streaming, we send augmented states so the client doesn't need to request them.
+            if update['type'] == 'state':
+                update['data'] = game_logic.game.augment_state_for_frontend(update['data'])
+            
+            # Send each update as a newline-delimited JSON object
+            yield json.dumps(update) + '\n'
+
+    return Response(stream_with_context(generate()), mimetype='application/x-json-stream')
 
 @main_routes.route('/api/game/reset', methods=['POST'])
 def reset_game():
