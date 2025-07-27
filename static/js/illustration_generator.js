@@ -115,7 +115,7 @@ const illustrationDrawers = {
         ctx.font = '16px Arial';
         ctx.fillText('No Illustration', w / 2, h / 2);
     },
-    'fortify_shield_line': (ctx, w, h) => {
+    'fortify_shield': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.3, y: h*0.5};
         const p2 = {x: w*0.7, y: h*0.5};
@@ -136,7 +136,7 @@ const illustrationDrawers = {
         // Redraw points on top of shield
         illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
     },
-    'expand_add_line': (ctx, w, h) => {
+    'expand_add': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.3, y: h*0.5};
         const p2 = {x: w*0.7, y: h*0.5};
@@ -173,7 +173,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawDashedLine(ctx, p_v, p_new, team1_color);
         illustrationHelpers.drawPoints(ctx, [p_new], team1_color);
     },
-    'expand_extend_line': (ctx, w, h) => {
+    'expand_extend': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.2, y: h*0.5};
         const p2 = {x: w*0.5, y: h*0.5};
@@ -183,7 +183,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawDashedLine(ctx, p2, p3, team1_color);
         illustrationHelpers.drawPoints(ctx, [p3], team1_color);
     },
-    'expand_fracture_line': (ctx, w, h) => {
+    'expand_fracture': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.2, y: h*0.5};
         const p2 = {x: w*0.8, y: h*0.5};
@@ -201,7 +201,7 @@ const illustrationDrawers = {
         ctx.fill();
         ctx.restore();
     },
-    'expand_create_orbital': (ctx, w, h) => {
+    'expand_orbital': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const center = {x: w*0.5, y: h*0.5};
         illustrationHelpers.drawPoints(ctx, [center], team1_color);
@@ -220,7 +220,7 @@ const illustrationDrawers = {
         }
         illustrationHelpers.drawPoints(ctx, satellites, team1_color);
     },
-    'expand_spawn_point': (ctx, w, h) => {
+    'expand_spawn': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.4, y: h*0.5};
         const p2 = {x: w*0.6, y: h*0.5};
@@ -254,7 +254,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y, 'red', 12);
         illustrationHelpers.drawExplosion(ctx, ep2.x, ep2.y, 'red', 12);
     },
-    'fight_attack_line': (ctx, w, h) => {
+    'fight_attack': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const p1 = {x: w*0.1, y: h*0.3};
@@ -292,7 +292,7 @@ const illustrationDrawers = {
         // Explosion
         illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
     },
-    'fight_territory_tri_beam': (ctx, w, h) => {
+    'fight_territory_bisector_strike': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const p1 = {x: w*0.5, y: h*0.1};
@@ -643,7 +643,7 @@ const illustrationDrawers = {
 
         illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
     },
-    'fortify_create_anchor': (ctx, w, h) => {
+    'fortify_anchor': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const p_anchor = {x: w*0.4, y: h*0.5};
@@ -712,7 +712,7 @@ const illustrationDrawers = {
         // Redraw points on top of glow
         illustrationHelpers.drawPoints(ctx, points, team1_color);
     },
-    'fortify_claim_territory': (ctx, w, h) => {
+    'fortify_claim': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.5, y: h*0.2};
         const p2 = {x: w*0.2, y: h*0.8};
@@ -944,7 +944,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawExplosion(ctx, w*0.7, h*0.5, 'red', 10);
         illustrationHelpers.drawExplosion(ctx, w*0.8, h*0.5, 'red', 10);
     },
-    'rune_v_beam': (ctx, w, h) => {
+    'rune_shoot_bisector': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         
@@ -1030,7 +1030,7 @@ const illustrationDrawers = {
         ctx.stroke();
         ctx.restore();
     },
-    'sacrifice_nova_burst': (ctx, w, h) => {
+    'sacrifice_nova': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const center = {x: w*0.5, y: h*0.5};
@@ -1089,7 +1089,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawDashedLine(ctx, p1_orig, p1_new, '#aaa');
         illustrationHelpers.drawPoints(ctx, [p1_new], team1_color);
     },
-    'sacrifice_create_whirlpool': (ctx, w, h) => {
+    'sacrifice_whirlpool': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const center = {x: w*0.5, y: h*0.5};
@@ -1268,7 +1268,7 @@ const illustrationDrawers = {
         // New point
         illustrationHelpers.drawPoints(ctx, [p_new], team1_color);
     },
-    'rune_time_stasis': (ctx, w, h) => {
+    'rune_hourglass_stasis': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         const v = {x: w*0.4, y: h*0.5};
@@ -1290,7 +1290,7 @@ const illustrationDrawers = {
         ctx.moveTo(ep.x, ep.y - cage_r); ctx.lineTo(ep.x, ep.y + cage_r); ctx.stroke();
         ctx.beginPath(); ctx.arc(ep.x, ep.y, cage_r, 0, 2 * Math.PI); ctx.stroke();
     },
-    'sacrifice_create_rift_trap': (ctx, w, h) => {
+    'sacrifice_rift_trap': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const center = {x: w*0.5, y: h*0.5};
         
