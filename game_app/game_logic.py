@@ -1085,35 +1085,44 @@ class Game:
     # --- Start of Turn Processing ---
 
     def _build_action_queue(self):
-        """Builds and shuffles the action queue for the current turn."""
+        """Builds the action queue for the current turn, respecting team turns."""
         self.state['game_log'].append({'message': f"--- Turn {self.state['turn']} ---", 'short_message': f"~ T{self.state['turn']} ~"})
-        active_teams = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
         
-        actions_queue = []
-        for teamId in active_teams:
-            actions_queue.append({'teamId': teamId, 'is_bonus': False})
+        # Determine the order of teams for this turn
+        active_teams_ordered = [teamId for teamId in self.state['teams'] if len(self.get_team_point_ids(teamId)) > 0]
+        random.shuffle(active_teams_ordered)
+        
+        final_actions_queue = []
+        for teamId in active_teams_ordered:
+            team_actions = []
+            # Each team gets one base action
+            team_actions.append({'teamId': teamId, 'is_bonus': False})
 
             # Update structures to check for bonus-granting ones like Nexuses at the start of the turn.
             self._update_structures_for_team(teamId)
             
+            # Add bonus actions from Nexuses
             num_nexuses = len(self.state.get('runes', {}).get(teamId, {}).get('nexus', []))
             if num_nexuses > 0:
                 team_name = self.state['teams'][teamId]['name']
                 plural = "s" if num_nexuses > 1 else ""
                 self.state['game_log'].append({'message': f"{team_name} gains {num_nexuses} bonus action{plural} from its Nexus{plural}.", 'short_message': f'[NEXUS:+{num_nexuses}ACT]'})
                 for _ in range(num_nexuses):
-                    actions_queue.append({'teamId': teamId, 'is_bonus': True})
+                    team_actions.append({'teamId': teamId, 'is_bonus': True})
 
+            # Add bonus actions from Wonders
             num_wonders = sum(1 for w in self.state.get('wonders', {}).values() if w['teamId'] == teamId)
             if num_wonders > 0:
                 team_name = self.state['teams'][teamId]['name']
                 plural = "s" if num_wonders > 1 else ""
                 self.state['game_log'].append({'message': f"{team_name} gains {num_wonders} bonus action{plural} from its Wonder{plural}.", 'short_message': f'[WONDER:+{num_wonders}ACT]'})
                 for _ in range(num_wonders):
-                    actions_queue.append({'teamId': teamId, 'is_bonus': True})
+                    team_actions.append({'teamId': teamId, 'is_bonus': True})
+            
+            # Add this team's block of actions to the final queue
+            final_actions_queue.extend(team_actions)
 
-        random.shuffle(actions_queue)
-        self.state['actions_queue_this_turn'] = actions_queue
+        self.state['actions_queue_this_turn'] = final_actions_queue
 
     def _start_new_turn(self):
         """Performs start-of-turn maintenance and sets up the action queue for the new turn."""
