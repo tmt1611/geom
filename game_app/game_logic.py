@@ -108,6 +108,10 @@ class Game:
 
         state_copy = self.state.copy()
         
+        # Convert sets to lists for JSON serialization
+        if 'no_cost_action_used_by_team_this_turn' in state_copy:
+            state_copy['no_cost_action_used_by_team_this_turn'] = list(state_copy['no_cost_action_used_by_team_this_turn'])
+
         state_copy['lines'] = self._augment_lines_for_frontend(self.state['lines'])
         state_copy['points'] = self._augment_points_for_frontend(self.state['points'])
         state_copy['live_stats'] = self._calculate_live_stats()
