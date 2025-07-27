@@ -90,14 +90,12 @@ class FortifyActionsHandler:
         return None
 
     def can_perform_mirror_structure(self, teamId):
-        # Primary needs at least 3 points. Fallback needs at least one line, or at least 2 points to create a line.
-        # This is a cheap check; the action itself performs the more expensive geometric validation.
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        has_points_for_primary = len(team_point_ids) >= 3
-        has_lines_for_fallback_strengthen = len(self.game.get_team_lines(teamId)) > 0
-        has_points_for_fallback_add_line = len(team_point_ids) >= 2
-        can_perform = has_points_for_primary or has_lines_for_fallback_strengthen or has_points_for_fallback_add_line
-        reason = "" if can_perform else "Requires at least 2 points."
+        # The action can mirror (needs >=3 pts), strengthen (needs >=1 line), or add a line (needs >=2 pts).
+        # The condition simplifies to needing either at least 2 points or at least 1 line.
+        num_points = len(self.game.get_team_point_ids(teamId))
+        num_lines = len(self.game.get_team_lines(teamId))
+        can_perform = num_points >= 2 or num_lines > 0
+        reason = "" if can_perform else "Requires at least 2 points or 1 line."
         return can_perform, reason
 
     def can_perform_form_bastion(self, teamId):
@@ -147,9 +145,10 @@ class FortifyActionsHandler:
         return possible_monoliths, fallback_candidates
 
     def can_perform_form_monolith(self, teamId):
-        possible_monoliths, fallback_candidates = self._find_possible_monoliths_and_fallbacks(teamId)
-        can_perform = len(possible_monoliths) > 0 or len(fallback_candidates) > 0
-        return can_perform, "No valid rectangle formation found."
+        # A rough check. The action can fail gracefully if no valid rectangle is found.
+        # It needs at least 4 points for the primary or fallback effect.
+        can_perform = len(self.game.get_team_point_ids(teamId)) >= 4
+        return can_perform, "Requires at least 4 points to form a rectangle."
 
     def _find_possible_purifiers(self, teamId):
         """Helper to find valid pentagonal formations for a Purifier."""
@@ -183,8 +182,9 @@ class FortifyActionsHandler:
         return possible_purifiers
 
     def can_perform_form_purifier(self, teamId):
-        can_perform = len(self._find_possible_purifiers(teamId)) > 0
-        return can_perform, "No valid pentagon formation found."
+        # A rough check. The action can fail gracefully if no valid pentagon is found.
+        can_perform = len(self.game.get_team_point_ids(teamId)) >= 5
+        return can_perform, "Requires at least 5 points to form a pentagon."
 
 
 

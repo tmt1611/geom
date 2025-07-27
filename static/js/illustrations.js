@@ -161,16 +161,6 @@ const illustrationDrawers = {
         ctx.fill();
         ctx.restore();
     },
-    'expand_grow': (ctx, w, h) => {
-        const team1_color = 'hsl(0, 70%, 50%)';
-        const p1 = {x: w*0.3, y: h*0.5};
-        const p2 = {x: w*0.5, y: h*0.5};
-        const p3 = {x: w*0.65, y: h*0.3};
-        illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
-        illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
-        illustrationHelpers.drawDashedLine(ctx, p2, p3, team1_color);
-        illustrationHelpers.drawPoints(ctx, [p3], team1_color);
-    },
     'expand_orbital': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const center = {x: w*0.5, y: h*0.5};
