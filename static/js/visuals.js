@@ -25,6 +25,17 @@ const visualEffectsManager = (() => {
     // This is a factory function because some visuals need access to the UI state
     // and renderer-specific values like cellSize.
     const getActionVisualsMap = (cellSize, uiState) => ({
+        'isolate_fizzle_push': (details, gameState) => {
+            uiState.lastActionHighlights.points.add(details.projector_point.id);
+            uiState.visualEffects.push({
+                type: 'shield_pulse',
+                center: details.pulse_center,
+                radius_sq: details.pulse_radius_sq,
+                color: gameState.teams[details.projector_point.teamId].color,
+                startTime: Date.now(),
+                duration: 600
+            });
+        },
         'isolate_point': (details, gameState) => {
             uiState.lastActionHighlights.points.add(details.isolated_point.id);
             uiState.lastActionHighlights.points.add(details.projector_point.id);

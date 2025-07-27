@@ -10,54 +10,37 @@ When a team is created, it is assigned a trait which influences its behavior. Th
 Runes are special geometric formations that grant a team passive bonuses or unlock powerful new actions. They are checked at the start of a team's turn.
 
 *   **Passive Formation: Prism-Rune:** A Prism is created when two of a team's claimed territories (triangles) share a common edge line.
-    *   **Bonus:** Unlocks the **[FIGHT] Refraction Beam** action, which allows for powerful bank-shot attacks.
+    *   **Unlocks:** **[FIGHT] Refraction Beam** action.
 *   **Passive Formation: Nexus-Rune (Square):** A Nexus is a powerful economic structure that grants bonus actions.
     *   **Formation:** Four points that form a perfect square, with all four outer edge lines and at least one of the two inner diagonals connected.
-    *   **Bonus:** For each Nexus a team controls at the start of a turn, that team gains **one bonus action** to perform during that turn. Unlocks the **[SACRIFICE] Attune Nexus** action.
+    *   **Bonus:** For each Nexus a team controls at the start of a turn, that team gains **one bonus action**.
+    *   **Unlocks:** **[SACRIFICE] Attune Nexus** action.
 
-*   **I-Rune (Line Rune):**
-    *   **Formation:** Three or more of a team's points are collinear and connected sequentially by lines.
-    *   **Bonus 1 (Passive):** Empowers the `Extend Line` action when it originates from one of the I-Rune's two endpoints. Empowered extensions automatically create a new line to the new point.
-    *   **Bonus 2 (Active):** Unlocks the `Sentry Zap` action.
-    *   **Bonus 3 (Active):** Unlocks the `Chain Lightning` action.
-*   **V-Rune:**
-    *   **Formation:** Three points forming a 'V' shape, where two connected lines originating from the same point are of similar length.
-    *   **Bonus:** Unlocks the **[RUNE] Shoot Bisector** action, a powerful, long-range attack fired from the 'V's vertex.
-*   **Shield-Rune:**
-    *   **Formation:** Three points connected by lines to form a triangle, with a fourth friendly point located inside the triangle.
-    *   **Bonus 1:** Unlocks the **[RUNE] Area Shield** action.
-    *   **Bonus 2:** Unlocks the **[RUNE] Shield Pulse** action.
-*   **Cross-Rune:**
-    *   **Formation:** Four points that form a rectangle, with both internal diagonals existing as lines for that team.
-    *   **Bonus:** Grants the `Piercing Attacks` passive. The team's standard `Attack Line` action can now bypass one enemy shield.
-*   **Plus-Rune (+):**
-    *   **Formation:** Five points forming a '+' shape, where a central point is connected to four other points that form two perpendicular, straight lines.
-    *   **Bonus:** Unlocks the **[RUNE] Cardinal Pulse** action.
-*   **T-Rune:**
-    *   **Formation:** Four points in a 'T' shape. It requires a central point connected to three other points, where two of the connections form a straight line (the stem) and the third is perpendicular to it (the head). All three connecting lines must exist.
-    *   **Bonus:** Unlocks the **[RUNE] T-Hammer Slam** action.
-*   **Trident-Rune:**
-    *   **Formation:** Four points forming a "trident" or "pitchfork" shape. This requires an isosceles triangle and a fourth "handle" point extending from the apex along the line of symmetry. All three connecting lines must exist.
-    *   **Bonus:** Unlocks the **[RUNE] Impale** action.
-*   **Hourglass-Rune:**
-    *   **Formation:** Five points forming two distinct triangles that share a single, common vertex point. All six lines required to form the two triangles must exist.
-    *   **Bonus:** Unlocks the **[RUNE] Time Stasis** action.
-*   **Barricade-Rune:**
-    *   **Formation:** Four points that form a rectangle, with all four of its sides existing as connected lines.
-    *   **Bonus:** Unlocks the **[RUNE] Raise Barricade** action.
-*   **Parallelogram-Rune:**
-    *   **Formation:** Four points that form a non-rectangular parallelogram, with all four of its sides existing as connected lines.
-    *   **Bonus:** Unlocks the **[RUNE] Parallel Discharge** action.
-*   **Star-Rune:**
-    *   **Formation:** A central point connected to a cycle of 5 or 6 other points, where the cycle points are also connected to each other sequentially. All required lines must exist.
-    *   **Bonus 1:** Unlocks the **[RUNE] Starlight Cascade** action.
-    *   **Bonus 2:** Unlocks the **[RUNE] Gravity Well** action.
-    *   **Bonus 3:** Unlocks the **[RUNE] Focus Beam** action.
-    *   **Bonus 4:** This formation is a prerequisite for building the **Chronos Spire** wonder.
-
-*   **Trebuchet-Rune (Kite):**
-    *   **Formation:** A passive formation of four points in a kite shape. Requires a tight, isosceles triangle connected to a "counterweight" point along its axis of symmetry, with all 5 lines forming the outer kite shape.
-    *   **Bonus:** Unlocks the **[FIGHT] Launch Payload** action.
+*   **I-Rune (Line Rune):** A line of 3 or more collinear points, connected sequentially. Also known as a Conduit or Sentry.
+    *   **Passive Bonus:** Empowers the `Extend Line` action when it originates from one of the I-Rune's two endpoints. Empowered extensions automatically create a new line to the new point.
+    *   **Unlocks:** **[FIGHT] Sentry Zap**, **[FORTIFY] Create Ley Line**, and **[SACRIFICE] Chain Lightning** actions.
+*   **V-Rune:** Three points forming a 'V' shape, where two connected lines originating from the same point are of similar length.
+    *   **Unlocks:** **[RUNE] Rune: V-Beam** action.
+*   **Shield-Rune:** A triangle of three connected points with a fourth friendly point located inside.
+    *   **Unlocks:** **[RUNE] Rune: Area Shield** and **[RUNE] Rune: Shield Pulse** actions.
+*   **Cross-Rune:** Four points forming a rectangle, with both internal diagonals existing as lines.
+    *   **Passive Bonus:** Grants the `Piercing Attacks` passive. The team's standard `Attack Line` action can now bypass one enemy shield.
+*   **Plus-Rune (+):** A central point connected to four other points that form two perpendicular, straight lines.
+    *   **Unlocks:** **[RUNE] Rune: Cardinal Pulse** action.
+*   **T-Rune:** Four points in a 'T' shape. A central point is connected to two points forming a straight line (the stem) and a third point perpendicular to it (the head).
+    *   **Unlocks:** **[RUNE] Rune: T-Hammer Slam** action.
+*   **Trident-Rune:** An isosceles triangle and a fourth "handle" point extending from the apex along the line of symmetry. All required lines must exist.
+    *   **Unlocks:** **[RUNE] Rune: Impale** action.
+*   **Hourglass-Rune:** Five points forming two distinct triangles that share a single, common vertex point. All six lines must exist.
+    *   **Unlocks:** **[RUNE] Rune: Time Stasis** action.
+*   **Barricade-Rune:** Four points forming a rectangle, with all four sides existing as connected lines.
+    *   **Unlocks:** **[RUNE] Rune: Raise Barricade** action.
+*   **Parallelogram-Rune:** Four points forming a non-rectangular parallelogram, with all four sides existing as connected lines.
+    *   **Unlocks:** **[RUNE] Rune: Parallel Discharge** action.
+*   **Star-Rune:** A central point connected to a cycle of 5 or 6 other points, where the cycle points are also connected to each other sequentially.
+    *   **Unlocks:** **[RUNE] Rune: Starlight Cascade**, **[RUNE] Rune: Gravity Well**, **[RUNE] Rune: Focus Beam**, and **[SACRIFICE] Build Wonder** actions.
+*   **Trebuchet-Rune (Kite):** Four points in a kite shape, with all 5 lines forming the outer shape.
+    *   **Unlocks:** **[FIGHT] Launch Payload** action.
 
 ## Sacrifice Mechanics
 When a point is sacrificed as a cost for an action (e.g., Nova Burst, Create Whirlpool), it may not be gone forever. If the point was part of a simple line and not a critical structural weak point (an articulation point), its energy will coalesce. The point will be **removed from play for 3 turns, disabling any lines it was connected to**. After 3 turns, it will attempt to regenerate at its original location if the space is not blocked.
@@ -66,7 +49,7 @@ When a point is sacrificed as a cost for an action (e.g., Nova Burst, Create Whi
 On its turn, a team will perform an action from its pool of available actions. The choice is influenced by its Trait. Actions become available when a team meets specific geometric or structural conditions.
 
 ### Actions (Expand)
-These actions are the primary way a team grows its presence on the grid. They are generally available based on the number of points and lines a team has.
+These actions are the primary way a team grows its presence on the grid.
 
 #### Condition: Team has at least 1 point
 *   **[EXPAND] Spawn Point:** Creates a new point in a random empty space near an existing friendly point. If it fails, it strengthens a line, and if that also fails, it creates a new point on the border.
@@ -84,7 +67,7 @@ These actions are the primary way a team grows its presence on the grid. They ar
 *   **[EXPAND] Bisect Angle:** Finds a vertex point with two connected lines ('V' shape) and creates a new point along the angle's bisector. If it fails, it strengthens one of the angle's lines.
 
 ### Actions (Fight)
-These actions are used to disrupt, damage, or destroy enemy assets. Their availability often depends on having specific structures or formations.
+These actions are used to disrupt, damage, or destroy enemy assets.
 
 #### Condition: Team has at least 1 point
 *   **[FIGHT] Isolate Point:** _(No Cost)_ Projects an isolation field onto a critical enemy connection point (an articulation point), making it vulnerable to collapse over time. If no such point is found, it creates a defensive barricade (with 2+ points) or a weak repulsive pulse (with 1 point).
@@ -106,9 +89,6 @@ These actions are used to disrupt, damage, or destroy enemy assets. Their availa
 
 #### Condition: Team has a large Territory
 *   **[FIGHT] Territory Strike:** Launches an attack from the center of a large claimed territory, destroying the nearest vulnerable enemy point. If no targets exist, it reinforces its own territory's borders.
-
-#### Condition: Team has a Purifier structure
-*   **[FIGHT] Purify Territory:** _(No Cost)_ A Purifier structure neutralizes the nearest enemy territory, removing it from play and un-fortifying its points. If no enemy territories exist, it pushes nearby enemy points away.
 
 ### Actions (Fortify)
 These actions focus on strengthening a team's position, building defenses, and creating complex structures.
@@ -137,7 +117,7 @@ These actions focus on strengthening a team's position, building defenses, and c
 *   **[FORTIFY] Form Purifier:** Forms a regular pentagon of points into a Purifier, which unlocks the 'Purify Territory' action. If no valid formation is found, it reinforces the lines of a potential structure instead.
 
 ### Actions (Sacrifice)
-Sacrifice actions require a team to destroy one of its own assets (a point, line, or even a territory) to produce a powerful effect. See "Sacrifice Mechanics" for details on point regeneration.
+Sacrifice actions require a team to destroy one of its own assets to produce a powerful effect.
 
 #### Condition: Team has a non-critical point to sacrifice
 *   **[SACRIFICE] Nova Burst:** Sacrifices a point to destroy all nearby enemy lines. If no lines are in range, it creates a shockwave that pushes all points away.
@@ -207,6 +187,9 @@ These are powerful actions unlocked by specific, complex geometric formations.
 
 #### Condition: Team has a Trebuchet-Rune
 *   **[FIGHT] Launch Payload:** A Trebuchet structure launches a projectile to destroy a high-value enemy point (e.g., a fortified point). If none exist, it targets a regular point. If no targets exist, it creates a fissure.
+
+#### Condition: Team has a Purifier structure
+*   **[FIGHT] Purify Territory:** _(No Cost)_ A Purifier structure neutralizes the nearest enemy territory, removing it from play and un-fortifying its points. If no enemy territories exist, it pushes nearby enemy points away.
 
 ### Actions (Terraform)
 These actions alter the battlefield itself.

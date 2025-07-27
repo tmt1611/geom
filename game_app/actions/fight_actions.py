@@ -815,7 +815,9 @@ class FightActionsHandler:
                 return {
                     'success': True, 'type': 'isolate_fizzle_push',
                     'projector_point': projector_point,
-                    'pushed_points_count': len(pushed_points)
+                    'pushed_points_count': len(pushed_points),
+                    'pulse_center': projector_point,
+                    'pulse_radius_sq': pulse_radius_sq
                 }
 
     def parallel_strike(self, teamId):
