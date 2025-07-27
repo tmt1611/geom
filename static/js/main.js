@@ -230,8 +230,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     logEntryDiv.style.fontWeight = 'bold';
                 }
             } else {
-                // Environment event
-                logEntryDiv.textContent = message;
+                // Environment or turn event. Colorize team names within the message.
+                let finalMessage = message;
+                for (const teamId in teams) {
+                    const team = teams[teamId];
+                    finalMessage = finalMessage.replace(new RegExp(`\\b${team.name}\\b`, 'g'), `<strong style="color: ${team.color};">${team.name}</strong>`);
+                }
+                logEntryDiv.innerHTML = finalMessage;
+
                 if (message.startsWith('--- Turn')) {
                      logEntryDiv.style.textAlign = 'center';
                      logEntryDiv.style.background = '#e9ecef';

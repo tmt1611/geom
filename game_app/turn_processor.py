@@ -154,7 +154,7 @@ class TurnProcessor:
                 if destroyed_point:
                     team_name = self.state['teams'][trap['teamId']]['name']
                     enemy_team_name = self.state['teams'][destroyed_point['teamId']]['name']
-                    log_msg = { 'teamId': trap['teamId'], 'message': f"A Rift Trap from {team_name} snared and destroyed a point from {enemy_team_name}!", 'short_message': '[TRAP!]'}
+                    log_msg = { 'message': f"A Rift Trap from {team_name} snared and destroyed a point from {enemy_team_name}!", 'short_message': '[TRAP!]'}
                     self.state['game_log'].append(log_msg)
                     self.state['new_turn_events'].append({ 'type': 'rift_trap_trigger', 'trap': trap, 'destroyed_point': destroyed_point })
                 continue
@@ -313,7 +313,7 @@ class TurnProcessor:
                 if wonder['turns_to_victory'] <= 0:
                     self.state['game_phase'] = 'FINISHED'
                     self.state['victory_condition'] = f"'{team_name}' achieved victory with the Chronos Spire."
-                    self.state['game_log'].append({'teamId': wonder['teamId'], 'message': self.state['victory_condition'], 'short_message': '[WONDER VICTORY]'})
+                    self.state['game_log'].append({'message': self.state['victory_condition'], 'short_message': '[WONDER VICTORY]'})
                     self.state['actions_queue_this_turn'] = []
                     return True
         return False

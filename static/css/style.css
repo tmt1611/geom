@@ -79,7 +79,7 @@ h3 { font-size: 1.2em; }
     height: 100%;
     /* A consistent 4-column layout for all phases */
     grid-template-columns: minmax(260px, 1fr) auto minmax(280px, 1.2fr) minmax(260px, 1.1fr);
-    grid-template-rows: 1fr;
+    grid-template-rows: 1fr auto;
     align-items: stretch;
 }
 
@@ -118,6 +118,11 @@ h3 { font-size: 1.2em; }
     pointer-events: none; /* Don't intercept clicks */
     border: 1px solid #ddd;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+#status-bar strong {
+    /* Add a subtle shadow to make colored team names pop against a similarly colored background text */
+    text-shadow: 0 0 4px rgba(0,0,0,0.5);
 }
 
 .setup-column, .game-column {
@@ -683,6 +688,12 @@ legend {
 
 .final-analysis-header h4 {
     margin: 0;
+}
+
+.container > details.debug-fieldset {
+    grid-column: 1 / -1; /* Span all columns */
+    grid-row: 2 / 3;
+    margin-top: 0;
 }
 
 details.debug-fieldset {
