@@ -393,6 +393,13 @@ const visualEffectsManager = (() => {
             });
             details.new_lines.forEach(l => uiState.lastActionHighlights.lines.add(l.id));
         },
+        'orbital_fizzle_strengthen': (details, gameState) => {
+            uiState.lastActionHighlights.points.add(details.center_point_id);
+            details.strengthened_lines.forEach(line => {
+                uiState.lastActionHighlights.lines.add(line.id);
+                uiState.visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
+            });
+        },
         'form_bastion': (details, gameState) => {
             uiState.visualEffects.push({
                 type: 'bastion_formation',
@@ -470,7 +477,13 @@ const visualEffectsManager = (() => {
         'sentry_zap': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
              uiState.visualEffects.push({
-                type: 'attack_ray', p1: details.attack_ray.p1, p2: details.attack_ray.p2, startTime: Date.now(), duration: 400, color: `rgba(255, 100, 100, 1)`, lineWidth: 2
+                type: 'jagged_ray',
+                p1: details.attack_ray.p1,
+                p2: details.attack_ray.p2,
+                startTime: Date.now(),
+                duration: 400,
+                color: 'rgba(255, 255, 100, 1)',
+                lineWidth: 2
             });
             uiState.visualEffects.push({
                 type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now(), duration: 600

@@ -765,6 +765,20 @@ const renderer = (() => {
     
             switch (effect.type) {
                 case 'animated_ray':
+                case 'jagged_ray': {
+                    const p1 = { x: (effect.p1.x + 0.5) * cellSize, y: (effect.p1.y + 0.5) * cellSize };
+                    const p2_full = { x: (effect.p2.x + 0.5) * cellSize, y: (effect.p2.y + 0.5) * cellSize };
+                    const p2_current = {
+                        x: p1.x + (p2_full.x - p1.x) * progress,
+                        y: p1.y + (p2_full.y - p1.y) * progress,
+                    };
+                    ctx.strokeStyle = effect.color || 'yellow';
+                    ctx.lineWidth = effect.lineWidth || 2;
+                    ctx.globalAlpha = 1 - easeInQuad(progress);
+                    illustrationHelpers.drawJaggedLine(ctx, p1, p2_current, 7, 10);
+                    break;
+                }
+                case 'animated_ray':
                 case 'attack_ray': {
                     const p1 = { x: (effect.p1.x + 0.5) * cellSize, y: (effect.p1.y + 0.5) * cellSize };
                     const p2_full = { x: (effect.p2.x + 0.5) * cellSize, y: (effect.p2.y + 0.5) * cellSize };
