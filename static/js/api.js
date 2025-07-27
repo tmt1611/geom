@@ -59,14 +59,17 @@ const api = {
 import sys
 sys.path.append('/')
 from game_app import game_logic, game_data
-# Make the game instance available on Python's global scope under a specific name
+import copy
+# Make the game instance and copy module available on Python's global scope under specific names
 js_game_instance = game_logic.game
 js_game_data = game_data
+js_copy_module = copy
             `);
 
             // Get a proxy to the game instance from the Python global scope.
             this._game = this._pyodide.globals.get('js_game_instance');
             this._game_data = this._pyodide.globals.get('js_game_data');
+            this._copy = this._pyodide.globals.get('js_copy_module');
             console.log('Pyodide backend ready.');
         } else {
             this._mode = 'http';
@@ -205,8 +208,10 @@ js_game_data = game_data
             payload.maxTurns,
             payload.gridSize
         );
-
-        const raw_history = [this._pyProxyToJs(this._game.state.copy())];
+        
+        const state_copy_proxy_initial = this._copy.deepcopy(this._game.state);
+        const raw_history = [this._pyProxyToJs(state_copy_proxy_initial)];
+        state_copy_proxy_initial.destroy();
 
         return new Promise((resolve) => {
             const step = () => {
@@ -214,7 +219,9 @@ js_game_data = game_data
                 
                 if (game_phase === 'RUNNING') {
                     this._game.run_next_action();
-                    raw_history.push(this._pyProxyToJs(this._game.state.copy()));
+                    const state_copy_proxy = this._copy.deepcopy(this._game.state);
+                    raw_history.push(this._pyProxyToJs(state_copy_proxy));
+                    state_copy_proxy.destroy();
                     
                     if (progressCallback) {
                         const turn = this._game.state.get('turn');
