@@ -267,7 +267,8 @@ class RuneActionsHandler:
         def get_trident_proximity(trident_rune):
             if not enemy_lines or trident_rune['apex_id'] not in points: return float('inf')
             p_apex = points[trident_rune['apex_id']]
-            return min(distance_sq(p_apex, points_centroid([points[l['p1_id']], points[l['p2_id']]])) for l in enemy_lines if l['p1_id'] in points and l['p2_id'] in points)
+            valid_distances = (distance_sq(p_apex, points_centroid([points[l['p1_id']], points[l['p2_id']]])) for l in enemy_lines if l['p1_id'] in points and l['p2_id'] in points)
+            return min(valid_distances, default=float('inf'))
             
         rune = min(active_trident_runes, key=get_trident_proximity)
         points = self.state['points']

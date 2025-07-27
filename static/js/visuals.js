@@ -997,6 +997,7 @@ const visualEffectsManager = (() => {
             uiState.visualEffects.push({
                 type: 'hull_breach_visual',
                 points: details.hull_points,
+                target_point: details.converted_point,
                 color: gameState.teams[details.converted_point.teamId].color,
                 startTime: Date.now(),
                 duration: 1200

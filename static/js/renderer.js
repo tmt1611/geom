@@ -1018,17 +1018,31 @@ const renderer = (() => {
                     const p2 = gameState.points[effect.line.p2_id];
                     if(p1 && p2) {
                         const p1_coords = { x: (p1.x + 0.5) * cellSize, y: (p1.y + 0.5) * cellSize };
-                        const p2_full = { x: (p2.x + 0.5) * cellSize, y: (p2.y + 0.5) * cellSize };
-                        const p2_current = {
-                            x: p1_coords.x + (p2_full.x - p1_coords.x) * easedProgress,
-                            y: p1_coords.y + (p2_full.y - p1_coords.y) * easedProgress
+                        const p2_coords = { x: (p2.x + 0.5) * cellSize, y: (p2.y + 0.5) * cellSize };
+                        
+                        const mid_coords = { x: (p1_coords.x + p2_coords.x) / 2, y: (p1_coords.y + p2_coords.y) / 2 };
+                        
+                        const p1_end = {
+                            x: p1_coords.x + (mid_coords.x - p1_coords.x) * easedProgress,
+                            y: p1_coords.y + (mid_coords.y - p1_coords.y) * easedProgress
                         };
+                        const p2_end = {
+                            x: p2_coords.x + (mid_coords.x - p2_coords.x) * easedProgress,
+                            y: p2_coords.y + (mid_coords.y - p2_coords.y) * easedProgress
+                        };
+
                         ctx.strokeStyle = gameState.teams[effect.line.teamId].color;
                         ctx.lineWidth = 2;
                         ctx.globalAlpha = progress;
+                        
                         ctx.beginPath();
                         ctx.moveTo(p1_coords.x, p1_coords.y);
-                        ctx.lineTo(p2_current.x, p2_current.y);
+                        ctx.lineTo(p1_end.x, p1_end.y);
+                        ctx.stroke();
+
+                        ctx.beginPath();
+                        ctx.moveTo(p2_coords.x, p2_coords.y);
+                        ctx.lineTo(p2_end.x, p2_end.y);
                         ctx.stroke();
                     }
                     break;
@@ -1039,10 +1053,30 @@ const renderer = (() => {
                         const progress = Math.min(1, (Date.now() - effect.startTime) / effect.duration);
                         const easedProgress = easeOutQuad(progress);
 
+                        let finalPointsToDraw = [];
+                        if (effect.target_point) {
+                            const target_coords = {
+                                x: (effect.target_point.x + 0.5) * cellSize,
+                                y: (effect.target_point.y + 0.5) * cellSize
+                            };
+                            finalPointsToDraw = effect.points.map(p => {
+                                const p_coords = {x: (p.x + 0.5) * cellSize, y: (p.y + 0.5) * cellSize};
+                                return {
+                                    x: p_coords.x + (target_coords.x - p_coords.x) * easedProgress,
+                                    y: p_coords.y + (target_coords.y - p_coords.y) * easedProgress
+                                };
+                            });
+                        } else {
+                            finalPointsToDraw = effect.points.map(p => ({
+                                x: (p.x + 0.5) * cellSize,
+                                y: (p.y + 0.5) * cellSize
+                            }));
+                        }
+
                         ctx.beginPath();
-                        ctx.moveTo((effect.points[0].x + 0.5) * cellSize, (effect.points[0].y + 0.5) * cellSize);
-                        for(let i=1; i<effect.points.length; i++) {
-                            ctx.lineTo((effect.points[i].x + 0.5) * cellSize, (effect.points[i].y + 0.5) * cellSize);
+                        ctx.moveTo(finalPointsToDraw[0].x, finalPointsToDraw[0].y);
+                        for(let i=1; i<finalPointsToDraw.length; i++) {
+                            ctx.lineTo(finalPointsToDraw[i].x, finalPointsToDraw[i].y);
                         }
                         ctx.closePath();
                         
