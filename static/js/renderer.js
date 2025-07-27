@@ -645,26 +645,16 @@ const renderer = (() => {
     }
     
     const runeDrawers = {
-        'v_shape': (rune, team, gameState) => {
-            const [p_v, p_l1, p_l2] = [rune.vertex_id, rune.leg1_id, rune.leg2_id].map(id => gameState.points[id]);
-            if (!p_v || !p_l1 || !p_l2) return;
+        'barricade': (rune, team, gameState) => {
+            const points = rune.point_ids.map(pid => gameState.points[pid]).filter(p => p);
+            if (points.length !== 4) return;
+            const centroid = { x: points.reduce((acc, p) => acc + p.x, 0) / 4, y: points.reduce((acc, p) => acc + p.y, 0) / 4 };
+            points.sort((a, b) => Math.atan2(a.y - centroid.y, a.x - centroid.x) - Math.atan2(b.y - centroid.y, b.x - centroid.x));
             ctx.beginPath();
-            ctx.moveTo((p_l1.x + 0.5) * cellSize, (p_l1.y + 0.5) * cellSize);
-            ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
-            ctx.lineTo((p_l2.x + 0.5) * cellSize, (p_l2.y + 0.5) * cellSize);
+            ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
+            for (let i = 1; i < points.length; i++) ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
+            ctx.closePath();
             ctx.strokeStyle = team.color; ctx.lineWidth = 6; ctx.globalAlpha *= 0.4; ctx.stroke();
-        },
-        'trident': (rune, team, gameState) => {
-            const [p_apex, p_h, p_p1, p_p2] = [rune.apex_id, rune.handle_id, ...rune.prong_ids].map(id => gameState.points[id]);
-            if (!p_apex || !p_h || !p_p1 || !p_p2) return;
-            ctx.beginPath();
-            ctx.moveTo((p_h.x + 0.5) * cellSize, (p_h.y + 0.5) * cellSize);
-            ctx.lineTo((p_apex.x + 0.5) * cellSize, (p_apex.y + 0.5) * cellSize);
-            ctx.moveTo((p_p1.x + 0.5) * cellSize, (p_p1.y + 0.5) * cellSize);
-            ctx.lineTo((p_apex.x + 0.5) * cellSize, (p_apex.y + 0.5) * cellSize);
-            ctx.lineTo((p_p2.x + 0.5) * cellSize, (p_p2.y + 0.5) * cellSize);
-            ctx.strokeStyle = team.color; ctx.lineWidth = 8; ctx.globalAlpha *= 0.4;
-            ctx.filter = 'blur(2px)'; ctx.stroke(); ctx.filter = 'none';
         },
         'cross': (rune_p_ids, team, gameState) => {
             const points = rune_p_ids.map(pid => gameState.points[pid]).filter(p => p);
@@ -676,20 +666,6 @@ const renderer = (() => {
             for (let i = 1; i < points.length; i++) ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
             ctx.closePath();
             ctx.fillStyle = team.color; ctx.globalAlpha *= 0.2; ctx.fill();
-        },
-        'shield': (rune, team, gameState) => {
-            const tri_points = rune.triangle_ids.map(pid => gameState.points[pid]).filter(p => p);
-            if (tri_points.length !== 3) return;
-            ctx.beginPath();
-            ctx.moveTo((tri_points[0].x + 0.5) * cellSize, (tri_points[0].y + 0.5) * cellSize);
-            ctx.lineTo((tri_points[1].x + 0.5) * cellSize, (tri_points[1].y + 0.5) * cellSize);
-            ctx.lineTo((tri_points[2].x + 0.5) * cellSize, (tri_points[2].y + 0.5) * cellSize);
-            ctx.closePath();
-            const currentAlpha = ctx.globalAlpha;
-            ctx.fillStyle = team.color; ctx.globalAlpha = currentAlpha * 0.25; ctx.fill();
-            const pulse = Math.abs(Math.sin(Date.now() / 500));
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1 + pulse * 2;
-            ctx.globalAlpha = currentAlpha * (0.3 + pulse * 0.4); ctx.stroke();
         },
         'hourglass': (rune, team, gameState) => {
             const all_points = rune.all_points.map(pid => gameState.points[pid]);
@@ -705,6 +681,94 @@ const renderer = (() => {
             ctx.moveTo((tri2_pts[0].x + 0.5) * cellSize, (tri2_pts[0].y + 0.5) * cellSize);
             ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
             ctx.lineTo((tri2_pts[1].x + 0.5) * cellSize, (tri2_pts[1].y + 0.5) * cellSize);
+            ctx.strokeStyle = team.color; ctx.lineWidth = 6; ctx.globalAlpha *= 0.4; ctx.stroke();
+        },
+        'parallel': (rune, team, gameState) => {
+            const points = rune.point_ids.map(pid => gameState.points[pid]).filter(p => p);
+            if (points.length !== 4) return;
+            const centroid = { x: points.reduce((acc, p) => acc + p.x, 0) / 4, y: points.reduce((acc, p) => acc + p.y, 0) / 4 };
+            points.sort((a, b) => Math.atan2(a.y - centroid.y, a.x - centroid.x) - Math.atan2(b.y - centroid.y, b.x - centroid.x));
+            ctx.beginPath();
+            ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
+            for (let i = 1; i < points.length; i++) ctx.lineTo((points[i].x + 0.5) * cellSize, (points[i].y + 0.5) * cellSize);
+            ctx.closePath();
+            ctx.fillStyle = team.color; ctx.globalAlpha *= 0.2; ctx.fill();
+        },
+        'plus_shape': (rune, team, gameState) => {
+            const center_p = gameState.points[rune.center_id];
+            if (!center_p) return;
+            const cx = (center_p.x + 0.5) * cellSize;
+            const cy = (center_p.y + 0.5) * cellSize;
+            const pulse = Math.abs(Math.sin(Date.now() / 400));
+            const radius = 10 + pulse * 5;
+            const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+            gradient.addColorStop(0, team.color + "99");
+            gradient.addColorStop(1, team.color + "00");
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, 2*Math.PI);
+            ctx.fill();
+        },
+        'shield': (rune, team, gameState) => {
+            const tri_points = rune.triangle_ids.map(pid => gameState.points[pid]).filter(p => p);
+            if (tri_points.length !== 3) return;
+            ctx.beginPath();
+            ctx.moveTo((tri_points[0].x + 0.5) * cellSize, (tri_points[0].y + 0.5) * cellSize);
+            ctx.lineTo((tri_points[1].x + 0.5) * cellSize, (tri_points[1].y + 0.5) * cellSize);
+            ctx.lineTo((tri_points[2].x + 0.5) * cellSize, (tri_points[2].y + 0.5) * cellSize);
+            ctx.closePath();
+            const currentAlpha = ctx.globalAlpha;
+            ctx.fillStyle = team.color; ctx.globalAlpha = currentAlpha * 0.25; ctx.fill();
+            const pulse = Math.abs(Math.sin(Date.now() / 500));
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1 + pulse * 2;
+            ctx.globalAlpha = currentAlpha * (0.3 + pulse * 0.4); ctx.stroke();
+        },
+        'star': (rune, team, gameState) => {
+            const center_p = gameState.points[rune.center_id];
+            if (!center_p) return;
+            const cx = (center_p.x + 0.5) * cellSize;
+            const cy = (center_p.y + 0.5) * cellSize;
+            const pulse = Math.abs(Math.sin(Date.now() / 400));
+            const radius = 15 + pulse * 8;
+            const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+            gradient.addColorStop(0, team.color + "AA");
+            gradient.addColorStop(1, team.color + "00");
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, 2*Math.PI);
+            ctx.fill();
+        },
+        't_shape': (rune, team, gameState) => {
+            const stem_p1 = gameState.points[rune.stem_p1_id];
+            const stem_p2 = gameState.points[rune.stem_p2_id];
+            if (!stem_p1 || !stem_p2) return;
+            ctx.beginPath();
+            ctx.moveTo((stem_p1.x + 0.5) * cellSize, (stem_p1.y + 0.5) * cellSize);
+            ctx.lineTo((stem_p2.x + 0.5) * cellSize, (stem_p2.y + 0.5) * cellSize);
+            ctx.strokeStyle = team.color;
+            ctx.lineWidth = 6;
+            ctx.globalAlpha *= 0.5;
+            ctx.stroke();
+        },
+        'trident': (rune, team, gameState) => {
+            const [p_apex, p_h, p_p1, p_p2] = [rune.apex_id, rune.handle_id, ...rune.prong_ids].map(id => gameState.points[id]);
+            if (!p_apex || !p_h || !p_p1 || !p_p2) return;
+            ctx.beginPath();
+            ctx.moveTo((p_h.x + 0.5) * cellSize, (p_h.y + 0.5) * cellSize);
+            ctx.lineTo((p_apex.x + 0.5) * cellSize, (p_apex.y + 0.5) * cellSize);
+            ctx.moveTo((p_p1.x + 0.5) * cellSize, (p_p1.y + 0.5) * cellSize);
+            ctx.lineTo((p_apex.x + 0.5) * cellSize, (p_apex.y + 0.5) * cellSize);
+            ctx.lineTo((p_p2.x + 0.5) * cellSize, (p_p2.y + 0.5) * cellSize);
+            ctx.strokeStyle = team.color; ctx.lineWidth = 8; ctx.globalAlpha *= 0.4;
+            ctx.filter = 'blur(2px)'; ctx.stroke(); ctx.filter = 'none';
+        },
+        'v_shape': (rune, team, gameState) => {
+            const [p_v, p_l1, p_l2] = [rune.vertex_id, rune.leg1_id, rune.leg2_id].map(id => gameState.points[id]);
+            if (!p_v || !p_l1 || !p_l2) return;
+            ctx.beginPath();
+            ctx.moveTo((p_l1.x + 0.5) * cellSize, (p_l1.y + 0.5) * cellSize);
+            ctx.lineTo((p_v.x + 0.5) * cellSize, (p_v.y + 0.5) * cellSize);
+            ctx.lineTo((p_l2.x + 0.5) * cellSize, (p_l2.y + 0.5) * cellSize);
             ctx.strokeStyle = team.color; ctx.lineWidth = 6; ctx.globalAlpha *= 0.4; ctx.stroke();
         }
     };

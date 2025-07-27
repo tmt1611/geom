@@ -1,9 +1,11 @@
-- **Illustration Review (FORTIFY actions):** Reviewed all `FORTIFY` actions for illustration coverage. All actions were found to have corresponding illustration code.
+- **Illustration Review (RUNE actions):** Reviewed all `RUNE` actions for illustration coverage and quality.
 - **Visual Design Streamlining & Consistency:**
-    - **Improved `Fortify: Form Bastion` Illustration:** The illustration was updated to draw bastion "prong" points as squares and the connecting lines thicker, matching the specific visuals used for Bastion structures in the live game renderer.
-    - **Improved `Fortify: Form Monolith` Illustration:** The illustration was updated to draw the structure's points as tall, thin rectangles ("pillars") instead of circles, aligning it with the unique visual style of Monoliths in-game.
-    - **Improved `Fortify: Form Purifier` Illustration:** The illustration's points are now drawn as star-like shapes, and the pentagonal area is filled with a transparent color. This change matches the in-game renderer for Purifier points and makes the structure more visually distinct.
-    - **Improved `Fortify: Create Ley Line` Illustration:** The drawing order was adjusted to render the points on top of the glow effect, making them appear sharper and improving overall clarity.
-- **Visual Effects Improvement:**
-    - **Added `Create Ley Line` Effect:** A new `line_flash` visual effect was added for the `Create Ley Line` action. This provides immediate visual feedback when an I-Rune is activated into a Ley Line, which was previously a purely static state change.
-- **Consistency Check:** All `FORTIFY` action illustrations and their corresponding in-game visuals are now more consistent, improving the user's ability to connect the Action Guide with live gameplay.
+    - **Improved `Rune: V-Beam` Illustration:** Added a thick, semi-transparent highlight to the V-Rune's lines, matching the visual effect used in the live game renderer to indicate an active rune.
+    - **Improved `Rune: Impale` Illustration:** The illustration now shows the beam piercing through *two* enemy lines and causing explosions on both, which better demonstrates its "pierces all" nature described in the rules. The beam was also changed from an arrow to a thick line to better represent a continuous beam.
+- **Live Renderer Improvement:**
+    - **Added Rune Highlighters:** Created new visual highlighters in the live game renderer for several rune types that were previously not visually distinguished when active. This improves player feedback and consistency with other runes.
+        - **Plus-Rune:** Now shows a glowing pulse from its center point.
+        - **T-Rune:** Highlights its "stem" line.
+        - **Parallelogram-Rune & Barricade-Rune:** Now show a visual highlight (fill or stroke) around their perimeter.
+        - **Star-Rune:** Now has a pulsing glow around its central point.
+- **Consistency Check:** The illustrations and in-game visuals for all `RUNE` actions are now more consistent, making it easier for players to understand which structure is performing an action.

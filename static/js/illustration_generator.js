@@ -827,13 +827,26 @@ const illustrationDrawers = {
         
         // Beam
         const hit_point = {x: w*0.9, y: h*0.5};
-        illustrationHelpers.drawArrow(ctx, p_apex, hit_point, 'rgba(255, 100, 255, 1.0)');
+        ctx.beginPath();
+        ctx.moveTo(p_apex.x, p_apex.y);
+        ctx.lineTo(hit_point.x, hit_point.y);
+        ctx.strokeStyle = 'rgba(255, 100, 255, 1.0)';
+        ctx.lineWidth = 6;
+        ctx.stroke();
 
-        // Enemy line
+        // Enemy lines
         const ep1 = {x: w*0.7, y: h*0.2};
         const ep2 = {x: w*0.7, y: h*0.8};
         illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
         illustrationHelpers.drawLines(ctx, [{p1: ep1, p2: ep2}], team2_color, 1);
+        const ep3 = {x: w*0.8, y: h*0.4};
+        const ep4 = {x: w*0.8, y: h*0.6};
+        illustrationHelpers.drawPoints(ctx, [ep3, ep4], team2_color);
+        illustrationHelpers.drawLines(ctx, [{p1: ep3, p2: ep4}], team2_color, 1);
+        
+        // Explosions
+        illustrationHelpers.drawExplosion(ctx, w*0.7, h*0.5, 'red', 10);
+        illustrationHelpers.drawExplosion(ctx, w*0.8, h*0.5, 'red', 10);
     },
     'rune_v_beam': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
@@ -843,6 +856,17 @@ const illustrationDrawers = {
         const p_v = {x: w*0.2, y: h*0.5};
         const p_l1 = {x: w*0.4, y: h*0.2};
         const p_l2 = {x: w*0.4, y: h*0.8};
+        
+        // Draw rune highlight first
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(p_l1.x, p_l1.y); ctx.lineTo(p_v.x, p_v.y); ctx.lineTo(p_l2.x, p_l2.y);
+        ctx.strokeStyle = team1_color;
+        ctx.lineWidth = 6;
+        ctx.globalAlpha = 0.4;
+        ctx.stroke();
+        ctx.restore();
+        
         illustrationHelpers.drawPoints(ctx, [p_v, p_l1, p_l2], team1_color);
         illustrationHelpers.drawLines(ctx, [{p1: p_v, p2: p_l1}, {p1: p_v, p2: p_l2}], team1_color);
         
