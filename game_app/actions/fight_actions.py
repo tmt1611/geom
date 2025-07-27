@@ -76,14 +76,32 @@ class FightActionsHandler:
         team_has_cross_rune = len(self.state.get('runes', {}).get(teamId, {}).get('cross', [])) > 0
         bastion_line_ids = self.game.query.get_bastion_line_ids()
         
-        random.shuffle(team_lines)
+        # Sort lines to prioritize those on the "front line" (closest to an enemy)
+        enemy_points_list = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        
+        def get_line_proximity_to_enemy(line):
+            if not enemy_points_list or line['p1_id'] not in points or line['p2_id'] not in points:
+                return float('inf')
+            p1, p2 = points[line['p1_id']], points[line['p2_id']]
+            dist1 = min((distance_sq(p1, ep) for ep in enemy_points_list), default=float('inf'))
+            dist2 = min((distance_sq(p2, ep) for ep in enemy_points_list), default=float('inf'))
+            return min(dist1, dist2)
+
+        team_lines.sort(key=get_line_proximity_to_enemy)
+
         for line in team_lines:
             if line['p1_id'] not in points or line['p2_id'] not in points: continue
             
             p1 = points[line['p1_id']]
             p2 = points[line['p2_id']]
             
-            p_start, p_end = random.choice([(p1, p2), (p2, p1)])
+            # Fire from the endpoint that is closer to an enemy, to press the attack.
+            if enemy_lines: # A proxy for if enemies exist
+                dist1 = min((distance_sq(p1, self.state['points'][l['p1_id']]) for l in enemy_lines if l['p1_id'] in self.state['points']), default=float('inf'))
+                dist2 = min((distance_sq(p2, self.state['points'][l['p1_id']]) for l in enemy_lines if l['p1_id'] in self.state['points']), default=float('inf'))
+                p_start, p_end = (p2, p1) if dist1 < dist2 else (p1, p2)
+            else: # No enemies, choice doesn't matter
+                p_start, p_end = p1, p2
             border_point = get_extended_border_point(
                 p_start, p_end, self.state['grid_size'],
                 self.state.get('fissures', []), self.state.get('barricades', []), self.state.get('scorched_zones', [])
@@ -137,7 +155,8 @@ class FightActionsHandler:
         pincer_angle_threshold = game_data.GAME_PARAMETERS['PINCER_ATTACK_ANGLE_COS']
         
         pincer_candidates = list(combinations(team_point_ids, 2))
-        random.shuffle(pincer_candidates)
+        # Prioritize pairs that are closer together, making for a tighter pincer
+        pincer_candidates.sort(key=lambda p: distance_sq(points_map[p[0]], points_map[p[1]]))
         for p1_id, p2_id in pincer_candidates[:10]:
             p1 = points_map[p1_id]
             p2 = points_map[p2_id]
@@ -168,8 +187,13 @@ class FightActionsHandler:
         
         # --- Fallback: Create Barricade ---
         # This block is reached if no targets were found in the loop or if there were no enemies to begin with.
-        p1_id, p2_id = random.sample(team_point_ids, 2)
-        return self._pincer_attack_fallback_barricade(teamId, p1_id, p2_id)
+        # Form a barricade between the two closest points on the team for a strong defensive fallback.
+        if len(team_point_ids) >= 2:
+            closest_pair = min(combinations(team_point_ids, 2), key=lambda p: distance_sq(points_map[p[0]], points_map[p[1]]))
+            p1_id, p2_id = closest_pair
+            return self._pincer_attack_fallback_barricade(teamId, p1_id, p2_id)
+        
+        return {'success': False, 'reason': 'not enough points for pincer fallback'}
 
     def territory_strike(self, teamId):
         """[FIGHT ACTION]: Launches an attack from a large territory. If no targets, reinforces the territory."""
@@ -177,7 +201,9 @@ class FightActionsHandler:
         if not large_territories:
             return {'success': False, 'reason': 'no large territories to strike from'}
 
-        territory = random.choice(large_territories)
+        # Prioritize striking from the largest territory
+        points_map = self.state['points']
+        territory = max(large_territories, key=lambda t: polygon_area([points_map[pid] for pid in t['point_ids'] if pid in points_map]))
         points_map = self.state['points']
         if not all(pid in points_map for pid in territory['point_ids']):
             return {'success': False, 'reason': 'territory points no longer exist'}
@@ -248,7 +274,8 @@ class FightActionsHandler:
         if not team_territories:
             return {'success': False, 'reason': 'no territories to strike from'}
 
-        territory = random.choice(team_territories)
+        # Prioritize the largest territory for the tri-beam strike
+        territory = max(team_territories, key=lambda t: polygon_area([points_map[pid] for pid in t['point_ids'] if pid in points_map]))
         points_map = self.state['points']
         p_ids = territory['point_ids']
         if not all(pid in points_map for pid in p_ids):
@@ -328,7 +355,17 @@ class FightActionsHandler:
         if not team_trebuchets:
             return {'success': False, 'reason': 'no active Trebuchet Runes'}
 
-        trebuchet = random.choice(team_trebuchets)
+        # Choose the trebuchet closest to any enemy point
+        all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        points_map = self.state['points']
+        
+        def get_trebuchet_dist_to_enemy(treb):
+            if not all_enemy_points: return float('inf')
+            treb_center = points_centroid([points_map[pid] for pid in treb['point_ids'] if pid in points_map])
+            if not treb_center: return float('inf')
+            return min(distance_sq(treb_center, ep) for ep in all_enemy_points)
+
+        trebuchet = min(team_trebuchets, key=get_trebuchet_dist_to_enemy)
         if not all(pid in self.state['points'] for pid in trebuchet.get('point_ids', [])):
              return {'success': False, 'reason': 'trebuchet points no longer exist'}
 
@@ -347,8 +384,10 @@ class FightActionsHandler:
         high_value_target_ids = (fortified_ids | bastion_cores | monolith_point_ids) - stasis_point_ids
         high_value_targets = [p for p in all_enemy_points if p['id'] in high_value_target_ids]
         
+        launch_point = self.state['points'][trebuchet['apex_id']]
         if high_value_targets:
-            target_point = random.choice(high_value_targets)
+            # Target the closest high-value target
+            target_point = min(high_value_targets, key=lambda p: distance_sq(launch_point, p))
         else:
             # 2. Any other non-stasis enemy point
             regular_targets = [
@@ -356,7 +395,8 @@ class FightActionsHandler:
                 if p['id'] not in high_value_target_ids and p['id'] not in stasis_point_ids
             ]
             if regular_targets:
-                target_point = random.choice(regular_targets)
+                # Target the closest regular target
+                target_point = min(regular_targets, key=lambda p: distance_sq(launch_point, p))
         
         # --- Execute Action ---
         if target_point:
@@ -406,11 +446,27 @@ class FightActionsHandler:
         if not possible_zaps:
             return {'success': False, 'reason': 'no I-Runes with an internal point to fire from'}
 
-        rune = random.choice(possible_zaps)
+        # Choose the Sentry that is closest to any vulnerable enemy point
+        vulnerable_enemy_points = self.game.query.get_vulnerable_enemy_points(teamId)
+        points = self.state['points']
+
+        def get_sentry_dist_to_enemy(sentry_rune):
+            if not vulnerable_enemy_points: return float('inf')
+            sentry_center = points_centroid([points[pid] for pid in sentry_rune['point_ids'] if pid in points])
+            if not sentry_center: return float('inf')
+            return min(distance_sq(sentry_center, ep) for ep in vulnerable_enemy_points)
+        
+        rune = min(possible_zaps, key=get_sentry_dist_to_enemy)
         points = self.state['points']
         
-        # Pick a random internal point as the 'eye'
-        eye_id = random.choice(rune['internal_points'])
+        # Pick the most central internal point as the 'eye'
+        internal_points = [points[pid] for pid in rune['internal_points'] if pid in points]
+        if not internal_points:
+             return {'success': False, 'reason': 'internal points for Sentry no longer exist'}
+        # This is the centroid of the rune itself, not just the internal points
+        sentry_center = points_centroid([points[pid] for pid in rune['point_ids'] if pid in points])
+        eye_point = min(internal_points, key=lambda p: distance_sq(p, sentry_center))
+        eye_id = eye_point['id']
         eye_index = rune['point_ids'].index(eye_id)
         
         # Posts are its direct neighbors in the line
@@ -429,8 +485,24 @@ class FightActionsHandler:
         vx = p_post1['x'] - p_eye['x']
         vy = p_post1['y'] - p_eye['y']
         
-        # Perpendicular vector (for the zap), randomized direction
-        zap_vx, zap_vy = random.choice([(-vy, vx), (vy, -vx)])
+        # Perpendicular vector (for the zap), aimed towards the nearest enemy
+        zap_dir1 = {'x': -vy, 'y': vx}
+        zap_dir2 = {'x': vy, 'y': -vx}
+        
+        if vulnerable_enemy_points:
+            # Find which direction points more towards the nearest enemy
+            nearest_enemy = min(vulnerable_enemy_points, key=lambda p: distance_sq(p_eye, p))
+            enemy_vec = {'x': nearest_enemy['x'] - p_eye['x'], 'y': nearest_enemy['y'] - p_eye['y']}
+            
+            dot1 = zap_dir1['x'] * enemy_vec['x'] + zap_dir1['y'] * enemy_vec['y']
+            dot2 = zap_dir2['x'] * enemy_vec['x'] + zap_dir2['y'] * enemy_vec['y']
+            
+            chosen_dir = zap_dir1 if dot1 > dot2 else zap_dir2
+        else:
+            # No enemies, direction doesn't matter
+            chosen_dir = zap_dir1
+            
+        zap_vx, zap_vy = chosen_dir['x'], chosen_dir['y']
         
         zap_range_sq = (self.state['grid_size'] * game_data.GAME_PARAMETERS['SENTRY_ZAP_RANGE_FACTOR'])**2
         
@@ -516,14 +588,21 @@ class FightActionsHandler:
         
         potential_outcomes = []
 
-        # Try a few combinations of prisms and source lines
-        for _ in range(10):
-            prism = random.choice(team_prisms)
-            source_line = random.choice(source_lines)
+        # Search for a valid shot deterministically
+        for prism in team_prisms:
+            for source_line in source_lines:
 
-            if source_line['p1_id'] not in points or source_line['p2_id'] not in points: continue
-            
-            ls1, ls2 = random.choice([(points[source_line['p1_id']], points[source_line['p2_id']]), (points[source_line['p2_id']], points[source_line['p1_id']])])
+                if source_line['p1_id'] not in points or source_line['p2_id'] not in points: continue
+                
+                # Fire from the endpoint of the source line that is closer to the prism
+                p1 = points[source_line['p1_id']]
+                p2 = points[source_line['p2_id']]
+                prism_center = points_centroid([points[pid] for pid in prism['all_point_ids'] if pid in points])
+                if not prism_center: continue
+                
+                dist1 = distance_sq(p1, prism_center)
+                dist2 = distance_sq(p2, prism_center)
+                ls1, ls2 = (p2, p1) if dist1 < dist2 else (p1, p2)
             
             source_ray_end = get_extended_border_point(
                 ls1, ls2, self.state['grid_size'],
@@ -591,7 +670,8 @@ class FightActionsHandler:
         hits = [o for o in potential_outcomes if o['type'] == 'hit']
         if hits:
             # --- Primary Effect: Hit an enemy line ---
-            chosen_hit = random.choice(hits)
+            # Prioritize hitting the longest enemy line
+            chosen_hit = max(hits, key=lambda h: distance_sq(points[h['enemy_line']['p1_id']], points[h['enemy_line']['p2_id']]))
             enemy_line = chosen_hit['enemy_line']
             self.game._delete_line(enemy_line)
             
@@ -602,7 +682,9 @@ class FightActionsHandler:
             }
         else:
             # --- Fallback Effect: Spawn a point on the border ---
-            chosen_miss = random.choice(potential_outcomes) # All are misses
+            # Choose the miss that creates a point furthest from the firing team's centroid, for expansion
+            team_centroid = points_centroid([p for p in points.values() if p['teamId'] == teamId])
+            chosen_miss = max(potential_outcomes, key=lambda o: distance_sq(o['border_point'], team_centroid) if team_centroid else 0)
             border_point = chosen_miss['border_point']
             new_point = self.game._helper_spawn_on_border(teamId, border_point)
             if new_point:
@@ -658,7 +740,18 @@ class FightActionsHandler:
 
         # --- Fallback Effect: Repulsive Pulse ---
         # This triggers if no enemy territories exist, or if they did but were invalid for some reason.
-        purifier_to_pulse_from = random.choice(team_purifiers)
+        # Pulse from the purifier that is closest to the most enemies
+        enemy_points = [p for p in points_map.values() if p['teamId'] != teamId]
+        
+        def count_enemies_in_range(purifier):
+            if not enemy_points: return 0
+            purifier_points = [points_map[pid] for pid in purifier['point_ids'] if pid in points_map]
+            if not purifier_points: return 0
+            pulse_center = points_centroid(purifier_points)
+            pulse_radius_sq = (self.state['grid_size'] * 0.25)**2
+            return sum(1 for p in enemy_points if distance_sq(pulse_center, p) < pulse_radius_sq)
+
+        purifier_to_pulse_from = max(team_purifiers, key=count_enemies_in_range)
         if not all(pid in points_map for pid in purifier_to_pulse_from['point_ids']):
             return {'success': False, 'reason': 'purifier points for fallback no longer exist'}
         
@@ -683,7 +776,8 @@ class FightActionsHandler:
 
         # Find a target
         enemy_team_ids = [tid for tid in self.game.state['teams'] if tid != teamId]
-        random.shuffle(enemy_team_ids)
+        # Prioritize isolating points from the strongest enemy team (most points)
+        enemy_team_ids.sort(key=lambda tid: len(self.game.query.get_team_point_ids(tid)), reverse=True)
         
         possible_targets = []
         for enemy_team_id in enemy_team_ids:
@@ -696,8 +790,8 @@ class FightActionsHandler:
                      possible_targets.append(self.state['points'][pid])
 
         if possible_targets:
-            # Use a random friendly point as the 'projector' of the effect
-            projector_point_id = random.choice(team_point_ids)
+            # Use the friendly point closest to the potential targets as the 'projector'
+            projector_point_id = min(team_point_ids, key=lambda pid: min(distance_sq(self.state['points'][pid], p_target) for p_target in possible_targets))
             projector_point = self.state['points'][projector_point_id]
             
             target_point = min(possible_targets, key=lambda p: distance_sq(projector_point, p))
@@ -719,8 +813,8 @@ class FightActionsHandler:
         else:
             # --- Fallback Logic ---
             if len(team_point_ids) >= 2:
-                # Fallback 1: Create barricade
-                p1_id, p2_id = random.sample(team_point_ids, 2)
+                # Fallback 1: Create barricade between the two closest points
+                p1_id, p2_id = min(combinations(team_point_ids, 2), key=lambda p_pair: distance_sq(self.state['points'][p_pair[0]], self.state['points'][p_pair[1]]))
                 p1 = self.state['points'][p1_id]
                 p2 = self.state['points'][p2_id]
                 new_barricade = self.game._create_temporary_barricade(teamId, p1, p2, 2)
@@ -755,16 +849,20 @@ class FightActionsHandler:
         points = self.state['points']
         enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
 
-        # Try a number of random combinations to find a valid strike, instead of pre-calculating all possibilities.
-        for _ in range(15):
-            l_ref = random.choice(team_lines)
-            
-            # An origin point cannot be one of the line's own endpoints.
+        # Try a deterministic search for a valid strike.
+        # Sort reference lines (e.g., shortest first) and origin points (e.g., closest to enemy centroid).
+        enemy_centroid = points_centroid(enemy_points) if enemy_points else {'x': self.state['grid_size']/2, 'y': self.state['grid_size']/2}
+        
+        sorted_lines = sorted(team_lines, key=lambda l: distance_sq(points[l['p1_id']], points[l['p2_id']]))
+
+        for l_ref in sorted_lines:
             candidate_origin_ids = [pid for pid in team_point_ids if pid != l_ref['p1_id'] and pid != l_ref['p2_id']]
             if not candidate_origin_ids:
                 continue
+            
+            sorted_origins = sorted(candidate_origin_ids, key=lambda pid: distance_sq(points[pid], enemy_centroid))
 
-            p_origin_id = random.choice(candidate_origin_ids)
+            for p_origin_id in sorted_origins:
             p_origin = points.get(p_origin_id)
             
             if not p_origin or not (l_ref['p1_id'] in points and l_ref['p2_id'] in points):

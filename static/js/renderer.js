@@ -875,7 +875,11 @@ const renderer = (() => {
                     const cx = (effect.x + 0.5) * cellSize;
                     const cy = (effect.y + 0.5) * cellSize;
                     const radius = (10 + 20 * easedProgress) * (cellSize/10);
-                    ctx.fillStyle = `rgba(255, 0, 0, ${1 - easedProgress})`;
+                    const color = effect.color || '#ff0000';
+                    const r = parseInt(color.slice(1,3),16);
+                    const g = parseInt(color.slice(3,5),16);
+                    const b = parseInt(color.slice(5,7),16);
+                    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${1 - easedProgress})`;
                     ctx.beginPath();
                     ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
                     ctx.fill();

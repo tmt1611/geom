@@ -16,7 +16,10 @@ class TerraformActionsHandler:
         if not team_spires:
             return {'success': False, 'reason': 'no charged rift spires available'}
 
-        spire = random.choice(team_spires)
+        # Use the spire closest to the enemy centroid
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        enemy_centroid = points_centroid(enemy_points) if enemy_points else {'x': self.state['grid_size']/2, 'y': self.state['grid_size']/2}
+        spire = min(team_spires, key=lambda s: distance_sq(s['coords'], enemy_centroid))
         grid_size = self.state['grid_size']
         
         # Create a long fissure, e.g., from one border to another
@@ -55,7 +58,11 @@ class TerraformActionsHandler:
         if not candidate_pids:
             return {'success': False, 'reason': 'no valid location for a Rift Spire found'}
 
-        nexus_point_id = random.choice(candidate_pids)
+        # Form a spire at the nexus point closest to the center of the grid, for strategic importance
+        grid_size = self.state['grid_size']
+        grid_center = {'x': (grid_size - 1) / 2, 'y': (grid_size - 1) / 2}
+        points_map = self.state['points']
+        nexus_point_id = min(candidate_pids, key=lambda pid: distance_sq(points_map[pid], grid_center))
         nexus_point = self.state['points'].get(nexus_point_id)
         if not nexus_point:
             return {'success': False, 'reason': 'nexus point for spire disappeared'}

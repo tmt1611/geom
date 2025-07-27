@@ -42,7 +42,15 @@ class RuneActionsHandler:
         if not active_v_runes:
             return {'success': False, 'reason': 'no active V-runes'}
 
-        rune = random.choice(active_v_runes)
+        # Choose the V-Rune closest to an enemy
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        points = self.state['points']
+        
+        def get_v_rune_proximity(v_rune):
+            if not enemy_points or v_rune['vertex_id'] not in points: return float('inf')
+            return min(distance_sq(points[v_rune['vertex_id']], ep) for ep in enemy_points)
+            
+        rune = min(active_v_runes, key=get_v_rune_proximity)
         points = self.state['points']
         
         p_vertex = points.get(rune['vertex_id'])
@@ -82,7 +90,8 @@ class RuneActionsHandler:
 
         if hits:
             # --- Primary Effect: Destroy Line ---
-            target_line = random.choice(hits)
+            # Hit the closest line to the rune's vertex
+            target_line = min(hits, key=lambda h: distance_sq(p_vertex, points_centroid([points[h['p1_id']], points[h['p2_id']]])))
             self.game._delete_line(target_line)
             return {
                 'success': True, 'type': 'rune_shoot_bisector', 'destroyed_line': target_line,
@@ -105,7 +114,22 @@ class RuneActionsHandler:
         if not active_shield_runes:
             return {'success': False, 'reason': 'no active Shield Runes'}
 
-        rune = random.choice(active_shield_runes)
+        # Choose the shield rune with the most friendly lines inside it
+        points = self.state['points']
+        team_lines = self.game.query.get_team_lines(teamId)
+        
+        def count_shieldable_lines(shield_rune):
+            tri_points = [points.get(pid) for pid in shield_rune['triangle_ids']]
+            if not all(tri_points): return 0
+            count = 0
+            for line in team_lines:
+                line_p1, line_p2 = points.get(line['p1_id']), points.get(line['p2_id'])
+                if line_p1 and line_p2:
+                    if is_point_in_polygon(line_p1, tri_points) and is_point_in_polygon(line_p2, tri_points):
+                        count += 1
+            return count
+
+        rune = max(active_shield_runes, key=count_shieldable_lines)
         points = self.state['points']
         all_rune_pids = rune['triangle_ids'] + [rune['core_id']]
         if not all(pid in points for pid in all_rune_pids):
@@ -161,7 +185,20 @@ class RuneActionsHandler:
         if not active_shield_runes:
             return {'success': False, 'reason': 'no active Shield Runes'}
 
-        rune = random.choice(active_shield_runes)
+        # Choose the shield rune closest to the most enemies
+        points = self.state['points']
+        enemy_points = [p for p in points.values() if p['teamId'] != teamId]
+
+        def count_enemies_in_range(shield_rune):
+            if not enemy_points: return 0
+            tri_points = [points[pid] for pid in shield_rune['triangle_ids'] if pid in points]
+            if not tri_points: return 0
+            rune_center = points_centroid(tri_points)
+            if not rune_center: return 0
+            pulse_radius_sq = (self.state['grid_size'] * 0.3)**2
+            return sum(1 for p in enemy_points if distance_sq(rune_center, p) < pulse_radius_sq)
+
+        rune = max(active_shield_runes, key=count_enemies_in_range)
         points = self.state['points']
         all_rune_pids = rune['triangle_ids'] + [rune['core_id']]
         if not all(pid in points for pid in all_rune_pids):
@@ -224,7 +261,16 @@ class RuneActionsHandler:
         if not active_trident_runes:
             return {'success': False, 'reason': 'no active Trident Runes'}
             
-        rune = random.choice(active_trident_runes)
+        # Choose the trident closest to an enemy line
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        points = self.state['points']
+
+        def get_trident_proximity(trident_rune):
+            if not enemy_lines or trident_rune['apex_id'] not in points: return float('inf')
+            p_apex = points[trident_rune['apex_id']]
+            return min(distance_sq(p_apex, points_centroid([points[l['p1_id']], points[l['p2_id']]])) for l in enemy_lines if l['p1_id'] in points and l['p2_id'] in points)
+            
+        rune = min(active_trident_runes, key=get_trident_proximity)
         points = self.state['points']
         
         p_handle = points.get(rune['handle_id'])
@@ -296,7 +342,9 @@ class RuneActionsHandler:
         if not active_parallel_runes:
             return {'success': False, 'reason': 'no active Parallel Runes'}
 
-        rune_p_ids_tuple = random.choice(active_parallel_runes)
+        # Choose the parallel rune with the largest area
+        points = self.state['points']
+        rune_p_ids_tuple = max(active_parallel_runes, key=lambda p_ids: polygon_area([points[pid] for pid in p_ids if pid in points]))
         points = self.state['points']
         
         if not all(pid in points for pid in rune_p_ids_tuple):
@@ -370,7 +418,15 @@ class RuneActionsHandler:
         if not active_hourglass_runes:
             return {'success': False, 'reason': 'no active Hourglass Runes'}
 
-        rune = random.choice(active_hourglass_runes)
+        # Choose the hourglass rune closest to an enemy
+        points_map = self.state['points']
+        enemy_points = self.game.query.get_vulnerable_enemy_points(teamId)
+        def get_hourglass_proximity(hg_rune):
+            if not enemy_points or hg_rune['vertex_id'] not in points_map: return float('inf')
+            p_vertex = points_map[hg_rune['vertex_id']]
+            return min(distance_sq(p_vertex, ep) for ep in enemy_points)
+        
+        rune = min(active_hourglass_runes, key=get_hourglass_proximity)
         points_map = self.state['points']
         
         rune_pids = rune['all_points']
@@ -385,7 +441,9 @@ class RuneActionsHandler:
 
         if possible_targets:
             # --- Primary Effect: Apply Stasis ---
-            target_point = random.choice(possible_targets)
+            # Target the closest vulnerable enemy
+            p_vertex = points_map[rune['vertex_id']]
+            target_point = min(possible_targets, key=lambda p: distance_sq(p_vertex, p))
             self.state['stasis_points'][target_point['id']] = 3 # 3 turns
             target_team_name = self.state['teams'][target_point['teamId']]['name']
             return {
@@ -400,7 +458,9 @@ class RuneActionsHandler:
             if not non_vertex_pids:
                 return {'success': False, 'reason': 'no valid rune points to convert to anchor'}
             
-            p_to_anchor_id = random.choice(non_vertex_pids)
+            # Convert the non-vertex point furthest from the vertex into an anchor
+            p_vertex = points_map[rune['vertex_id']]
+            p_to_anchor_id = max(non_vertex_pids, key=lambda pid: distance_sq(p_vertex, points_map[pid]))
             anchor_point = points_map.get(p_to_anchor_id)
             if not anchor_point:
                 return {'success': False, 'reason': 'chosen anchor point for fallback does not exist'}
@@ -418,7 +478,9 @@ class RuneActionsHandler:
         if not active_star_runes:
             return {'success': False, 'reason': 'no active Star Runes'}
 
-        rune = random.choice(active_star_runes)
+        # Choose the star rune with the largest area
+        points_map = self.state['points']
+        rune = max(active_star_runes, key=lambda r: polygon_area([points_map[pid] for pid in r['cycle_ids'] if pid in points_map]))
         points_map = self.state['points']
         center_point = points_map.get(rune['center_id'])
         if not center_point or not all(pid in points_map for pid in rune['cycle_ids']):
@@ -510,7 +572,9 @@ class RuneActionsHandler:
         team_star_runes = self.state.get('runes', {}).get(teamId, {}).get('star', [])
         if not team_star_runes: return {'success': False, 'reason': 'no active star runes'}
         
-        rune = random.choice(team_star_runes)
+        # Choose the star rune with the largest area
+        points = self.state['points']
+        rune = max(team_star_runes, key=lambda r: polygon_area([points[pid] for pid in r['cycle_ids'] if pid in points]))
         points = self.state['points']
         center_point = points.get(rune['center_id'])
         if not center_point: return {'success': False, 'reason': 'rune center point no longer exists'}
@@ -562,7 +626,16 @@ class RuneActionsHandler:
         if not active_star_runes:
             return {'success': False, 'reason': 'no active Star Runes'}
 
-        rune = random.choice(active_star_runes)
+        # Choose the star rune closest to any non-friendly point
+        points = self.state['points']
+        non_friendly_points = [p for p in points.values() if p['teamId'] != teamId]
+
+        def get_star_proximity(star_rune):
+            if not non_friendly_points or star_rune['center_id'] not in points: return float('inf')
+            center_point = points[star_rune['center_id']]
+            return min(distance_sq(center_point, nfp) for nfp in non_friendly_points)
+        
+        rune = min(active_star_runes, key=get_star_proximity)
         points = self.state['points']
         center_point = points.get(rune['center_id'])
         if not center_point:
@@ -623,7 +696,15 @@ class RuneActionsHandler:
         team_t_runes = self.state.get('runes', {}).get(teamId, {}).get('t_shape', [])
         if not team_t_runes: return {'success': False, 'reason': 'no active T-runes'}
         
-        rune = random.choice(team_t_runes)
+        # Choose the T-Rune closest to the most points (friend or foe)
+        points = self.state['points']
+        def count_points_in_range(t_rune):
+            p_mid = points.get(t_rune['mid_id'])
+            if not p_mid: return 0
+            push_radius_sq = (self.state['grid_size'] * 0.2)**2
+            return sum(1 for p in points.values() if p['id'] not in t_rune['all_points'] and distance_sq(p, p_mid) < push_radius_sq)
+        
+        rune = max(team_t_runes, key=count_points_in_range)
         points = self.state['points']
         if not all(pid in points for pid in rune['all_points']): return {'success': False, 'reason': 'rune points no longer exist'}
         
@@ -692,7 +773,18 @@ class RuneActionsHandler:
         team_plus_runes = self.state.get('runes', {}).get(teamId, {}).get('plus_shape', [])
         if not team_plus_runes: return {'success': False, 'reason': 'no active plus runes'}
         
-        rune = random.choice(team_plus_runes)
+        # Choose the Plus-Rune closest to an enemy
+        points = self.state['points']
+        enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
+        if not enemy_lines: # Fallback if no enemy lines
+            rune = team_plus_runes[0]
+        else:
+            def get_plus_proximity(plus_rune):
+                if plus_rune['center_id'] not in points: return float('inf')
+                center_p = points[plus_rune['center_id']]
+                return min(distance_sq(center_p, points_centroid([points[l['p1_id']], points[l['p2_id']]])) for l in enemy_lines if l['p1_id'] in points and l['p2_id'] in points)
+            
+            rune = min(team_plus_runes, key=get_plus_proximity)
         points = self.state['points']
         if not all(pid in points for pid in rune['all_points']): return {'success': False, 'reason': 'rune points no longer exist'}
             
@@ -753,7 +845,9 @@ class RuneActionsHandler:
         if not team_barricade_runes:
             return {'success': False, 'reason': 'no active barricade runes'}
 
-        rune_p_ids_tuple = random.choice(team_barricade_runes)
+        # Choose the largest barricade rune by area
+        points_map = self.state['points']
+        rune_p_ids_tuple = max(team_barricade_runes, key=lambda p_ids: polygon_area([points_map[pid] for pid in p_ids]))
         points_map = self.state['points']
 
         if not all(pid in points_map for pid in rune_p_ids_tuple):

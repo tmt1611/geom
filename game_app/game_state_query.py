@@ -311,14 +311,19 @@ class GameStateQuery:
     def find_repositionable_point(self, teamId):
         """
         Finds a point that can be freely moved without breaking critical formations.
-        Returns a point_id or None.
+        Returns a point_id or None. Prefers the point furthest from the team's center.
         """
         team_point_ids = self.get_team_point_ids(teamId)
         if not team_point_ids: return None
         critical_pids = self.get_critical_structure_point_ids(teamId)
         repositionable_pids = [pid for pid in team_point_ids if pid not in critical_pids]
         if not repositionable_pids: return None
-        return random.choice(repositionable_pids)
+
+        # Choose the point furthest from the team's centroid to move, to bring it back in.
+        team_centroid = self.get_team_centroid(teamId)
+        if not team_centroid: return repositionable_pids[0]
+        points_map = self.state['points']
+        return max(repositionable_pids, key=lambda pid: distance_sq(points_map[pid], team_centroid))
 
     def find_non_critical_sacrificial_point(self, teamId):
         """
@@ -335,6 +340,6 @@ class GameStateQuery:
         safe_candidates = [pid for pid in candidate_pids if pid not in articulation_point_pids]
         if not safe_candidates: safe_candidates = candidate_pids
         if not safe_candidates: return None
-        safe_candidates.sort(key=lambda pid: len(adj.get(pid, [])), reverse=False)
-        num_choices = min(3, len(safe_candidates))
-        return random.choice(safe_candidates[:num_choices])
+        # Prioritize sacrificing the point with the lowest degree (fewest connections)
+        safe_candidates.sort(key=lambda pid: len(adj.get(pid, [])))
+        return safe_candidates[0]

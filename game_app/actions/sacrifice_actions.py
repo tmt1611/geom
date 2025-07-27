@@ -21,7 +21,10 @@ class SacrificeActionsHandler:
         # Prioritize sacrificing a point that will have a definite effect
         ideal_sac_points = self.game.query.find_possible_nova_bursts(teamId)
         if ideal_sac_points:
-            sac_point_id = random.choice(ideal_sac_points)
+            # Choose the ideal point that is closest to the team's centroid, to defend the core
+            team_centroid = self.game.query.get_team_centroid(teamId)
+            points = self.state['points']
+            sac_point_id = min(ideal_sac_points, key=lambda pid: distance_sq(points[pid], team_centroid))
         else:
             # If no ideal point, find any non-critical point for the fallback shockwave effect.
             sac_point_id = self.game.query.find_non_critical_sacrificial_point(teamId)
@@ -124,7 +127,18 @@ class SacrificeActionsHandler:
         if not eligible_lines:
             return {'success': False, 'reason': 'no non-critical/safe lines to sacrifice'}
 
-        line_to_sac = random.choice(eligible_lines)
+        # Sacrifice the line closest to a vulnerable enemy point
+        vulnerable_enemies = self.game.query.get_vulnerable_enemy_points(teamId)
+        points = self.state['points']
+        
+        def get_line_proximity_to_vulnerable(line):
+            if not vulnerable_enemies or line['p1_id'] not in points or line['p2_id'] not in points:
+                return float('inf')
+            p1, p2 = points[line['p1_id']], points[line['p2_id']]
+            midpoint = points_centroid([p1, p2])
+            return min(distance_sq(midpoint, ep) for ep in vulnerable_enemies)
+
+        line_to_sac = min(eligible_lines, key=get_line_proximity_to_vulnerable)
         p_to_move_id, p_to_anchor_id = random.choice([
             (line_to_sac['p1_id'], line_to_sac['p2_id']),
             (line_to_sac['p2_id'], line_to_sac['p1_id'])
@@ -206,7 +220,9 @@ class SacrificeActionsHandler:
         if not team_territories:
             return {'success': False, 'reason': 'no territories to sacrifice'}
         
-        territory_to_scorch = random.choice(team_territories)
+        # Sacrifice the smallest territory, as it's the least valuable
+        points_map = self.state['points']
+        territory_to_scorch = min(team_territories, key=lambda t: polygon_area([points_map[pid] for pid in t['point_ids'] if pid in points_map]))
         
         # Get point coordinates before deleting them
         points_map = self.state['points']
@@ -258,7 +274,20 @@ class SacrificeActionsHandler:
         if not eligible_lines:
             return {'success': False, 'reason': 'no lines to sacrifice'}
 
-        line_to_sac = random.choice(eligible_lines)
+        # Sacrifice the line closest to a vulnerable enemy
+        points = self.state['points']
+        vulnerable_enemies = self.game.query.get_vulnerable_enemy_points(teamId)
+        
+        if vulnerable_enemies:
+            def get_line_proximity(line):
+                if line['p1_id'] not in points or line['p2_id'] not in points: return float('inf')
+                midpoint = points_centroid([points[line['p1_id']], points[line['p2_id']]])
+                return min(distance_sq(midpoint, ep) for ep in vulnerable_enemies)
+            
+            line_to_sac = min(eligible_lines, key=get_line_proximity)
+        else:
+            # Fallback: sacrifice the shortest line
+            line_to_sac = min(eligible_lines, key=lambda l: distance_sq(points[l['p1_id']], points[l['p2_id']]))
         points = self.state['points']
         
         if line_to_sac['p1_id'] not in points or line_to_sac['p2_id'] not in points:
@@ -325,7 +354,10 @@ class SacrificeActionsHandler:
         if not eligible_lines:
             return {'success': False, 'reason': 'no eligible line to sacrifice a point from'}
 
-        line_to_unravel = random.choice(eligible_lines)
+        # Choose the line that is furthest from the team's center, to attack from the periphery
+        points = self.state['points']
+        team_centroid = self.game.query.get_team_centroid(teamId)
+        line_to_unravel = max(eligible_lines, key=lambda l: distance_sq(points_centroid([points[l['p1_id']], points[l['p2_id']]]), team_centroid))
         points = self.state['points']
         
         p1_id, p2_id = line_to_unravel['p1_id'], line_to_unravel['p2_id']
@@ -484,7 +516,10 @@ class SacrificeActionsHandler:
         unattuned_nexuses = [n for n in team_nexuses if frozenset(n['point_ids']) not in attuned_nexus_pids]
         if not unattuned_nexuses: return {'success': False, 'reason': 'all nexuses are already attuned'}
 
-        nexus_to_attune = random.choice(unattuned_nexuses)
+        # Attune the nexus closest to the enemy centroid
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        enemy_centroid = points_centroid(enemy_points) if enemy_points else {'x': self.state['grid_size']/2, 'y': self.state['grid_size']/2}
+        nexus_to_attune = min(unattuned_nexuses, key=lambda n: distance_sq(n['center'], enemy_centroid))
         points = self.state['points']
         pids = nexus_to_attune['point_ids']
         if not all(pid in points for pid in pids): return {'success': False, 'reason': 'nexus points no longer exist'}
@@ -531,7 +566,9 @@ class SacrificeActionsHandler:
         if not team_star_runes:
             return {'success': False, 'reason': 'no active star runes to sacrifice'}
         
-        rune_to_sacrifice = random.choice(team_star_runes)
+        # Sacrifice the smallest star rune, as it's the "cheapest" way to get a wonder
+        points_map = self.state['points']
+        rune_to_sacrifice = min(team_star_runes, key=lambda r: polygon_area([points_map[pid] for pid in r['cycle_ids'] if pid in points_map]))
         points_map = self.state['points']
         
         # Check if all points of the rune exist before trying to use them
@@ -579,13 +616,29 @@ class SacrificeActionsHandler:
         if not possible_runes:
             return {'success': False, 'reason': 'no I-Runes with an internal point found'}
 
-        rune = random.choice(possible_runes)
+        # Use the Conduit that is closest to a vulnerable enemy
+        vulnerable_enemies = self.game.query.get_vulnerable_enemy_points(teamId)
+        points_map = self.state['points']
+
+        def get_conduit_proximity(conduit_rune):
+            if not vulnerable_enemies: return float('inf')
+            center = points_centroid([points_map[pid] for pid in conduit_rune['point_ids'] if pid in points_map])
+            if not center: return float('inf')
+            return min(distance_sq(center, ep) for ep in vulnerable_enemies)
+        
+        rune = min(possible_runes, key=get_conduit_proximity)
         # Ensure the point to be sacrificed exists
         sac_candidates = [pid for pid in rune.get('internal_points', []) if pid in self.state['points']]
         if not sac_candidates:
             return {'success': False, 'reason': 'I-Rune internal point for sacrifice no longer exists'}
         
-        p_to_sac_id = random.choice(sac_candidates)
+        # Sacrifice the most central internal point of the chosen conduit
+        internal_points = [points_map[pid] for pid in rune['internal_points'] if pid in points_map]
+        if not internal_points:
+             return {'success': False, 'reason': 'internal points for sacrifice no longer exist'}
+        center = points_centroid(internal_points)
+        sac_point = min(internal_points, key=lambda p: distance_sq(p, center))
+        p_to_sac_id = sac_point['id']
         p_to_sac = self.state['points'][p_to_sac_id]
 
         # --- Find Target ---
@@ -646,7 +699,10 @@ class SacrificeActionsHandler:
         if not candidates:
             return {'success': False, 'reason': 'no valid formation for Heartwood found'}
 
-        formation = random.choice(candidates)
+        # Choose the candidate formation whose center is closest to the team's centroid
+        team_centroid = self.game.query.get_team_centroid(teamId)
+        points_map = self.state['points']
+        formation = min(candidates, key=lambda f: distance_sq(points_map[f['center_id']], team_centroid))
         center_id = formation['center_id']
         branch_ids = formation['branch_ids']
         

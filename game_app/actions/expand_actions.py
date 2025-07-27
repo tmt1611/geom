@@ -28,7 +28,9 @@ class ExpandActionsHandler:
         ]
 
         if possible_pairs:
-            p1_id, p2_id = random.choice(possible_pairs)
+            # Choose the pair that creates the shortest new line to reinforce clusters
+            points = self.state['points']
+            p1_id, p2_id = min(possible_pairs, key=lambda p: distance_sq(points[p[0]], points[p[1]]))
             line_id = self.game._generate_id('l')
             new_line = {"id": line_id, "p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
             self.state['lines'].append(new_line)
@@ -45,7 +47,9 @@ class ExpandActionsHandler:
             # Fallback: Strengthen an existing line
             return self.game._fallback_strengthen_random_line(teamId, 'extend')
 
-        chosen_extension = random.choice(possible_extensions)
+        # Choose the extension that creates the longest new ray to maximize expansion
+        points = self.state['points']
+        chosen_extension = max(possible_extensions, key=lambda ext: distance_sq(points[ext['origin_point_id']], ext['border_point']))
         border_point = chosen_extension['border_point']
         origin_point_id = chosen_extension['origin_point_id']
         
@@ -85,7 +89,9 @@ class ExpandActionsHandler:
             # Fallback: Strengthen an existing line
             return self.game._fallback_strengthen_random_line(teamId, 'fracture')
 
-        line_to_fracture = random.choice(fracturable_lines)
+        # Fracture the longest available line
+        points = self.state['points']
+        line_to_fracture = max(fracturable_lines, key=lambda l: distance_sq(points[l['p1_id']], points[l['p2_id']]))
         points = self.state['points']
         p1 = points[line_to_fracture['p1_id']]
         p2 = points[line_to_fracture['p2_id']]
@@ -135,11 +141,14 @@ class ExpandActionsHandler:
             return {'success': False, 'reason': 'no points to spawn from'}
 
         # --- Primary Effect: Try to spawn nearby ---
-        for _ in range(10):
-            p_origin_id = random.choice(team_point_ids)
-            p_origin = self.state['points'][p_origin_id]
+        # Try to spawn from the most isolated point to expand frontiers
+        p_origin_id = self.game.query.find_loneliest_point(teamId)
+        if not p_origin_id:
+             return {'success': False, 'reason': 'no points to spawn from'}
+        p_origin = self.state['points'][p_origin_id]
 
-            angle = random.uniform(0, 2 * math.pi)
+        for i in range(10): # Try 10 deterministic angles
+            angle = (i / 10.0) * 2 * math.pi
             radius = self.state['grid_size'] * random.uniform(0.05, 0.15)
             
             new_x = p_origin['x'] + math.cos(angle) * radius
@@ -165,7 +174,10 @@ class ExpandActionsHandler:
         
         # --- Fallback 2: Spawn on border from a random point ---
         # This case is reached if spawn failed and there are no lines to strengthen.
-        p_origin_id = random.choice(team_point_ids)
+        # Use the most central point to project outwards as a last resort
+        p_origin_id = self.game.query.find_most_central_point(teamId)
+        if not p_origin_id:
+             p_origin_id = team_point_ids[0] # Absolute fallback
         p_origin = self.state['points'][p_origin_id]
 
         for _ in range(10): # try 10 random directions
@@ -193,7 +205,8 @@ class ExpandActionsHandler:
 
         points = self.state['points']
         possible_pairs = list(combinations(team_point_ids, 2))
-        random.shuffle(possible_pairs)
+        # Prioritize mirroring across shorter axes to create tighter clusters
+        possible_pairs.sort(key=lambda p: distance_sq(points[p[0]], points[p[1]]))
 
         for p1_id, p2_id in possible_pairs:
             # Try reflecting p1 through p2, and p2 through p1
@@ -247,7 +260,11 @@ class ExpandActionsHandler:
         if not team_point_ids:
              return {'success': False, 'reason': 'no points to use for fallback'}
 
-        p_center_id_fallback = random.choice(team_point_ids)
+        # As a fallback, find the point with the highest degree to reinforce around
+        degrees = self.game.query.get_team_degrees(teamId)
+        p_center_id_fallback = max(team_point_ids, key=lambda pid: degrees.get(pid, 0), default=None)
+        if not p_center_id_fallback:
+            return {'success': False, 'reason': 'no points to use for fallback'}
         lines_to_strengthen = [l for l in self.game.query.get_team_lines(teamId) if l['p1_id'] == p_center_id_fallback or l['p2_id'] == p_center_id_fallback]
         
         if not lines_to_strengthen:
@@ -272,10 +289,12 @@ class ExpandActionsHandler:
         if not team_point_ids:
              return {'success': False, 'reason': 'no points to use as center'}
 
-        shuffled_point_ids = random.sample(team_point_ids, len(team_point_ids))
+        # Try to create an orbital around the most connected (highest degree) point first.
+        degrees = self.game.query.get_team_degrees(teamId)
+        sorted_point_ids = sorted(team_point_ids, key=lambda pid: degrees.get(pid, 0), reverse=True)
 
         # Try a few times to find a valid spot using different centers
-        for p_center_id in shuffled_point_ids:
+        for p_center_id in sorted_point_ids:
             p_center = self.state['points'].get(p_center_id)
             if not p_center: continue
             
@@ -346,18 +365,18 @@ class ExpandActionsHandler:
         # Convert to list for sampling logic below
         adj = {pid: list(neighbors) for pid, neighbors in adj_sets.items()}
         
-        possible_vertices = [pid for pid, neighbors in adj.items() if len(neighbors) >= 2]
-        random.shuffle(possible_vertices)
-        
         points_map = self.state['points']
-
+        possible_vertices = [pid for pid, neighbors in adj.items() if len(neighbors) >= 2]
+        # Prioritize bisecting the tightest angle to fill in gaps
+        possible_vertices.sort(key=lambda v_id: self.game.query.get_vertex_tightness_proxy(v_id, adj, points_map))
+        
         for vertex_id in possible_vertices:
             p_vertex = points_map.get(vertex_id)
             if not p_vertex: continue
 
-            # Try a few combinations of legs from this vertex
+            # Try a few combinations of legs from this vertex, starting with the tightest angle
             neighbor_pairs = list(combinations(adj[vertex_id], 2))
-            random.shuffle(neighbor_pairs)
+            neighbor_pairs.sort(key=lambda pair: distance_sq(points_map[pair[0]], points_map[pair[1]]))
 
             for leg1_id, leg2_id in neighbor_pairs[:3]:
                 p_leg1 = points_map.get(leg1_id)
@@ -394,9 +413,9 @@ class ExpandActionsHandler:
                 
                 return result_payload
 
-        # --- Fallback: Strengthen one of the lines of a random angle ---
+        # --- Fallback: Strengthen one of the lines of the tightest angle ---
         if possible_vertices:
-            vertex_id = random.choice(possible_vertices)
+            vertex_id = possible_vertices[0] # The one identified as having the tightest angle
             leg_ids = adj.get(vertex_id, [])
             if not leg_ids:
                 return self.game._fallback_strengthen_random_line(teamId, 'bisect')

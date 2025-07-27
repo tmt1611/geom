@@ -197,13 +197,23 @@ class FortifyActionsHandler:
 
         if unshielded_lines:
             # --- Primary Effect: Shield a new line ---
-            line_to_shield = random.choice(unshielded_lines)
+            # Shield the line closest to any enemy point
+            enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+            points_map = self.state['points']
+            def get_line_proximity(line):
+                if not enemy_points or line['p1_id'] not in points_map or line['p2_id'] not in points_map:
+                    return float('inf')
+                p1, p2 = points_map[line['p1_id']], points_map[line['p2_id']]
+                return min(min(distance_sq(p1, ep) for ep in enemy_points), min(distance_sq(p2, ep) for ep in enemy_points))
+
+            line_to_shield = min(unshielded_lines, key=get_line_proximity)
             shield_duration = 3 # in turns
             self.state['shields'][line_to_shield['id']] = shield_duration
             return {'success': True, 'type': 'shield_line', 'shielded_line': line_to_shield}
         else:
             # --- Fallback Effect: Overcharge an existing shield ---
-            line_to_overcharge = random.choice(team_lines)
+            # Overcharge the shield closest to an enemy
+            line_to_overcharge = min(team_lines, key=get_line_proximity)
             line_id = line_to_overcharge.get('id')
             if line_id and line_id in self.state['shields']:
                 max_shield_duration = 6
@@ -227,7 +237,9 @@ class FortifyActionsHandler:
 
         if newly_claimable_triangles:
             # --- Primary Effect: Claim Territory ---
-            triangle_to_claim = random.choice(newly_claimable_triangles)
+            # Claim the triangle with the largest area first
+            points_map = self.state['points']
+            triangle_to_claim = max(newly_claimable_triangles, key=lambda tri: polygon_area([points_map[pid] for pid in tri]))
             new_territory = {
                 'teamId': teamId,
                 'point_ids': list(triangle_to_claim)
@@ -240,7 +252,9 @@ class FortifyActionsHandler:
             if not team_territories:
                 return {'success': False, 'reason': 'no new triangles to claim and no existing territories to reinforce'}
             
-            territory_to_reinforce = random.choice(team_territories)
+            # Reinforce the largest existing territory
+            points_map = self.state['points']
+            territory_to_reinforce = max(team_territories, key=lambda t: polygon_area([points_map[pid] for pid in t['point_ids'] if pid in points_map]))
             strengthened_lines = self.game._reinforce_territory_boundaries(territory_to_reinforce)
             
             # The action is 'successful' even if no lines were strengthened (they might be maxed out)
@@ -282,7 +296,8 @@ class FortifyActionsHandler:
             }
         
         # --- Primary Action: Form Bastion ---
-        chosen_bastion = random.choice(possible_bastions)
+        # Choose the bastion candidate with the most prongs
+        chosen_bastion = max(possible_bastions, key=lambda b: len(b['prong_ids']))
         bastion_id = self.game._generate_id('b')
         new_bastion = {
             'id': bastion_id,
@@ -308,7 +323,8 @@ class FortifyActionsHandler:
         
         if possible_monoliths:
             # --- Primary Action: Form Monolith ---
-            chosen_monolith_data = random.choice(possible_monoliths)
+            # Choose the monolith candidate with the highest aspect ratio (tallest and thinnest)
+            chosen_monolith_data = max(possible_monoliths, key=lambda m: self.game.formation_manager.find_all_rectangles([m['point_ids']], [], self.state['points'])[0]['aspect_ratio'] if self.game.formation_manager.find_all_rectangles([m['point_ids']], [], self.state['points']) else 0)
             monolith_id = self.game._generate_id('m')
             new_monolith = {
                 'id': monolith_id,
@@ -325,8 +341,9 @@ class FortifyActionsHandler:
             
             return {'success': True, 'type': 'form_monolith', 'monolith': new_monolith}
         elif fallback_candidates:
-            # --- Fallback: Reinforce a regular rectangle ---
-            candidate = random.choice(fallback_candidates)
+            # --- Fallback: Reinforce the largest-area regular rectangle ---
+            points_map = self.state['points']
+            candidate = max(fallback_candidates, key=lambda c: polygon_area([points_map[pid] for pid in c['point_ids']]))
             strengthened_lines = []
             existing_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
             for pair in candidate['side_pairs']:
@@ -358,10 +375,13 @@ class FortifyActionsHandler:
 
 
         # Try a few times to find a valid empty spot nearby
-        for _ in range(15):
-            angle = random.uniform(0, 2 * math.pi)
-            # Move between 1 and 3 units away
-            radius = random.uniform(1.0, 3.0)
+        # Try to move towards the team's centroid to consolidate
+        team_centroid = self.game.query.get_team_centroid(teamId)
+
+        for i in range(15):
+            # Try a spiral search pattern around the origin point
+            angle = (i / 15.0) * 2 * math.pi * 3 # 3 spirals
+            radius = 1.0 + (i / 15.0) * 2.0 # Move between 1 and 3 units away
             
             new_x = p_origin['x'] + math.cos(angle) * radius
             new_y = p_origin['y'] + math.sin(angle) * radius
@@ -406,19 +426,22 @@ class FortifyActionsHandler:
 
         # Try a few times to find a valid rotation
         for _ in range(10):
-            # Choose pivot: 50% grid center, 50% another friendly point
-            if random.random() < 0.5 or len(team_point_ids) <= 1:
+            # Choose pivot: if point is far from grid center, rotate around it. Otherwise, rotate around another point.
+            grid_size = self.state['grid_size']
+            grid_center = {'x': (grid_size - 1) / 2, 'y': (grid_size - 1) / 2}
+            if distance_sq(p_origin, grid_center) > (grid_size * 0.3)**2 or len(team_point_ids) <= 1:
                 grid_size = self.state['grid_size']
                 pivot = {'x': (grid_size - 1) / 2, 'y': (grid_size - 1) / 2}
                 is_grid_center = True
             else:
+                # Rotate around the nearest other friendly point
                 other_point_ids = [pid for pid in team_point_ids if pid != point_to_move_id]
-                pivot_id = random.choice(other_point_ids)
+                pivot_id = min(other_point_ids, key=lambda pid: distance_sq(p_origin, self.state['points'][pid]))
                 pivot = self.state['points'][pivot_id]
                 is_grid_center = False
 
-            # Choose angle
-            angle = random.choice([math.pi / 4, math.pi / 2, math.pi, -math.pi / 2, -math.pi/4]) # 45, 90, 180 deg
+            # Try angles in a deterministic order
+            for angle in [math.pi / 2, -math.pi / 2, math.pi / 4, -math.pi/4, math.pi]:
             
             new_p_coords_float = rotate_point(p_origin, pivot, angle)
             new_p_coords = clamp_and_round_point_coords(new_p_coords_float, self.state['grid_size'])
@@ -427,21 +450,21 @@ class FortifyActionsHandler:
             temp_points = self.state['points'].copy()
             del temp_points[point_to_move_id]
             is_valid, _ = self.game.is_spawn_location_valid(new_p_coords, teamId, points_override=temp_points)
-            if not is_valid:
-                continue
+                if not is_valid:
+                    continue
 
-            # We found a valid move
-            p_origin['x'] = new_p_coords['x']
-            p_origin['y'] = new_p_coords['y']
+                # We found a valid move
+                p_origin['x'] = new_p_coords['x']
+                p_origin['y'] = new_p_coords['y']
 
-            return {
-                'success': True, 
-                'type': 'rotate_point', 
-                'moved_point': p_origin,
-                'original_coords': original_coords,
-                'pivot_point': pivot,
-                'is_grid_center': is_grid_center,
-            }
+                return {
+                    'success': True, 
+                    'type': 'rotate_point', 
+                    'moved_point': p_origin,
+                    'original_coords': original_coords,
+                    'pivot_point': pivot,
+                    'is_grid_center': is_grid_center,
+                }
 
         # If the loop finishes without finding a valid move, it's a "fizzle".
         return {'success': True, 'type': 'rotate_fizzle', 'reason': 'no valid rotation found'}
@@ -468,7 +491,12 @@ class FortifyActionsHandler:
              return {'success': False, 'reason': 'no points to mirror or strengthen'}
         
         # Strengthen lines connected to a couple of random points
-        points_to_strengthen_ids = random.sample(team_point_ids, min(len(team_point_ids), 2))
+        # Strengthen lines connected to the two closest points
+        if len(team_point_ids) < 2:
+            return {'success': False, 'reason': 'not enough points for fallback'}
+        points_map = self.state['points']
+        p1_id, p2_id = min(combinations(team_point_ids, 2), key=lambda p: distance_sq(points_map[p[0]], points_map[p[1]]))
+        points_to_strengthen_ids = [p1_id, p2_id]
         strengthened_lines = []
         all_team_lines = self.game.query.get_team_lines(teamId)
         
@@ -479,8 +507,24 @@ class FortifyActionsHandler:
         
         if not strengthened_lines:
             # To be truly "never useless", we can try to add a new line as a final fallback.
+            # Add a line between the two closest points that don't already have one
             if len(team_point_ids) >= 2:
-                p1_id, p2_id = random.sample(team_point_ids, 2)
+                points_map = self.state['points']
+                possible_pairs = list(combinations(team_point_ids, 2))
+                possible_pairs.sort(key=lambda p: distance_sq(points_map[p[0]], points_map[p[1]]))
+                
+                existing_lines_keys = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in all_team_lines}
+                
+                chosen_pair = None
+                for p1_id, p2_id in possible_pairs:
+                    if tuple(sorted((p1_id, p2_id))) not in existing_lines_keys:
+                        chosen_pair = (p1_id, p2_id)
+                        break
+                
+                if not chosen_pair:
+                    return {'success': False, 'reason': 'structure is fully connected'}
+                
+                p1_id, p2_id = chosen_pair
                 existing_lines_keys = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in all_team_lines}
                 if tuple(sorted((p1_id, p2_id))) not in existing_lines_keys:
                     line_id = self.game._generate_id('l')
@@ -516,7 +560,13 @@ class FortifyActionsHandler:
         if not candidate_pids:
             return {'success': False, 'reason': 'no non-critical points available to become an anchor'}
 
-        p_to_anchor_id = random.choice(candidate_pids)
+        # Choose the candidate closest to the most enemies
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        if not enemy_points:
+            p_to_anchor_id = candidate_pids[0] # Fallback if no enemies
+        else:
+            points_map = self.state['points']
+            p_to_anchor_id = min(candidate_pids, key=lambda pid: min(distance_sq(points_map[pid], ep) for ep in enemy_points))
         
         if p_to_anchor_id not in self.state['points']:
             return {'success': False, 'reason': 'chosen anchor point does not exist'}
@@ -539,7 +589,9 @@ class FortifyActionsHandler:
         
         if possible_purifiers:
             # --- Primary Effect: Form Purifier ---
-            chosen_purifier_data = random.choice(possible_purifiers)
+            # Choose the purifier formation with the largest area
+            points_map = self.state['points']
+            chosen_purifier_data = max(possible_purifiers, key=lambda p_data: polygon_area([points_map[pid] for pid in p_data['point_ids']]))
             self.state.setdefault('purifiers', {}).setdefault(teamId, []).append(chosen_purifier_data)
             return {'success': True, 'type': 'form_purifier', 'purifier': chosen_purifier_data}
         else:
@@ -548,7 +600,18 @@ class FortifyActionsHandler:
             if len(team_point_ids) < 5:
                 return {'success': False, 'reason': 'not enough points for purifier or its fallback'}
 
-            points_to_reinforce_ids = random.sample(team_point_ids, 5)
+            # Choose the 5 points that are closest to each other (form a cluster)
+            points_map = self.state['points']
+            team_points = [points_map[pid] for pid in team_point_ids]
+            
+            # Find a seed point (closest to centroid) and its 4 nearest neighbors
+            team_centroid = self.game.query.get_team_centroid(teamId)
+            seed_point = min(team_points, key=lambda p: distance_sq(p, team_centroid))
+            
+            other_points = [p for p in team_points if p['id'] != seed_point['id']]
+            other_points.sort(key=lambda p: distance_sq(p, seed_point))
+            
+            points_to_reinforce_ids = [seed_point['id']] + [p['id'] for p in other_points[:4]]
             strengthened_lines = []
             all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
 
@@ -588,7 +651,8 @@ class FortifyActionsHandler:
 
         if available_runes:
             # --- Primary Effect: Create a new Ley Line ---
-            rune_to_activate = random.choice(available_runes)
+            # Activate the longest I-Rune
+            rune_to_activate = max(available_runes, key=lambda r: len(r['point_ids']))
             ley_line_id = self.game._generate_id('ll')
             
             new_ley_line = {
@@ -625,7 +689,8 @@ class FortifyActionsHandler:
             if not team_ley_lines:
                 return {'success': False, 'reason': 'no I-Runes to convert and no Ley Lines to pulse'}
 
-            ley_line_to_pulse = random.choice(team_ley_lines)
+            # Pulse the longest existing Ley Line
+            ley_line_to_pulse = max(team_ley_lines, key=lambda ll: len(ll['point_ids']))
             
             # Strengthen all lines connected to any point on the ley line
             strengthened_lines = []

@@ -186,20 +186,31 @@ const visualEffectsManager = (() => {
         },
         'convert_point': (details, gameState) => {
             uiState.lastActionHighlights.points.add(details.converted_point.id);
-            const line = details.sacrificed_line;
-            const p1 = gameState.points[line.p1_id];
-            const p2 = gameState.points[line.p2_id];
-            if (p1 && p2) {
-                 const midpoint = {x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2};
-                 uiState.visualEffects.push({
-                     type: 'energy_spiral',
-                     start: midpoint,
-                     end: details.converted_point,
-                     color: gameState.teams[details.converted_point.teamId].color,
-                     startTime: Date.now(),
-                     duration: 1000
-                 });
-            }
+            
+            // Find original team color
+            const originalTeam = Object.values(gameState.teams).find(t => t.name === details.original_team_name);
+            const originalColor = originalTeam ? originalTeam.color : '#888888';
+            const newColor = gameState.teams[details.converted_point.teamId].color;
+
+            // Effect 1: Implosion of old color
+            uiState.visualEffects.push({
+                type: 'point_implosion',
+                x: details.converted_point.x,
+                y: details.converted_point.y,
+                color: originalColor,
+                startTime: Date.now(),
+                duration: 400
+            });
+
+            // Effect 2: Explosion of new color
+             uiState.visualEffects.push({
+                type: 'point_explosion',
+                x: details.converted_point.x,
+                y: details.converted_point.y,
+                color: newColor,
+                startTime: Date.now() + 400,
+                duration: 600
+            });
         },
         'convert_fizzle_push': (details, gameState) => {
             uiState.visualEffects.push({
@@ -990,13 +1001,30 @@ const visualEffectsManager = (() => {
                 startTime: Date.now(),
                 duration: 1200
             });
+
+            // Find original team color
+            const originalTeam = Object.values(gameState.teams).find(t => t.name === details.original_team_name);
+            const originalColor = originalTeam ? originalTeam.color : '#888888';
+            const newColor = gameState.teams[details.converted_point.teamId].color;
+
+            // Effect 1: Implosion of old color
             uiState.visualEffects.push({
-                type: 'energy_spiral',
-                start: {x: details.hull_points.reduce((a,b)=>a+b.x,0)/details.hull_points.length, y: details.hull_points.reduce((a,b)=>a+b.y,0)/details.hull_points.length},
-                end: details.converted_point,
-                color: gameState.teams[details.converted_point.teamId].color,
+                type: 'point_implosion',
+                x: details.converted_point.x,
+                y: details.converted_point.y,
+                color: originalColor,
                 startTime: Date.now() + 200,
-                duration: 800
+                duration: 400
+            });
+
+            // Effect 2: Explosion of new color
+             uiState.visualEffects.push({
+                type: 'point_explosion',
+                x: details.converted_point.x,
+                y: details.converted_point.y,
+                color: newColor,
+                startTime: Date.now() + 600,
+                duration: 600
             });
         },
         'hull_breach_fizzle_reinforce': (details, gameState) => {
