@@ -228,6 +228,32 @@ const illustrationDrawers = {
         illustrationHelpers.drawDashedLine(ctx, p1, p2, team1_color);
         illustrationHelpers.drawPoints(ctx, [p2], team1_color);
     },
+    'attack_line_energized': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const team2_color = 'hsl(240, 70%, 50%)';
+        const p1 = {x: w*0.1, y: h*0.5};
+        const p2 = {x: w*0.3, y: h*0.5};
+
+        illustrationHelpers.drawPoints(ctx, [p1,p2], team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1, p2}], team1_color);
+        
+        // Enemy points
+        const ep1 = {x: w*0.6, y: h*0.5};
+        const ep2 = {x: w*0.8, y: h*0.5};
+        illustrationHelpers.drawPoints(ctx, [ep1, ep2], team2_color);
+        
+        // Energized ray
+        ctx.beginPath();
+        ctx.moveTo(p2.x, p2.y);
+        ctx.lineTo(w*0.9, h*0.5);
+        ctx.strokeStyle = 'rgba(255, 255, 100, 1.0)';
+        ctx.lineWidth = 5;
+        ctx.stroke();
+
+        // Explosions on enemy points
+        illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y, 'red', 12);
+        illustrationHelpers.drawExplosion(ctx, ep2.x, ep2.y, 'red', 12);
+    },
     'fight_attack_line': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
@@ -969,6 +995,40 @@ const illustrationDrawers = {
         // Push arrows
         illustrationHelpers.drawArrow(ctx, ep1, {x:w*0.9, y:h*0.3}, '#aaa');
         illustrationHelpers.drawArrow(ctx, ep2, {x:w*0.9, y:h*0.7}, '#aaa');
+    },
+    'nova_shockwave': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const team2_color = 'hsl(240, 70%, 50%)';
+        const center = {x: w*0.5, y: h*0.5};
+        
+        // Sacrificed point
+        illustrationHelpers.drawPoints(ctx, [center], team1_color);
+        illustrationHelpers.drawSacrificeSymbol(ctx, center.x, center.y, 10);
+        
+        // Enemy points being pushed
+        const ep1_orig = {x: w*0.7, y: h*0.3};
+        const ep2_orig = {x: w*0.3, y: h*0.7};
+        const ep1_new = {x: w*0.8, y: h*0.2};
+        const ep2_new = {x: w*0.2, y: h*0.8};
+        
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        illustrationHelpers.drawPoints(ctx, [ep1_orig, ep2_orig], team2_color);
+        ctx.restore();
+        illustrationHelpers.drawPoints(ctx, [ep1_new, ep2_new], team2_color);
+        
+        illustrationHelpers.drawArrow(ctx, ep1_orig, ep1_new, '#aaa');
+        illustrationHelpers.drawArrow(ctx, ep2_orig, ep2_new, '#aaa');
+        
+        // Blast radius
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, w*0.3, 0, 2*Math.PI);
+        ctx.strokeStyle = 'rgba(255, 180, 50, 0.9)';
+        ctx.setLineDash([5,5]);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
     },
     'sacrifice_nova_burst': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';

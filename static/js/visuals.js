@@ -244,7 +244,7 @@ const visualEffectsManager = (() => {
                 uiState.visualEffects.push({ type: 'point_explosion', x: p.x, y: p.y, startTime: Date.now() + 200, duration: 500 });
             });
         },
-        'rune_shoot_bisector': (details, gameState) => {
+        'rune_v_beam': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             uiState.visualEffects.push({
                 type: 'animated_ray',
@@ -462,11 +462,16 @@ const visualEffectsManager = (() => {
         },
         'create_ley_line': (details, gameState) => {
             details.ley_line_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
-            if (details.ley_line_line_ids) {
+            if (details.ley_line_line_ids && details.ley_line_points.length > 0) {
+                const first_point = gameState.points[details.ley_line_points[0]];
+                if (!first_point) return;
+                const team = gameState.teams[first_point.teamId];
+                if (!team) return;
+
                 uiState.visualEffects.push({
                     type: 'line_flash',
                     line_ids: details.ley_line_line_ids,
-                    color: gameState.teams[details.team_id].color,
+                    color: team.color,
                     startTime: Date.now(),
                     duration: 1200
                 });
@@ -621,7 +626,7 @@ const visualEffectsManager = (() => {
                 color: teamColor
             });
         },
-        'rune_hourglass_stasis': (details, gameState) => {
+        'rune_time_stasis': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             uiState.lastActionHighlights.points.add(details.target_point.id);
             const vertex_point = gameState.points[details.vertex_id];
@@ -815,7 +820,7 @@ const visualEffectsManager = (() => {
                 });
             }
         },
-        'build_chronos_spire': (details, gameState) => {
+        'sacrifice_build_wonder': (details, gameState) => {
             if(details.sacrificed_point_ids) {
                 const sacrificed_points = details.sacrificed_point_ids.map(pid => gameState.points[pid]).filter(Boolean);
                 sacrificed_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
