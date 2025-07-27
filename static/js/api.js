@@ -26,7 +26,7 @@ const api = {
             const pyodideFileStructure = {
                 'game_app': [
                     'action_data.py', 'game_data.py', 'game_logic.py', 'geometry.py',
-                    'formations.py', 'structure_data.py', 'turn_processor.py'
+                    'formations.py', 'structure_data.py', 'turn_processor.py', 'game_state_query.py'
                 ],
                 'game_app/actions': [
                     'expand_actions.py', 'fight_actions.py', 'fortify_actions.py', 'rune_actions.py', 'sacrifice_actions.py', 'terraform_actions.py'
