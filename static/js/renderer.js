@@ -902,6 +902,36 @@ const renderer = (() => {
                     });
                     break;
                 }
+                case 'starlight_cascade': {
+                    const cx = (effect.center.x + 0.5) * cellSize;
+                    const cy = (effect.center.y + 0.5) * cellSize;
+                    const maxRadius = effect.radius * cellSize;
+                    const currentRadius = maxRadius * easedProgress;
+
+                    // Outer shockwave
+                    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, currentRadius);
+                    gradient.addColorStop(0, 'rgba(255, 255, 150, 0)');
+                    gradient.addColorStop(0.8, 'rgba(255, 255, 150, 0.5)');
+                    gradient.addColorStop(1, 'rgba(255, 255, 150, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.globalAlpha = 1 - progress; // fade out the whole effect
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, currentRadius, 0, 2 * Math.PI);
+                    ctx.fill();
+
+                    // Sparkling particles
+                    ctx.fillStyle = '#fff';
+                    effect.particles.forEach(p => {
+                        const flicker = (Math.sin(now / p.flicker_speed) + 1) / 2;
+                        if (flicker > 0.5) { // only draw some of the time
+                            const dist = p.speed * easedProgress;
+                            ctx.beginPath();
+                            ctx.arc(cx + Math.cos(p.angle) * dist, cy + Math.sin(p.angle) * dist, flicker * 2, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }
+                    });
+                    break;
+                }
                 case 'new_line': {
                     const p1 = gameState.points[effect.line.p1_id];
                     const p2 = gameState.points[effect.line.p2_id];

@@ -541,6 +541,103 @@ const visualEffectsManager = (() => {
         'rune_hourglass_stasis': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             uiState.lastActionHighlights.points.add(details.target_point.id);
+            const vertex_point = gameState.points[details.vertex_id];
+            if (vertex_point) {
+                uiState.visualEffects.push({
+                    type: 'energy_spiral',
+                    start: vertex_point,
+                    end: details.target_point,
+                    color: 'rgba(150, 220, 255, 0.9)',
+                    startTime: Date.now(),
+                    duration: 1000
+                });
+            }
+        },
+        'rune_cardinal_pulse': (details, gameState) => {
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            const teamColor = gameState.teams[details.team_id].color;
+            details.rays.forEach(ray => {
+                uiState.visualEffects.push({
+                    type: 'attack_ray',
+                    p1: ray.p1,
+                    p2: ray.p2,
+                    startTime: Date.now(),
+                    duration: 600,
+                    color: teamColor
+                });
+            });
+        },
+        'rune_t_hammer_slam': (details, gameState) => {
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
+                type: 'line_flash',
+                line_ids: [details.stem_line_id],
+                color: gameState.teams[details.team_id].color,
+                startTime: Date.now(),
+                duration: 800
+            });
+        },
+        'rune_parallel_discharge': (details, gameState) => {
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            const points = details.rune_points.map(pid => gameState.points[pid]).filter(Boolean);
+            if(points.length === 4) {
+                uiState.visualEffects.push({
+                    type: 'polygon_flash',
+                    points: points,
+                    color: gameState.teams[details.team_id].color,
+                    startTime: Date.now(),
+                    duration: 1000
+                });
+            }
+        },
+        'rune_focus_beam': (details, gameState) => {
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
+                type: 'jagged_ray',
+                p1: details.center_point,
+                p2: details.target_point,
+                startTime: Date.now(),
+                duration: 800,
+                color: 'rgba(255, 255, 150, 1.0)',
+                lineWidth: 5,
+            });
+            uiState.visualEffects.push({
+                type: 'point_explosion',
+                x: details.target_point.x,
+                y: details.target_point.y,
+                startTime: Date.now() + 400,
+                duration: 800
+            });
+        },
+        'rune_starlight_cascade': (details, gameState) => {
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            let particles = [];
+            for(let i=0; i<30; i++) {
+                particles.push({
+                    angle: Math.random() * 2 * Math.PI, 
+                    speed: (50 + Math.random() * 100) * (cellSize/10),
+                    flicker_speed: 50 + Math.random() * 100
+                });
+            }
+            uiState.visualEffects.push({
+                type: 'starlight_cascade',
+                center: details.center_point,
+                radius: details.radius,
+                particles: particles,
+                startTime: Date.now(),
+                duration: 1200
+            });
+        },
+        'rune_gravity_well': (details, gameState) => {
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            uiState.visualEffects.push({
+                type: 'shield_pulse',
+                center: details.center_point,
+                radius_sq: details.radius_sq,
+                color: gameState.teams[details.team_id].color,
+                startTime: Date.now(),
+                duration: 1000
+            });
         },
         'create_rift_trap': (details, gameState) => {
             uiState.lastActionHighlights.points.add(details.sacrificed_point.id);

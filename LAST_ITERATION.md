@@ -1,10 +1,12 @@
-- **Illustration Review (FORTIFY actions):** Reviewed all `FORTIFY` action illustrations for consistency and clarity. No illustrations were missing.
-- **Illustration Design & Consistency:**
-    - Updated the illustration for `Fortify: Form Bastion` to use a square for the bastion core, matching the in-game renderer (`is_bastion_core`) and improving visual consistency between the action guide and the live game. This also simplified the drawing code.
-- **Visual Effects Review (FORTIFY, TERRAFORM, SACRIFICE):**
-    - Reviewed visual effects for all actions in these groups to ensure they are present and visually representative.
+- **Illustration Review (RUNE actions):** Reviewed all `RUNE` action illustrations. All illustrations were present and found to be clear and consistent with their action descriptions and in-game visuals. No changes were made to illustration code.
+- **Visual Effects Review (RUNE actions):**
+    - Reviewed all `RUNE` actions for visual effects and identified several that were missing.
     - **Added new effects:**
-        - `Terraform: Create Fissure`: Now shows a jagged energy ray from the controlling Rift Spire, followed by a `growing_wall` effect to form the fissure.
-        - `Sacrifice: Line Retaliation`: Now shows two `attack_ray` projectiles firing from the sacrificed point, matching the action's description and illustration.
-        - `Sacrifice: Scorch Territory`: Now shows a fiery orange `polygon_flash` over the area before it becomes a persistent scorched zone, making the action more visually impactful.
-- **Checked action coverage:** Confirmed all `FORTIFY`, `TERRAFORM`, and `SACRIFICE` actions have corresponding illustrations and have now been reviewed for visual effects.
+        - `Rune: Hourglass Stasis`: Now shows an `energy_spiral` from the rune's vertex to the target point to represent the freezing action.
+        - `Rune: Cardinal Pulse`: Now shows four `attack_ray` effects firing from the rune's center, matching the action description.
+        - `Rune: T-Hammer Slam`: Now shows a `line_flash` along the rune's stem to visualize the "slam" shockwave.
+        - `Rune: Parallel Discharge`: Now shows a `polygon_flash` over the rune's area to represent the discharge effect.
+        - `Rune: Focus Beam`: Now fires a powerful `jagged_ray` from the star's center and creates a `point_explosion` on the target, making it feel impactful.
+        - `Rune: Starlight Cascade`: Added a new `starlight_cascade` effect, a radial blast of light with sparkling particles, to represent the AoE damage.
+        - `Rune: Gravity Well`: Now uses the standard `shield_pulse` effect to represent the AoE push, ensuring visual consistency for identical effects.
+- **Checked action coverage:** Confirmed all `RUNE` actions now have corresponding visual effects, improving game clarity and engagement.
