@@ -21,9 +21,8 @@ class FormationManager:
         nexuses = []
 
         for p_ids_tuple in combinations(team_point_ids, 4):
-            if not all(pid in all_points for pid in p_ids_tuple): continue
-            
-            p_list = [all_points[pid] for pid in p_ids_tuple]
+            p_list = [all_points.get(pid) for pid in p_ids_tuple]
+            if not all(p_list): continue
             
             is_rect, aspect_ratio = is_rectangle(*p_list)
             if is_rect and abs(aspect_ratio - 1.0) < 0.05:
@@ -97,9 +96,9 @@ class FormationManager:
 
         for p_ids_tuple in combinations(team_point_ids, 4):
             if any(pid in used_points for pid in p_ids_tuple): continue
-            if not all(pid in all_points for pid in p_ids_tuple): continue
             
-            p_list = [all_points[pid] for pid in p_ids_tuple]
+            p_list = [all_points.get(pid) for pid in p_ids_tuple]
+            if not all(p_list): continue
             is_rect, _ = is_rectangle(*p_list)
 
             if is_rect:
@@ -148,13 +147,11 @@ class FormationManager:
                 leg1_id = line1['p1_id'] if line1['p2_id'] == vertex_id else line1['p2_id']
                 leg2_id = line2['p1_id'] if line2['p2_id'] == vertex_id else line2['p2_id']
 
-                # Defensive check to ensure all points exist before trying to access them.
-                if not all(pid in all_points for pid in [vertex_id, leg1_id, leg2_id]):
+                p_vertex = all_points.get(vertex_id)
+                p_leg1 = all_points.get(leg1_id)
+                p_leg2 = all_points.get(leg2_id)
+                if not all([p_vertex, p_leg1, p_leg2]):
                     continue
-                
-                p_vertex = all_points[vertex_id]
-                p_leg1 = all_points[leg1_id]
-                p_leg2 = all_points[leg2_id]
 
                 len1_sq = distance_sq(p_vertex, p_leg1)
                 len2_sq = distance_sq(p_vertex, p_leg2)
@@ -173,14 +170,17 @@ class FormationManager:
 
         for tri_ids in all_triangles_pids:
             if any(pid in used_points for pid in tri_ids): continue
-            if not all(pid in all_points for pid in tri_ids): continue
-            p1, p2, p3 = all_points[tri_ids[0]], all_points[tri_ids[1]], all_points[tri_ids[2]]
+            
+            tri_points = [all_points.get(pid) for pid in tri_ids]
+            if not all(tri_points): continue
+            p1, p2, p3 = tri_points
             
             other_point_ids = [pid for pid in team_point_ids if pid not in tri_ids and pid not in used_points]
             
             for core_id in other_point_ids:
-                if core_id not in all_points: continue
-                if is_point_in_polygon(all_points[core_id], [p1, p2, p3]):
+                p_core = all_points.get(core_id)
+                if not p_core: continue
+                if is_point_in_polygon(p_core, [p1, p2, p3]):
                     rune_points = set(tri_ids) | {core_id}
                     shield_runes.append({'triangle_ids': list(tri_ids), 'core_id': core_id})
                     used_points.update(rune_points)
@@ -251,8 +251,9 @@ class FormationManager:
         trident_runes, used_points = [], set()
 
         for p_ids_tuple in combinations(team_point_ids, 3):
-            if not all(pid in all_points for pid in p_ids_tuple): continue
-            p1, p2, p3 = all_points[p_ids_tuple[0]], all_points[p_ids_tuple[1]], all_points[p_ids_tuple[2]]
+            points_to_check = [all_points.get(pid) for pid in p_ids_tuple]
+            if not all(points_to_check): continue
+            p1, p2, p3 = points_to_check
             iso_info = get_isosceles_triangle_info(p1, p2, p3)
             if not iso_info: continue
                 
@@ -262,9 +263,9 @@ class FormationManager:
             
             for handle_candidate_id in adj.get(p_apex['id'], set()):
                 if handle_candidate_id in (p_base[0]['id'], p_base[1]['id']): continue
-                if handle_candidate_id not in all_points: continue
                 
-                p_handle = all_points[handle_candidate_id]
+                p_handle = all_points.get(handle_candidate_id)
+                if not p_handle: continue
                 base_midpoint_x, base_midpoint_y = (p_base[0]['x'] + p_base[1]['x']) / 2, (p_base[0]['y'] + p_base[1]['y']) / 2
                 
                 val = (p_apex['y'] - p_handle['y']) * (base_midpoint_x - p_apex['x']) - (p_apex['x'] - p_handle['x']) * (base_midpoint_y - p_apex['y'])
@@ -289,9 +290,9 @@ class FormationManager:
 
         for p_ids_tuple in combinations(team_point_ids, 4):
             if any(pid in used_points for pid in p_ids_tuple): continue
-            if not all(pid in all_points for pid in p_ids_tuple): continue
             
-            p_list = [all_points[pid] for pid in p_ids_tuple]
+            p_list = [all_points.get(pid) for pid in p_ids_tuple]
+            if not all(p_list): continue
             is_rect, _ = is_rectangle(*p_list)
             if not is_rect: continue
             
@@ -316,14 +317,14 @@ class FormationManager:
         t_runes, used_points = [], set()
         for mid_id, neighbors_set in adj.items():
             if len(neighbors_set) < 3 or mid_id in used_points: continue
-            if mid_id not in all_points: continue
+            p_mid = all_points.get(mid_id)
+            if not p_mid: continue
             
             neighbors = list(neighbors_set)
-            p_mid = all_points[mid_id]
 
             for p_stem1_id, p_stem2_id in combinations(neighbors, 2):
-                if not all(pid in all_points for pid in [p_stem1_id, p_stem2_id]): continue
-                p_stem1, p_stem2 = all_points[p_stem1_id], all_points[p_stem2_id]
+                p_stem1, p_stem2 = all_points.get(p_stem1_id), all_points.get(p_stem2_id)
+                if not p_stem1 or not p_stem2: continue
                 if orientation(p_stem1, p_mid, p_stem2) != 0: continue
                 
                 v_mid_s1 = {'x': p_stem1['x'] - p_mid['x'], 'y': p_stem1['y'] - p_mid['y']}
@@ -331,8 +332,8 @@ class FormationManager:
                 if v_mid_s1['x'] * v_mid_s2['x'] + v_mid_s1['y'] * v_mid_s2['y'] >= 0: continue
                 
                 for p_head_id in [nid for nid in neighbors if nid not in (p_stem1_id, p_stem2_id)]:
-                    if p_head_id not in all_points: continue
-                    p_head = all_points[p_head_id]
+                    p_head = all_points.get(p_head_id)
+                    if not p_head: continue
                     v_stem_x, v_stem_y = p_stem2['x'] - p_stem1['x'], p_stem2['y'] - p_stem1['y']
                     v_head_x, v_head_y = p_head['x'] - p_mid['x'], p_head['y'] - p_mid['y']
                     
@@ -368,25 +369,32 @@ class FormationManager:
             neighbors = list(adj.get(center_id, set()))
             if len(neighbors) < 4: continue
 
-            if center_id not in all_points: continue
-            p_center = all_points[center_id]
+            p_center = all_points.get(center_id)
+            if not p_center: continue
+            
             for arm_candidates_ids in combinations(neighbors, 4):
-                if not all(pid in all_points for pid in arm_candidates_ids): continue
+                arm_points_with_ids = {pid: all_points.get(pid) for pid in arm_candidates_ids}
+                if not all(arm_points_with_ids.values()): continue
+                
                 p_arm1_id = arm_candidates_ids[0]
+                p_arm1 = arm_points_with_ids[p_arm1_id]
                 for i in range(1, 4):
                     p_arm2_id = arm_candidates_ids[i]
-                    if orientation(all_points[p_arm1_id], p_center, all_points[p_arm2_id]) != 0: continue
+                    p_arm2 = arm_points_with_ids[p_arm2_id]
+                    if orientation(p_arm1, p_center, p_arm2) != 0: continue
                     
-                    v_center_a1 = {'x': all_points[p_arm1_id]['x'] - p_center['x'], 'y': all_points[p_arm1_id]['y'] - p_center['y']}
-                    v_center_a2 = {'x': all_points[p_arm2_id]['x'] - p_center['x'], 'y': all_points[p_arm2_id]['y'] - p_center['y']}
+                    v_center_a1 = {'x': p_arm1['x'] - p_center['x'], 'y': p_arm1['y'] - p_center['y']}
+                    v_center_a2 = {'x': p_arm2['x'] - p_center['x'], 'y': p_arm2['y'] - p_center['y']}
                     if v_center_a1['x'] * v_center_a2['x'] + v_center_a1['y'] * v_center_a2['y'] >= 0: continue
 
                     other_arms_ids = [pid for pid in arm_candidates_ids if pid not in (p_arm1_id, p_arm2_id)]
                     p_arm3_id, p_arm4_id = other_arms_ids[0], other_arms_ids[1]
-                    if orientation(all_points[p_arm3_id], p_center, all_points[p_arm4_id]) != 0: continue
+                    p_arm3 = arm_points_with_ids[p_arm3_id]
+                    p_arm4 = arm_points_with_ids[p_arm4_id]
+                    if orientation(p_arm3, p_center, p_arm4) != 0: continue
                     
-                    v_line1_x, v_line1_y = all_points[p_arm2_id]['x'] - all_points[p_arm1_id]['x'], all_points[p_arm2_id]['y'] - all_points[p_arm1_id]['y']
-                    v_line2_x, v_line2_y = all_points[p_arm4_id]['x'] - all_points[p_arm3_id]['x'], all_points[p_arm4_id]['y'] - all_points[p_arm3_id]['y']
+                    v_line1_x, v_line1_y = p_arm2['x'] - p_arm1['x'], p_arm2['y'] - p_arm1['y']
+                    v_line2_x, v_line2_y = p_arm4['x'] - p_arm3['x'], p_arm4['y'] - p_arm3['y']
                     
                     mag1_sq, mag2_sq = v_line1_x**2 + v_line1_y**2, v_line2_x**2 + v_line2_y**2
                     if mag1_sq < 0.1 or mag2_sq < 0.1: continue
@@ -408,9 +416,9 @@ class FormationManager:
 
         for p_ids_tuple in combinations(team_point_ids, 4):
             if any(pid in used_points for pid in p_ids_tuple): continue
-            if not all(pid in all_points for pid in p_ids_tuple): continue
             
-            p_list = [all_points[pid] for pid in p_ids_tuple]
+            p_list = [all_points.get(pid) for pid in p_ids_tuple]
+            if not all(p_list): continue
             is_para, is_rect = is_parallelogram(*p_list)
             if is_para and not is_rect:
                 edge_data = get_edges_by_distance(p_list)
@@ -492,8 +500,11 @@ class FormationManager:
             for base1_id, base2_id in combinations(neighbors, 2):
                 if base1_id in used_points or base2_id in used_points: continue
 
-                if not all(pid in all_points for pid in [apex_id, base1_id, base2_id]): continue
-                p_apex, p_base1, p_base2 = all_points[apex_id], all_points[base1_id], all_points[base2_id]
+                p_apex = all_points.get(apex_id)
+                p_base1 = all_points.get(base1_id)
+                p_base2 = all_points.get(base2_id)
+                if not all([p_apex, p_base1, p_base2]): continue
+                
                 leg1_sq, leg2_sq = distance_sq(p_apex, p_base1), distance_sq(p_apex, p_base2)
 
                 if abs(leg1_sq - leg2_sq) > 0.01 or leg1_sq < 1.0: continue
@@ -502,9 +513,9 @@ class FormationManager:
 
                 for cw_id in adj.get(base1_id, set()).intersection(adj.get(base2_id, set())):
                     if cw_id == apex_id or cw_id in used_points: continue
-                    if cw_id not in all_points: continue
                     
-                    p_cw = all_points[cw_id]
+                    p_cw = all_points.get(cw_id)
+                    if not p_cw: continue
                     base_midpoint = {'x': (p_base1['x'] + p_base2['x']) / 2, 'y': (p_base1['y'] + p_base2['y']) / 2}
                     v_apex = {'x': p_apex['x'] - base_midpoint['x'], 'y': p_apex['y'] - base_midpoint['y']}
                     v_cw = {'x': p_cw['x'] - base_midpoint['x'], 'y': p_cw['y'] - base_midpoint['y']}
