@@ -63,15 +63,29 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
 When a point is sacrificed as a cost for an action (e.g., Nova Burst, Create Whirlpool), it may not be gone forever. If the point was part of a simple line and not a critical structural weak point (an articulation point), its energy will coalesce. The point will be **removed from play for 3 turns, disabling any lines it was connected to**. After 3 turns, it will attempt to regenerate at its original location if the space is not blocked.
 
 ## Actions
-On its turn, a team will perform one of the following actions, with the choice being influenced by its trait.
+On its turn, a team will perform an action from its pool of available actions. The choice is influenced by its Trait. Actions become available when a team meets specific geometric or structural conditions.
 
-*   **[EXPAND] Add Line:** Connect two of its own points with a new line. If not possible, it will reinforce an existing friendly line.
-*   **[EXPAND] Extend Line:** Extend an existing line to the border of the grid, creating a new point. If no valid extensions can be found, it reinforces an existing friendly line.
-*   **[EXPAND] Bisect Angle:** Finds a point with at least two connected lines (a 'V' shape) and creates a new point along the angle's bisector, also connecting it to the vertex. If it fails, it reinforces one of the lines forming the angle.
-*   **[EXPAND] Fracture Line:** Splits an existing line into two, creating a new point along the line's original path. If no lines are long enough to fracture, it reinforces an existing friendly line.
-*   **[EXPAND] Spawn Point:** Creates a new point near an existing one. If it cannot find a valid position, it reinforces an existing friendly line instead.
-*   **[EXPAND] Mirror Point:** Reflects a friendly point through another friendly point to create a new symmetrical point. If no valid reflection is found, it strengthens the line between them (if it exists).
+### Base Actions (Expand)
+These actions are the primary way a team grows its presence on the grid. They are generally available based on the number of points and lines a team has.
+
+#### Condition: Team has at least 1 point
+*   **[EXPAND] Spawn Point:** Creates a new point in a random empty space near an existing friendly point. If it fails, it strengthens a line, and if that also fails, it creates a new point on the border. *This is a fallback action that ensures a team can almost always do something.*
 *   **[EXPAND] Create Orbital:** Creates a constellation of 3-5 new "satellite" points in a circle around one of its existing points. If no valid formation can be made, it instead reinforces all lines connected to the chosen center point.
+
+#### Condition: Team has at least 2 points
+*   **[EXPAND] Add Line:** Connect two of its own points with a new line. If no more lines can be drawn, it will reinforce an existing friendly line.
+*   **[EXPAND] Mirror Point:** Reflects a friendly point through another friendly point to create a new symmetrical point. If no valid reflection is found, it attempts to strengthen the line between a pair of points, or any random line as a final fallback.
+
+#### Condition: Team has at least 1 line
+*   **[EXPAND] Extend Line:** Extends a line between two points outwards to the grid border, creating a new point there. Can be empowered by an **I-Rune** to also create a line to the new point. If no valid extensions are possible, it strengthens an existing line.
+*   **[EXPAND] Fracture Line:** Splits an existing line into two, creating a new point along the line's original path. This action cannot target the boundary lines of a claimed territory. If no lines are long enough to fracture, it reinforces an existing friendly line.
+
+#### Condition: Team has a V-shape (a point connected to two lines)
+*   **[EXPAND] Bisect Angle:** Finds a point with at least two connected lines (a 'V' shape) and creates a new point along the angle's bisector, also connecting it to the vertex. If it fails, it reinforces one of the lines forming the angle.
+
+### Base Actions (Fight)
+_Section to be updated in a future review._
+
 *   **[FIGHT] Attack Line:** Extend an existing line. If it hits an enemy team's line, the enemy line is damaged or destroyed. Strengthened lines will be weakened first. If it misses, it creates a new friendly point on the border.
 *   **[FIGHT] Pincer Attack:** If two of a team's points are flanking a single enemy point (creating a wide angle), they can perform a joint attack to destroy it. This does not work on fortified or bastion points. If no suitable target is found, the points instead form a small, temporary barricade between them.
 *   **[FIGHT] Territory Strike:** _(Requires a large territory)_ Launches a bolt of energy from the center of a large claimed territory, destroying the nearest vulnerable enemy point. This makes controlling large areas of the map an offensive advantage. If no vulnerable enemies exist, the territory's boundary lines are reinforced instead.

@@ -26,7 +26,7 @@ ACTIONS = {
     'expand_extend': {
         'group': 'Expand', 'handler': 'expand_handler', 'method': 'extend_line',
         'display_name': 'Extend Line',
-        'description': "Extends a line between two points outwards to the grid border, creating a new point there. If no valid extensions are possible, it strengthens an existing line.",
+        'description': "Extends a line between two points outwards to the grid border, creating a new point there. Can be empowered by an I-Rune to also create a line to the new point. If no valid extensions are possible, it strengthens an existing line.",
         'log_generators': {
             'extend_line': lambda r: (
                 f"extended a line to the border, creating a new point{' with an empowered Conduit extension!' if r.get('is_empowered') else '.'}",
@@ -66,7 +66,7 @@ ACTIONS = {
     'expand_mirror_point': {
         'group': 'Expand', 'handler': 'expand_handler', 'method': 'mirror_point',
         'display_name': 'Mirror Point',
-        'description': "Reflects a friendly point through another friendly point to create a new symmetrical point. If no valid reflection is found, it strengthens the line between them (if it exists).",
+        'description': "Reflects a friendly point through another friendly point to create a new symmetrical point. If no valid reflection is found, it attempts to strengthen the line between a pair of points, or any random line as a final fallback.",
         'log_generators': {
             'mirror_point': lambda r: (f"mirrored a point through another, creating a new point.", "[MIRROR PT]"),
             'mirror_point_fizzle_strengthen': lambda r: ("could not find a valid reflection and instead reinforced a line.", "[MIRROR PT->REINFORCE]"),
