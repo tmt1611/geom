@@ -990,17 +990,12 @@ class Game:
         Checks all available actions and returns a list of names of actions
         that the given team can currently perform.
         """
-        if exclude_actions is None:
-            exclude_actions = []
-
+        exclude_actions = exclude_actions or []
         all_statuses = self._get_all_actions_status(teamId)
-        possible_actions = []
-
-        for name, status_info in all_statuses.items():
-            if name not in exclude_actions and status_info['valid']:
-                possible_actions.append(name)
-        
-        return possible_actions
+        return [
+            name for name, status_info in all_statuses.items()
+            if status_info['valid'] and name not in exclude_actions
+        ]
 
 
     def get_action_probabilities(self, teamId, include_invalid=False):

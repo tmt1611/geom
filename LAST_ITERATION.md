@@ -1,3 +1,2 @@
-- **Status Bar Narration Color:** The status bar text at the bottom of the grid now uses the acting team's color for the entire message, more closely matching the design request. Team names within the message remain distinctly colored.
-- **Code Refactoring:** Refactored the `updateLog` function in `main.js` to use a new `colorizeTeamNames` helper function. This removes duplicated code and improves maintainability.
-- **Feature Review:** Confirmed that other requested features (explicit point randomization, action previews, log coloring, dev tools visibility, step-back controls, simulation progress bar) are already implemented and functioning as intended.
+- **Code Refactor (Python):** Simplified the `_get_possible_actions` method in `game_logic.py` by converting its logic into a more concise and Pythonic list comprehension.
+- **UI Improvement (JavaScript):** Improved the readability of the status bar narration. Added a helper function to detect light team colors and automatically darken them, ensuring the text has sufficient contrast against the white background. This enhances the existing implementation of the team-colored narration.
