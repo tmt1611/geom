@@ -376,7 +376,8 @@ class RuneActionsHandler:
             
             return {
                 'success': True, 'type': 'parallel_discharge',
-                'lines_destroyed': lines_to_destroy, 'rune_points': list(rune_p_ids_tuple)
+                'lines_destroyed': lines_to_destroy, 'rune_points': list(rune_p_ids_tuple),
+                'teamId': teamId
             }
         
         # --- Fallback Effect: Create central structure ---
@@ -408,7 +409,8 @@ class RuneActionsHandler:
             
             return {
                 'success': True, 'type': 'parallel_discharge_fizzle_spawn',
-                'new_points': [new_p1, new_p2], 'new_line': new_line, 'rune_points': list(rune_p_ids_tuple)
+                'new_points': [new_p1, new_p2], 'new_line': new_line, 'rune_points': list(rune_p_ids_tuple),
+                'teamId': teamId
             }
 
     def hourglass_stasis(self, teamId):
@@ -666,7 +668,8 @@ class RuneActionsHandler:
 
             return {
                 'success': True, 'type': 'rune_gravity_well_push', 'pushed_points_count': pushed_points_count,
-                'rune_points': rune['all_points'], 'pulse_center': center_point, 'pulse_radius_sq': pulse_radius_sq
+                'rune_points': rune['all_points'], 'pulse_center': center_point, 'pulse_radius_sq': pulse_radius_sq,
+                'teamId': teamId
             }
         else:
             # --- Fallback Effect: Pull Allies ---
@@ -687,7 +690,8 @@ class RuneActionsHandler:
             
             return {
                 'success': True, 'type': 'gravity_well_fizzle_pull', 'pulled_points_count': pulled_points_count,
-                'rune_points': rune['all_points'], 'pulse_center': center_point, 'pulse_radius_sq': pulse_radius_sq
+                'rune_points': rune['all_points'], 'pulse_center': center_point, 'pulse_radius_sq': pulse_radius_sq,
+                'teamId': teamId
             }
 
     def t_hammer_slam(self, teamId):
@@ -745,10 +749,19 @@ class RuneActionsHandler:
                     pushed_points.append(p)
                     
         if pushed_points:
+            all_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
+            key1 = tuple(sorted((rune['mid_id'], rune['stem1_id'])))
+            key2 = tuple(sorted((rune['mid_id'], rune['stem2_id'])))
+            line1 = all_lines_by_points.get(key1)
+            line2 = all_lines_by_points.get(key2)
+            stem_line_ids = [l['id'] for l in [line1, line2] if l]
+
             return {
                 'success': True, 'type': 'rune_t_hammer_slam',
                 'pushed_points_count': len(pushed_points),
-                'rune_points': rune['all_points']
+                'rune_points': rune['all_points'],
+                'teamId': teamId,
+                'stem_line_ids': stem_line_ids
             }
         else:
             # Fallback: Reinforce the stem lines
@@ -764,7 +777,8 @@ class RuneActionsHandler:
 
             return {
                 'success': True, 'type': 't_slam_fizzle_reinforce',
-                'strengthened_lines': strengthened, 'rune_points': rune['all_points']
+                'strengthened_lines': strengthened, 'rune_points': rune['all_points'],
+                'teamId': teamId
             }
 
     def cardinal_pulse(self, teamId):
@@ -835,7 +849,8 @@ class RuneActionsHandler:
         return {
             'success': True, 'type': 'rune_cardinal_pulse',
             'lines_destroyed': destroyed_lines, 'points_created': created_points,
-            'attack_rays': attack_rays, 'rune_points': rune['all_points']
+            'attack_rays': attack_rays, 'rune_points': rune['all_points'],
+            'teamId': teamId
         }
 
     def raise_barricade(self, teamId):

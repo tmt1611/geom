@@ -666,8 +666,8 @@ const visualEffectsManager = (() => {
         },
         'rune_cardinal_pulse': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
-            const teamColor = gameState.teams[details.team_id].color;
-            details.rays.forEach(ray => {
+            const teamColor = gameState.teams[details.teamId].color;
+            details.attack_rays.forEach(ray => {
                 uiState.visualEffects.push({
                     type: 'attack_ray',
                     p1: ray.p1,
@@ -682,8 +682,8 @@ const visualEffectsManager = (() => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             uiState.visualEffects.push({
                 type: 'line_flash',
-                line_ids: [details.stem_line_id],
-                color: gameState.teams[details.team_id].color,
+                line_ids: details.stem_line_ids,
+                color: gameState.teams[details.teamId].color,
                 startTime: Date.now(),
                 duration: 800
             });
@@ -695,7 +695,7 @@ const visualEffectsManager = (() => {
                 uiState.visualEffects.push({
                     type: 'polygon_flash',
                     points: points,
-                    color: gameState.teams[details.team_id].color,
+                    color: gameState.teams[details.teamId].color,
                     startTime: Date.now(),
                     duration: 1000
                 });
@@ -739,13 +739,26 @@ const visualEffectsManager = (() => {
                 duration: 1200
             });
         },
-        'rune_gravity_well': (details, gameState) => {
+        'rune_gravity_well_push': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             uiState.visualEffects.push({
                 type: 'shield_pulse',
-                center: details.center_point,
-                radius_sq: details.radius_sq,
-                color: gameState.teams[details.team_id].color,
+                center: details.pulse_center,
+                radius_sq: details.pulse_radius_sq,
+                color: gameState.teams[details.teamId].color,
+                startTime: Date.now(),
+                duration: 1000
+            });
+        },
+        'gravity_well_fizzle_pull': (details, gameState) => {
+            details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            // This is a bit tricky as we don't know which points were pulled.
+            // We can just create a general implosion effect.
+            uiState.visualEffects.push({
+                type: 'point_implosion',
+                x: details.pulse_center.x,
+                y: details.pulse_center.y,
+                color: gameState.teams[details.teamId].color,
                 startTime: Date.now(),
                 duration: 1000
             });
@@ -810,27 +823,23 @@ const visualEffectsManager = (() => {
                 duration: 600
             });
         },
-        'territory_tri_beam': (details, gameState) => {
+        'territory_bisector_strike': (details, gameState) => {
             details.territory_point_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
-            const teamColor = gameState.teams[details.team_id].color;
-            details.rays.forEach(ray => {
+            const teamColor = gameState.teams[details.teamId].color;
+            details.attack_rays.forEach(ray => {
                 uiState.visualEffects.push({
-                    type: 'attack_ray',
-                    p1: ray.p1,
-                    p2: ray.p2,
-                    startTime: Date.now(),
-                    duration: 800,
-                    color: teamColor
+                    type: 'attack_ray', p1: ray.p1, p2: ray.p2, startTime: Date.now(), duration: 800, color: teamColor
                 });
             });
-            details.hit_points.forEach(hit => {
-                 uiState.visualEffects.push({
-                    type: 'point_explosion',
-                    x: hit.x,
-                    y: hit.y,
-                    startTime: Date.now() + 400,
-                    duration: 500
-                });
+
+            // For destroyed lines, find their midpoints and create an explosion
+            details.destroyed_lines.forEach(line => {
+                const p1 = gameState.points[line.p1_id];
+                const p2 = gameState.points[line.p2_id];
+                if (p1 && p2) {
+                    const midpoint = {x: (p1.x+p2.x)/2, y: (p1.y+p2.y)/2};
+                    uiState.visualEffects.push({ type: 'point_explosion', x: midpoint.x, y: midpoint.y, startTime: Date.now() + 400, duration: 500 });
+                }
             });
         },
         'rune_impale': (details, gameState) => {
