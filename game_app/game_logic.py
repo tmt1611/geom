@@ -312,8 +312,15 @@ class Game:
                 for team_structs in storage.values():
                     structures_to_process.extend(team_structs.get(subtype_key, []))
 
+        is_already_team_filtered = (
+            teamId_filter is not None and
+            storage_type in ['team_dict_list', 'team_dict_of_structures']
+        )
         for struct in structures_to_process:
-            if teamId_filter is None or struct.get('teamId') == teamId_filter:
+            # If we've already filtered by teamId when getting the list,
+            # we don't need to check again. This also handles cases where
+            # the structure itself is a list (e.g., Cross Rune) and has no 'teamId' key.
+            if is_already_team_filtered or teamId_filter is None or struct.get('teamId') == teamId_filter:
                 yield struct
 
     def _get_pids_from_struct(self, struct, key_info_list):
