@@ -331,14 +331,26 @@ js_copy_module = copy
             const state_json = JSON.stringify(state);
             this._pyodide.globals.set('state_json_str_for_augment', state_json);
             
-            const augmented_state_py = this._pyodide.runPython(`
+            // Using JSON serialization is more robust than toJs for complex states,
+            // as it avoids potential bugs in the Pyodide proxy conversion layer that can cause WASM errors.
+            const augmented_state_json_proxy = this._pyodide.runPython(`
 import json
-js_game_instance.augment_state_for_frontend(json.loads(state_json_str_for_augment))
+augmented_state = js_game_instance.augment_state_for_frontend(json.loads(state_json_str_for_augment))
+
+# A custom JSON encoder is needed to handle any 'set' objects that might
+# exist in the data, converting them to lists.
+class SetEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, set):
+            return list(obj)
+        return json.JSONEncoder.default(self, obj)
+
+json.dumps(augmented_state, cls=SetEncoder)
             `);
             
-            const result = this._pyProxyToJs(augmented_state_py);
-            augmented_state_py.destroy(); // Clean up the proxy
-            return result;
+            const result_json = augmented_state_json_proxy.toString();
+            augmented_state_json_proxy.destroy(); // Clean up the proxy
+            return JSON.parse(result_json);
         }
         // This is not needed for HTTP mode, as augmentation is done on the server.
         // We can just return the state as is.

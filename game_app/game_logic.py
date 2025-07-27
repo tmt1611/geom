@@ -494,7 +494,7 @@ class Game:
                         for name in flag_names:
                             if name:
                                 flags[name].update(pids_to_flag)
-        return flags
+        return dict(flags)
 
 
 
