@@ -1,7 +1,6 @@
-- **Refactoring (Readability & Maintainability):**
-  - Refactored multiple complex lambda functions used for action preconditions in `action_data.py`.
-  - Removed the unpythonic `(var := value, (result))[1]` tuple-indexing trick used to assign variables inside lambdas.
-  - Replaced these with more conventional and readable constructs:
-    - For simple checks, a direct ternary expression is now used (e.g., `fight_parallel_strike`, `fortify_claim`).
-    - For more complex checks that required intermediate variables to avoid re-computation, a nested lambda was used as a readable and efficient alternative (e.g., `fortify_anchor`, `rune_hourglass_stasis`, `sacrifice_attune_nexus`).
-  - This significantly improves the readability and maintainability of the central action data definitions without sacrificing performance.
+- **Performance Optimization (Formation Checking):**
+  - Replaced the `O(N^5)` brute-force pentagon search in `_find_possible_purifiers` with a more efficient algorithm.
+  - The new approach builds potential pentagons up from corners (`p1-p2-p3`), using geometric constraints (side lengths, angles) to prune the search space significantly before searching for the remaining points.
+  - This removes the need for a random sampling cap (e.g., checking only `500` combinations), making the Purifier formation check both faster and deterministic, ensuring it will always be found if it exists.
+- **Code Cleanup:**
+  - Removed an unreachable line of code from `_find_possible_monoliths_and_fallbacks`.

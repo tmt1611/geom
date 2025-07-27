@@ -92,45 +92,93 @@ class FortifyActionsHandler:
                 fallback_candidates.append({'point_ids': list(p_ids_tuple), 'side_pairs': side_pairs})
         
         return possible_monoliths, fallback_candidates
-        return possible_monoliths, fallback_candidates
 
     def _find_possible_purifiers(self, teamId):
-        """Helper to find valid pentagonal formations for a Purifier."""
+        """
+        Optimized helper to find valid pentagonal formations for a Purifier.
+        Instead of a brute-force O(N^5) check, this builds up from corners (p1-p2-p3)
+        and uses geometric constraints to find the remaining two points, significantly
+        reducing the search space.
+        """
         team_point_ids = self.game.query.get_team_point_ids(teamId)
         if len(team_point_ids) < 5:
             return []
 
         points = self.state['points']
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.game.query.get_team_lines(teamId)}
+        team_lines = self.game.query.get_team_lines(teamId)
+        existing_lines_set = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in team_lines}
+        adj = self.game.formation_manager.get_adjacency_list(team_point_ids, team_lines)
         
-        # Get points already used in other major structures
         existing_purifier_points = {pid for p_list in self.state.get('purifiers', {}).values() for p in p_list for pid in p['point_ids']}
-
-        possible_purifiers = []
         
-        # To prevent performance issues with large number of points, we'll check a random sample of combinations.
-        # C(20,5) is ~15k, C(30,5) is ~142k. This is too slow.
-        point_combos = list(combinations(team_point_ids, 5))
-        if len(point_combos) > 500:
-            random.shuffle(point_combos)
-            point_combos = point_combos[:500]
+        possible_purifiers = []
+        checked_pentagons = set()
 
-        for p_ids_tuple in point_combos:
-            if any(pid in existing_purifier_points for pid in p_ids_tuple):
-                continue
+        # Geometric constants with tolerance
+        cos_108 = math.cos(math.radians(108))
+        phi_sq = ((1 + math.sqrt(5)) / 2)**2
+        side_tolerance_sq = 0.5
+        diag_tolerance_sq = side_tolerance_sq * phi_sq * 1.2 # Allow slightly more tolerance for diagonals
+        angle_tolerance = 0.05 # Cosine tolerance
 
-            # Defensive check to ensure all points exist before creating the list.
-            if not all(pid in points for pid in p_ids_tuple):
-                continue
+        # 1. Iterate over every point as a potential central vertex of a corner (p2)
+        for p2_id in team_point_ids:
+            if p2_id in existing_purifier_points: continue
+            
+            p2 = points[p2_id]
+            neighbors = list(adj.get(p2_id, []))
+            if len(neighbors) < 2: continue
+            
+            # 2. Iterate over pairs of neighbors to form a corner (p1-p2-p3)
+            for p1_id, p3_id in combinations(neighbors, 2):
+                if p1_id in existing_purifier_points or p3_id in existing_purifier_points: continue
+                
+                p1, p3 = points[p1_id], points[p3_id]
+                
+                s1_sq = distance_sq(p1, p2)
+                s2_sq = distance_sq(p2, p3)
+                if abs(s1_sq - s2_sq) > side_tolerance_sq: continue
+                if s1_sq < 1.0: continue # Ignore tiny formations
 
-            p_list = [points[pid] for pid in p_ids_tuple]
-            if is_regular_pentagon(*p_list):
-                # To be a valid formation, the 5 outer "side" lines must exist.
-                edge_data = get_edges_by_distance(p_list)
-                side_pairs = edge_data['sides']
+                # Check angle p1-p2-p3 is ~108 degrees
+                v1 = {'x': p1['x'] - p2['x'], 'y': p1['y'] - p2['y']}
+                v2 = {'x': p3['x'] - p2['x'], 'y': p3['y'] - p2['y']}
+                dot = v1['x'] * v2['x'] + v1['y'] * v2['y']
+                mag_prod = math.sqrt(s1_sq * s2_sq)
+                if mag_prod < 0.1: continue
+                cos_theta = dot / mag_prod
+                if abs(cos_theta - cos_108) > angle_tolerance: continue
 
-                if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
-                    possible_purifiers.append({'point_ids': list(p_ids_tuple)})
+                # 3. We have a valid corner. Find candidate points for p4 and p5.
+                side_len_sq = s1_sq
+                diag_len_sq = side_len_sq * phi_sq
+                
+                # Find candidates for p5 (connected to p1)
+                for p5_id in adj.get(p1_id, []):
+                    if p5_id == p2_id or p5_id in existing_purifier_points: continue
+                    p5 = points[p5_id]
+                    if abs(distance_sq(p1, p5) - side_len_sq) > side_tolerance_sq: continue
+                    if abs(distance_sq(p2, p5) - diag_len_sq) > diag_tolerance_sq: continue
+                    
+                    # Find candidates for p4 (connected to p3 and p5)
+                    p4_candidates = adj.get(p3_id, set()).intersection(adj.get(p5_id, set()))
+                    for p4_id in p4_candidates:
+                        if p4_id in {p1_id, p2_id, p3_id, p5_id} or p4_id in existing_purifier_points: continue
+                        p4 = points[p4_id]
+
+                        # 4. We have a full 5-point candidate. Verify all distances.
+                        p_ids = [p1_id, p2_id, p3_id, p4_id, p5_id]
+                        p_list_for_check = [p1, p2, p3, p4, p5]
+
+                        if is_regular_pentagon(*p_list_for_check):
+                             # 5. Verify all 5 side lines exist.
+                            edge_data = get_edges_by_distance(p_list_for_check)
+                            side_pairs = edge_data['sides']
+                            if len(side_pairs) == 5 and all(tuple(sorted(pair)) in existing_lines_set for pair in side_pairs):
+                                p_ids_tuple = tuple(sorted(p_ids))
+                                if p_ids_tuple not in checked_pentagons:
+                                    possible_purifiers.append({'point_ids': list(p_ids_tuple)})
+                                    checked_pentagons.add(p_ids_tuple)
         return possible_purifiers
 
     @property
