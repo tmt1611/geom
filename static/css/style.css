@@ -437,6 +437,7 @@ legend {
     border-radius: 6px;
     overflow: hidden;
     border: 1px solid #bdc3c7;
+    cursor: pointer;
 }
 
 #playback-progress-bar::-webkit-progress-bar {

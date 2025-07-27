@@ -663,42 +663,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const loaderText = document.getElementById('loader-text');
         const loaderProgress = document.getElementById('loader-progress');
         loader.style.display = 'flex';
+        loaderProgress.style.display = 'block';
+        loaderProgress.value = 0;
         
         try {
-            let simulationData;
             const payload = {
                 teams: uiState.localTeams, points: uiState.initialPoints,
                 maxTurns: parseInt(maxTurnsInput.value), gridSize: parseInt(gridSizeInput.value)
             };
 
-            if (api._mode === 'pyodide') {
-                loaderText.textContent = 'Simulating turn 0...';
-                loaderProgress.style.display = 'block';
-                loaderProgress.value = 0;
-                
-                const progressCallback = (progress, turn, maxTurns, currentStep) => {
-                    loaderProgress.value = progress;
-                    // The turn counter in the game logic starts at 0 and increments to 1 on the first turn.
-                    // For display, we want to show "Turn 1" during the first turn's simulation.
-                    const displayTurn = Math.max(1, turn);
-                    loaderText.textContent = `Simulating Turn ${displayTurn}/${maxTurns} (Step: ${currentStep})...`;
-                };
+            const progressCallback = (progress, turn, maxTurns, currentStep) => {
+                loaderProgress.value = progress;
+                const displayTurn = Math.max(1, turn);
+                loaderText.textContent = `Simulating Turn ${displayTurn}/${maxTurns} (Step: ${currentStep})...`;
+            };
 
-                simulationData = await api.startGameAsync(payload, progressCallback);
+            const simulationData = await api.startGameAsync(payload, progressCallback);
 
-            } else {
-                loaderText.textContent = 'Simulating on server...';
-                loaderProgress.style.display = 'block'; // Show progress bar for server too
-                loaderProgress.removeAttribute('value'); // Make it indeterminate
-                simulationData = await api.startGame(payload);
-                loaderProgress.setAttribute('value', '0'); // Reset after
-            }
-            
             uiState.initialPoints = [];
-            // In HTTP mode, this is augmented. In Pyodide, it's raw.
-            simulationHistory = simulationData.history || simulationData.raw_history; 
+            simulationHistory = simulationData.history || simulationData.raw_history;
             augmentedHistoryCache = {};
-            if (simulationData.history) { // Pre-fill cache for HTTP mode
+            
+            // If the API returned pre-augmented history (HTTP mode), cache it.
+            if (simulationData.history) {
                 simulationData.history.forEach((state, index) => {
                     augmentedHistoryCache[index] = state;
                 });

@@ -423,20 +423,45 @@ class Game:
         finally:
             self.state = original_live_state # Ensure we restore state
 
-    def run_full_simulation(self, teams, points, max_turns, grid_size):
+    def run_full_simulation_streamed(self, teams, points, max_turns, grid_size):
         """
-        Runs a complete game simulation from a given setup and returns the raw history of states.
-        The history should be augmented before being sent to the client.
+        Runs a complete game simulation, yielding updates for streaming.
+        Yields dicts with 'type' ('progress' or 'state') and 'data'.
         """
         self.start_game(teams, points, max_turns, grid_size)
         
-        # Store deep copies of the raw state at each step.
-        raw_history = [copy.deepcopy(self.state)]
+        yield {"type": "state", "data": copy.deepcopy(self.state)}
         
+        step = 0
         while self.state['game_phase'] == 'RUNNING':
             self.run_next_action()
-            raw_history.append(copy.deepcopy(self.state))
+            step += 1
+            
+            # Progress calculation
+            turn = self.state['turn']
+            action_in_turn = self.state['action_in_turn']
+            actions_this_turn = len(self.state['actions_queue_this_turn'])
+            
+            if max_turns > 0:
+                completed_turns = max(0, turn - 1)
+                turn_progress = completed_turns / max_turns
+                action_progress_in_turn = actions_this_turn > 0 and (action_in_turn / actions_this_turn) or 0
+                total_progress = round((turn_progress + action_progress_in_turn / max_turns) * 100)
+            else:
+                total_progress = 0
 
+            yield {"type": "progress", "data": {"progress": total_progress, "turn": turn, "max_turns": max_turns, "step": step}}
+            yield {"type": "state", "data": copy.deepcopy(self.state)}
+            
+    def run_full_simulation(self, teams, points, max_turns, grid_size):
+        """
+        Runs a complete game simulation from a given setup and returns the raw history of states.
+        This is a non-streaming version for Pyodide.
+        """
+        raw_history = []
+        for update in self.run_full_simulation_streamed(teams, points, max_turns, grid_size):
+            if update['type'] == 'state':
+                raw_history.append(update['data'])
         return { "raw_history": raw_history }
 
     def restart_game_and_run_simulation(self):

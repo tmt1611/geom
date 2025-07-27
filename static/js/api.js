@@ -136,32 +136,69 @@ js_game_data = game_data
     },
 
     async startGame(payload) {
-        if (this._mode === 'pyodide') {
-            // This is the synchronous version for dev tools, etc.
-            const result_py = this._game.run_full_simulation(
-                this._pyodide.toPy(payload.teams),
-                this._pyodide.toPy(payload.points),
-                payload.maxTurns,
-                payload.gridSize
-            );
-            const result_js = this._pyProxyToJs(result_py);
-            return { raw_history: result_js.raw_history };
-        }
-        // HTTP mode gets pre-augmented history. This is always "async" from the client's perspective.
-        return this._fetchJson('/api/game/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+        // This is a simple, non-streaming start for dev tools or modes that don't need progress.
+        const result = await this.startGameAsync(payload);
+        return result; // It will return the full history object.
     },
 
     async startGameAsync(payload, progressCallback) {
-        if (this._mode !== 'pyodide') {
-            // Fallback for http mode - it doesn't support progress streaming this way.
-            return this.startGame(payload);
+        if (this._mode === 'http') {
+            // HTTP mode uses fetch streaming
+            const response = await fetch('/api/game/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                const error = new Error(`Server returned an error: ${response.status} ${response.statusText}`);
+                error.response_text = errorText;
+                throw error;
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            const history = [];
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep partial line for the next chunk
+
+                for (const line of lines) {
+                    if (line.trim() === '') continue;
+                    try {
+                        const update = JSON.parse(line);
+                        if (update.type === 'progress' && progressCallback) {
+                            const pData = update.data;
+                            progressCallback(pData.progress, pData.turn, pData.max_turns, pData.step);
+                        } else if (update.type === 'state') {
+                            // The server now sends augmented states
+                            history.push(update.data);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse JSON stream line:", line, e);
+                    }
+                }
+            }
+            // Final progress update
+            if (progressCallback) {
+                if (history.length > 0) {
+                    const lastState = history[history.length - 1];
+                    progressCallback(100, lastState.max_turns, lastState.max_turns, history.length - 1);
+                } else {
+                    progressCallback(100, payload.maxTurns, payload.maxTurns, 0);
+                }
+            }
+            return { history }; // HTTP mode returns pre-augmented history
         }
 
-        // This is a new method for pyodide that runs the simulation asynchronously.
+        // Pyodide mode simulation
         this._game.start_game(
             this._pyodide.toPy(payload.teams),
             this._pyodide.toPy(payload.points),
@@ -189,9 +226,9 @@ js_game_data = game_data
 
                         // Progress based on completed turns + fraction of current turn
                         const completed_turns = Math.max(0, turn - 1);
-                        const turn_progress = completed_turns / max_turns;
+                        const turn_progress = max_turns > 0 ? completed_turns / max_turns : 0;
                         const action_progress_in_turn = actions_this_turn > 0 ? (action_in_turn / actions_this_turn) : 0;
-                        const total_progress = Math.round((turn_progress + action_progress_in_turn / max_turns) * 100);
+                        const total_progress = max_turns > 0 ? Math.round((turn_progress + action_progress_in_turn / max_turns) * 100) : 0;
                         
                         const currentStep = raw_history.length - 1;
                         progressCallback(total_progress, turn, max_turns, currentStep);
@@ -204,7 +241,7 @@ js_game_data = game_data
                          const currentStep = raw_history.length - 1;
                          progressCallback(100, max_turns, max_turns, currentStep);
                     }
-                    resolve({ raw_history });
+                    resolve({ raw_history }); // Pyodide mode returns raw history
                 }
             };
             setTimeout(step, 0);

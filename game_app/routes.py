@@ -1,6 +1,7 @@
 import os
 import base64
-from flask import Blueprint, render_template, jsonify, request, current_app, send_from_directory
+import json
+from flask import Blueprint, render_template, jsonify, request, current_app, send_from_directory, Response, stream_with_context
 from . import game_logic
 from . import game_data
 from . import utils
@@ -32,7 +33,7 @@ def get_game_state():
 
 @main_routes.route('/api/game/start', methods=['POST'])
 def start_game():
-    """Runs a full simulation with settings from the client and returns the history."""
+    """Runs a full simulation, streaming updates to the client."""
     data = request.json
     teams = data.get('teams', {})
     points = data.get('points', [])
@@ -42,13 +43,17 @@ def start_game():
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid maxTurns or gridSize"}), 400
 
-    result = game_logic.game.run_full_simulation(teams, points, max_turns, grid_size)
-    raw_history = result.get("raw_history", [])
+    def generate():
+        for update in game_logic.game.run_full_simulation_streamed(teams, points, max_turns, grid_size):
+            # For streaming, we send augmented states so the client doesn't need to request them.
+            if update['type'] == 'state':
+                update['data'] = game_logic.game.augment_state_for_frontend(update['data'])
+            
+            # Send each update as a newline-delimited JSON object
+            yield json.dumps(update) + '\n'
 
-    # Augment history on the server before sending to client
-    augmented_history = [game_logic.game.augment_state_for_frontend(s) for s in raw_history]
-
-    return jsonify({ "history": augmented_history })
+    # The 'application/x-json-stream' mimetype is a convention for this kind of streaming.
+    return Response(stream_with_context(generate()), mimetype='application/x-json-stream')
 
 @main_routes.route('/api/game/restart', methods=['POST'])
 def restart_game():
