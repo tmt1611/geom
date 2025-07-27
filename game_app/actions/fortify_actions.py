@@ -301,12 +301,7 @@ class FortifyActionsHandler:
         if not fortified_point_ids:
             return []
 
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.game.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        adj = self.game._get_team_adjacency_list(teamId)
         
         existing_bastion_points = self.game._get_bastion_point_ids()
         used_points = existing_bastion_points['cores'].union(existing_bastion_points['prongs'])
@@ -338,13 +333,9 @@ class FortifyActionsHandler:
             if not fortified_point_ids:
                 return {'success': False, 'reason': 'no valid bastion formation and no fortified points to reinforce'}
             
-            adj = {pid: 0 for pid in self.game.get_team_point_ids(teamId)}
-            for line in self.game.get_team_lines(teamId):
-                if line['p1_id'] in adj: adj[line['p1_id']] += 1
-                if line['p2_id'] in adj: adj[line['p2_id']] += 1
-
+            degrees = self.game._get_team_degrees(teamId)
             # Find the fortified point with the highest degree
-            point_to_reinforce_id = max(fortified_point_ids, key=lambda pid: adj.get(pid, 0), default=None)
+            point_to_reinforce_id = max(fortified_point_ids, key=lambda pid: degrees.get(pid, 0), default=None)
 
             if not point_to_reinforce_id:
                 return {'success': False, 'reason': 'could not find a fortified point to reinforce'}

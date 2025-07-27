@@ -12,6 +12,20 @@ class FormationManager:
     def __init__(self):
         pass # This manager is stateless.
 
+    def get_adjacency_list(self, team_point_ids, team_lines):
+        """Builds an adjacency list (pid -> set of neighbor pids)."""
+        adj = {pid: set() for pid in team_point_ids}
+        for line in team_lines:
+            if line['p1_id'] in adj and line['p2_id'] in adj:
+                adj[line['p1_id']].add(line['p2_id'])
+                adj[line['p2_id']].add(line['p1_id'])
+        return adj
+
+    def get_degrees(self, team_point_ids, team_lines):
+        """Calculates the degree for each point (number of connected lines)."""
+        adj = self.get_adjacency_list(team_point_ids, team_lines)
+        return {pid: len(neighbors) for pid, neighbors in adj.items()}
+
     def check_nexuses(self, team_point_ids, team_lines, all_points):
         """Checks for Nexus formations (a square of points with outer lines and one diagonal)."""
         if len(team_point_ids) < 4:
@@ -38,12 +52,7 @@ class FormationManager:
         form a rectangle geometrically and that all 4 side lines exist.
         Yields a dictionary containing point IDs, the list of points, and aspect ratio.
         """
-        # Adjacency list is built here to be self-contained.
-        adj = {pid: set() for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        adj = self.get_adjacency_list(team_point_ids, team_lines)
         
         checked_quads = set()
         # Iterate through points to find potential right-angle corners
@@ -103,11 +112,7 @@ class FormationManager:
         if len(team_point_ids) < 3:
             return []
 
-        adj = {pid: set() for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        adj = self.get_adjacency_list(team_point_ids, team_lines)
         
         i_runes = []
         endpoints = {pid for pid, neighbors in adj.items() if len(neighbors) == 1}
@@ -154,11 +159,7 @@ class FormationManager:
         if len(team_point_ids) < 3:
             return set()
 
-        adj = {pid: set() for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        adj = self.get_adjacency_list(team_point_ids, team_lines)
 
         all_triangles = set()
         sorted_point_ids = sorted(list(team_point_ids))
@@ -279,13 +280,8 @@ class FormationManager:
         """Finds Trident Runes."""
         if len(team_point_ids) < 4: return []
 
-        adj = {pid: set() for pid in team_point_ids}
-        existing_lines_set = set()
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-                existing_lines_set.add(tuple(sorted((line['p1_id'], line['p2_id']))))
+        adj = self.get_adjacency_list(team_point_ids, team_lines)
+        existing_lines_set = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in team_lines}
 
         trident_runes, used_points = [], set()
 
@@ -349,11 +345,7 @@ class FormationManager:
         """Finds T-Runes."""
         if len(team_point_ids) < 4: return []
 
-        adj = {pid: set() for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        adj = self.get_adjacency_list(team_point_ids, team_lines)
         
         t_runes, used_points = [], set()
         for mid_id, neighbors_set in adj.items():
@@ -398,11 +390,7 @@ class FormationManager:
         """Finds Plus-Runes."""
         if len(team_point_ids) < 5: return []
 
-        adj = {pid: set() for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        adj = self.get_adjacency_list(team_point_ids, team_lines)
 
         plus_runes, used_points = [], set()
         for center_id in team_point_ids:
@@ -453,11 +441,7 @@ class FormationManager:
         """Finds Parallel Runes: a non-rectangular parallelogram with all four sides."""
         if len(team_point_ids) < 4: return []
         
-        adj = {pid: set() for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        adj = self.get_adjacency_list(team_point_ids, team_lines)
         
         parallel_runes, checked_quads = [], set()
 
@@ -498,11 +482,7 @@ class FormationManager:
         """Finds Hourglass Runes: two triangles sharing a single vertex."""
         if len(team_point_ids) < 5: return []
 
-        adj = {pid: set() for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        adj = self.get_adjacency_list(team_point_ids, team_lines)
 
         hourglass_runes, used_points = [], set()
         for vertex_id in team_point_ids:
@@ -549,11 +529,7 @@ class FormationManager:
         """Checks for Trebuchet formations (a specific kite shape)."""
         if len(team_point_ids) < 4: return []
 
-        adj = {pid: set() for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        adj = self.get_adjacency_list(team_point_ids, team_lines)
         
         used_points, possible_trebuchets = set(), []
         for apex_id in team_point_ids:

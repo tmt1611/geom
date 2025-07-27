@@ -94,11 +94,7 @@ class SacrificeActionsHandler:
             return [] # Can only have one heartwood
 
         team_point_ids = self.game.get_team_point_ids(teamId)
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.game.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
+        adj = self.game._get_team_adjacency_list(teamId)
         
         candidates = []
         for pid, neighbors in adj.items():
@@ -272,10 +268,7 @@ class SacrificeActionsHandler:
         team_lines = self.game.get_team_lines(teamId)
         team_point_ids = self.game.get_team_point_ids(teamId)
         
-        adj_degree = {pid: 0 for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj_degree: adj_degree[line['p1_id']] += 1
-            if line['p2_id'] in adj_degree: adj_degree[line['p2_id']] += 1
+        adj_degree = self.game._get_team_degrees(teamId)
 
         fortified_point_ids = self.game._get_fortified_point_ids()
         bastion_point_ids = self.game._get_bastion_point_ids()

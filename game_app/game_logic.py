@@ -953,14 +953,18 @@ class Game:
         return random.choice(safe_candidates[:num_choices])
 
     def _get_team_adjacency_list(self, teamId):
-        """Builds and returns an adjacency list for a team's graph."""
-        team_point_ids = self.get_team_point_ids(teamId)
-        adj = {pid: set() for pid in team_point_ids}
-        for line in self.get_team_lines(teamId):
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
-        return adj
+        """Builds and returns an adjacency list for a team's graph by calling the formation manager."""
+        return self.formation_manager.get_adjacency_list(
+            self.get_team_point_ids(teamId),
+            self.get_team_lines(teamId)
+        )
+
+    def _get_team_degrees(self, teamId):
+        """Calculates point degrees for a team's graph by calling the formation manager."""
+        return self.formation_manager.get_degrees(
+            self.get_team_point_ids(teamId),
+            self.get_team_lines(teamId)
+        )
 
     def _find_articulation_points(self, teamId):
         """Finds all articulation points (cut vertices) for a team's graph. Returns (points, adj_list)."""

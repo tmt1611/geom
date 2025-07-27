@@ -41,12 +41,8 @@ class ExpandActionsHandler:
             return False, "Requires at least 3 points to form an angle."
         
         # Check if primary is possible
-        adj = {pid: 0 for pid in team_point_ids}
-        for line in self.game.get_team_lines(teamId):
-            if line['p1_id'] in adj: adj[line['p1_id']] += 1
-            if line['p2_id'] in adj: adj[line['p2_id']] += 1
-        
-        if any(degree >= 2 for degree in adj.values()):
+        degrees = self.game._get_team_degrees(teamId)
+        if any(degree >= 2 for degree in degrees.values()):
             return True, ""
 
         # Check if fallback is possible (any line to strengthen)
@@ -468,11 +464,9 @@ class ExpandActionsHandler:
         team_lines = self.game.get_team_lines(teamId)
         
         # Build adjacency list to find vertices
-        adj = {pid: [] for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].append(line['p2_id'])
-                adj[line['p2_id']].append(line['p1_id'])
+        adj_sets = self.game._get_team_adjacency_list(teamId)
+        # Convert to list for sampling logic below
+        adj = {pid: list(neighbors) for pid, neighbors in adj_sets.items()}
         
         possible_vertices = [pid for pid, neighbors in adj.items() if len(neighbors) >= 2]
         random.shuffle(possible_vertices)

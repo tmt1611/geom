@@ -1,5 +1,4 @@
-- **Refactoring & Centralization (Sacrifice Logic):**
-  - Refactored the `_get_eligible_phase_shift_lines` helper in `sacrifice_actions.py`.
-  - The original implementation manually calculated which points were "critical" by checking multiple structure types. This was replaced with a call to the centralized `game._get_critical_structure_point_ids` helper, which uses the structure registry in `structure_data.py`.
-  - The internal logic was also cleaned up to be more readable and robust, first filtering for non-critical lines and then applying a preference for safer lines within that subset.
-  - This improves maintainability by removing duplicated logic and centralizing the definition of "critical structures". It affects the `phase_shift`, `convert_point`, and `line_retaliation` sacrifice actions.
+- **Refactoring & Centralization (Graph Logic):**
+  - Centralized the logic for calculating team graph structures (adjacency lists and point degrees) into new helper methods in `game_app/formations.py`. This removes significant code duplication.
+  - Refactored `game_logic.py` to create convenient wrapper methods (`_get_team_adjacency_list`, `_get_team_degrees`) that call the new centralized `FormationManager` methods.
+  - Updated all action handlers (`expand`, `fortify`, `sacrifice`) and all methods within `FormationManager` to use these new helpers instead of calculating graph properties locally. This improves code reuse, maintainability, and consistency.
