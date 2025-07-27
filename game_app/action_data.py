@@ -92,10 +92,8 @@ ACTIONS = {
         'display_name': 'Mirror Point',
         'description': "Reflects a friendly point through another friendly point to create a new symmetrical point. If no valid reflection is found, it attempts to strengthen the line between a pair of points, or any random line as a final fallback.",
         'precondition': lambda h, tid: (
-            (
-                (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 2 or len(h.game.query.get_team_lines(tid)) > 0
-                else (False, "Requires at least 2 points to mirror or a line to strengthen.")
-            )
+            (True, "") if len(h.game.query.get_team_point_ids(tid)) >= 2 or len(h.game.query.get_team_lines(tid)) > 0
+            else (False, "Requires at least 2 points to mirror or a line to strengthen.")
         ),
         'log_generators': {
             'mirror_point': lambda r: (f"mirrored a point through another, creating a new point.", "[MIRROR PT]"),
@@ -302,17 +300,15 @@ ACTIONS = {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'create_anchor',
         'display_name': 'Create Anchor', 'no_cost': True,
         'description': "Turns a non-critical point into a gravitational anchor, which pulls nearby enemy points towards it for several turns. This action has no cost.",
-        'precondition': lambda h, tid: (
-            (lambda pids:
-                ( (False, "Requires at least one point.") if not pids
-                else (True, "") if any(
-                    pid not in h.game.query.get_critical_structure_point_ids(tid) and
-                    pid not in h.state.get('anchors', {})
-                    for pid in pids
-                )
-                else (False, "No available non-critical points to turn into an anchor.") )
-            )(h.game.query.get_team_point_ids(tid))
-        ),
+        'precondition': lambda h, tid: (lambda pids:
+            ( (False, "Requires at least one point.") if not pids
+            else (True, "") if any(
+                pid not in h.game.query.get_critical_structure_point_ids(tid) and
+                pid not in h.state.get('anchors', {})
+                for pid in pids
+            )
+            else (False, "No available non-critical points to turn into an anchor.") )
+        )(h.game.query.get_team_point_ids(tid)),
         'log_generators': {
             'create_anchor': lambda r: ("turned one of its points into a gravitational anchor.", "[ANCHOR]"),
         }
