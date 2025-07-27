@@ -641,6 +641,62 @@ const visualEffectsManager = (() => {
                 duration: 800,
             });
         },
+        'hull_breach_convert': (details, gameState) => {
+            uiState.lastActionHighlights.points.add(details.converted_point.id);
+            details.hull_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
+            uiState.visualEffects.push({
+                type: 'polygon_flash',
+                points: details.hull_points,
+                color: gameState.teams[details.converted_point.teamId].color,
+                startTime: Date.now(),
+                duration: 1000
+            });
+            uiState.visualEffects.push({
+                type: 'energy_spiral',
+                start: {x: details.hull_points.reduce((a,b)=>a+b.x,0)/details.hull_points.length, y: details.hull_points.reduce((a,b)=>a+b.y,0)/details.hull_points.length},
+                end: details.converted_point,
+                color: gameState.teams[details.converted_point.teamId].color,
+                startTime: Date.now() + 200,
+                duration: 800
+            });
+        },
+        'hull_breach_fizzle_reinforce': (details, gameState) => {
+            details.hull_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
+            uiState.visualEffects.push({
+                type: 'polygon_flash',
+                points: details.hull_points,
+                color: gameState.teams[details.hull_points[0].teamId].color,
+                startTime: Date.now(),
+                duration: 1000
+            });
+            (details.strengthened_lines || []).forEach(line => {
+                uiState.lastActionHighlights.lines.add(line.id);
+                uiState.visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now() + 200, duration: 800 });
+            });
+            (details.created_lines || []).forEach(line => {
+                uiState.lastActionHighlights.lines.add(line.id);
+                uiState.visualEffects.push({ type: 'new_line', line: line, startTime: Date.now() + 200, duration: 800 });
+            });
+        },
+        'hull_breach_fizzle_push': (details, gameState) => {
+            details.hull_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
+            const center = {x: details.hull_points.reduce((a,b)=>a+b.x,0)/details.hull_points.length, y: details.hull_points.reduce((a,b)=>a+b.y,0)/details.hull_points.length};
+            uiState.visualEffects.push({
+                type: 'polygon_flash',
+                points: details.hull_points,
+                color: gameState.teams[details.hull_points[0].teamId].color,
+                startTime: Date.now(),
+                duration: 1000
+            });
+            uiState.visualEffects.push({
+                type: 'shield_pulse',
+                center: center,
+                radius_sq: (gameState.grid_size * 0.2)**2,
+                color: gameState.teams[details.hull_points[0].teamId].color,
+                startTime: Date.now() + 200,
+                duration: 800,
+            });
+        },
         'rotate_point': (details, gameState) => {
             uiState.lastActionHighlights.points.add(details.moved_point.id);
             if (details.pivot_point && !details.is_grid_center) {

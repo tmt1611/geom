@@ -144,8 +144,10 @@ Sacrifice actions require a team to destroy one of its own assets (a point, line
 *   **[SACRIFICE] Create Whirlpool:** Sacrifices a point to create a vortex that pulls all nearby points towards its center for several turns. If no points are nearby on creation, it creates a small fissure instead.
 *   **[SACRIFICE] Create Rift Trap:** Sacrifices a point to lay a temporary, invisible trap. If an enemy point enters its radius, the trap destroys it. If untriggered, it collapses into a new friendly point.
 
+#### Condition: Team has at least 1 line to sacrifice
+*   **[SACRIFICE] Convert Point:** Sacrifices a friendly line (preferring non-critical ones) to convert the nearest vulnerable enemy point to its team. If no target is in range, it creates a repulsive pulse that pushes enemies away.
+
 #### Condition: Team has a non-critical line to sacrifice
-*   **[SACRIFICE] Convert Point:** Sacrifices a friendly line to convert the nearest vulnerable enemy point to its team. If no target is in range, it creates a repulsive pulse that pushes enemies away.
 *   **[SACRIFICE] Phase Shift:** Sacrifices a line to instantly 'teleport' one of the line's endpoints to a new random location. If it fails, the other endpoint becomes a temporary gravitational anchor.
 *   **[SACRIFICE] Line Retaliation:** Sacrifices a point on a line to unleash two projectiles from the line's former position. One continues along the line's path, the other fires perpendicularly.
 
