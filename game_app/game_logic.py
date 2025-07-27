@@ -377,11 +377,28 @@ class Game:
         
         # Store the initial state for restarting
         self.state['initial_state'] = {
-            'teams': self.state['teams'],
+            'teams': {tid: t.copy() for tid, t in self.state['teams'].items()},
             'points': points, # Use original point list before IDs are added
             'max_turns': max_turns,
             'grid_size': grid_size
         }
+
+    def run_full_simulation(self, teams, points, max_turns, grid_size):
+        """
+        Runs a complete game simulation from a given setup and returns the history
+        of states.
+        """
+        self.start_game(teams, points, max_turns, grid_size)
+        
+        history_states = [self.get_state()] # Start with initial state
+        
+        # Main simulation loop
+        while self.state['game_phase'] == 'RUNNING':
+            self.run_next_action()
+            # Append a deep copy of the state after each action
+            history_states.append(self.get_state())
+
+        return { "history": history_states }
 
     def _get_all_point_flags(self):
         """
@@ -1063,8 +1080,8 @@ class Game:
         return chosen_action_name, action_func
 
 
-    def restart_game(self):
-        """Restarts the game from its initial configuration."""
+    def restart_game_and_run_simulation(self):
+        """Restarts the game from its initial configuration and runs the full simulation."""
         if not self.state.get('initial_state'):
             return {"error": "No initial state saved to restart from."}
         
@@ -1074,13 +1091,12 @@ class Game:
         teams = {tid: t.copy() for tid, t in initial_config['teams'].items()}
         points = [p.copy() for p in initial_config['points']]
 
-        self.start_game(
+        return self.run_full_simulation(
             teams=teams,
             points=points,
             max_turns=initial_config['max_turns'],
             grid_size=initial_config['grid_size']
         )
-        return self.get_state()
 
     # --- Start of Turn Processing ---
 

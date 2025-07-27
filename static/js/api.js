@@ -137,13 +137,13 @@ js_game_data = game_data
 
     async startGame(payload) {
         if (this._mode === 'pyodide') {
-            this._game.start_game(
+            const history = this._game.run_full_simulation(
                 this._pyodide.toPy(payload.teams),
                 this._pyodide.toPy(payload.points),
                 payload.maxTurns,
                 payload.gridSize
             );
-            return this.getState();
+            return this._pyProxyToJs(history);
         }
         return this._fetchJson('/api/game/start', {
             method: 'POST',
@@ -154,7 +154,7 @@ js_game_data = game_data
 
     async restart() {
         if (this._mode === 'pyodide') {
-            const result = this._game.restart_game();
+            const result = this._game.restart_game_and_run_simulation();
             return this._pyProxyToJs(result);
         }
         return this._fetchJson('/api/game/restart', { method: 'POST' });
@@ -168,21 +168,7 @@ js_game_data = game_data
         return this._fetchJson('/api/game/reset', { method: 'POST' });
     },
 
-    async nextAction() {
-        if (this._mode === 'pyodide') {
-            this._game.run_next_action();
-            return this.getState();
-        }
-        return this._fetchJson('/api/game/next_action', { method: 'POST' });
-    },
 
-    async getActionProbabilities(teamId, includeInvalid) {
-        if (this._mode === 'pyodide') {
-            const probabilities = this._game.get_action_probabilities(teamId, includeInvalid);
-            return this._pyProxyToJs(probabilities);
-        }
-        return this._fetchJson(`/api/game/action_probabilities?teamId=${teamId}&include_invalid=${includeInvalid}`);
-    },
 
     async getAllActions() {
         if (this._mode === 'pyodide') {

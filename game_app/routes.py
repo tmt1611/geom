@@ -32,24 +32,23 @@ def get_game_state():
 
 @main_routes.route('/api/game/start', methods=['POST'])
 def start_game():
-    """Resets and initializes the game with settings from the client."""
+    """Runs a full simulation with settings from the client and returns the history."""
     data = request.json
     teams = data.get('teams', {})
     points = data.get('points', [])
-    # Add some basic validation
     try:
         max_turns = int(data.get('maxTurns', 100))
         grid_size = int(data.get('gridSize', 10))
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid maxTurns or gridSize"}), 400
 
-    game_logic.game.start_game(teams, points, max_turns, grid_size)
-    return jsonify(game_logic.game.get_state())
+    simulation_data = game_logic.game.run_full_simulation(teams, points, max_turns, grid_size)
+    return jsonify(simulation_data)
 
 @main_routes.route('/api/game/restart', methods=['POST'])
 def restart_game():
-    """Restarts the simulation with the same initial settings."""
-    result = game_logic.game.restart_game()
+    """Restarts the simulation with the same initial settings and returns the history."""
+    result = game_logic.game.restart_game_and_run_simulation()
     if "error" in result:
         return jsonify(result), 400
     return jsonify(result)
@@ -59,31 +58,6 @@ def reset_game():
     """Resets the game to its initial empty state (SETUP phase)."""
     game_logic.game.reset()
     return jsonify(game_logic.game.get_state())
-
-@main_routes.route('/api/game/next_action', methods=['POST'])
-def next_action():
-    """Processes the next single action in a turn."""
-    game_logic.game.run_next_action()
-    return jsonify(game_logic.game.get_state())
-
-@main_routes.route('/api/game/action_probabilities', methods=['GET'])
-def get_action_probabilities():
-    """
-    Returns a list of possible actions and their probabilities for a given team.
-    Can optionally include invalid actions by setting ?include_invalid=true
-    """
-    teamId = request.args.get('teamId')
-    if not teamId:
-        return jsonify({"error": "teamId parameter is required"}), 400
-    
-    include_invalid_str = request.args.get('include_invalid', 'false').lower()
-    include_invalid = include_invalid_str == 'true'
-    
-    probabilities = game_logic.game.get_action_probabilities(teamId, include_invalid=include_invalid)
-    if "error" in probabilities:
-        return jsonify(probabilities), 404
-        
-    return jsonify(probabilities)
 
 @main_routes.route('/api/actions/all', methods=['GET'])
 def get_all_actions():

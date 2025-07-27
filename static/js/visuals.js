@@ -7,6 +7,21 @@
  */
 const visualEffectsManager = (() => {
 
+    function processStateChange(previousState, currentState, uiState, cellSize) {
+        if (!previousState || !currentState) return;
+
+        // 1. Process Turn Start Events
+        // These are only present in the state right after a turn starts.
+        // We compare turn numbers to ensure we only process them once.
+        if (currentState.turn > previousState.turn && currentState.new_turn_events) {
+            processTurnEvents(currentState.new_turn_events, currentState, uiState);
+        }
+
+        // 2. Process the main action visual for this state change
+        // The `last_action_details` in the current state tells us what just happened.
+        processActionVisuals(currentState, uiState, cellSize);
+    }
+
     // This is a factory function because some visuals need access to the UI state
     // and renderer-specific values like cellSize.
     const getActionVisualsMap = (cellSize, uiState) => ({
@@ -691,7 +706,6 @@ const visualEffectsManager = (() => {
     }
 
     return {
-        processActionVisuals,
-        processTurnEvents,
+        processStateChange,
     };
 })();

@@ -80,8 +80,8 @@
             <fieldset id="live-controls">
                 <legend>Game Controls</legend>
                 <div class="control-buttons-row">
-                    <button id="next-action-btn">Next Action</button>
-                    <button id="auto-play-btn">Auto-Play</button>
+                    <button id="playback-play-pause-btn">Play</button>
+                    <button id="playback-next-btn">Next Step</button>
                 </div>
                 <div class="speed-control">
                     <label for="auto-play-speed">Speed:</label>
@@ -110,10 +110,7 @@
         <div class="game-column" id="game-preview-column">
             <div id="action-preview-panel">
                 <div class="action-preview-header">
-                    <h4>Action Preview</h4>
-                    <label title="Show actions that cannot be performed and why.">
-                        <input type="checkbox" id="show-invalid-actions"> Show Invalid
-                    </label>
+                    <h4>Next Step Preview</h4>
                 </div>
                 <div id="action-preview-content"></div>
             </div>

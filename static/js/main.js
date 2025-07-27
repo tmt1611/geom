@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localTeams: {},
         initialPoints: [], // For setup phase
         selectedTeamId: null,
-        autoPlayInterval: null,
+        playbackInterval: null,
         debugOptions: {
             showPointIds: false,
             showLineIds: false,
@@ -26,7 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout: null
         }
     };
-    let currentGameState = {}; // Cache of the latest game state from the backend
+    let simulationHistory = []; // Full history of game states
+    let playbackIndex = 0; // Current index in the simulationHistory
+    let currentGameState = {}; // The state object for the CURRENT playback index
 
     // --- UI Elements ---
     const teamsList = document.getElementById('teams-list');
@@ -35,8 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const newTeamTraitSelect = document.getElementById('new-team-trait');
     const addTeamBtn = document.getElementById('add-team-btn');
     const startGameBtn = document.getElementById('start-game-btn');
-    const nextActionBtn = document.getElementById('next-action-btn');
-    const autoPlayBtn = document.getElementById('auto-play-btn');
+    const playbackNextBtn = document.getElementById('playback-next-btn');
+    const playbackPlayPauseBtn = document.getElementById('playback-play-pause-btn');
     const autoPlaySpeedSlider = document.getElementById('auto-play-speed');
     const speedValueSpan = document.getElementById('speed-value');
     const resetBtn = document.getElementById('reset-btn');
@@ -103,20 +105,15 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(animationLoop);
     }
 
-    function updateStateAndRender(gameState) {
+    function updateStateAndRender(gameState, previousState = null) {
         if (!gameState || !gameState.teams) return;
         
-        const isFirstUpdate = !currentGameState.game_phase;
         currentGameState = gameState;
 
-        // Delegate visual effect creation to the specialized manager
-        visualEffectsManager.processTurnEvents(gameState.new_turn_events, gameState, uiState);
-        visualEffectsManager.processActionVisuals(gameState, uiState, cellSize);
+        // Generate visual effects by comparing the new state to the previous one.
+        visualEffectsManager.processStateChange(previousState, gameState, uiState, cellSize);
         
-        if (isFirstUpdate) {
-            renderTeamsList();
-        }
-
+        renderTeamsList(); // Will only render if necessary
         updateLog(gameState.game_log, gameState.teams);
         updateInterpretationPanel(gameState);
         updateActionPreview(gameState);
@@ -378,82 +375,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateActionPreview(gameState) {
         const content = document.getElementById('action-preview-content');
-        const showInvalid = document.getElementById('show-invalid-actions').checked;
-    
-        if (gameState.game_phase !== 'RUNNING' || !gameState.actions_queue_this_turn) {
+        
+        if (gameState.game_phase === 'SETUP') {
             actionPreviewPanel.style.display = 'none';
             return;
         }
         actionPreviewPanel.style.display = 'block';
-        
-        const actionIndex = gameState.action_in_turn;
-        let teamIdForPreview, titlePrefix;
 
-        if (actionIndex >= gameState.actions_queue_this_turn.length) {
-            titlePrefix = "Next Turn Preview";
-            const activeTeamIds = Object.keys(gameState.teams).filter(id => gameState.live_stats[id]?.point_count > 0);
-            if (activeTeamIds.length > 0) {
-                teamIdForPreview = activeTeamIds[0];
-            } else {
-                content.innerHTML = '<h5>Turn Over</h5><p>No active teams remain.</p>';
-                return;
-            }
-        } else {
-            titlePrefix = "Now:";
-            teamIdForPreview = gameState.actions_queue_this_turn[actionIndex].teamId;
+        if (gameState.game_phase === 'FINISHED') {
+            content.innerHTML = '<h5>Simulation Complete</h5>';
+            return;
         }
-    
-        api.getActionProbabilities(teamIdForPreview, showInvalid).then(data => {
-            if (data.error) {
-                content.innerHTML = `<p>Error loading actions for ${data.team_name || 'team'}.</p>`;
-                return;
-            }
-            let html = `<h5 style="border-color:${data.color};">${titlePrefix} ${data.team_name}'s Turn</h5>`;
-            const groupOrder = ['Fight', 'Expand', 'Fortify', 'Sacrifice', 'Rune'];
-            let hasValidActions = false;
-            for (const groupName of groupOrder) {
-                const group = data.groups[groupName];
-                if (group && group.actions.length > 0) {
-                    hasValidActions = true;
-                    html += `<div class="action-category"><h6>${groupName} (${group.group_probability}%)</h6><ul class="action-prob-list">`;
-                    group.actions.forEach(action => {
-                        html += `<li><span>${action.display_name}</span><div class="action-prob-bar-container"><div class="action-prob-bar" style="width: ${action.probability}%; background-color:${data.color};"></div></div><span class="action-prob-percent">${action.probability}%</span></li>`;
-                    });
-                    html += '</ul></div>';
-                }
-            }
-            if (!hasValidActions) html += '<p>No valid actions found. Passing turn.</p>';
-            if (showInvalid && data.invalid.length > 0) {
-                html += `<div class="action-category"><h6>Invalid Actions</h6><ul class="action-prob-list">`;
-                data.invalid.forEach(action => {
-                    html += `<li class="invalid-action" title="${action.reason} (${action.group})"><span>${action.display_name}</span><div class="action-prob-bar-container"></div></li>`;
-                });
-                html += '</ul></div>';
-            }
-            content.innerHTML = html;
-        }).catch(err => {
-            console.error("Failed to fetch action probabilities:", err);
-            content.innerHTML = `<p>Could not load action preview.</p>`;
-        });
+
+        // For running phase, the preview is about the *next* step in history
+        const nextPlaybackIndex = playbackIndex + 1;
+        if (nextPlaybackIndex >= simulationHistory.length) {
+            content.innerHTML = '<h5>End of Simulation</h5>';
+            return;
+        }
+
+        const nextState = simulationHistory[nextPlaybackIndex];
+        const lastAction = nextState.last_action_details;
+        const logEntry = nextState.game_log[nextState.game_log.length - 1];
+        
+        if (!lastAction || !logEntry || !logEntry.teamId) {
+            content.innerHTML = '<h5>Preparing next step...</h5>';
+            return;
+        }
+
+        const team = gameState.teams[logEntry.teamId];
+        let html = `<h5 style="border-color:${team.color};">Next: ${team.name}</h5>`;
+        html += `<p>${logEntry.message}</p>`;
+
+        content.innerHTML = html;
     }
 
     function updateControls(gameState) {
         const gamePhase = gameState.game_phase;
-        const inSetup = gamePhase === 'SETUP';
-        const isRunning = gamePhase === 'RUNNING';
-        const isFinished = gamePhase === 'FINISHED';
+        const isRunning = gamePhase === 'RUNNING' || gamePhase === 'FINISHED';
         
-        document.body.classList.toggle('game-running', isRunning || isFinished);
-        document.body.classList.toggle('game-finished', isFinished);
+        document.body.classList.toggle('game-running', isRunning);
+        document.body.classList.toggle('game-finished', gamePhase === 'FINISHED');
 
-        if (isFinished) {
-            if (uiState.autoPlayInterval) stopAutoPlay();
-            autoPlayBtn.textContent = 'Auto-Play';
-            nextActionBtn.disabled = true;
-            autoPlayBtn.disabled = true;
+        const isAtEnd = playbackIndex >= simulationHistory.length - 1;
+
+        if (gamePhase === 'SETUP') {
+             // Handled by the class toggles
         } else if (isRunning) {
-             nextActionBtn.disabled = false;
-             autoPlayBtn.disabled = false;
+            playbackNextBtn.disabled = isAtEnd;
+            playbackPlayPauseBtn.disabled = isAtEnd;
+            if (isAtEnd) {
+                stopPlayback();
+            }
         }
     }
 
@@ -592,45 +565,52 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { throw error; }
     });
 
-    nextActionBtn.addEventListener('click', async () => {
-        try {
-            updateStateAndRender(await api.nextAction());
-        } catch (error) {
-            stopAutoPlay();
-            throw error;
-        }
+    playbackNextBtn.addEventListener('click', () => {
+        stopPlayback();
+        playbackNextStep();
     });
 
-    function stopAutoPlay() {
-        if (uiState.autoPlayInterval) {
-            clearInterval(uiState.autoPlayInterval);
-            uiState.autoPlayInterval = null;
-            autoPlayBtn.textContent = 'Auto-Play';
+    function stopPlayback() {
+        if (uiState.playbackInterval) {
+            clearInterval(uiState.playbackInterval);
+            uiState.playbackInterval = null;
+            playbackPlayPauseBtn.textContent = 'Play';
+        }
+    }
+    
+    function playbackNextStep() {
+        if (playbackIndex < simulationHistory.length - 1) {
+            const previousState = simulationHistory[playbackIndex];
+            playbackIndex++;
+            const nextState = simulationHistory[playbackIndex];
+            updateStateAndRender(nextState, previousState);
+        } else {
+            stopPlayback(); // Reached the end
         }
     }
 
-    autoPlayBtn.addEventListener('click', () => {
-        if (uiState.autoPlayInterval) {
-            stopAutoPlay();
+    playbackPlayPauseBtn.addEventListener('click', () => {
+        if (uiState.playbackInterval) {
+            stopPlayback();
         } else {
-            stopAutoPlay();
-            autoPlayBtn.textContent = 'Stop';
+            if (playbackIndex >= simulationHistory.length - 1) {
+                // If at the end, restart playback from beginning
+                playbackIndex = 0;
+                updateStateAndRender(simulationHistory[0]);
+            }
+            playbackPlayPauseBtn.textContent = 'Pause';
             const delay = parseInt(autoPlaySpeedSlider.value, 10);
-            uiState.autoPlayInterval = setInterval(() => {
-                if (currentGameState.game_phase !== 'RUNNING') return stopAutoPlay();
-                (async () => {
-                    const gameState = await api.nextAction();
-                    updateStateAndRender(gameState);
-                    if (gameState.game_phase === 'FINISHED') stopAutoPlay();
-                })().catch(e => { stopAutoPlay(); throw e; });
-            }, delay);
+            uiState.playbackInterval = setInterval(playbackNextStep, delay);
         }
     });
 
     autoPlaySpeedSlider.addEventListener('input', () => {
         speedValueSpan.textContent = `${autoPlaySpeedSlider.value}ms`;
-        if (uiState.autoPlayInterval) autoPlayBtn.click(); // Stop
-        // The user has to click play again to start with the new speed.
+        // If playing, restart the interval with the new speed
+        if (uiState.playbackInterval) {
+            stopPlayback();
+            playbackPlayPauseBtn.click();
+        }
     });
 
     resetBtn.addEventListener('click', async () => {
@@ -638,6 +618,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm("End the current game and return to setup?")) {
             try {
                 const gameState = await api.reset();
+                simulationHistory = [];
+                playbackIndex = 0;
                 uiState.localTeams = gameState.teams || {};
                 Object.values(uiState.localTeams).forEach(t => t.isEditing = false);
                 uiState.initialPoints = [];
@@ -646,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 gridSizeInput.value = gameState.grid_size;
                 maxTurnsInput.value = gameState.max_turns;
                 setNewTeamDefaults();
-                updateStateAndRender(gameState);
+                updateStateAndRender(gameState); // Renders the empty setup state
                 renderTeamsList();
             } catch (error) { throw error; }
         }

@@ -49,7 +49,7 @@ As per the design, this is a minimal viable product (MVP) of a game where users 
     - **Place Points:** Click on the grid to place starting points for the selected team.
 2.  **Action Phase (Left Panel):**
     - **Start Game:** Set the maximum number of turns and click "Start Game" to begin the simulation.
-    - **Control Flow:** Use "Play Next Turn" for step-by-step advancement or "Auto-Play" to run the simulation automatically.
+    - **Control Flow:** After starting, the entire simulation runs on the server. You can then use the playback controls ("Play", "Next Step") to watch a replay of the simulation.
     - **Game Log:** Follow the events of the game in the log on the right. Actions are color-coded by team.
 3.  **Interpretation Phase (Right Panel):**
     - Once the game stops (either by reaching max turns or another condition), observe the final geometric patterns.
