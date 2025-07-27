@@ -642,11 +642,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     startGameBtn.addEventListener('click', async () => {
         if (uiState.initialPoints.length === 0) return alert("Please add points to the grid.");
+        
+        const loader = document.getElementById('simulation-loader');
+        const loaderText = document.getElementById('loader-text');
+        const loaderProgress = document.getElementById('loader-progress');
+        loader.style.display = 'flex';
+        
         try {
-            const simulationData = await api.startGame({
+            let simulationData;
+            const payload = {
                 teams: uiState.localTeams, points: uiState.initialPoints,
                 maxTurns: parseInt(maxTurnsInput.value), gridSize: parseInt(gridSizeInput.value)
-            });
+            };
+
+            if (api._mode === 'pyodide') {
+                loaderText.textContent = 'Simulating turn 0...';
+                loaderProgress.style.display = 'block';
+                loaderProgress.value = 0;
+                
+                const progressCallback = (progress, turn, maxTurns) => {
+                    loaderProgress.value = progress;
+                    loaderText.textContent = `Simulating turn ${turn} / ${maxTurns}...`;
+                };
+
+                simulationData = await api.startGameAsync(payload, progressCallback);
+
+            } else {
+                loaderText.textContent = 'Simulating on server...';
+                loaderProgress.style.display = 'none';
+                simulationData = await api.startGame(payload);
+            }
+            
             uiState.initialPoints = [];
             // In HTTP mode, this is augmented. In Pyodide, it's raw.
             simulationHistory = simulationData.history || simulationData.raw_history; 
@@ -659,7 +685,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             await showStateAtIndex(0);
 
-        } catch (error) { throw error; }
+        } catch (error) {
+            // Re-throw to be caught by global error handler
+            throw error;
+        } finally {
+            loader.style.display = 'none';
+        }
     });
 
     restartSimulationBtn.addEventListener('click', async () => {

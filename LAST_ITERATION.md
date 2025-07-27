@@ -1,4 +1,5 @@
-- **Restored Status Bar Readability:** Corrected the status bar narration to consistently use high-contrast dark text, with only team names highlighted in their specific color. This enhances readability and fixes a regression.
-- **Refactored UI Code:** Cleaned up the "Game Settings" section in the setup panel, replacing `<br>` tags and inline styles with a more robust and maintainable CSS-based layout.
-- **Minor CSS Cleanup:** Removed unnecessary `!important` rules from the stylesheet.
-- **Feature Confirmation:** Verified that other requested features, such as the explicit point randomization control, progress visualization, action probability previews, previous step navigation, developer tools visibility, and conditional log coloring, are already implemented correctly.
+- **Implemented Simulation Progress Visual:** Added a loading overlay that appears after clicking "Start Game".
+  - When running with Pyodide (in-browser), the simulation is now processed asynchronously in chunks. This prevents the UI from freezing and allows a progress bar to display the simulation's advancement turn-by-turn.
+  - When running with the standard Python server, a simple "Simulating..." message is shown, as detailed progress streaming is not supported by the current architecture.
+- **Code Refactoring:** Created a new `api.startGameAsync` method to handle the asynchronous simulation, separating it cleanly from the original synchronous method which is still used by developer tools. This improves code organization and maintains existing functionality.
+- **Feature Review:** Confirmed that other requested features (explicit point randomization, action previews, log coloring, dev tools visibility, step-back controls, and status bar text styling) are already implemented and functioning as intended.

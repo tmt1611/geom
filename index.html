@@ -47,6 +47,12 @@
         <!-- Grid (always visible) -->
         <div class="grid-container">
             <canvas id="grid" width="600" height="600"></canvas>
+            <div id="simulation-loader" style="display: none;">
+                <div class="loader-content">
+                    <p id="loader-text">Simulating...</p>
+                    <progress id="loader-progress" value="0" max="100"></progress>
+                </div>
+            </div>
             <div id="status-bar">Waiting for game to start...</div>
         </div>
 
