@@ -370,88 +370,99 @@ class ExpandActionsHandler:
         # Final fallback if no lines existed between pairs
         return self.game._fallback_strengthen_random_line(teamId, 'mirror_point')
 
-    def create_orbital(self, teamId):
-        """[EXPAND ACTION]: Creates a new orbital structure. If not possible, strengthens lines around a potential center."""
+    def _create_orbital_fallback_strengthen(self, teamId):
+        """Helper for the orbital fallback logic: strengthen lines around a central point."""
         team_point_ids = self.game.get_team_point_ids(teamId)
-        if len(team_point_ids) < 5:
-            return {'success': False, 'reason': 'not enough points to create an orbital'}
+        if not team_point_ids:
+             return {'success': False, 'reason': 'no points to use for fallback'}
 
-        shuffled_point_ids = random.sample(team_point_ids, len(team_point_ids))
-
-        # Try a few times to find a valid spot
-        for p_center_id in shuffled_point_ids[:5]:
-            p_center = self.state['points'][p_center_id]
-            
-            num_satellites = random.randint(3, 5)
-            radius = self.state['grid_size'] * random.uniform(0.15, 0.25)
-            angle_offset = random.uniform(0, 2 * math.pi)
-            
-            new_points_to_create = []
-            valid_orbital = True
-
-            for i in range(num_satellites):
-                angle = angle_offset + (2 * math.pi * i / num_satellites)
-                new_x = p_center['x'] + math.cos(angle) * radius
-                new_y = p_center['y'] + math.sin(angle) * radius
-                
-                new_p_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
-                is_valid, _ = self.game.is_spawn_location_valid(new_p_coords, teamId, min_dist_sq=2.0)
-                if not is_valid:
-                    valid_orbital = False; break
-                
-                is_too_close_to_sibling = any(distance_sq(new_p_coords, p_sib) < 2.0 for p_sib in new_points_to_create)
-                if is_too_close_to_sibling:
-                    valid_orbital = False; break
-                
-                new_point_id = self.game._generate_id('p')
-                new_points_to_create.append({**new_p_coords, "teamId": teamId, "id": new_point_id})
-            
-            if not valid_orbital:
-                continue
-
-            # --- Primary Effect: Create Orbital ---
-            created_points = []
-            created_lines = []
-            bonus_lines = []
-            for new_p_data in new_points_to_create:
-                self.state['points'][new_p_data['id']] = new_p_data
-                created_points.append(new_p_data)
-                
-                # Check for Ley Line bonus on each created point
-                bonus_line = self.game._check_and_apply_ley_line_bonus(new_p_data)
-                if bonus_line:
-                    bonus_lines.append(bonus_line)
-
-                line_id = self.game._generate_id('l')
-                new_line = {"id": line_id, "p1_id": p_center_id, "p2_id": new_p_data['id'], "teamId": teamId}
-                self.state['lines'].append(new_line)
-                created_lines.append(new_line)
-            
-            result_payload = {
-                'success': True, 'type': 'create_orbital', 'center_point_id': p_center_id,
-                'new_points': created_points, 'new_lines': created_lines
-            }
-            if bonus_lines:
-                result_payload['bonus_lines'] = bonus_lines
-            
-            return result_payload
-        
-        # --- Fallback: Strengthen lines around a chosen center ---
         p_center_id_fallback = random.choice(team_point_ids)
         lines_to_strengthen = [l for l in self.game.get_team_lines(teamId) if l['p1_id'] == p_center_id_fallback or l['p2_id'] == p_center_id_fallback]
         
         if not lines_to_strengthen:
-             return {'success': False, 'reason': 'could not find a valid position for an orbital and no lines to strengthen'}
+             return {'success': False, 'reason': 'no lines to strengthen for orbital fallback'}
         
         strengthened_lines_info = []
         for line in lines_to_strengthen:
             if self.game._strengthen_line(line):
                 strengthened_lines_info.append(line)
+        
+        if not strengthened_lines_info:
+            return {'success': False, 'reason': 'all connected lines are already at maximum strength'}
 
         return {
             'success': True, 'type': 'orbital_fizzle_strengthen',
             'center_point_id': p_center_id_fallback, 'strengthened_lines': strengthened_lines_info
         }
+
+    def create_orbital(self, teamId):
+        """[EXPAND ACTION]: Creates a new orbital structure. If not possible, strengthens lines around a potential center."""
+        team_point_ids = self.game.get_team_point_ids(teamId)
+
+        # Primary effect requires at least 5 points.
+        if len(team_point_ids) >= 5:
+            shuffled_point_ids = random.sample(team_point_ids, len(team_point_ids))
+
+            # Try a few times to find a valid spot
+            for p_center_id in shuffled_point_ids[:5]:
+                p_center = self.state['points'][p_center_id]
+                
+                num_satellites = random.randint(3, 5)
+                radius = self.state['grid_size'] * random.uniform(0.15, 0.25)
+                angle_offset = random.uniform(0, 2 * math.pi)
+                
+                new_points_to_create = []
+                valid_orbital = True
+
+                for i in range(num_satellites):
+                    angle = angle_offset + (2 * math.pi * i / num_satellites)
+                    new_x = p_center['x'] + math.cos(angle) * radius
+                    new_y = p_center['y'] + math.sin(angle) * radius
+                    
+                    new_p_coords = clamp_and_round_point_coords({'x': new_x, 'y': new_y}, self.state['grid_size'])
+                    is_valid, _ = self.game.is_spawn_location_valid(new_p_coords, teamId, min_dist_sq=2.0)
+                    if not is_valid:
+                        valid_orbital = False; break
+                    
+                    is_too_close_to_sibling = any(distance_sq(new_p_coords, p_sib) < 2.0 for p_sib in new_points_to_create)
+                    if is_too_close_to_sibling:
+                        valid_orbital = False; break
+                    
+                    new_point_id = self.game._generate_id('p')
+                    new_points_to_create.append({**new_p_coords, "teamId": teamId, "id": new_point_id})
+                
+                if not valid_orbital:
+                    continue
+
+                # --- Primary Effect: Create Orbital ---
+                created_points = []
+                created_lines = []
+                bonus_lines = []
+                for new_p_data in new_points_to_create:
+                    self.state['points'][new_p_data['id']] = new_p_data
+                    created_points.append(new_p_data)
+                    
+                    # Check for Ley Line bonus on each created point
+                    bonus_line = self.game._check_and_apply_ley_line_bonus(new_p_data)
+                    if bonus_line:
+                        bonus_lines.append(bonus_line)
+
+                    line_id = self.game._generate_id('l')
+                    new_line = {"id": line_id, "p1_id": p_center_id, "p2_id": new_p_data['id'], "teamId": teamId}
+                    self.state['lines'].append(new_line)
+                    created_lines.append(new_line)
+                
+                result_payload = {
+                    'success': True, 'type': 'create_orbital', 'center_point_id': p_center_id,
+                    'new_points': created_points, 'new_lines': created_lines
+                }
+                if bonus_lines:
+                    result_payload['bonus_lines'] = bonus_lines
+                
+                return result_payload
+        
+        # This is reached if len < 5 OR if the primary effect failed to find a spot.
+        return self._create_orbital_fallback_strengthen(teamId)
 
     def bisect_angle(self, teamId):
         """[EXPAND ACTION]: Creates a new point by bisecting an angle. If not possible, strengthens a line."""
