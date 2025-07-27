@@ -1102,108 +1102,86 @@ class Game:
         if self.state['game_phase'] != 'RUNNING':
             return
 
-        self.state['action_events'] = [] # Clear events from the previous action
+        self.state['action_events'] = []
 
-        # If the current turn's action queue is exhausted, it's the end of the turn.
-        if (not self.state.get('actions_queue_this_turn') or
-                self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn'])):
-            # 1. Check for victory conditions based on the state at the end of the turn.
-            self._check_end_of_turn_victory_conditions()
-            if self.state['game_phase'] != 'RUNNING':
-                return
-            
-            # 2. Start the next turn (which includes start-of-turn effects and building a new action queue).
+        # --- Turn Management ---
+        # Check if it's time to start a new turn.
+        is_end_of_turn = (not self.state.get('actions_queue_this_turn') or
+                          self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']))
+
+        if is_end_of_turn:
+            # Check for victory only at the transition between turns (and not before the first turn)
+            if self.state['turn'] > 0:
+                self._check_end_of_turn_victory_conditions()
+                if self.state['game_phase'] != 'RUNNING':
+                    return
+
+            # Start the new turn (increments turn counter, processes effects, builds queue)
             self._start_new_turn()
-            # 3. Check if start-of-turn effects ended the game (e.g., Wonder victory).
+            
+            # Check if start-of-turn effects ended the game (e.g., Wonder victory)
             if self.state['game_phase'] != 'RUNNING':
                 return
 
-        # If, after starting a new turn, the action queue is *still* empty, it means no teams had points.
-        # This is the definitive condition for extinction.
-        if not self.state.get('actions_queue_this_turn'):
-            if self.state['game_phase'] == 'RUNNING':
-                # This should only happen if no teams had points when _build_action_queue was called.
-                self.state['game_phase'] = 'FINISHED'
-                self.state['victory_condition'] = "Extinction"
-                self.state['game_log'].append({'message': "All teams have been eliminated. Game over.", 'short_message': '[EXTINCTION]'})
-            return
-        
-        # If action_in_turn is out of bounds for the new queue, it means the turn just started
-        # and we should proceed with the first action. This can happen in rare edge cases.
-        if self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
-             self.state['action_in_turn'] = 0
+            # If the new action queue is empty, it's an Extinction event.
+            if not self.state.get('actions_queue_this_turn'):
+                if self.state['game_phase'] == 'RUNNING': # Guard against double-ending
+                    self.state['game_phase'] = 'FINISHED'
+                    self.state['victory_condition'] = "Extinction"
+                    self.state['game_log'].append({'message': "All teams have been eliminated. Game over.", 'short_message': '[EXTINCTION]'})
+                return
 
+        # --- Action Execution ---
         action_info = self.state['actions_queue_this_turn'][self.state['action_in_turn']]
         teamId = action_info['teamId']
         is_bonus_action = action_info['is_bonus']
         is_from_free_action = action_info.get('from_free', False)
         
-        # Update all special structures for the current team right before it acts.
-        # This ensures the team acts based on its most current state after other teams' actions.
         self._update_structures_for_team(teamId)
-
         team_name = self.state['teams'][teamId]['name']
         
-        # --- Perform a successful action for this team, trying until one succeeds ---
-        result = None
+        result, action_name = None, None
         failed_actions = []
-        action_name = None
-        
         for _ in range(game_data.GAME_PARAMETERS['MAX_ACTION_ATTEMPTS']):
             action_name, action_func = self._choose_action_for_team(teamId, exclude_actions=failed_actions)
             
             if not action_func:
                 result = {'success': False, 'reason': 'no possible actions'}
-                break # No more actions available to try
+                break
             
             attempt_result = action_func(teamId)
             
             if attempt_result.get('success'):
                 result = attempt_result
-                break # Success, action is done
+                break
             else:
-                # Action failed, add its name to the exclusion list for the next attempt
                 failed_actions.append(action_name)
         else:
-            # This 'else' belongs to the 'for' loop, running if it finishes without a 'break'
             result = {'success': False, 'reason': 'all attempted actions failed'}
             
+        gained_bonus_this_action = False
+        is_no_cost_action = result.get('success') and action_data.ACTIONS.get(action_name, {}).get('no_cost', False)
+        
         if result.get('success'):
             if self.state['action_events']:
                 result['action_events'] = self.state['action_events'][:]
             self.state['last_action_details'] = result
 
-            is_no_cost_action = action_data.ACTIONS.get(action_name, {}).get('no_cost', False)
-
-            # Issue 2: Grant a single bonus action on the first no-cost action per turn.
             if is_no_cost_action:
                 if teamId not in self.state.get('no_cost_action_used_by_team_this_turn', set()):
                     self.state.setdefault('no_cost_action_used_by_team_this_turn', set()).add(teamId)
-                    
-                    # Insert a bonus action for the same team right after the current one
                     bonus_action = {'teamId': teamId, 'is_bonus': True, 'from_free': True}
                     self.state['actions_queue_this_turn'].insert(self.state['action_in_turn'] + 1, bonus_action)
+                    gained_bonus_this_action = True
         else:
             self.state['last_action_details'] = {}
         
-        # --- Log the final result using the new helper method ---
+        # --- Log the final result ---
         log_message = ""
         short_log_message = "[ACTION]"
 
-        gained_bonus_this_action = False
-        is_no_cost_action = result.get('success') and action_data.ACTIONS.get(action_name, {}).get('no_cost', False)
-
-        if is_no_cost_action:
-            # Check if this action resulted in a bonus action being queued
-            next_action_index = self.state['action_in_turn'] + 1
-            if next_action_index < len(self.state['actions_queue_this_turn']):
-                next_action = self.state['actions_queue_this_turn'][next_action_index]
-                if next_action.get('from_free') and next_action.get('teamId') == teamId:
-                    gained_bonus_this_action = True
-        
         if is_bonus_action and not is_from_free_action:
             log_message += "[BONUS] "
-
         log_message += f"{team_name} "
 
         if result.get('success'):
@@ -1225,10 +1203,6 @@ class Game:
         
         # Increment for next action
         self.state['action_in_turn'] += 1
-        
-        # If this was the last action of the turn, check for victory conditions
-        if self.state['action_in_turn'] >= len(self.state['actions_queue_this_turn']):
-            self._check_end_of_turn_victory_conditions()
     
     # --- Interpretation ---
 
