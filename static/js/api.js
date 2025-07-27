@@ -137,22 +137,65 @@ js_game_data = game_data
 
     async startGame(payload) {
         if (this._mode === 'pyodide') {
-            // Get the raw history from Python
+            // This is the synchronous version for dev tools, etc.
             const result_py = this._game.run_full_simulation(
                 this._pyodide.toPy(payload.teams),
                 this._pyodide.toPy(payload.points),
                 payload.maxTurns,
                 payload.gridSize
             );
-            // Convert to JS. This will be a list of raw state dicts.
             const result_js = this._pyProxyToJs(result_py);
-            return { raw_history: result_js.raw_history }; // Keep it raw
+            return { raw_history: result_js.raw_history };
         }
-        // HTTP mode gets pre-augmented history
+        // HTTP mode gets pre-augmented history. This is always "async" from the client's perspective.
         return this._fetchJson('/api/game/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
+        });
+    },
+
+    async startGameAsync(payload, progressCallback) {
+        if (this._mode !== 'pyodide') {
+            // Fallback for http mode - it doesn't support progress streaming this way.
+            return this.startGame(payload);
+        }
+
+        // This is a new method for pyodide that runs the simulation asynchronously.
+        this._game.start_game(
+            this._pyodide.toPy(payload.teams),
+            this._pyodide.toPy(payload.points),
+            payload.maxTurns,
+            payload.gridSize
+        );
+
+        const raw_history = [this._pyProxyToJs(this._game.state.copy())];
+
+        return new Promise((resolve) => {
+            const step = () => {
+                const game_phase = this._game.state.get('game_phase');
+                
+                if (game_phase === 'RUNNING') {
+                    const old_turn = this._game.state.get('turn');
+                    this._game.run_next_action();
+                    raw_history.push(this._pyProxyToJs(this._game.state.copy()));
+                    
+                    const new_turn = this._game.state.get('turn');
+                    if (new_turn > old_turn && progressCallback) {
+                        const max_turns = this._game.state.get('max_turns');
+                        progressCallback(Math.round((new_turn / max_turns) * 100), new_turn, max_turns);
+                    }
+
+                    setTimeout(step, 0); // Yield to event loop to update UI
+                } else {
+                    if (progressCallback) {
+                         const max_turns = this._game.state.get('max_turns');
+                         progressCallback(100, max_turns, max_turns);
+                    }
+                    resolve({ raw_history });
+                }
+            };
+            setTimeout(step, 0);
         });
     },
 

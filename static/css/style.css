@@ -152,11 +152,12 @@ h3 { font-size: 1.2em; }
     pointer-events: none; /* Don't intercept clicks */
     border: 1px solid #ddd;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    text-shadow: 0 0 4px rgba(0,0,0,0.3); /* Add shadow to main text for light colors */
 }
 
 #status-bar strong {
-    /* Add a subtle shadow to make colored team names pop against a similarly colored background text */
-    text-shadow: 0 0 4px rgba(0,0,0,0.5);
+    /* Add a slightly stronger shadow to make colored team names pop */
+    text-shadow: 0 0 5px rgba(0,0,0,0.6);
 }
 
 .setup-column, .game-column {
