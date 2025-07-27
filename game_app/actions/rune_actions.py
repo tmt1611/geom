@@ -4,7 +4,8 @@ from itertools import combinations
 from ..geometry import (
     distance_sq, segments_intersect, get_segment_intersection_point,
     get_extended_border_point, is_point_in_polygon,
-    points_centroid, get_angle_bisector_vector, clamp_and_round_point_coords
+    points_centroid, get_angle_bisector_vector, clamp_and_round_point_coords,
+    polygon_area, get_edges_by_distance
 )
 
 class RuneActionsHandler:
@@ -351,7 +352,6 @@ class RuneActionsHandler:
             return {'success': False, 'reason': 'rune points no longer exist'}
         
         # Find diagonals
-        from ..geometry import get_edges_by_distance, points_centroid
         p_list = [points[pid] for pid in rune_p_ids_tuple]
         edge_data = get_edges_by_distance(p_list)
         diag1_p_ids, diag2_p_ids = edge_data['diagonals']
@@ -384,7 +384,6 @@ class RuneActionsHandler:
             mid1 = points_centroid([d1_p1, d1_p2])
             mid2 = points_centroid([d2_p1, d2_p2])
             
-            from ..geometry import clamp_and_round_point_coords
             grid_size = self.state['grid_size']
             p1_coords = clamp_and_round_point_coords(mid1, grid_size)
             p2_coords = clamp_and_round_point_coords(mid2, grid_size)
