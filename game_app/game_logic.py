@@ -1,6 +1,7 @@
 import random
 import math
 import uuid  # For unique point IDs
+import copy
 from itertools import combinations
 from collections import defaultdict
 from .geometry import (
@@ -386,36 +387,41 @@ class Game:
     def run_full_simulation(self, teams, points, max_turns, grid_size):
         """
         Runs a complete game simulation from a given setup and returns the history
-        of states.
+        of states, with each state augmented for frontend display.
         """
         self.start_game(teams, points, max_turns, grid_size)
         
-        history_states = [self.get_state()] # Start with initial state
+        # Store deep copies of the raw state at each step.
+        raw_history = [copy.deepcopy(self.state)]
         
-        # Main simulation loop
         while self.state['game_phase'] == 'RUNNING':
             self.run_next_action()
-            # Append a deep copy of the state after each action
-            history_states.append(self.get_state())
+            raw_history.append(copy.deepcopy(self.state))
 
-        return { "history": history_states }
+        # Augment each state for the frontend
+        augmented_history = []
+        original_live_state = copy.deepcopy(self.state) # Save final state
+        try:
+            for historical_state in raw_history:
+                self.state = historical_state # Temporarily swap state
+                
+                # This logic is a safe version of get_state() for historical states
+                state_copy = self.state.copy()
+                if state_copy['game_phase'] == 'FINISHED' and not state_copy.get('interpretation'):
+                    state_copy['interpretation'] = self.calculate_interpretation()
+                
+                if 'no_cost_action_used_by_team_this_turn' in state_copy:
+                    state_copy['no_cost_action_used_by_team_this_turn'] = list(state_copy['no_cost_action_used_by_team_this_turn'])
 
-    def run_full_simulation(self, teams, points, max_turns, grid_size):
-        """
-        Runs a complete game simulation from a given setup and returns the history
-        of states.
-        """
-        self.start_game(teams, points, max_turns, grid_size)
-        
-        history_states = [self.get_state()] # Start with initial state
-        
-        # Main simulation loop
-        while self.state['game_phase'] == 'RUNNING':
-            self.run_next_action()
-            # Append a deep copy of the state after each action
-            history_states.append(self.get_state())
+                state_copy['lines'] = self._augment_lines_for_frontend(self.state['lines'])
+                state_copy['points'] = self._augment_points_for_frontend(self.state['points'])
+                state_copy['live_stats'] = self._calculate_live_stats()
 
-        return { "history": history_states }
+                augmented_history.append(state_copy)
+        finally:
+            self.state = original_live_state # Ensure we restore state
+
+        return { "history": augmented_history }
 
     def _get_all_point_flags(self):
         """
