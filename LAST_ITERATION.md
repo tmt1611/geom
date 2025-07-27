@@ -1,6 +1,5 @@
-- **Refactoring (Code Organization):**
-  - Created a new `GameStateQuery` class in a new file (`game_app/game_state_query.py`) to encapsulate all read-only logic for inspecting the game state.
-  - Moved over 20 helper methods from the main `Game` class and the various action handler files into `GameStateQuery`. This includes methods for finding points/lines, checking for structures, identifying critical/vulnerable points, and calculating graph properties.
-  - The `Game` class is now significantly smaller and more focused on its core responsibilities: managing the game lifecycle, state mutations, and action execution flow.
-  - All action handlers and precondition checks in `action_data.py` have been updated to use the new `game.query` object, creating a cleaner and more consistent API for accessing game state information.
-  - This architectural improvement enhances modularity, separates concerns (reading vs. writing state), and makes the codebase easier to maintain and reason about.
+- **Refactoring (Code Correctness & Consistency):**
+  - Conducted a thorough review of action handlers (`fortify_actions.py`, `sacrifice_actions.py`) to ensure consistent use of the `GameStateQuery` API that was introduced in the previous iteration.
+  - Fixed multiple latent bugs in `fortify_actions.py` where methods were still calling old, non-existent functions on the main `game` object instead of the new `game.query` object. This affected actions like `mirror_structure`, `rotate_point`, `create_anchor`, and several formation-finding helpers.
+  - Corrected a significant bug in the `nova_burst` sacrifice action which contained unreachable code and was not correctly selecting a point to sacrifice. The logic was streamlined to properly use the query methods.
+  - These changes improve the overall stability and correctness of the game logic, ensuring that the recent refactoring is fully and properly integrated.

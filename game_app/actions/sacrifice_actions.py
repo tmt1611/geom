@@ -16,35 +16,15 @@ class SacrificeActionsHandler:
 
     def nova_burst(self, teamId):
         """[SACRIFICE ACTION]: A point is destroyed. If near enemy lines, it destroys them. Otherwise, it pushes all nearby points away."""
-        # Find ideal sacrifice points (guarantee primary effect)
-        ideal_sac_points = self.game.query.find_possible_nova_bursts(teamId)
-        
-        ideal_sac_points = []
-        for pid in non_critical_pids:
-            if pid not in points: continue # Defensive check
-            sac_point_coords = points[pid]
-            
-            for line in enemy_lines:
-                if line.get('id') in bastion_line_ids: continue
-                if not (line['p1_id'] in points and line['p2_id'] in points): continue
-                
-                p1 = points[line['p1_id']]
-                p2 = points[line['p2_id']]
-
-                if distance_sq(sac_point_coords, p1) < blast_radius_sq or distance_sq(sac_point_coords, p2) < blast_radius_sq:
-                    ideal_sac_points.append(pid)
-                    # Found a target for this point, no need to check other lines for it.
-                    break 
-        return ideal_sac_points
-
-
-        
         sac_point_id = None
+        
+        # Prioritize sacrificing a point that will have a definite effect
+        ideal_sac_points = self.game.query.find_possible_nova_bursts(teamId)
         if ideal_sac_points:
             sac_point_id = random.choice(ideal_sac_points)
         else:
-            # If no ideal point, find a non-critical point for the fallback effect.
-            sac_point_id = self.game._find_non_critical_sacrificial_point(teamId)
+            # If no ideal point, find any non-critical point for the fallback shockwave effect.
+            sac_point_id = self.game.query.find_non_critical_sacrificial_point(teamId)
 
         if not sac_point_id or sac_point_id not in self.state['points']:
             return {'success': False, 'reason': 'no suitable point found to sacrifice'}

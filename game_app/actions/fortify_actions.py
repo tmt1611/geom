@@ -12,7 +12,7 @@ class FortifyActionsHandler:
         Tries to find a valid mirror operation by randomly selecting axes and points.
         Returns a dictionary with operation details if successful, otherwise None.
         """
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if len(team_point_ids) < 3:
             return None
 
@@ -61,7 +61,7 @@ class FortifyActionsHandler:
 
     def _find_possible_monoliths_and_fallbacks(self, teamId):
         """Helper to find valid monoliths (tall rectangles) and regular rectangles for fallback reinforcement."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if len(team_point_ids) < 4:
             return [], []
 
@@ -71,7 +71,7 @@ class FortifyActionsHandler:
         fallback_candidates = []
         
         all_rectangles = self.game.formation_manager.find_all_rectangles(
-            team_point_ids, self.game.get_team_lines(teamId), self.state['points']
+            team_point_ids, self.game.query.get_team_lines(teamId), self.state['points']
         )
         
         for rect_data in all_rectangles:
@@ -96,12 +96,12 @@ class FortifyActionsHandler:
 
     def _find_possible_purifiers(self, teamId):
         """Helper to find valid pentagonal formations for a Purifier."""
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if len(team_point_ids) < 5:
             return []
 
         points = self.state['points']
-        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.game.get_team_lines(teamId)}
+        existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in self.game.query.get_team_lines(teamId)}
         
         # Get points already used in other major structures
         existing_purifier_points = {pid for p_list in self.state.get('purifiers', {}).values() for p in p_list for pid in p['point_ids']}
@@ -280,7 +280,7 @@ class FortifyActionsHandler:
             # --- Fallback: Reinforce a regular rectangle ---
             candidate = random.choice(fallback_candidates)
             strengthened_lines = []
-            existing_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.get_team_lines(teamId)}
+            existing_lines_by_points = {tuple(sorted((l['p1_id'], l['p2_id']))): l for l in self.game.query.get_team_lines(teamId)}
             for pair in candidate['side_pairs']:
                 line = existing_lines_by_points.get(tuple(sorted(pair)))
                 if line and self.game._strengthen_line(line):
@@ -299,7 +299,7 @@ class FortifyActionsHandler:
 
     def reposition_point(self, teamId):
         """[FORTIFY ACTION]: Moves a single non-critical point to a new nearby location. This action has no cost."""
-        point_to_move_id = self.game._find_repositionable_point(teamId)
+        point_to_move_id = self.game.query.find_repositionable_point(teamId)
         
         if not point_to_move_id or point_to_move_id not in self.state['points']:
             # The point that made this action possible is gone. Fizzle.
@@ -345,7 +345,7 @@ class FortifyActionsHandler:
 
     def rotate_point(self, teamId):
         """[FORTIFY ACTION]: Rotates a free point around a pivot. This action has no cost."""
-        point_to_move_id = self.game._find_repositionable_point(teamId)
+        point_to_move_id = self.game.query.find_repositionable_point(teamId)
         
         if not point_to_move_id or point_to_move_id not in self.state['points']:
             # The point that made this action possible is gone. Fizzle.
@@ -354,7 +354,7 @@ class FortifyActionsHandler:
         p_origin = self.state['points'][point_to_move_id]
         original_coords = {'x': p_origin['x'], 'y': p_origin['y'], 'id': p_origin['id'], 'teamId': p_origin['teamId']}
 
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
 
         # Try a few times to find a valid rotation
         for _ in range(10):
@@ -415,14 +415,14 @@ class FortifyActionsHandler:
             }
         
         # --- Fallback Effect: Strengthen Lines ---
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if not team_point_ids:
              return {'success': False, 'reason': 'no points to mirror or strengthen'}
         
         # Strengthen lines connected to a couple of random points
         points_to_strengthen_ids = random.sample(team_point_ids, min(len(team_point_ids), 2))
         strengthened_lines = []
-        all_team_lines = self.game.get_team_lines(teamId)
+        all_team_lines = self.game.query.get_team_lines(teamId)
         
         for line in all_team_lines:
             if line['p1_id'] in points_to_strengthen_ids or line['p2_id'] in points_to_strengthen_ids:
@@ -453,11 +453,11 @@ class FortifyActionsHandler:
         # Find a point that can be turned into an anchor.
         # It must not be part of a critical structure and not already an anchor.
         # The articulation point check is removed as this is a non-destructive action.
-        team_point_ids = self.game.get_team_point_ids(teamId)
+        team_point_ids = self.game.query.get_team_point_ids(teamId)
         if not team_point_ids:
             return {'success': False, 'reason': 'no points to create anchor from'}
         
-        critical_pids = self.game._get_critical_structure_point_ids(teamId)
+        critical_pids = self.game.query.get_critical_structure_point_ids(teamId)
         anchor_pids = set(self.state.get('anchors', {}).keys())
         
         candidate_pids = [
@@ -496,7 +496,7 @@ class FortifyActionsHandler:
             return {'success': True, 'type': 'form_purifier', 'purifier': chosen_purifier_data}
         else:
             # --- Fallback Effect: Reinforce a potential structure ---
-            team_point_ids = self.game.get_team_point_ids(teamId)
+            team_point_ids = self.game.query.get_team_point_ids(teamId)
             if len(team_point_ids) < 5:
                 return {'success': False, 'reason': 'not enough points for purifier or its fallback'}
 
@@ -570,7 +570,7 @@ class FortifyActionsHandler:
             
             # Strengthen all lines connected to any point on the ley line
             strengthened_lines = []
-            all_team_lines = self.game.get_team_lines(teamId)
+            all_team_lines = self.game.query.get_team_lines(teamId)
             ley_line_pids = set(ley_line_to_pulse['point_ids'])
 
             for line in all_team_lines:
