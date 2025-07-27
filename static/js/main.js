@@ -213,13 +213,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const logEntryDiv = document.createElement('div');
             logEntryDiv.className = 'log-entry';
             const message = (uiState.debugOptions.compactLog && entry.short_message) ? entry.short_message : entry.message;
-            if (entry.teamId && teams[entry.teamId]) {
+            
+            // Standard action log: colored background
+            if (entry.teamId && teams[entry.teamId] && !entry.is_event) {
                 const team = teams[entry.teamId];
                 logEntryDiv.classList.add('team-log');
                 logEntryDiv.style.backgroundColor = team.color;
 
                 let finalMessage = message;
-                // Always color team names in the message
                 for (const otherTeamId in teams) {
                     const otherTeam = teams[otherTeamId];
                     finalMessage = finalMessage.replace(new RegExp(`\\b${otherTeam.name}\\b`, 'g'), `<strong style="color: ${otherTeam.color};">${otherTeam.name}</strong>`);
@@ -229,8 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (uiState.debugOptions.compactLog) {
                     logEntryDiv.style.fontWeight = 'bold';
                 }
-            } else {
-                // Environment or turn event. Colorize team names within the message.
+            } else { // Environment or event log: default background
                 let finalMessage = message;
                 for (const teamId in teams) {
                     const team = teams[teamId];
@@ -245,21 +245,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                      logEntryDiv.style.background = '#f8f9fa';
                      logEntryDiv.style.borderLeft = `3px solid #ccc`;
+                     // If it's an event associated with a team, color the border
+                     if(entry.teamId && teams[entry.teamId]) {
+                         logEntryDiv.style.borderLeftColor = teams[entry.teamId].color;
+                     }
                 }
             }
             logDiv.prepend(logEntryDiv);
         });
         logDiv.scrollTop = 0;
 
-        if (currentGameState.game_phase === 'RUNNING') {
+        if (currentGameState.game_phase === 'RUNNING' || currentGameState.game_phase === 'FINISHED') {
             if (lastMessageEntry) {
                 let finalMessage = lastMessageEntry.message;
+                const actionTeam = teams[lastMessageEntry.teamId];
+                // Set the base color for the whole message
+                statusBar.style.color = actionTeam ? actionTeam.color : '#333';
+
+                // Individually color any team names mentioned in the message
                 for (const teamId in teams) {
                     finalMessage = finalMessage.replace(new RegExp(`\\b${teams[teamId].name}\\b`, 'g'), `<strong style="color: ${teams[teamId].color};">${teams[teamId].name}</strong>`);
                 }
                 statusBar.innerHTML = finalMessage;
             } else {
-                statusBar.textContent = 'Starting game...';
+                statusBar.textContent = currentGameState.game_phase === 'FINISHED' ? 'Simulation Complete.' : 'Starting game...';
+                statusBar.style.color = '#333'; // Reset to default
             }
             statusBar.style.opacity = '1';
         } else {

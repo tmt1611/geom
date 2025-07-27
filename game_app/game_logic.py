@@ -563,7 +563,7 @@ class Game:
         aggressor_name = self.state['teams'][aggressor_team_id]['name'] if aggressor_team_id and aggressor_team_id in self.state['teams'] else "an unknown force"
 
         log_msg = f"The destruction of a Nexus from {nexus_owner_name} by {aggressor_name} caused a violent energy discharge!"
-        self.state['game_log'].append({'message': log_msg, 'short_message': '[NEXUS BOOM!]', 'teamId': nexus_owner_teamId})
+        self.state['game_log'].append({'message': log_msg, 'short_message': '[NEXUS BOOM!]', 'teamId': nexus_owner_teamId, 'is_event': True})
         self.state['action_events'].append({
             'type': 'nexus_detonation',
             'center': center,
@@ -599,7 +599,7 @@ class Game:
 
         if destroyed_points_count > 0 or destroyed_lines_count > 0:
             log_msg = f"The blast destroyed {destroyed_points_count} points and {destroyed_lines_count} lines."
-            self.state['game_log'].append({'message': log_msg, 'short_message': '[CASCADE]', 'teamId': nexus_owner_teamId})
+            self.state['game_log'].append({'message': log_msg, 'short_message': '[CASCADE]', 'teamId': nexus_owner_teamId, 'is_event': True})
 
     def _delete_line(self, line_to_delete):
         """Removes a line from the state, along with any associated shield or strength."""
@@ -751,7 +751,7 @@ class Game:
             }
             team_name = self.state['teams'][deleted_point_data['teamId']]['name']
             log_msg = f"A point from {team_name} was sacrificed and will attempt to regenerate in 3 turns."
-            self.state['game_log'].append({'message': log_msg, 'short_message': '[SAC->REGEN]', 'teamId': deleted_point_data['teamId']})
+            self.state['game_log'].append({'message': log_msg, 'short_message': '[SAC->REGEN]', 'teamId': deleted_point_data['teamId'], 'is_event': True})
             self.state['action_events'].append({'type': 'point_regenerate_start', 'point': deleted_point_data})
             return deleted_point_data
 
