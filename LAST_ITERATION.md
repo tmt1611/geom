@@ -1,3 +1,6 @@
-- **Action System & Rules Reorganization:** Reworked the entire `rules.md` documentation to be structured around action conditions. Actions are now grouped by the specific geometric or structural prerequisites a team must meet to perform them (e.g., "Condition: Team has at least 2 points", "Condition: Team has a V-Rune"). This makes the action system clearer and more logical.
-- **Action Verification (Expand Group):** Reviewed all actions in the `Expand` group. Verified that their Python implementations correctly match their descriptions, that their precondition checks are accurate and robust, and that their visualizations are distinct and correctly triggered.
-- **Documentation Clarity:** Added a "Sacrifice Mechanics" section to `rules.md` to explain the point regeneration system, improving player understanding of the mechanic.
+- **Illustration Review (FIGHT Actions):** Added new illustrations for `Parallel Strike` and `Territory Tri-Beam` to ensure all Fight actions have visual representations in the guide.
+- **Illustration Consistency:**
+    - Renamed several illustration functions (`fight_bastion_pulse`, `fight_chain_lightning`, etc.) to correctly match their action group (e.g., `sacrifice_bastion_pulse`). This improves code clarity and consistency with `rules.md`.
+    - Standardized the visual language for attack illustrations, using consistent arrow and explosion styles.
+- **Visual Effect Fix:** Corrected a bug in the renderer's `switch` statement where a duplicate case label for `animated_ray` existed, clarifying the logic for rendering different types of beam effects.
+- **Checked action coverage:** Ensured all actions in the "Fight" group now have corresponding illustration code in `illustration_generator.js`.

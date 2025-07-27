@@ -764,7 +764,6 @@ const renderer = (() => {
             const easedProgress = easeOutQuad(progress);
     
             switch (effect.type) {
-                case 'animated_ray':
                 case 'jagged_ray': {
                     const p1 = { x: (effect.p1.x + 0.5) * cellSize, y: (effect.p1.y + 0.5) * cellSize };
                     const p2_full = { x: (effect.p2.x + 0.5) * cellSize, y: (effect.p2.y + 0.5) * cellSize };

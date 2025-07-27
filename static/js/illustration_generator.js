@@ -205,7 +205,68 @@ const illustrationDrawers = {
         
         illustrationHelpers.drawExplosion(ctx, hit.x, hit.y);
     },
-    'fight_chain_lightning': (ctx, w, h) => {
+    'fight_parallel_strike': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const team2_color = 'hsl(240, 70%, 50%)';
+
+        // Friendly point and line
+        const p_source = {x: w*0.2, y: h*0.3};
+        const l1 = {x: w*0.3, y: h*0.8};
+        const l2 = {x: w*0.7, y: h*0.8};
+        illustrationHelpers.drawPoints(ctx, [p_source, l1, l2], team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1:l1, p2:l2}], team1_color);
+
+        // Enemy point
+        const ep1 = {x: w*0.6, y: h*0.3};
+        illustrationHelpers.drawPoints(ctx, [ep1], team2_color);
+        
+        // Parallel strike
+        illustrationHelpers.drawArrow(ctx, p_source, ep1, team1_color);
+
+        // Explosion
+        illustrationHelpers.drawExplosion(ctx, ep1.x, ep1.y);
+    },
+    'fight_territory_tri_beam': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const team2_color = 'hsl(240, 70%, 50%)';
+        const p1 = {x: w*0.5, y: h*0.1};
+        const p2 = {x: w*0.1, y: h*0.8};
+        const p3 = {x: w*0.9, y: h*0.8};
+
+        // Draw territory
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+        ctx.fillStyle = team1_color;
+        ctx.globalAlpha = 0.3;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+        illustrationHelpers.drawPoints(ctx, [p1, p2, p3], team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1,p2},{p1:p2,p2:p3},{p1:p3,p2:p1}], team1_color);
+
+        // Enemy lines
+        const el1_p1 = {x: w*0.9, y: h*0.3};
+        const el1_p2 = {x: w*0.9, y: h*0.6};
+        const el2_p1 = {x: w*0.1, y: h*0.3};
+        const el2_p2 = {x: w*0.1, y: h*0.6};
+        const el3_p1 = {x: w*0.4, y: h*0.95};
+        const el3_p2 = {x: w*0.6, y: h*0.95};
+        illustrationHelpers.drawPoints(ctx, [el1_p1, el1_p2, el2_p1, el2_p2, el3_p1, el3_p2], team2_color);
+        illustrationHelpers.drawLines(ctx, [{p1:el1_p1,p2:el1_p2},{p1:el2_p1,p2:el2_p2},{p1:el3_p1,p2:el3_p2}], team2_color);
+        
+        // Beams from bisectors (approximated)
+        const b1_target = {x: (el1_p1.x + el1_p2.x)/2, y: (el1_p1.y + el1_p2.y)/2};
+        const b2_target = {x: (el2_p1.x + el2_p2.x)/2, y: (el2_p1.y + el2_p2.y)/2};
+        const b3_target = {x: (el3_p1.x + el3_p2.x)/2, y: (el3_p1.y + el3_p2.y)/2};
+        illustrationHelpers.drawArrow(ctx, p1, b1_target, team1_color);
+        illustrationHelpers.drawArrow(ctx, p2, b2_target, team1_color);
+        illustrationHelpers.drawArrow(ctx, p3, b3_target, team1_color);
+
+        // Explosions
+        illustrationHelpers.drawExplosion(ctx, b1_target.x, b1_target.y);
+        illustrationHelpers.drawExplosion(ctx, b2_target.x, b2_target.y);
+        illustrationHelpers.drawExplosion(ctx, b3_target.x, b3_target.y);
+    },
+    'sacrifice_chain_lightning': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         
@@ -271,7 +332,7 @@ const illustrationDrawers = {
         ctx.fill();
         ctx.globalAlpha = 1.0;
     },
-    'fight_bastion_pulse': (ctx, w, h) => {
+    'sacrifice_bastion_pulse': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const team2_color = 'hsl(240, 70%, 50%)';
         
@@ -747,7 +808,7 @@ const illustrationDrawers = {
         });
         ctx.setLineDash([]);
     },
-    'fortify_cultivate_heartwood': (ctx, w, h) => {
+    'sacrifice_cultivate_heartwood': (ctx, w, h) => {
         const team1_color = 'hsl(120, 70%, 50%)'; // Green for nature
         const center = {x: w*0.5, y: h*0.5};
         const branches = [];
@@ -1065,7 +1126,7 @@ const illustrationDrawers = {
         illustrationHelpers.drawJaggedLine(ctx, fissure_start, fissure_end, 15, 6);
         ctx.restore();
     },
-    'fortify_form_rift_spire': (ctx, w, h) => {
+    'terraform_form_rift_spire': (ctx, w, h) => {
         const team1_color = 'hsl(280, 70%, 60%)'; // Purple for rift
         const center = {x: w*0.5, y: h*0.5};
 
