@@ -114,7 +114,7 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Bonus:** Unlocks the **[FIGHT] Purify Territory** action.
 
 *   **[FORTIFY] Create Anchor:** Turns a non-critical point into a gravitational anchor, which pulls nearby enemy points towards it for several turns. This action has no cost.
-*   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns. If no valid reflections can be found, it instead reinforces the lines of the structure it was attempting to mirror.
+*   **[FORTIFY] Mirror Structure:** Selects two of its points to form an axis, then reflects some of its other points across this axis to create new points, forming symmetrical patterns. If no valid reflections can be found, it instead reinforces several existing lines around random points. If that also fails, it adds a new line as a last resort.
 *   **[FORTIFY] Reposition Point:** Moves a single 'free' (non-structural) point to a better tactical position nearby. A subtle but important move for setting up future formations. This action has no cost.
 *   **[FORTIFY] Rotate Point:** Rotates a single 'free' (non-structural) point around the grid center or another friendly point. This action has no cost.
 *   **[FORTIFY] Create Ley Line:** Activates an I-Rune into a powerful Ley Line for several turns. When new friendly points are created near the Ley Line, they are automatically connected to it with a new line for free. If all I-Runes are already active, it pulses one Ley Line to strengthen all connected lines instead. This action has no cost.

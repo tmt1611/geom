@@ -413,12 +413,12 @@ class FightActionsHandler:
 
         # 1. High-value targets (immune points that aren't in stasis)
         all_enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
         
         # Define what constitutes a high-value target
         fortified_ids = self.game._get_fortified_point_ids()
         bastion_cores = self.game._get_bastion_point_ids()['cores']
         monolith_point_ids = {pid for m in self.state.get('monoliths', {}).values() for pid in m['point_ids']}
-        stasis_point_ids = set(self.state.get('stasis_points', {}).keys())
 
         high_value_target_ids = (fortified_ids | bastion_cores | monolith_point_ids) - stasis_point_ids
         high_value_targets = [p for p in all_enemy_points if p['id'] in high_value_target_ids]
@@ -426,11 +426,13 @@ class FightActionsHandler:
         if high_value_targets:
             target_point = random.choice(high_value_targets)
         else:
-            # 2. Any vulnerable enemy target
-            immune_point_ids = self.game._get_all_immune_point_ids()
-            vulnerable_targets = self.game._get_vulnerable_enemy_points(teamId, immune_point_ids=immune_point_ids)
-            if vulnerable_targets:
-                target_point = random.choice(vulnerable_targets)
+            # 2. Any other non-stasis enemy point
+            regular_targets = [
+                p for p in all_enemy_points 
+                if p['id'] not in high_value_target_ids and p['id'] not in stasis_point_ids
+            ]
+            if regular_targets:
+                target_point = random.choice(regular_targets)
         
         # --- Execute Action ---
         if target_point:

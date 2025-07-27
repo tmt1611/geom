@@ -315,12 +315,9 @@ class RuneActionsHandler:
         enemy_lines = [l for l in self.state['lines'] if l['teamId'] != teamId]
         lines_to_destroy = []
         intersection_points = []
-        bastion_line_ids = self.game._get_bastion_line_ids()
         
         for line in enemy_lines:
-            # This is a powerful rune action that can pierce bastions.
-            # if line.get('id') in bastion_line_ids:
-            #     continue
+            # This is a powerful rune action that pierces shields and bastions.
             if line['p1_id'] not in points or line['p2_id'] not in points:
                 continue
             

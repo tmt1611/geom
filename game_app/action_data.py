@@ -220,14 +220,14 @@ ACTIONS = {
             'create_anchor': lambda r: ("turned one of its points into a gravitational anchor.", "[ANCHOR]"),
         }
     },
-    'fortify_mirror': {
+    'fortify_mirror_structure': {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'mirror_structure',
         'display_name': 'Mirror Structure',
         'description': "Creates a symmetrical structure by reflecting some of its points across an axis defined by two other points. If it fails, it reinforces several existing lines around random points. If that also fails, it adds a new line as a last resort.",
         'log_generators': {
             'mirror_structure': lambda r: (f"mirrored its structure, creating {len(r['new_points'])} new points.", "[MIRROR]"),
-            'mirror_fizzle_strengthen': lambda r: (f"attempted to mirror its structure, but instead reinforced {len(r['strengthened_lines'])} connected lines.", "[MIRROR->REINFORCE]"),
-            'mirror_fizzle_add_line': lambda r: ("failed to mirror or reinforce, and instead drew a new line as a last resort.", "[MIRROR->LINE]"),
+            'mirror_structure_fizzle_strengthen': lambda r: (f"attempted to mirror its structure, but instead reinforced {len(r['strengthened_lines'])} connected lines.", "[MIRROR->REINFORCE]"),
+            'mirror_structure_fizzle_add_line': lambda r: ("failed to mirror or reinforce, and instead drew a new line as a last resort.", "[MIRROR->LINE]"),
         }
     },
     'fortify_form_bastion': {
