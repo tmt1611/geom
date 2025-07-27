@@ -302,7 +302,7 @@ ACTIONS = {
         'group': 'Fortify', 'handler': 'fortify_handler', 'method': 'create_anchor',
         'display_name': 'Create Anchor', 'no_cost': True,
         'description': "Turns a non-critical point into a gravitational anchor, which pulls nearby enemy points towards it for several turns. This action has no cost.",
-        'precondition': lambda h, tid: (lambda pids:
+        'precondition': lambda h, tid: ((lambda pids:
             ( (False, "Requires at least one point.") if not pids
             else (True, "") if any(
                 pid not in h.game.query.get_critical_structure_point_ids(tid) and
@@ -310,7 +310,7 @@ ACTIONS = {
                 for pid in pids
             )
             else (False, "No available non-critical points to turn into an anchor.") )
-        )(h.game.query.get_team_point_ids(tid)),
+        )(h.game.query.get_team_point_ids(tid))),
         'log_generators': {
             'create_anchor': lambda r: ("turned one of its points into a gravitational anchor.", "[ANCHOR]"),
         }
