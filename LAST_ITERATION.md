@@ -1,3 +1,1 @@
-- **Improved Status Bar Narration:** The narration text in the status bar now uses a default dark color for the main text, with team names highlighted in their specific colors for better readability and contrast.
-- **Dynamic Progress Bar Color:** The simulation playback progress bar now changes color to match the team that is next to act, providing a clear visual indicator of the current turn's context.
-- **Enhanced Progress Text:** The turn counter has been updated to display the current action number within the turn (e.g., "Turn: 5 / 100 (Action 2 / 3)"), offering a more granular view of the simulation's progress.
+- **Improved Status Bar Readability:** The narration text in the status bar at the bottom of the grid now consistently uses a dark color for the main text, while team names within the narration are highlighted in their specific colors. This ensures high contrast and readability regardless of the acting team's color.
