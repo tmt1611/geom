@@ -657,7 +657,8 @@ const renderer = (() => {
     
     const runeDrawers = {
         'barricade': (rune, team, gameState) => {
-            const points = rune.point_ids.map(pid => gameState.points[pid]).filter(p => p);
+            // 'rune' for barricade is an array of point IDs
+            const points = rune.map(pid => gameState.points[pid]).filter(p => p);
             if (points.length !== 4) return;
             const centroid = { x: points.reduce((acc, p) => acc + p.x, 0) / 4, y: points.reduce((acc, p) => acc + p.y, 0) / 4 };
             points.sort((a, b) => Math.atan2(a.y - centroid.y, a.x - centroid.x) - Math.atan2(b.y - centroid.y, b.x - centroid.x));
@@ -695,7 +696,8 @@ const renderer = (() => {
             ctx.strokeStyle = team.color; ctx.lineWidth = 6; ctx.globalAlpha *= 0.4; ctx.stroke();
         },
         'parallel': (rune, team, gameState) => {
-            const points = rune.point_ids.map(pid => gameState.points[pid]).filter(p => p);
+            // 'rune' for parallel is an array of point IDs
+            const points = rune.map(pid => gameState.points[pid]).filter(p => p);
             if (points.length !== 4) return;
             const centroid = { x: points.reduce((acc, p) => acc + p.x, 0) / 4, y: points.reduce((acc, p) => acc + p.y, 0) / 4 };
             points.sort((a, b) => Math.atan2(a.y - centroid.y, a.x - centroid.x) - Math.atan2(b.y - centroid.y, b.x - centroid.x));
