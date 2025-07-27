@@ -160,6 +160,18 @@ class GameStateQuery:
         
         return list(articulation_points), adj
 
+    def get_team_centroid(self, teamId):
+        """Calculates the centroid of a team's points."""
+        team_point_ids = self.get_team_point_ids(teamId)
+        if not team_point_ids:
+            return None
+        
+        team_points = [self.state['points'][pid] for pid in team_point_ids if pid in self.state['points']]
+        if not team_points:
+            return None
+            
+        return points_centroid(team_points)
+
     # --- Action-Specific Pre-computation Queries ---
 
     def find_possible_extensions(self, teamId):
