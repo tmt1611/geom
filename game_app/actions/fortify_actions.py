@@ -196,17 +196,20 @@ class FortifyActionsHandler:
         # Find lines that are not already shielded
         unshielded_lines = [l for l in team_lines if l.get('id') not in self.state['shields']]
 
+        # This helper function needs to be defined before the if/else block to be in scope for both.
+        enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
+        points_map = self.state['points']
+        def get_line_proximity(line):
+            if not enemy_points or line['p1_id'] not in points_map or line['p2_id'] not in points_map:
+                return float('inf')
+            p1, p2 = points_map[line['p1_id']], points_map[line['p2_id']]
+            dist1 = min((distance_sq(p1, ep) for ep in enemy_points), default=float('inf'))
+            dist2 = min((distance_sq(p2, ep) for ep in enemy_points), default=float('inf'))
+            return min(dist1, dist2)
+
         if unshielded_lines:
             # --- Primary Effect: Shield a new line ---
             # Shield the line closest to any enemy point
-            enemy_points = [p for p in self.state['points'].values() if p['teamId'] != teamId]
-            points_map = self.state['points']
-            def get_line_proximity(line):
-                if not enemy_points or line['p1_id'] not in points_map or line['p2_id'] not in points_map:
-                    return float('inf')
-                p1, p2 = points_map[line['p1_id']], points_map[line['p2_id']]
-                return min(min(distance_sq(p1, ep) for ep in enemy_points), min(distance_sq(p2, ep) for ep in enemy_points))
-
             line_to_shield = min(unshielded_lines, key=get_line_proximity)
             shield_duration = 3 # in turns
             self.state['shields'][line_to_shield['id']] = shield_duration
