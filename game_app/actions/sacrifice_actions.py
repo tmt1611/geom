@@ -2,7 +2,8 @@ import random
 import math
 from ..geometry import (
     distance_sq, clamp_and_round_point_coords, points_centroid, segments_intersect,
-    get_edges_by_distance, get_extended_border_point, get_segment_intersection_point
+    get_edges_by_distance, get_extended_border_point, get_segment_intersection_point,
+    polygon_area
 )
 
 class SacrificeActionsHandler:

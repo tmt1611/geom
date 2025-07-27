@@ -337,7 +337,8 @@ class FightActionsHandler:
                 'type': 'territory_bisector_strike_fizzle',
                 'territory_point_ids': territory['point_ids'],
                 'strengthened_lines': strengthened_lines,
-                'reason': 'all beams were blocked, reinforcing instead'
+                'reason': 'all beams were blocked, reinforcing instead',
+                'teamId': teamId
             }
 
         return {
@@ -346,7 +347,8 @@ class FightActionsHandler:
             'territory_point_ids': territory['point_ids'],
             'destroyed_lines': destroyed_lines,
             'created_points': created_points,
-            'attack_rays': attack_rays
+            'attack_rays': attack_rays,
+            'teamId': teamId
         }
 
     def launch_payload(self, teamId):
