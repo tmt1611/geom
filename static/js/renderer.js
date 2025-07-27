@@ -747,19 +747,102 @@ const renderer = (() => {
         });
     }
 
-    function drawVisualEffects(uiState) {
-        if (!uiState.visualEffects.length) return;
-
+    function drawVisualEffects(uiState, gameState) {
+        if (!uiState.visualEffects || !uiState.visualEffects.length) return;
+    
         const now = Date.now();
         // Filter out expired effects. This is important to prevent memory leaks.
         uiState.visualEffects = uiState.visualEffects.filter(effect => now < effect.startTime + effect.duration);
         
-        // NOTE: The detailed rendering logic for each visual effect is missing.
-        // This function should contain a switch statement to draw each effect based on its type and progress.
-        // For now, it just cleans up expired effects to prevent performance degradation.
-        if (uiState.visualEffects.length > 0) {
-            // console.log(`Drawing ${uiState.visualEffects.length} effects...`);
-        }
+        ctx.save();
+        uiState.visualEffects.forEach(effect => {
+            const progress = Math.min(1, (now - effect.startTime) / effect.duration);
+            if (progress < 0) return;
+    
+            const easeOutQuad = t => t * (2 - t);
+            const easeInQuad = t => t * t;
+            const easedProgress = easeOutQuad(progress);
+    
+            switch (effect.type) {
+                case 'animated_ray':
+                case 'attack_ray': {
+                    const p1 = { x: (effect.p1.x + 0.5) * cellSize, y: (effect.p1.y + 0.5) * cellSize };
+                    const p2_full = { x: (effect.p2.x + 0.5) * cellSize, y: (effect.p2.y + 0.5) * cellSize };
+                    const p2_current = {
+                        x: p1.x + (p2_full.x - p1.x) * progress,
+                        y: p1.y + (p2_full.y - p1.y) * progress,
+                    };
+                    ctx.strokeStyle = effect.color || 'red';
+                    ctx.lineWidth = effect.lineWidth || 2;
+                    ctx.globalAlpha = 1 - easeInQuad(progress);
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2_current.x, p2_current.y);
+                    ctx.stroke();
+                    break;
+                }
+                case 'point_explosion': {
+                    const cx = (effect.x + 0.5) * cellSize;
+                    const cy = (effect.y + 0.5) * cellSize;
+                    const radius = (10 + 20 * easedProgress) * (cellSize/10);
+                    ctx.fillStyle = `rgba(255, 0, 0, ${1 - easedProgress})`;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                    ctx.fill();
+                    break;
+                }
+                case 'point_implosion': {
+                    const cx = (effect.x + 0.5) * cellSize;
+                    const cy = (effect.y + 0.5) * cellSize;
+                    const radius = (30 * (1 - easedProgress)) * (cellSize/10);
+                    ctx.strokeStyle = effect.color || `rgba(255, 255, 255, 1)`;
+                    ctx.lineWidth = 3;
+                    ctx.globalAlpha = easedProgress;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    break;
+                }
+                case 'shield_pulse':
+                case 'nexus_detonation':
+                case 'monolith_wave': {
+                    const center = effect.center || effect.center_coords;
+                    if (!center) break;
+                    const cx = (center.x + 0.5) * cellSize;
+                    const cy = (center.y + 0.5) * cellSize;
+                    const maxRadius = Math.sqrt(effect.radius_sq) * cellSize;
+                    const currentRadius = maxRadius * easedProgress;
+    
+                    ctx.strokeStyle = effect.color || 'rgba(173, 216, 230, 0.9)';
+                    ctx.lineWidth = 4;
+                    ctx.globalAlpha = 1 - easedProgress;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, currentRadius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    break;
+                }
+                case 'line_flash': {
+                    if (!gameState || !gameState.points) break;
+                    const p1 = gameState.points[effect.line.p1_id];
+                    const p2 = gameState.points[effect.line.p2_id];
+                    if (p1 && p2) {
+                        const x1 = (p1.x + 0.5) * cellSize;
+                        const y1 = (p1.y + 0.5) * cellSize;
+                        const x2 = (p2.x + 0.5) * cellSize;
+                        const y2 = (p2.y + 0.5) * cellSize;
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 4 + 6 * (1 - easedProgress);
+                        ctx.globalAlpha = 1 - easedProgress;
+                        ctx.beginPath();
+                        ctx.moveTo(x1, y1);
+                        ctx.lineTo(x2, y2);
+                        ctx.stroke();
+                    }
+                    break;
+                }
+            }
+        });
+        ctx.restore();
     }
 
     /**
@@ -803,7 +886,7 @@ const renderer = (() => {
                 drawHulls(gameState.interpretation, teams, uiState);
             }
         }
-        drawVisualEffects(uiState);
+        drawVisualEffects(uiState, gameState);
     }
 
     // --- Public API ---
