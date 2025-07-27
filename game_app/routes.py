@@ -34,7 +34,7 @@ def get_game_state():
 
 @main_routes.route('/api/game/start', methods=['POST'])
 def start_game():
-    """Runs a full simulation, streaming updates to the client."""
+    """Runs a full simulation, then streams the results to the client."""
     data = request.json
     teams = data.get('teams', {})
     points = data.get('points', [])
@@ -44,34 +44,72 @@ def start_game():
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid maxTurns or gridSize"}), 400
 
-    def generate():
-        for update in game.run_full_simulation_streamed(teams, points, max_turns, grid_size):
-            # For streaming, we send augmented states so the client doesn't need to request them.
-            if update['type'] == 'state':
-                update['data'] = game.augment_state_for_frontend(update['data'])
-            
-            # Send each update as a newline-delimited JSON object
-            yield json.dumps(update) + '\n'
+    # Run the entire simulation first. This returns a list of raw state objects.
+    raw_history = game.run_full_simulation(teams, points, max_turns, grid_size)
 
-    # The 'application/x-json-stream' mimetype is a convention for this kind of streaming.
+    def generate():
+        total_steps = len(raw_history)
+        if total_steps == 0:
+            return
+
+        for i, state in enumerate(raw_history):
+            # 1. Yield a progress update
+            progress = round((i / (total_steps - 1)) * 100) if total_steps > 1 else 100
+            progress_update = {
+                "type": "progress",
+                "data": {
+                    "progress": progress,
+                    "turn": state['turn'],
+                    "max_turns": state['max_turns'],
+                    "step": i + 1, # a 1-based step counter for display
+                }
+            }
+            yield json.dumps(progress_update) + '\n'
+
+            # 2. Augment and yield the state update
+            augmented_state = game.augment_state_for_frontend(state)
+            state_update = {
+                "type": "state",
+                "data": augmented_state
+            }
+            yield json.dumps(state_update) + '\n'
+
     return Response(stream_with_context(generate()), mimetype='application/x-json-stream')
 
 @main_routes.route('/api/game/restart', methods=['POST'])
 def restart_game():
     """Restarts the simulation with the same initial settings, streaming updates."""
     
-    def generate():
-        for update in game.restart_game_and_run_simulation_streamed():
-            if update.get('type') == 'error':
-                yield json.dumps(update) + '\n'
-                return
+    raw_history = game.restart_and_run_simulation()
 
-            # For streaming, we send augmented states so the client doesn't need to request them.
-            if update['type'] == 'state':
-                update['data'] = game.augment_state_for_frontend(update['data'])
-            
-            # Send each update as a newline-delimited JSON object
-            yield json.dumps(update) + '\n'
+    def generate():
+        total_steps = len(raw_history)
+        if total_steps == 0:
+            # This can happen if there's no initial_state to restart from.
+            yield json.dumps({"type": "error", "data": "No initial state saved to restart from."}) + '\n'
+            return
+
+        for i, state in enumerate(raw_history):
+            # 1. Yield a progress update
+            progress = round((i / (total_steps - 1)) * 100) if total_steps > 1 else 100
+            progress_update = {
+                "type": "progress",
+                "data": {
+                    "progress": progress,
+                    "turn": state['turn'],
+                    "max_turns": state['max_turns'],
+                    "step": i + 1,
+                }
+            }
+            yield json.dumps(progress_update) + '\n'
+
+            # 2. Augment and yield the state update
+            augmented_state = game.augment_state_for_frontend(state)
+            state_update = {
+                "type": "state",
+                "data": augmented_state
+            }
+            yield json.dumps(state_update) + '\n'
 
     return Response(stream_with_context(generate()), mimetype='application/x-json-stream')
 

@@ -420,56 +420,42 @@ class Game:
         finally:
             self.state = original_live_state # Ensure we restore state
 
-    def run_full_simulation_streamed(self, teams, points, max_turns, grid_size):
-        """
-        Runs a complete game simulation, yielding updates for streaming.
-        Yields dicts with 'type' ('progress' or 'state') and 'data'.
-        """
-        self.start_game(teams, points, max_turns, grid_size)
-        
-        yield {"type": "state", "data": copy.deepcopy(self.state)}
-        
-        step = 0
-        while self.state['game_phase'] == 'RUNNING':
-            self.run_next_action()
-            step += 1
-            
-            # Progress calculation
-            turn = self.state['turn']
-            action_in_turn = self.state['action_in_turn']
-            actions_this_turn = len(self.state['actions_queue_this_turn'])
-            
-            if max_turns > 0:
-                completed_turns = max(0, turn - 1)
-                turn_progress = completed_turns / max_turns
-                action_progress_in_turn = actions_this_turn > 0 and (action_in_turn / actions_this_turn) or 0
-                total_progress = round((turn_progress + action_progress_in_turn / max_turns) * 100)
-            else:
-                total_progress = 0
-
-            yield {"type": "progress", "data": {"progress": total_progress, "turn": turn, "max_turns": max_turns, "step": step}}
-            yield {"type": "state", "data": copy.deepcopy(self.state)}
-            
     def run_full_simulation(self, teams, points, max_turns, grid_size):
         """
         Runs a complete game simulation from a given setup and returns the raw history of states.
-        This is a non-streaming version for Pyodide.
         """
-        raw_history = []
-        for update in self.run_full_simulation_streamed(teams, points, max_turns, grid_size):
-            if update['type'] == 'state':
-                raw_history.append(update['data'])
-        return { "raw_history": raw_history }
+        history = []
+        self.start_game(teams, points, max_turns, grid_size)
+        history.append(copy.deepcopy(self.state))
 
-    def restart_game_and_run_simulation_streamed(self):
-        """Restarts the game with its initial settings and yields simulation updates."""
+        # Safety break for infinite loops
+        # A turn can have many actions (bonuses). Let's give it a generous step limit.
+        max_steps = (max_turns * len(teams) * 10) + 50 if max_turns > 0 else 10000
+        step = 0
+        
+        while self.state['game_phase'] == 'RUNNING':
+            self.run_next_action()
+            history.append(copy.deepcopy(self.state))
+            
+            step += 1
+            if step > max_steps:
+                self.state['game_log'].append({'message': "Error: Simulation exceeded safety step limit and was terminated.", 'short_message': '[HALTED]'})
+                self.state['game_phase'] = 'FINISHED'
+                self.state['victory_condition'] = "Halted due to excessive length."
+                history.append(copy.deepcopy(self.state)) # Add final halted state
+                break
+        
+        return history
+
+    def restart_and_run_simulation(self):
+        """Restarts the game with its initial settings and runs a full simulation."""
         initial_state = self.state.get('initial_state')
         if not initial_state:
-            yield {"type": "error", "data": "No initial state saved to restart from."}
-            return
+            return [] # Return an empty history if there's nothing to restart
 
-        # The 'yield from' keyword is perfect here.
-        yield from self.run_full_simulation_streamed(
+        # The Pyodide version of this will return {'raw_history': history}
+        # To keep server and client consistent, we'll just return the list
+        return self.run_full_simulation(
             initial_state['teams'],
             initial_state['points'],
             initial_state['max_turns'],
