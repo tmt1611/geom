@@ -137,11 +137,9 @@ h3 { font-size: 1.2em; }
 }
 
 #status-bar {
-    position: absolute;
-    bottom: 5px;
-    left: 5px;
-    right: 5px;
-    background-color: rgba(255, 255, 255, 0.9);
+    grid-row: 2 / 3;
+    grid-column: 1 / -1;
+    background-color: #f8f9fa;
     color: #333;
     padding: 8px 12px;
     border-radius: 4px;
@@ -149,7 +147,6 @@ h3 { font-size: 1.2em; }
     text-align: center;
     opacity: 0; /* Initially hidden */
     transition: opacity 0.5s;
-    pointer-events: none; /* Don't intercept clicks */
     border: 1px solid #ddd;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     text-shadow: 0 0 4px rgba(0,0,0,0.3); /* Add shadow to main text for light colors */
@@ -198,8 +195,8 @@ h3 { font-size: 1.2em; }
 }
 
 #game-controls-column { grid-column: 1 / 2; grid-row: 1 / 2; }
-#game-preview-column { grid-column: 3 / 4; grid-row: 1 / 2; }
-#game-log-column { grid-column: 4 / 5; grid-row: 1 / 2; }
+#game-log-column { grid-column: 3 / 4; grid-row: 1 / 2; }
+#game-preview-column { grid-column: 4 / 5; grid-row: 1 / 2; }
 
 fieldset {
     border: 1px solid #dfe4ea;
@@ -742,17 +739,13 @@ legend {
     margin: 0;
 }
 
-.container > details.debug-fieldset {
-    grid-column: 1 / -1; /* Span all columns */
-    grid-row: 2 / 3;
-    margin-top: 0;
-}
+
 
 details.debug-fieldset {
     border: 1px solid #dfe4ea;
     border-radius: 5px;
     padding: 0 15px 10px 15px;
-    margin-top: 15px;
+    margin-top: auto; /* Push to bottom of column */
 }
 
 details.debug-fieldset summary {

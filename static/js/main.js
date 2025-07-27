@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showLineIds: false,
             highlightLastAction: false,
             showHulls: false,
-            compactLog: false
+            compactLog: true
         },
         visualEffects: [], // For temporary animations
         lastActionHighlights: { // For highlighting the last action's components
@@ -1051,6 +1051,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         setTimeout(() => resizeCanvas(), 50);
         window.initActionGuide(); // Use the global function now
+        uiState.debugOptions.compactLog = compactLogToggle.checked;
         
         // Add event listener for the new button
         document.getElementById('generate-illustrations-btn').addEventListener('click', () => {
