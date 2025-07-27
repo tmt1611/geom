@@ -563,12 +563,12 @@ class FortifyActionsHandler:
                     new_line = {"id": line_id, "p1_id": p1_id, "p2_id": p2_id, "teamId": teamId}
                     self.state['lines'].append(new_line)
                     # For logging purposes, it's better to return a unique type
-                    return {'success': True, 'type': 'mirror_fizzle_add_line', 'new_line': new_line}
+                    return {'success': True, 'type': 'mirror_structure_fizzle_add_line', 'new_line': new_line}
             
             return {'success': False, 'reason': 'mirroring failed and structure is already fully connected/strengthened'}
 
         return {
-            'success': True, 'type': 'mirror_fizzle_strengthen',
+            'success': True, 'type': 'mirror_structure_fizzle_strengthen',
             'strengthened_lines': strengthened_lines
         }
 
