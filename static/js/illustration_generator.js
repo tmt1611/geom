@@ -797,6 +797,20 @@ const illustrationDrawers = {
         const p_p1 = {x: w*0.4, y: h*0.3};
         const p_p2 = {x: w*0.4, y: h*0.7};
         illustrationHelpers.drawPoints(ctx, [p_handle, p_apex, p_p1, p_p2], team1_color);
+        
+        // Draw rune highlight first
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(p_handle.x, p_handle.y); ctx.lineTo(p_apex.x, p_apex.y);
+        ctx.moveTo(p_p1.x, p_p1.y); ctx.lineTo(p_apex.x, p_apex.y); ctx.lineTo(p_p2.x, p_p2.y);
+        ctx.strokeStyle = team1_color;
+        ctx.lineWidth = 8;
+        ctx.globalAlpha = 0.4;
+        ctx.filter = 'blur(2px)';
+        ctx.stroke();
+        ctx.restore();
+
+        // Draw normal lines on top
         illustrationHelpers.drawLines(ctx, [{p1:p_handle, p2:p_apex}, {p1:p_apex, p2:p_p1}, {p1:p_apex, p2:p_p2}], team1_color);
         
         // Beam
@@ -1373,15 +1387,12 @@ const illustrationDrawers = {
 
         // High-value enemy target (bastion core)
         const target = {x: w*0.8, y: h*0.5};
-        ctx.save();
+        const core_size = 15;
         ctx.fillStyle = team2_color;
-        const size = 12;
-        ctx.translate(target.x, target.y);
-        ctx.beginPath();
-        ctx.moveTo(0, -size); ctx.lineTo(size, 0); ctx.lineTo(0, size); ctx.lineTo(-size, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+        ctx.fillRect(target.x - core_size / 2, target.y - core_size / 2, core_size, core_size);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(target.x - core_size / 2, target.y - core_size / 2, core_size, core_size);
 
         // Beam
         illustrationHelpers.drawArrow(ctx, center, target, 'rgba(255, 255, 150, 1.0)');

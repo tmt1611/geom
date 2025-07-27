@@ -1,6 +1,6 @@
-- **Illustration Review (SACRIFICE actions):** Reviewed all `SACRIFICE` action illustrations. All were found to be present, clear, and consistent with action descriptions. No changes were made.
-- **Visual Effects Review (SACRIFICE actions):**
-    - Reviewed all `SACRIFICE` actions for visual effects. All actions had an effect, but two were identified for significant improvement to better match their in-game impact.
-    - **Improved `Build Wonder` (`build_chronos_spire`):** The visual effect was changed from a simple `point_implosion` to a much more dramatic sequence. It now reuses the `heartwood_creation` effect to show energy from all sacrificed Star-Rune points converging on the center, followed by a `starlight_cascade` flash as the Wonder appears. This better reflects the creation of a game-winning structure.
-    - **Improved `Bastion Pulse`:** The original effect only showed the sacrificed point imploding. The new effect is more comprehensive: it now includes a `polygon_flash` over the bastion's area to show it activating, a `point_implosion` for the sacrifice, and `point_explosion` effects on all enemy lines that are destroyed by the pulse, providing full visual feedback for the action's outcome.
-- **Checked action coverage:** Confirmed all `SACRIFICE` actions have appropriate and clear visual effects, improving game clarity and engagement.
+- **Illustration Review (RUNE & TERRAFORM actions):** Reviewed all `RUNE` and `TERRAFORM` actions for illustration coverage and design. All actions were found to have illustrations.
+- **Visual Design Streamlining:**
+    - **Improved `Rune: Impale` Illustration:** The illustration was updated to include a thick, blurred highlight over the Trident-Rune's shape. This change makes the illustration more visually impressive and aligns it with the highlight style used by the live game renderer for active runes, improving consistency.
+    - **Improved `Rune: Focus Beam` Illustration:** The illustration's target, a Bastion core, was changed from a diamond shape to a square with a white border. This aligns the illustration with the specific visual used for Bastion cores in the game renderer, ensuring this important structure is represented consistently.
+- **Visual Effects Review (RUNE & TERRAFORM actions):** All visual effects were reviewed and found to be clear, impactful, and consistent. No changes were needed.
+- **Checked action coverage:** Confirmed all `RUNE` and `TERRAFORM` actions have illustrations and appropriate visual effects, enhancing UI consistency.
