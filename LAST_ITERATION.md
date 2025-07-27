@@ -1,5 +1,5 @@
-- **Refactoring & Optimization (Formations):**
-    - Identified duplicated code for finding rectangular point formations across multiple files (`formations.py`, `fortify_actions.py`).
-    - Created a new, efficient helper method `find_all_rectangles` in `FormationManager` to centralize this logic. This method uses a graph-based approach to find all connected rectangles for a team.
-    - Refactored several formation checking methods (`check_nexuses`, `check_barricade_rune`) and an action precondition helper (`_find_possible_monoliths_and_fallbacks`) to use the new centralized helper.
-    - This change reduces code duplication, improves maintainability, and ensures consistent logic for rectangle detection throughout the application.
+- **Refactoring & Centralization (Sacrifice Logic):**
+  - Refactored the `_get_eligible_phase_shift_lines` helper in `sacrifice_actions.py`.
+  - The original implementation manually calculated which points were "critical" by checking multiple structure types. This was replaced with a call to the centralized `game._get_critical_structure_point_ids` helper, which uses the structure registry in `structure_data.py`.
+  - The internal logic was also cleaned up to be more readable and robust, first filtering for non-critical lines and then applying a preference for safer lines within that subset.
+  - This improves maintainability by removing duplicated logic and centralizing the definition of "critical structures". It affects the `phase_shift`, `convert_point`, and `line_retaliation` sacrifice actions.
