@@ -1303,6 +1303,7 @@ class Game:
         action_info = self.state['actions_queue_this_turn'][self.state['action_in_turn']]
         teamId = action_info['teamId']
         is_bonus_action = action_info['is_bonus']
+        is_from_free_action = action_info.get('from_free', False)
         
         # Update all special structures for the current team right before it acts.
         # This ensures the team acts based on its most current state after other teams' actions.
@@ -1347,26 +1348,42 @@ class Game:
                     self.state.setdefault('no_cost_action_used_by_team_this_turn', set()).add(teamId)
                     
                     # Insert a bonus action for the same team right after the current one
-                    bonus_action = {'teamId': teamId, 'is_bonus': True}
+                    bonus_action = {'teamId': teamId, 'is_bonus': True, 'from_free': True}
                     self.state['actions_queue_this_turn'].insert(self.state['action_in_turn'] + 1, bonus_action)
         else:
             self.state['last_action_details'] = {}
         
         # --- Log the final result using the new helper method ---
-        log_message = f"{team_name} "
+        log_message = ""
         short_log_message = "[ACTION]"
 
-        if is_bonus_action:
-            log_message = f"[BONUS] {team_name} "
+        gained_bonus_this_action = False
+        is_no_cost_action = result.get('success') and action_data.ACTIONS.get(action_name, {}).get('no_cost', False)
+
+        if is_no_cost_action:
+            # Check if this action resulted in a bonus action being queued
+            next_action_index = self.state['action_in_turn'] + 1
+            if next_action_index < len(self.state['actions_queue_this_turn']):
+                next_action = self.state['actions_queue_this_turn'][next_action_index]
+                if next_action.get('from_free') and next_action.get('teamId') == teamId:
+                    gained_bonus_this_action = True
+        
+        if is_bonus_action and not is_from_free_action:
+            log_message += "[BONUS] "
+
+        log_message += f"{team_name} "
 
         if result.get('success'):
             long_msg_part, short_log_message = self._get_action_log_messages(result)
             log_message += long_msg_part
 
-            # Issue 1: Add [no-cost] tag to log message
-            is_no_cost_action = action_data.ACTIONS.get(action_name, {}).get('no_cost', False)
             if is_no_cost_action:
-                short_log_message += " [no-cost]"
+                if gained_bonus_this_action:
+                    log_message += " This action is free and grants a bonus action."
+                    short_log_message += " [FREE+BONUS]"
+                else:
+                    log_message += " This action is free."
+                    short_log_message += " [FREE]"
         else:
             log_message += "could not find a valid move and passed its turn."
             short_log_message = "[PASS]"

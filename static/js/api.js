@@ -176,14 +176,24 @@ js_game_data = game_data
                 const game_phase = this._game.state.get('game_phase');
                 
                 if (game_phase === 'RUNNING') {
-                    const old_turn = this._game.state.get('turn');
                     this._game.run_next_action();
                     raw_history.push(this._pyProxyToJs(this._game.state.copy()));
                     
-                    const new_turn = this._game.state.get('turn');
-                    if (new_turn > old_turn && progressCallback) {
+                    if (progressCallback) {
+                        const turn = this._game.state.get('turn');
                         const max_turns = this._game.state.get('max_turns');
-                        progressCallback(Math.round((new_turn / max_turns) * 100), new_turn, max_turns);
+                        const action_in_turn = this._game.state.get('action_in_turn');
+                        const queue_py = this._game.state.get('actions_queue_this_turn');
+                        const actions_this_turn = queue_py ? queue_py.length : 0;
+                        queue_py?.destroy();
+
+                        // Progress based on completed turns + fraction of current turn
+                        const completed_turns = Math.max(0, turn - 1);
+                        const turn_progress = completed_turns / max_turns;
+                        const action_progress_in_turn = actions_this_turn > 0 ? (action_in_turn / actions_this_turn) : 0;
+                        const total_progress = Math.round((turn_progress + action_progress_in_turn / max_turns) * 100);
+                        
+                        progressCallback(total_progress, turn, max_turns);
                     }
 
                     setTimeout(step, 0); // Yield to event loop to update UI

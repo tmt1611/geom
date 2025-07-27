@@ -448,8 +448,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         actionPreviewPanel.style.display = 'block';
 
-        if (gameState.game_phase === 'FINISHED' || !probData) {
-            content.innerHTML = '<h5>Simulation Complete</h5>';
+        if (!probData) {
+            // This can happen at the very end of the simulation, or at the end of a turn
+            // before the next turn's action queue is built.
+            // Instead of showing "Simulation Complete", we just leave the last
+            // valid preview visible, as requested.
             return;
         }
 
@@ -675,7 +678,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const progressCallback = (progress, turn, maxTurns) => {
                     loaderProgress.value = progress;
-                    loaderText.textContent = `Simulating turn ${turn} / ${maxTurns}...`;
+                    // The turn counter in the game logic starts at 0 and increments to 1 on the first turn.
+                    // For display, we want to show "Turn 1" during the first turn's simulation.
+                    const displayTurn = Math.max(1, turn);
+                    loaderText.textContent = `Simulating Turn ${displayTurn} / ${maxTurns}...`;
                 };
 
                 simulationData = await api.startGameAsync(payload, progressCallback);
