@@ -356,36 +356,45 @@ const visualEffectsManager = (() => {
             });
         },
         'mirror_structure': (details, gameState) => {
-            details.new_points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
-            uiState.lastActionHighlights.points.add(details.axis_p1_id);
-            uiState.lastActionHighlights.points.add(details.axis_p2_id);
-            uiState.visualEffects.push({
-                type: 'mirror_axis',
-                p1_id: details.axis_p1_id,
-                p2_id: details.axis_p2_id,
-                startTime: Date.now(),
-                duration: 1500
-            });
-            // Add effects for new points and lines
-            details.new_points.forEach((p, i) => {
-                const team = gameState.teams[p.teamId];
-                if (!team) {
-                    console.warn(`Visuals: could not find team with ID ${p.teamId} for mirror_structure point formation.`);
-                    return; // Skip this effect if team is missing
-                }
+            if (details.axis_p1_id) uiState.lastActionHighlights.points.add(details.axis_p1_id);
+            if (details.axis_p2_id) uiState.lastActionHighlights.points.add(details.axis_p2_id);
+
+            if (details.axis_p1_id && details.axis_p2_id) {
                 uiState.visualEffects.push({
-                    type: 'point_formation',
-                    x: p.x,
-                    y: p.y,
-                    color: team.color,
-                    startTime: Date.now() + i * 100,
-                    duration: 600
+                    type: 'mirror_axis',
+                    p1_id: details.axis_p1_id,
+                    p2_id: details.axis_p2_id,
+                    startTime: Date.now(),
+                    duration: 1500
                 });
-            });
-            details.new_lines.forEach(line => {
-                uiState.lastActionHighlights.lines.add(line.id);
-                uiState.visualEffects.push({ type: 'new_line', line, startTime: Date.now() + 400, duration: 800 });
-            });
+            }
+            
+            // Add effects for new points and lines
+            if (Array.isArray(details.new_points)) {
+                details.new_points.forEach((p, i) => {
+                    uiState.lastActionHighlights.points.add(p.id);
+                    const team = gameState.teams[p.teamId];
+                    if (!team) {
+                        console.warn(`Visuals: could not find team with ID ${p.teamId} for mirror_structure point formation.`);
+                        return; // Skip this effect if team is missing
+                    }
+                    uiState.visualEffects.push({
+                        type: 'point_formation',
+                        x: p.x,
+                        y: p.y,
+                        color: team.color,
+                        startTime: Date.now() + i * 100,
+                        duration: 600
+                    });
+                });
+            }
+            
+            if (Array.isArray(details.new_lines)) {
+                details.new_lines.forEach(line => {
+                    uiState.lastActionHighlights.lines.add(line.id);
+                    uiState.visualEffects.push({ type: 'new_line', line, startTime: Date.now() + 400, duration: 800 });
+                });
+            }
         },
         'mirror_fizzle_strengthen': (details, gameState) => {
             details.strengthened_lines.forEach(line => {

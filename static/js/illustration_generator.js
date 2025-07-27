@@ -143,6 +143,36 @@ const illustrationDrawers = {
         illustrationHelpers.drawPoints(ctx, [p1, p2], team1_color);
         illustrationHelpers.drawDashedLine(ctx, p1, p2, team1_color);
     },
+    'expand_mirror_point': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const p_source = {x: w*0.3, y: h*0.3};
+        const p_pivot = {x: w*0.5, y: h*0.5};
+        const p_new = {x: w*0.7, y: h*0.7};
+
+        // Draw source and pivot points
+        illustrationHelpers.drawPoints(ctx, [p_source, p_pivot], team1_color);
+        
+        // Draw dashed line showing reflection
+        illustrationHelpers.drawDashedLine(ctx, p_source, p_new, '#aaa');
+        
+        // Draw the new mirrored point
+        illustrationHelpers.drawPoints(ctx, [p_new], team1_color);
+    },
+    'expand_bisect_angle': (ctx, w, h) => {
+        const team1_color = 'hsl(0, 70%, 50%)';
+        const p_v = {x: w*0.2, y: h*0.5};
+        const p_l1 = {x: w*0.5, y: h*0.2};
+        const p_l2 = {x: w*0.5, y: h*0.8};
+        
+        // V-shape
+        illustrationHelpers.drawPoints(ctx, [p_v, p_l1, p_l2], team1_color);
+        illustrationHelpers.drawLines(ctx, [{p1: p_v, p2: p_l1}, {p1: p_v, p2: p_l2}], team1_color);
+        
+        // Bisector line and new point
+        const p_new = {x: w*0.8, y: h*0.5};
+        illustrationHelpers.drawDashedLine(ctx, p_v, p_new, team1_color);
+        illustrationHelpers.drawPoints(ctx, [p_new], team1_color);
+    },
     'expand_extend_line': (ctx, w, h) => {
         const team1_color = 'hsl(0, 70%, 50%)';
         const p1 = {x: w*0.2, y: h*0.5};
