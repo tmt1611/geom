@@ -420,3 +420,21 @@ class GameStateQuery:
         # Prioritize sacrificing the point with the lowest degree (fewest connections)
         safe_candidates.sort(key=lambda pid: len(adj.get(pid, [])))
         return safe_candidates[0]
+
+    def get_vertex_tightness_proxy(self, vertex_id, adj, points_map):
+        """
+        Calculates a 'tightness' proxy for a vertex angle. A smaller value means a tighter angle.
+        The proxy is the minimum squared distance between any two of the vertex's neighbors.
+        """
+        neighbors = adj.get(vertex_id)
+        if not neighbors or len(neighbors) < 2:
+            return float('inf')
+        
+        # Find the pair of neighbors that are closest to each other.
+        min_dist_sq = float('inf')
+        for p1_id, p2_id in combinations(neighbors, 2):
+            if p1_id in points_map and p2_id in points_map:
+                dist_sq = distance_sq(points_map[p1_id], points_map[p2_id])
+                if dist_sq < min_dist_sq:
+                    min_dist_sq = dist_sq
+        return min_dist_sq
