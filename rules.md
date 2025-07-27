@@ -6,8 +6,14 @@ When a team is created, it is assigned a trait which influences its behavior. Th
 *   **Defensive:** Favors fortifying territory and protecting its existing lines.
 *   **Balanced:** Has no strong preference for any particular type of action.
 
-## Runes
+## Passive Formations & Runes
 Runes are special geometric formations that grant a team passive bonuses or unlock powerful new actions. They are checked at the start of a team's turn.
+
+*   **Passive Formation: Prism-Rune:** A Prism is created when two of a team's claimed territories (triangles) share a common edge line.
+    *   **Bonus:** Unlocks the **[FIGHT] Refraction Beam** action, which allows for powerful bank-shot attacks.
+*   **Passive Formation: Nexus-Rune (Square):** A Nexus is a powerful economic structure that grants bonus actions.
+    *   **Formation:** Four points that form a perfect square, with all four outer edge lines and at least one of the two inner diagonals connected.
+    *   **Bonus:** For each Nexus a team controls at the start of a turn, that team gains **one bonus action** to perform during that turn. Unlocks the **[SACRIFICE] Attune Nexus** action.
 
 *   **I-Rune (Line Rune):**
     *   **Formation:** Three or more of a team's points are collinear and connected sequentially by lines.
@@ -48,12 +54,7 @@ Runes are special geometric formations that grant a team passive bonuses or unlo
     *   **Bonus 2:** Unlocks the **[RUNE] Gravity Well** action.
     *   **Bonus 3:** Unlocks the **[RUNE] Focus Beam** action.
     *   **Bonus 4:** This formation is a prerequisite for building the **Chronos Spire** wonder.
-*   **Nexus-Rune (Square):**
-    *   **Formation:** Four points that form a perfect square, with all four outer edge lines and at least one of the two inner diagonals connected. This is a passive formation detected automatically.
-    *   **Bonus:** For each Nexus-Rune a team controls at the start of a turn, that team gains **one bonus action**. Unlocks the **[FORTIFY] Attune Nexus** action.
-*   **Prism-Rune:**
-    *   **Formation:** A passive formation created when two of a team's claimed territories (triangles) share a common edge line.
-    *   **Bonus:** Unlocks the **[FIGHT] Refraction Beam** action.
+
 *   **Trebuchet-Rune (Kite):**
     *   **Formation:** A passive formation of four points in a kite shape. Requires a tight, isosceles triangle connected to a "counterweight" point along its axis of symmetry, with all 5 lines forming the outer kite shape.
     *   **Bonus:** Unlocks the **[FIGHT] Launch Payload** action.
@@ -99,19 +100,15 @@ On its turn, a team will perform one of the following actions, with the choice b
 *   **[RUNE] Focus Beam:** _(Requires a Star-Rune)_ Fires a beam from the central point to destroy a high-value enemy structure (Wonder, Bastion core, etc). If no high-value targets exist, it targets a regular point. If no targets exist at all, it creates a small fissure in the heart of the enemy's territory.
 *   **[RUNE] Gravity Well:** _(Requires a Star-Rune)_ Creates a powerful gravitational field, pushing all non-friendly points away from its center. If no points are in range, it gently pulls friendly points towards its center to consolidate. This action has no cost.
 *   **[RUNE] Time Stasis:** _(Requires an active Hourglass-Rune)_ The rune targets a nearby enemy point and freezes it in a **Stasis** field. If no valid targets are in range, it instead degrades the rune by converting one of its own non-vertex points into a temporary gravitational **anchor**. This action has no cost.
-*   **[FORTIFY] Attune Nexus:** Sacrifices a diagonal line from one of its Nexuses to supercharge it. For several turns, the Attuned Nexus energizes all nearby friendly lines, causing their attacks to also destroy the target line's endpoints.
+*   **[SACRIFICE] Attune Nexus:** Sacrifices a diagonal line from one of its Nexuses to supercharge it. For several turns, the Attuned Nexus energizes all nearby friendly lines, causing their attacks to also destroy the target line's endpoints.
 *   **[FORTIFY] Shield Line:** Applies a temporary shield to one of its lines. If all lines are already shielded, it will instead **overcharge** an existing shield, extending its duration. This action has no cost.
-*   **[DEFEND] Form Prism:** A passive formation. A Prism is created when two of a team's claimed territories (triangles) share a common edge line.
-    *   **Bonus:** Unlocks the **[FIGHT] Refraction Beam** action, which allows for powerful bank-shot attacks.
-*   **[DEFEND] Form Nexus:** A passive formation. A Nexus is a powerful economic structure that grants bonus actions.
-    *   **Formation:** Four points that form a perfect square, with all four outer edge lines and at least one of the two inner diagonals connected.
-    *   **Bonus:** For each Nexus a team controls at the start of a turn, that team gains **one bonus action** to perform during that turn.
+
 *   **[FORTIFY] Claim Territory:** If three points and their connecting lines form a triangle, the team can claim that triangle as its territory. If no new triangles can be formed, it will instead reinforce the boundary lines of an existing friendly territory.
     *   **Bonus:** The three points of a claimed territory become **Fortified**, making them immune to conversion. The three boundary lines become **Reinforced** and cannot be fractured by their owner, preserving the structure.
 *   **[FORTIFY] Form Bastion:** Converts a fortified point (a vertex of a claimed territory) and at least three of its connected, non-fortified points into a powerful defensive structure. If no valid formation can be found, it instead reinforces all lines connected to the team's most-connected fortified point.
     *   **Bonus:** The bastion's core point, prong points, and connecting lines become immune to standard attacks and conversion.
 *   **[FORTIFY] Form Monolith:** Forms a special defensive structure from four points that create a tall, thin rectangle with its perimeter lines connected. If no valid formation is found, it will instead reinforce the boundary lines of any existing rectangular structure.
-    *   **Bonus (Resonance Wave):** Every few turns, the Monolith emits a wave that **Empowers** all friendly lines in a radius around it. Empowered lines can absorb one or more hits before being destroyed.
+    *   **Bonus (Resonance Wave):** Every few turns, the Monolith emits a wave that strengthens all friendly lines in a radius around it.
 *   **[FORTIFY] Form Purifier:** A high-level strategic structure for countering area-control strategies.
     *   **Formation:** Requires five points to form a perfect, regular pentagon, with all 5 outer lines connected. This is a difficult and resource-intensive shape to create.
     *   **Bonus:** Unlocks the **[FIGHT] Purify Territory** action.
@@ -125,7 +122,7 @@ On its turn, a team will perform one of the following actions, with the choice b
     *   **Cost:** The central point and all branch points are sacrificed. This action can only be performed once per team.
     *   **Bonus 1 (Passive Growth):** Every few turns, the Heartwood automatically creates a new point for its team nearby.
     *   **Bonus 2 (Defensive Aura):** Prevents enemy points from being created in a large radius around it.
-*   **[FORTIFY] Form Rift Spire:** At a point that serves as a vertex for at least three different claimed territories, erect a Rift Spire. This action has no cost.
+*   **[TERRAFORM] Form Rift Spire:** At a point that serves as a vertex for at least three different claimed territories, erect a Rift Spire. This action has no cost.
     *   **Bonus:** Creates a **Rift Spire**. This structure takes several turns to charge. Once charged, it unlocks the **[TERRAFORM] Create Fissure** action.
 *   **[RUNE] Raise Barricade:** _(Requires an active Barricade-Rune)_ Creates a temporary, impassable wall along one of the rune's diagonals. The wall blocks line-based actions for several turns. This action has no cost.
 *   **[TERRAFORM] Create Fissure:** _(Requires a charged Rift Spire)_ The spire opens a temporary, impassable fissure across the battlefield. This action has no cost.

@@ -765,7 +765,8 @@ const renderer = (() => {
     
             switch (effect.type) {
                 case 'animated_ray':
-                case 'attack_ray': {
+                case 'attack_ray':
+                case 'heartwood_growth_ray': {
                     const p1 = { x: (effect.p1.x + 0.5) * cellSize, y: (effect.p1.y + 0.5) * cellSize };
                     const p2_full = { x: (effect.p2.x + 0.5) * cellSize, y: (effect.p2.y + 0.5) * cellSize };
                     const p2_current = {
@@ -821,25 +822,242 @@ const renderer = (() => {
                     ctx.stroke();
                     break;
                 }
-                case 'line_flash': {
-                    if (!gameState || !gameState.points) break;
+                case 'line_flash':
+                case 'bastion_formation': {
+                    const lines = effect.line ? [effect.line] : (effect.line_ids ? effect.line_ids.map(id => gameState.lines.find(l => l.id === id)).filter(Boolean) : []);
+                    if (!gameState || !gameState.points || lines.length === 0) break;
+                    lines.forEach(line => {
+                        const p1 = gameState.points[line.p1_id];
+                        const p2 = gameState.points[line.p2_id];
+                        if (p1 && p2) {
+                            const x1 = (p1.x + 0.5) * cellSize;
+                            const y1 = (p1.y + 0.5) * cellSize;
+                            const x2 = (p2.x + 0.5) * cellSize;
+                            const y2 = (p2.y + 0.5) * cellSize;
+                            ctx.strokeStyle = effect.color || '#fff';
+                            ctx.lineWidth = 4 + 6 * (1 - easedProgress);
+                            ctx.globalAlpha = 1 - easedProgress;
+                            ctx.beginPath();
+                            ctx.moveTo(x1, y1);
+                            ctx.lineTo(x2, y2);
+                            ctx.stroke();
+                        }
+                    });
+                    break;
+                }
+                case 'growing_wall': {
+                    const p1 = { x: (effect.barricade.p1.x + 0.5) * cellSize, y: (effect.barricade.p1.y + 0.5) * cellSize };
+                    const p2_full = { x: (effect.barricade.p2.x + 0.5) * cellSize, y: (effect.barricade.p2.y + 0.5) * cellSize };
+                    const p2_current = {
+                        x: p1.x + (p2_full.x - p1.x) * easedProgress,
+                        y: p1.y + (p2_full.y - p1.y) * easedProgress
+                    };
+                    ctx.strokeStyle = effect.color;
+                    ctx.lineWidth = 6;
+                    ctx.lineCap = 'round';
+                    ctx.globalAlpha = 1 - progress;
+                    illustrationHelpers.drawJaggedLine(ctx, p1, p2_current, 10, 4);
+                    ctx.lineCap = 'butt';
+                    break;
+                }
+                case 'nova_burst': {
+                    const cx = (effect.x + 0.5) * cellSize;
+                    const cy = (effect.y + 0.5) * cellSize;
+                    // Outer shockwave
+                    ctx.strokeStyle = 'rgba(255, 180, 50, 0.9)';
+                    ctx.lineWidth = 4;
+                    ctx.globalAlpha = 1 - easedProgress;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, effect.radius * easedProgress, 0, 2*Math.PI);
+                    ctx.stroke();
+                    // Particles
+                    ctx.fillStyle = 'rgba(255, 255, 150, 0.8)';
+                    effect.particles.forEach(p => {
+                        const dist = p.speed * progress;
+                        ctx.beginPath();
+                        ctx.arc(cx + Math.cos(p.angle)*dist, cy + Math.sin(p.angle)*dist, 3, 0, 2*Math.PI);
+                        ctx.fill();
+                    });
+                    break;
+                }
+                case 'new_line': {
                     const p1 = gameState.points[effect.line.p1_id];
                     const p2 = gameState.points[effect.line.p2_id];
-                    if (p1 && p2) {
-                        const x1 = (p1.x + 0.5) * cellSize;
-                        const y1 = (p1.y + 0.5) * cellSize;
-                        const x2 = (p2.x + 0.5) * cellSize;
-                        const y2 = (p2.y + 0.5) * cellSize;
-                        ctx.strokeStyle = '#fff';
-                        ctx.lineWidth = 4 + 6 * (1 - easedProgress);
-                        ctx.globalAlpha = 1 - easedProgress;
+                    if(p1 && p2) {
+                        const p1_coords = { x: (p1.x + 0.5) * cellSize, y: (p1.y + 0.5) * cellSize };
+                        const p2_full = { x: (p2.x + 0.5) * cellSize, y: (p2.y + 0.5) * cellSize };
+                        const p2_current = {
+                            x: p1_coords.x + (p2_full.x - p1_coords.x) * easedProgress,
+                            y: p1_coords.y + (p2_full.y - p1_coords.y) * easedProgress
+                        };
+                        ctx.strokeStyle = gameState.teams[effect.line.teamId].color;
+                        ctx.lineWidth = 2;
+                        ctx.globalAlpha = progress;
                         ctx.beginPath();
-                        ctx.moveTo(x1, y1);
-                        ctx.lineTo(x2, y2);
+                        ctx.moveTo(p1_coords.x, p1_coords.y);
+                        ctx.lineTo(p2_current.x, p2_current.y);
                         ctx.stroke();
                     }
                     break;
                 }
+                case 'polygon_flash':
+                case 'territory_fill': {
+                    if (effect.points && effect.points.length >= 3) {
+                        ctx.fillStyle = effect.color;
+                        ctx.globalAlpha = (1 - easedProgress) * 0.7;
+                        ctx.beginPath();
+                        ctx.moveTo((effect.points[0].x + 0.5) * cellSize, (effect.points[0].y + 0.5) * cellSize);
+                        for(let i=1; i<effect.points.length; i++) {
+                            ctx.lineTo((effect.points[i].x + 0.5) * cellSize, (effect.points[i].y + 0.5) * cellSize);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    break;
+                }
+                 case 'territory_fade': {
+                    const points = effect.territory.point_ids.map(pid => gameState.points[pid]).filter(Boolean);
+                    if (points.length === 3) {
+                        ctx.fillStyle = gameState.teams[effect.territory.teamId].color;
+                        ctx.globalAlpha = (1 - progress) * 0.3; // Fade out
+                        ctx.beginPath();
+                        ctx.moveTo((points[0].x + 0.5) * cellSize, (points[0].y + 0.5) * cellSize);
+                        ctx.lineTo((points[1].x + 0.5) * cellSize, (points[1].y + 0.5) * cellSize);
+                        ctx.lineTo((points[2].x + 0.5) * cellSize, (points[2].y + 0.5) * cellSize);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    break;
+                }
+                case 'arc_projectile': {
+                    const p1 = { x: (effect.start.x + 0.5) * cellSize, y: (effect.start.y + 0.5) * cellSize };
+                    const p2 = { x: (effect.end.x + 0.5) * cellSize, y: (effect.end.y + 0.5) * cellSize };
+                    const midX = (p1.x + p2.x) / 2;
+                    const midY = (p1.y + p2.y) / 2;
+                    const dist = Math.sqrt((p2.x-p1.x)**2 + (p2.y-p1.y)**2);
+                    const controlY = midY - dist*0.3; // arc height
+                    
+                    const t = easedProgress;
+                    const currentX = (1-t)**2 * p1.x + 2*(1-t)*t*midX + t**2 * p2.x;
+                    const currentY = (1-t)**2 * p1.y + 2*(1-t)*t*controlY + t**2 * p2.y;
+                    
+                    ctx.fillStyle = 'red';
+                    ctx.beginPath();
+                    ctx.arc(currentX, currentY, 5, 0, 2*Math.PI);
+                    ctx.fill();
+                    break;
+                }
+                 case 'chain_lightning': {
+                    if(!effect.destroyed_point || !effect.point_ids) break;
+                    const p_end = effect.destroyed_point;
+                    // Find closest point on rune to target
+                    const start_candidates = effect.point_ids.map(pid => gameState.points[pid]).filter(Boolean);
+                    if(!start_candidates.length) break;
+                    const p_start = start_candidates.reduce((closest, p) => distance_sq(p, p_end) < distance_sq(closest, p_end) ? p : closest, start_candidates[0]);
+                    
+                    const p1 = {x: (p_start.x + 0.5)*cellSize, y: (p_start.y + 0.5)*cellSize};
+                    const p2 = {x: (p_end.x + 0.5)*cellSize, y: (p_end.y + 0.5)*cellSize};
+                    ctx.strokeStyle = `rgba(200, 230, 255, ${1 - progress})`;
+                    ctx.lineWidth = 3;
+                    illustrationHelpers.drawJaggedLine(ctx, p1, p2, 7, 12);
+                    break;
+                 }
+                 case 'line_crack': {
+                    const p1 = gameState.points[effect.old_line.p1_id];
+                    const p2 = gameState.points[effect.old_line.p2_id];
+                    if(!p1 || !p2) break;
+                    const p1_c = {x:(p1.x+0.5)*cellSize, y:(p1.y+0.5)*cellSize};
+                    const p2_c = {x:(p2.x+0.5)*cellSize, y:(p2.y+0.5)*cellSize};
+                    const mid_c = {x:(effect.new_point.x+0.5)*cellSize, y:(effect.new_point.y+0.5)*cellSize};
+                    
+                    ctx.globalAlpha = 1 - easedProgress;
+                    ctx.strokeStyle = effect.color;
+                    ctx.lineWidth = 2;
+                    illustrationHelpers.drawJaggedLine(ctx, p1_c, mid_c, 5, 5);
+                    illustrationHelpers.drawJaggedLine(ctx, p2_c, mid_c, 5, 5);
+                    break;
+                 }
+                 case 'energy_spiral': {
+                    const p_start = {x:(effect.start.x+0.5)*cellSize, y:(effect.start.y+0.5)*cellSize};
+                    const p_end = {x:(effect.end.x+0.5)*cellSize, y:(effect.end.y+0.5)*cellSize};
+                    const p_current = {
+                        x: p_start.x + (p_end.x - p_start.x) * easedProgress,
+                        y: p_start.y + (p_end.y - p_start.y) * easedProgress
+                    };
+                    const angle = progress * Math.PI * 6;
+                    const radius = (1 - progress) * 15;
+                    ctx.fillStyle = effect.color;
+                    ctx.globalAlpha = 1 - progress;
+                    ctx.beginPath();
+                    ctx.arc(p_current.x + Math.cos(angle)*radius, p_current.y + Math.sin(angle)*radius, 3, 0, 2*Math.PI);
+                    ctx.fill();
+                    break;
+                 }
+                 case 'monolith_formation':
+                 case 'heartwood_creation': {
+                     const cx = (effect.center_coords.x + 0.5) * cellSize;
+                     const cy = (effect.center_coords.y + 0.5) * cellSize;
+                     const startPoints = effect.sacrificed_points || [effect.center_coords];
+                     
+                     ctx.strokeStyle = effect.color || '#fff';
+                     ctx.lineWidth = 2;
+                     ctx.globalAlpha = 1 - progress;
+                     startPoints.forEach(p_start => {
+                         const start_c = {x:(p_start.x+0.5)*cellSize, y:(p_start.y+0.5)*cellSize};
+                         const end_c = {x:start_c.x + (cx - start_c.x)*easedProgress, y:start_c.y + (cy-start_c.y)*easedProgress};
+                         ctx.beginPath();
+                         ctx.moveTo(start_c.x, start_c.y);
+                         ctx.lineTo(end_c.x, end_c.y);
+                         ctx.stroke();
+                     });
+                     break;
+                 }
+                 case 'mirror_axis': {
+                     const p1 = gameState.points[effect.p1_id];
+                     const p2 = gameState.points[effect.p2_id];
+                     if(p1 && p2){
+                        const x1 = (p1.x + 0.5) * cellSize; const y1 = (p1.y + 0.5) * cellSize;
+                        const x2 = (p2.x + 0.5) * cellSize; const y2 = (p2.y + 0.5) * cellSize;
+                        const pulse = Math.abs(Math.sin(progress * Math.PI * 2));
+                        ctx.strokeStyle = `rgba(255, 255, 255, ${pulse})`;
+                        ctx.lineWidth = 1 + pulse * 4;
+                        ctx.setLineDash([5,5]);
+                        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+                        ctx.setLineDash([]);
+                     }
+                     break;
+                 }
+                 case 'point_pull': {
+                     const center_c = {x:(effect.center.x+0.5)*cellSize, y:(effect.center.y+0.5)*cellSize};
+                     effect.points.forEach(p_start_data => {
+                         const p_start_c = {x:(p_start_data.x+0.5)*cellSize, y:(p_start_data.y+0.5)*cellSize};
+                         const p_end_c = {
+                            x: p_start_c.x + (center_c.x - p_start_c.x) * easedProgress,
+                            y: p_start_c.y + (center_c.y - p_start_c.y) * easedProgress
+                         };
+                         ctx.strokeStyle = '#aaa';
+                         ctx.lineWidth = 1.5;
+                         ctx.globalAlpha = 1 - progress;
+                         ctx.beginPath(); ctx.moveTo(p_start_c.x, p_start_c.y); ctx.lineTo(p_end_c.x, p_end_c.y); ctx.stroke();
+                     });
+                     break;
+                 }
+                 case 'portal_link': {
+                     const p1_c = {x:(effect.p1.x+0.5)*cellSize, y:(effect.p1.y+0.5)*cellSize};
+                     const p2_c = {x:(effect.p2.x+0.5)*cellSize, y:(effect.p2.y+0.5)*cellSize};
+                     
+                     ctx.strokeStyle = effect.color;
+                     ctx.lineWidth = 3;
+                     const radius1 = 15 * (1-progress);
+                     const radius2 = 15 * progress;
+                     
+                     ctx.globalAlpha = 1 - progress;
+                     ctx.beginPath(); ctx.arc(p1_c.x, p1_c.y, radius1, 0, 2*Math.PI); ctx.stroke();
+                     
+                     ctx.globalAlpha = progress;
+                     ctx.beginPath(); ctx.arc(p2_c.x, p2_c.y, radius2, 0, 2*Math.PI); ctx.stroke();
+                     break;
+                 }
             }
         });
         ctx.restore();

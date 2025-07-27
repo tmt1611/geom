@@ -23,6 +23,9 @@ WATCHED_FILES = [
     # Frontend
     'static/js/main.js',
     'static/js/api.js',
+    'static/js/renderer.js',
+    'static/js/visuals.js',
+    'static/js/illustrations.js',
     'static/css/style.css',
     'index.html',
     # Docs
