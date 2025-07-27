@@ -380,7 +380,7 @@ class RuneActionsHandler:
         p_vertex = points_map[rune['vertex_id']]
         stasis_range_sq = (self.state['grid_size'] * 0.3)**2
         
-        enemy_points = self.game._get_vulnerable_enemy_points(teamId)
+        enemy_points = self.game.query.get_vulnerable_enemy_points(teamId)
         possible_targets = [ep for ep in enemy_points if distance_sq(p_vertex, ep) < stasis_range_sq]
 
         if possible_targets:
@@ -447,7 +447,7 @@ class RuneActionsHandler:
         
         # 2. Fallback to any vulnerable enemy
         if not target_type:
-            vulnerable_targets = self.game._get_vulnerable_enemy_points(teamId)
+            vulnerable_targets = self.game.query.get_vulnerable_enemy_points(teamId)
             if vulnerable_targets:
                 target_point = min(vulnerable_targets, key=lambda p: distance_sq(center_point, p))
                 target_type = 'fallback_point'
