@@ -18,20 +18,43 @@ class FormationManager:
             return []
 
         existing_lines = {tuple(sorted((l['p1_id'], l['p2_id']))) for l in team_lines}
+        nexuses = []
+
+        for rect_data in self.find_all_rectangles(team_point_ids, team_lines, all_points):
+            # Nexus needs to be a square
+            if abs(rect_data['aspect_ratio'] - 1.0) < 0.05:
+                edge_data = get_edges_by_distance(rect_data['points'])
+                # Nexus needs at least one diagonal line
+                if any(tuple(sorted(pair)) in existing_lines for pair in edge_data['diagonals']):
+                    center_x = sum(p['x'] for p in rect_data['points']) / 4
+                    center_y = sum(p['y'] for p in rect_data['points']) / 4
+                    nexuses.append({'point_ids': rect_data['point_ids'], 'center': {'x': center_x, 'y': center_y}})
+        return nexuses
+
+    def find_all_rectangles(self, team_point_ids, team_lines, all_points):
+        """
+        A helper generator to find all unique rectangles in a team's structure.
+        This is a common pattern for multiple formation checks. It ensures the 4 points
+        form a rectangle geometrically and that all 4 side lines exist.
+        Yields a dictionary containing point IDs, the list of points, and aspect ratio.
+        """
+        # Adjacency list is built here to be self-contained.
         adj = {pid: set() for pid in team_point_ids}
         for line in team_lines:
             if line['p1_id'] in adj and line['p2_id'] in adj:
                 adj[line['p1_id']].add(line['p2_id'])
                 adj[line['p2_id']].add(line['p1_id'])
-
-        nexuses, checked_quads = [], set()
-
+        
+        checked_quads = set()
+        # Iterate through points to find potential right-angle corners
         for p1_id in team_point_ids:
-            if len(adj.get(p1_id, [])) < 2: continue
+            if len(adj.get(p1_id, [])) < 2:
+                continue
             
             p1 = all_points[p1_id]
             neighbors_of_p1 = list(adj[p1_id])
 
+            # Check pairs of neighbors for a right angle
             for i in range(len(neighbors_of_p1)):
                 for j in range(i + 1, len(neighbors_of_p1)):
                     p2_id, p3_id = neighbors_of_p1[i], neighbors_of_p1[j]
@@ -39,33 +62,41 @@ class FormationManager:
                     p2, p3 = all_points[p2_id], all_points[p3_id]
                     v1 = {'x': p2['x'] - p1['x'], 'y': p2['y'] - p1['y']}
                     v2 = {'x': p3['x'] - p1['x'], 'y': p3['y'] - p1['y']}
-                    if abs(v1['x'] * v2['x'] + v1['y'] * v2['y']) > 0.1: continue
+                    # Check for a right angle at p1 with dot product (tolerance)
+                    if abs(v1['x'] * v2['x'] + v1['y'] * v2['y']) > 0.1:
+                        continue
 
-                    p4_coords = {'x': p2['x'] + v2['x'], 'y': p2['y'] + v2['y']}
+                    # Potential rectangle found, calculate expected p4
+                    # p4 = p1 + (p2-p1) + (p3-p1) = p2 + p3 - p1
+                    p4_coords = {'x': p2['x'] + p3['x'] - p1['x'], 'y': p2['y'] + p3['y'] - p1['y']}
                     
+                    # Find a point close to p4_coords that completes the quad
                     p4_id = None
+                    # The fourth point must be connected to both p2 and p3
                     p4_candidates = adj.get(p2_id, set()).intersection(adj.get(p3_id, set()))
                     for pid_candidate in p4_candidates:
                         if pid_candidate != p1_id:
                             p_candidate = all_points.get(pid_candidate)
+                            # Check if the candidate point is where we expect it
                             if p_candidate and distance_sq(p_candidate, p4_coords) < 0.5:
-                                p4_id = pid_candidate; break
+                                p4_id = pid_candidate
+                                break
                     
                     if p4_id:
                         p_ids_tuple = tuple(sorted((p1_id, p2_id, p3_id, p4_id)))
-                        if p_ids_tuple in checked_quads: continue
+                        if p_ids_tuple in checked_quads:
+                            continue
                         checked_quads.add(p_ids_tuple)
-
+                        
                         p_list = [p1, p2, p3, all_points[p4_id]]
                         is_rect, aspect_ratio = is_rectangle(*p_list)
 
-                        if is_rect and abs(aspect_ratio - 1.0) < 0.05:
-                            edge_data = get_edges_by_distance(p_list)
-                            if any(tuple(sorted(pair)) in existing_lines for pair in edge_data['diagonals']):
-                                center_x = sum(p['x'] for p in p_list) / 4
-                                center_y = sum(p['y'] for p in p_list) / 4
-                                nexuses.append({'point_ids': list(p_ids_tuple), 'center': {'x': center_x, 'y': center_y}})
-        return nexuses
+                        if is_rect:
+                            yield {
+                                'point_ids': list(p_ids_tuple),
+                                'points': p_list,
+                                'aspect_ratio': aspect_ratio
+                            }
 
     def check_i_rune(self, team_point_ids, team_lines, all_points):
         """Finds I-Runes: a line of 3 or more collinear points, connected by lines."""
@@ -114,52 +145,9 @@ class FormationManager:
     def check_barricade_rune(self, team_point_ids, team_lines, all_points):
         """Finds Barricade Runes: a rectangle with all four sides present as lines."""
         if len(team_point_ids) < 4: return []
-
-        adj = {pid: set() for pid in team_point_ids}
-        for line in team_lines:
-            if line['p1_id'] in adj and line['p2_id'] in adj:
-                adj[line['p1_id']].add(line['p2_id'])
-                adj[line['p2_id']].add(line['p1_id'])
         
-        barricade_runes, checked_quads = [], set()
-
-        for p1_id in team_point_ids:
-            if len(adj.get(p1_id, [])) < 2: continue
-            
-            p1 = all_points[p1_id]
-            neighbors_of_p1 = list(adj[p1_id])
-
-            for i in range(len(neighbors_of_p1)):
-                for j in range(i + 1, len(neighbors_of_p1)):
-                    p2_id, p3_id = neighbors_of_p1[i], neighbors_of_p1[j]
-                    
-                    p2, p3 = all_points[p2_id], all_points[p3_id]
-                    v1 = {'x': p2['x'] - p1['x'], 'y': p2['y'] - p1['y']}
-                    v2 = {'x': p3['x'] - p1['x'], 'y': p3['y'] - p1['y']}
-                    if abs(v1['x'] * v2['x'] + v1['y'] * v2['y']) > 0.1: continue
-
-                    p4_coords = {'x': p2['x'] + v2['x'], 'y': p2['y'] + v2['y']}
-                    
-                    p4_id = None
-                    p4_candidates = adj.get(p2_id, set()).intersection(adj.get(p3_id, set()))
-                    for pid_candidate in p4_candidates:
-                        if pid_candidate != p1_id:
-                            p_candidate = all_points.get(pid_candidate)
-                            if p_candidate and distance_sq(p_candidate, p4_coords) < 0.5:
-                                p4_id = pid_candidate
-                                break
-                    
-                    if p4_id:
-                        p_ids_tuple = tuple(sorted((p1_id, p2_id, p3_id, p4_id)))
-                        if p_ids_tuple in checked_quads: continue
-                        checked_quads.add(p_ids_tuple)
-                        
-                        p_list = [p1, p2, p3, all_points[p4_id]]
-                        is_rect, _ = is_rectangle(*p_list)
-
-                        if is_rect:
-                            barricade_runes.append(list(p_ids_tuple))
-        return barricade_runes
+        # The find_all_rectangles method already ensures the 4 side lines exist.
+        return [rect['point_ids'] for rect in self.find_all_rectangles(team_point_ids, team_lines, all_points)]
 
     def _find_all_triangles(self, team_point_ids, team_lines):
         """Finds all triangles (as tuples of point IDs) for a given set of points and lines."""

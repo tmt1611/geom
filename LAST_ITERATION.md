@@ -1,5 +1,5 @@
-- **Refactoring & Robustness (Sacrifice Logic):**
-    - Refactored the core logic for selecting a sacrificial point (`_find_non_critical_sacrificial_point`).
-    - The adjacency list for a team's graph is now computed once by a helper and reused for finding both articulation points and node degrees, improving efficiency slightly.
-    - Improved the selection criteria to not just prefer "leaf" nodes, but to sort all non-critical points by their number of connections and randomly choose one of the safest options.
-    - Added a fallback for sacrifice actions: if all non-critical points are technically articulation points (e.g., in a simple cycle), one can still be sacrificed. This aligns with the design rule that the action pool should never be empty and prevents the game from getting stuck.
+- **Refactoring & Optimization (Formations):**
+    - Identified duplicated code for finding rectangular point formations across multiple files (`formations.py`, `fortify_actions.py`).
+    - Created a new, efficient helper method `find_all_rectangles` in `FormationManager` to centralize this logic. This method uses a graph-based approach to find all connected rectangles for a team.
+    - Refactored several formation checking methods (`check_nexuses`, `check_barricade_rune`) and an action precondition helper (`_find_possible_monoliths_and_fallbacks`) to use the new centralized helper.
+    - This change reduces code duplication, improves maintainability, and ensures consistent logic for rectangle detection throughout the application.
