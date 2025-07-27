@@ -344,6 +344,15 @@ const visualEffectsManager = (() => {
         },
         'create_anchor': (details, gameState) => {
             uiState.lastActionHighlights.points.add(details.anchor_point.id);
+            // Add an implosion/formation effect on the point becoming an anchor
+            uiState.visualEffects.push({
+                type: 'point_implosion',
+                x: details.anchor_point.x,
+                y: details.anchor_point.y,
+                color: gameState.teams[details.anchor_point.teamId].color,
+                startTime: Date.now(),
+                duration: 800
+            });
         },
         'create_whirlpool': (details, gameState) => {
             uiState.visualEffects.push({
@@ -681,7 +690,7 @@ const visualEffectsManager = (() => {
         'rune_focus_beam': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             uiState.visualEffects.push({
-                type: 'jagged_ray',
+                type: 'attack_ray',
                 p1: details.center_point,
                 p2: details.target_point,
                 startTime: Date.now(),
@@ -766,6 +775,49 @@ const visualEffectsManager = (() => {
                 uiState.visualEffects.push({ type: 'animated_ray', p1: p2, p2: target, startTime: Date.now(), duration: 500, color: 'rgba(255,0,0,1.0)' });
             }
             uiState.visualEffects.push({ type: 'point_explosion', x: target.x, y: target.y, startTime: Date.now(), duration: 600 });
+        },
+        'parallel_strike': (details, gameState) => {
+            uiState.lastActionHighlights.points.add(details.source_point.id);
+            uiState.lastActionHighlights.lines.add(details.parallel_line.id);
+            uiState.lastActionHighlights.points.add(details.destroyed_point.id);
+            uiState.visualEffects.push({
+                type: 'attack_ray',
+                p1: details.source_point,
+                p2: details.destroyed_point,
+                startTime: Date.now(),
+                duration: 700,
+                color: gameState.teams[details.source_point.teamId].color
+            });
+            uiState.visualEffects.push({
+                type: 'point_explosion',
+                x: details.destroyed_point.x,
+                y: details.destroyed_point.y,
+                startTime: Date.now() + 300,
+                duration: 600
+            });
+        },
+        'territory_tri_beam': (details, gameState) => {
+            details.territory_point_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+            const teamColor = gameState.teams[details.team_id].color;
+            details.rays.forEach(ray => {
+                uiState.visualEffects.push({
+                    type: 'attack_ray',
+                    p1: ray.p1,
+                    p2: ray.p2,
+                    startTime: Date.now(),
+                    duration: 800,
+                    color: teamColor
+                });
+            });
+            details.hit_points.forEach(hit => {
+                 uiState.visualEffects.push({
+                    type: 'point_explosion',
+                    x: hit.x,
+                    y: hit.y,
+                    startTime: Date.now() + 400,
+                    duration: 500
+                });
+            });
         },
         'rune_impale': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
@@ -1035,6 +1087,19 @@ const visualEffectsManager = (() => {
                 uiState.visualEffects.push({ type: 'line_flash', line: line, startTime: Date.now(), duration: 800 });
             });
             details.territory_point_ids.forEach(pid => uiState.lastActionHighlights.points.add(pid));
+        },
+        'parallel_strike_miss_spawn': (details, gameState) => {
+            uiState.lastActionHighlights.points.add(details.source_point.id);
+            uiState.lastActionHighlights.lines.add(details.parallel_line.id);
+            uiState.lastActionHighlights.points.add(details.new_point.id);
+            uiState.visualEffects.push({
+                type: 'attack_ray',
+                p1: details.source_point,
+                p2: details.new_point,
+                startTime: Date.now(),
+                duration: 700,
+                color: gameState.teams[details.source_point.teamId].color
+            });
         },
         'sentry_zap_miss_spawn': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));

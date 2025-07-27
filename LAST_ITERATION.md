@@ -1,8 +1,7 @@
-- **Illustration Review (SACRIFICE actions):** Reviewed all `SACRIFICE` actions for visual consistency and to ensure they all had illustrations.
-- **Visual Design & Effect Consistency:**
-    - **`Fight: Hull Breach` & `Sacrifice: Convert Point`:** Updated illustrations to use a particle spiral effect, matching their `energy_spiral` in-game visual effect. This creates a consistent visual language for "point conversion".
-    - **`Sacrifice: Create Whirlpool`:** Simplified the illustration to use curved "pull" lines, which clearly communicates the action's intent without needing a complex new helper function.
-    - **`Sacrifice: Phase Shift`:** Updated illustration to include portal rings at the start and end points, aligning it with the `portal_link` in-game visual effect.
-    - **`Sacrifice: Attune Nexus`:** Redesigned the illustration to show pull arrows from the sacrificed line's points into the nexus center, matching the `point_pull` visual effect.
-    - **`Sacrifice: Bastion Pulse`:** Enhanced the illustration to include a "flash" fill over the bastion structure, matching its `polygon_flash` in-game effect.
-- **Consistency Check:** Confirmed that other `SACRIFICE` actions (`Nova Burst`, `Line Retaliation`, `Chain Lightning`, etc.) already have a consistent visual language (e.g., use of sacrifice symbol, explosion effects) across their illustrations and in-game effects.
+- **Illustration Review (FIGHT & FORTIFY actions):** Reviewed non-rune `FIGHT` and all `FORTIFY` actions for consistency.
+- **Visual Effect Creation & Streamlining:**
+    - **`Fight: Parallel Strike`**: Added a new visual effect (`parallel_strike` and `parallel_strike_miss_spawn`) using an `attack_ray` to match its illustration and provide in-game feedback.
+    - **`Fight: Territory Tri-Beam`**: Added a new visual effect (`territory_tri_beam`) that fires three `attack_ray`s, aligning it with its name and illustration.
+    - **`Fortify: Create Anchor`**: Enhanced the existing visual handler to include a `point_implosion` effect, giving better feedback for the point's transformation.
+    - **`Rune: Focus Beam`**: Changed the visual effect from a `jagged_ray` (lightning) to a straight `attack_ray` (beam) to better align with the action's name and its existing illustration. This improves visual consistency across "beam" type attacks.
+- **Consistency Check:** Verified that other actions in these categories already had consistent illustrations and visual effects.
