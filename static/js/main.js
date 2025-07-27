@@ -26,9 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout: null
         }
     };
-    let simulationHistory = []; // Full history of game states
+    let simulationHistory = []; // Full history of RAW game states
+    let augmentedHistoryCache = {}; // Cache for augmented states { index: state }
     let playbackIndex = 0; // Current index in the simulationHistory
-    let currentGameState = {}; // The state object for the CURRENT playback index
+    let currentGameState = {}; // The AUGMENTED state object for the CURRENT playback index
 
     // --- UI Elements ---
     const teamsList = document.getElementById('teams-list');
@@ -105,19 +106,34 @@ document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(animationLoop);
     }
 
-    function updateStateAndRender(gameState, previousState = null) {
-        if (!gameState || !gameState.teams) return;
-        
-        currentGameState = gameState;
+    async function showStateAtIndex(index, previousIndex = null) {
+        if (index < 0 || index >= simulationHistory.length) return;
 
-        // Generate visual effects by comparing the new state to the previous one.
-        visualEffectsManager.processStateChange(previousState, gameState, uiState, cellSize);
+        playbackIndex = index;
+        let augmentedState = augmentedHistoryCache[index];
+        let previousAugmentedState = previousIndex !== null ? augmentedHistoryCache[previousIndex] : null;
+
+        if (!augmentedState) {
+            const rawState = simulationHistory[index];
+            augmentedState = await api.augmentState(rawState);
+            augmentedHistoryCache[index] = augmentedState;
+        }
+
+        if (previousIndex !== null && !previousAugmentedState) {
+            const rawPrevState = simulationHistory[previousIndex];
+            previousAugmentedState = await api.augmentState(rawPrevState);
+            augmentedHistoryCache[previousIndex] = previousAugmentedState;
+        }
         
-        renderTeamsList(); // Will only render if necessary
-        updateLog(gameState.game_log, gameState.teams);
-        updateInterpretationPanel(gameState);
-        updateActionPreview(gameState);
-        updateControls(gameState);
+        currentGameState = augmentedState;
+
+        visualEffectsManager.processStateChange(previousAugmentedState, augmentedState, uiState, cellSize);
+        
+        renderTeamsList();
+        updateLog(augmentedState.game_log, augmentedState.teams);
+        updateInterpretationPanel(augmentedState);
+        updateActionPreview(augmentedState);
+        updateControls(augmentedState);
     }
 
     // --- UI Update Functions ---
@@ -600,9 +616,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 maxTurns: parseInt(maxTurnsInput.value), gridSize: parseInt(gridSizeInput.value)
             });
             uiState.initialPoints = [];
-            simulationHistory = simulationData.history;
-            playbackIndex = 0;
-            updateStateAndRender(simulationHistory[0]);
+            // In HTTP mode, this is augmented. In Pyodide, it's raw.
+            simulationHistory = simulationData.history || simulationData.raw_history; 
+            augmentedHistoryCache = {};
+            if (simulationData.history) { // Pre-fill cache for HTTP mode
+                simulationData.history.forEach((state, index) => {
+                    augmentedHistoryCache[index] = state;
+                });
+            }
+            
+            await showStateAtIndex(0);
+
         } catch (error) { throw error; }
     });
 
@@ -612,9 +636,14 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const simulationData = await api.restart();
             if (simulationData.error) throw new Error(`Failed to restart game: ${simulationData.error}`);
-            simulationHistory = simulationData.history;
-            playbackIndex = 0;
-            updateStateAndRender(simulationHistory[0]);
+            simulationHistory = simulationData.history || simulationData.raw_history;
+            augmentedHistoryCache = {};
+             if (simulationData.history) { // Pre-fill cache for HTTP mode
+                simulationData.history.forEach((state, index) => {
+                    augmentedHistoryCache[index] = state;
+                });
+            }
+            await showStateAtIndex(0);
         } catch (error) { throw error; }
     });
 
@@ -638,19 +667,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function playbackPreviousStep() {
         if (playbackIndex > 0) {
-            playbackIndex--;
             // When going back, we don't pass the "previous" state to avoid trying to animate backwards.
             // This just snaps to the previous state.
-            updateStateAndRender(simulationHistory[playbackIndex], null); 
+            showStateAtIndex(playbackIndex - 1, null);
         }
     }
     
     function playbackNextStep() {
         if (playbackIndex < simulationHistory.length - 1) {
-            const previousState = simulationHistory[playbackIndex];
-            playbackIndex++;
-            const nextState = simulationHistory[playbackIndex];
-            updateStateAndRender(nextState, previousState);
+            showStateAtIndex(playbackIndex + 1, playbackIndex);
         } else {
             stopPlayback(); // Reached the end
         }
@@ -662,8 +687,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             if (playbackIndex >= simulationHistory.length - 1) {
                 // If at the end, restart playback from beginning
-                playbackIndex = 0;
-                updateStateAndRender(simulationHistory[0]);
+                showStateAtIndex(0);
             }
             playbackPlayPauseBtn.textContent = 'Pause';
             const delay = parseInt(autoPlaySpeedSlider.value, 10);
@@ -686,6 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const gameState = await api.reset();
                 simulationHistory = [];
+                augmentedHistoryCache = {};
                 playbackIndex = 0;
                 uiState.localTeams = gameState.teams || {};
                 Object.values(uiState.localTeams).forEach(t => t.isEditing = false);
@@ -695,7 +720,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 gridSizeInput.value = gameState.grid_size;
                 maxTurnsInput.value = gameState.max_turns;
                 setNewTeamDefaults();
-                updateStateAndRender(gameState); // Renders the empty setup state
+                currentGameState = gameState; // Manually set for setup phase
+                updateLog(gameState.game_log, gameState.teams);
+                updateInterpretationPanel(gameState);
+                updateActionPreview(gameState);
+                updateControls(gameState);
                 renderTeamsList();
             } catch (error) { throw error; }
         }
@@ -930,8 +959,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         gridSizeInput.value = gameState.grid_size;
         maxTurnsInput.value = gameState.max_turns;
+        
+        currentGameState = gameState; // Manually set for setup phase
+        updateLog(gameState.game_log, gameState.teams);
+        updateInterpretationPanel(gameState);
+        updateActionPreview(gameState);
+        updateControls(gameState);
+        renderTeamsList();
 
-        updateStateAndRender(gameState);
         setTimeout(() => resizeCanvas(), 50);
         window.initActionGuide(); // Use the global function now
         

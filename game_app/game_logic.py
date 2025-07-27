@@ -384,8 +384,12 @@ class Game:
             'grid_size': grid_size
         }
 
-    def _augment_historical_state(self, historical_state):
-        """Augments a single historical state object for frontend display."""
+    def augment_state_for_frontend(self, historical_state):
+        """
+        Augments a single historical state object with transient data for frontend display.
+        This method is designed to be called on a raw state from the simulation history.
+        It temporarily sets the game's state to the historical one to use its helper methods.
+        """
         # Temporarily swap state to use helper methods that rely on self.state
         original_live_state = self.state
         self.state = historical_state
@@ -421,8 +425,8 @@ class Game:
 
     def run_full_simulation(self, teams, points, max_turns, grid_size):
         """
-        Runs a complete game simulation from a given setup and returns the history
-        of states, with each state augmented for frontend display.
+        Runs a complete game simulation from a given setup and returns the raw history of states.
+        The history should be augmented before being sent to the client.
         """
         self.start_game(teams, points, max_turns, grid_size)
         
@@ -433,10 +437,20 @@ class Game:
             self.run_next_action()
             raw_history.append(copy.deepcopy(self.state))
 
-        # Augment each state for the frontend
-        augmented_history = [self._augment_historical_state(s) for s in raw_history]
+        return { "raw_history": raw_history }
 
-        return { "history": augmented_history }
+    def restart_game_and_run_simulation(self):
+        """Restarts the game with its initial settings and runs a new simulation."""
+        initial_state = self.state.get('initial_state')
+        if not initial_state:
+            return {"error": "No initial state saved to restart from."}
+        
+        return self.run_full_simulation(
+            initial_state['teams'],
+            initial_state['points'],
+            initial_state['max_turns'],
+            initial_state['grid_size']
+        )
 
     def _get_all_point_flags(self):
         """

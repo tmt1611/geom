@@ -137,14 +137,18 @@ js_game_data = game_data
 
     async startGame(payload) {
         if (this._mode === 'pyodide') {
-            const history = this._game.run_full_simulation(
+            // Get the raw history from Python
+            const result_py = this._game.run_full_simulation(
                 this._pyodide.toPy(payload.teams),
                 this._pyodide.toPy(payload.points),
                 payload.maxTurns,
                 payload.gridSize
             );
-            return this._pyProxyToJs(history);
+            // Convert to JS. This will be a list of raw state dicts.
+            const result_js = this._pyProxyToJs(result_py);
+            return { raw_history: result_js.raw_history }; // Keep it raw
         }
+        // HTTP mode gets pre-augmented history
         return this._fetchJson('/api/game/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -154,10 +158,22 @@ js_game_data = game_data
 
     async restart() {
         if (this._mode === 'pyodide') {
-            const result = this._game.restart_game_and_run_simulation();
-            return this._pyProxyToJs(result);
+            const result_py = this._game.restart_game_and_run_simulation();
+            const result_js = this._pyProxyToJs(result_py);
+            if (result_js.error) return result_js;
+            return { raw_history: result_js.raw_history };
         }
         return this._fetchJson('/api/game/restart', { method: 'POST' });
+    },
+
+    async augmentState(state) {
+        if (this._mode === 'pyodide') {
+            const augmented_state_py = this._game.augment_state_for_frontend(this._pyodide.toPy(state));
+            return this._pyProxyToJs(augmented_state_py);
+        }
+        // This is not needed for HTTP mode, as augmentation is done on the server.
+        // We can just return the state as is.
+        return state;
     },
 
     async reset() {

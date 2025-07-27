@@ -42,8 +42,13 @@ def start_game():
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid maxTurns or gridSize"}), 400
 
-    simulation_data = game_logic.game.run_full_simulation(teams, points, max_turns, grid_size)
-    return jsonify(simulation_data)
+    result = game_logic.game.run_full_simulation(teams, points, max_turns, grid_size)
+    raw_history = result.get("raw_history", [])
+
+    # Augment history on the server before sending to client
+    augmented_history = [game_logic.game.augment_state_for_frontend(s) for s in raw_history]
+
+    return jsonify({ "history": augmented_history })
 
 @main_routes.route('/api/game/restart', methods=['POST'])
 def restart_game():
@@ -51,7 +56,11 @@ def restart_game():
     result = game_logic.game.restart_game_and_run_simulation()
     if "error" in result:
         return jsonify(result), 400
-    return jsonify(result)
+    
+    raw_history = result.get("raw_history", [])
+    augmented_history = [game_logic.game.augment_state_for_frontend(s) for s in raw_history]
+
+    return jsonify({ "history": augmented_history })
 
 @main_routes.route('/api/game/reset', methods=['POST'])
 def reset_game():
