@@ -252,8 +252,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const team = teams[entry.teamId];
                 logEntryDiv.classList.add('team-log');
                 logEntryDiv.style.backgroundColor = team.color;
+                logEntryDiv.style.color = isColorDark(team.color) ? '#fff' : '#333';
 
                 let finalMessage = message;
+                // Color team names within the message for better readability, the text-shadow from CSS will help them stand out.
                 for (const otherTeamId in teams) {
                     const otherTeam = teams[otherTeamId];
                     finalMessage = finalMessage.replace(new RegExp(`\\b${otherTeam.name}\\b`, 'g'), `<strong style="color: ${otherTeam.color};">${otherTeam.name}</strong>`);

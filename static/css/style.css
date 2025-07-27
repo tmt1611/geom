@@ -191,9 +191,9 @@ legend {
 }
 
 .placement-section button, .randomize-controls button {
-    padding: 12px 15px;
-    font-size: 1.05em;
-    font-weight: 600;
+    padding: 8px 12px;
+    font-size: 1em;
+    font-weight: 500;
     border-radius: 5px;
     cursor: pointer;
     transition: background-color 0.2s, color 0.2s, border-color 0.2s;
