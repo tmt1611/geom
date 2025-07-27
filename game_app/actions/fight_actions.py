@@ -13,62 +13,6 @@ class FightActionsHandler:
     def __init__(self, game):
         self.game = game
 
-    # --- Action Precondition Checks ---
-
-    def can_perform_attack_line(self, teamId):
-        return len(self.game.get_team_lines(teamId)) > 0, "Requires at least 1 line to attack from."
-
-    def can_perform_pincer_attack(self, teamId):
-        return len(self.game.get_team_point_ids(teamId)) >= 2, "Requires at least 2 points."
-
-    def can_perform_territory_strike(self, teamId):
-        return len(self._get_large_territories(teamId)) > 0, "No large territories available."
-
-    def can_perform_territory_bisector_strike(self, teamId):
-        team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
-        return len(team_territories) > 0, "No claimed territories available."
-
-    def can_perform_sentry_zap(self, teamId):
-        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
-        can_perform = any(r.get('internal_points') for r in team_i_runes)
-        return can_perform, "Requires an I-Rune with at least 3 points."
-
-    def can_perform_refraction_beam(self, teamId):
-        has_prism = bool(self.state.get('runes', {}).get(teamId, {}).get('prism', []))
-        num_enemy_lines = len(self.state['lines']) - len(self.game.get_team_lines(teamId))
-        can_perform = has_prism and num_enemy_lines > 0
-        return can_perform, "Requires a Prism Rune and enemy lines."
-
-    def can_perform_launch_payload(self, teamId):
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('trebuchet', []))
-        return can_perform, "Requires a Trebuchet Rune."
-
-    def can_perform_purify_territory(self, teamId):
-        # Action is possible if a purifier exists, due to the fallback push effect.
-        can_perform = bool(self.state.get('purifiers', {}).get(teamId, []))
-        return can_perform, "Requires a Purifier."
-
-    def can_perform_isolate_point(self, teamId):
-        # With push/barricade fallbacks, action is always possible if team has at least one point.
-        can_perform = len(self.game.get_team_point_ids(teamId)) >= 1
-        reason = "" if can_perform else "Requires at least one point to act."
-        return can_perform, reason
-
-    def can_perform_parallel_strike(self, teamId):
-        # A parallel strike requires a line to be parallel to, and a point that is not part of that line.
-        # This is geometrically possible if and only if the team has at least one line and more than two points.
-        has_lines = len(self.game.get_team_lines(teamId)) > 0
-        has_enough_points = len(self.game.get_team_point_ids(teamId)) > 2
-        can_perform = has_lines and has_enough_points
-        reason = "" if can_perform else "Requires at least one line and at least 3 points in total."
-        return can_perform, reason
-
-    def can_perform_hull_breach(self, teamId):
-        # With the push fallback, action is always possible if team has at least 3 points.
-        return len(self.game.get_team_point_ids(teamId)) >= 3, "Requires at least 3 points to form a hull."
-
-    # --- End Precondition Checks ---
-
     @property
     def state(self):
         """Provides direct access to the game's current state dictionary."""

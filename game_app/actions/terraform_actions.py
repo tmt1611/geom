@@ -5,13 +5,6 @@ class TerraformActionsHandler:
     def __init__(self, game):
         self.game = game
 
-    # --- Action Precondition Checks ---
-
-    def can_perform_create_fissure(self, teamId):
-        team_spires = self.state.get('rift_spires', {}).values()
-        can_perform = any(s['teamId'] == teamId and s.get('charge', 0) >= s.get('charge_needed', 3) for s in team_spires)
-        return can_perform, "Requires a charged Rift Spire."
-
     def _find_rift_spire_candidates(self, teamId):
         """Helper to find points that are vertices of 3+ territories."""
         team_territories = [t for t in self.state.get('territories', []) if t['teamId'] == teamId]
@@ -27,12 +20,6 @@ class TerraformActionsHandler:
         
         candidates = [pid for pid, count in vertex_counts.items() if count >= 3 and pid not in existing_spire_pids]
         return candidates
-
-    def can_perform_form_rift_spire(self, teamId):
-        can_perform = len(self._find_rift_spire_candidates(teamId)) > 0
-        return can_perform, "Requires a point that is a vertex of at least 3 territories."
-
-    # --- End Precondition Checks ---
 
     @property
     def state(self):

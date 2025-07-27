@@ -42,20 +42,11 @@ class Game:
         self._log_generators = game_data.get_log_generators()
 
     def _init_action_preconditions(self):
-        """Dynamically maps action names to their precondition check methods based on ACTION_MAP."""
+        """Dynamically maps action names to their precondition check functions from action_data."""
         self.action_preconditions = {}
         for action_name, data in action_data.ACTIONS.items():
-            handler_name, method_name = data['handler'], data['method']
-            handler = getattr(self, handler_name, None)
-            if handler:
-                precondition_method_name = f"can_perform_{method_name}"
-                precondition_method = getattr(handler, precondition_method_name, None)
-                if precondition_method and callable(precondition_method):
-                    self.action_preconditions[action_name] = precondition_method
-                else:
-                    # This can be used for debugging missing precondition methods.
-                    # For now, we silently ignore missing ones.
-                    pass
+            if 'precondition' in data:
+                self.action_preconditions[action_name] = data['precondition']
 
     def reset(self):
         """Initializes or resets the game state with default teams."""
@@ -1015,7 +1006,8 @@ class Game:
         """
         status = {}
         for action_name, precon_func in self.action_preconditions.items():
-            is_valid, reason = precon_func(teamId)
+            handler = getattr(self, action_data.ACTIONS[action_name]['handler'])
+            is_valid, reason = precon_func(handler, teamId)
             status[action_name] = {'valid': is_valid, 'reason': "" if is_valid else reason}
         
         return status

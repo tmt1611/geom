@@ -17,77 +17,6 @@ class SacrificeActionsHandler:
         critical_pids = self.game._get_critical_structure_point_ids(teamId)
         return any(pid not in critical_pids for pid in team_point_ids)
 
-    # --- Action Precondition Checks ---
-
-    def can_perform_nova_burst(self, teamId):
-        # Action is possible if either an "ideal" target exists (guaranteeing primary effect)
-        # or if a "non-critical" point exists to sacrifice for the fallback effect.
-        has_ideal_target = len(self._find_possible_nova_bursts(teamId)) > 0
-        # Use a cheaper check for the fallback, as the action itself will do the full check.
-        has_fallback_target = self._has_sacrificial_point(teamId)
-        can_perform = has_ideal_target or has_fallback_target
-        return can_perform, "No suitable point to sacrifice for Nova Burst."
-
-    def can_perform_create_whirlpool(self, teamId):
-        # Use a cheaper check for the precondition. The action itself will do the full check.
-        can_perform = self._has_sacrificial_point(teamId)
-        return can_perform, "No non-critical point available to sacrifice."
-
-    def can_perform_phase_shift(self, teamId):
-        can_perform = len(self._get_eligible_phase_shift_lines(teamId)) > 0
-        return can_perform, "Requires a non-critical/safe line to sacrifice."
-
-    def can_perform_rift_trap(self, teamId):
-        # Use a cheaper check for the precondition. The action itself will do the full check.
-        can_perform = self._has_sacrificial_point(teamId)
-        return can_perform, "No non-critical point available to sacrifice."
-
-    def can_perform_scorch_territory(self, teamId):
-        can_perform = any(t['teamId'] == teamId for t in self.state.get('territories', []))
-        return can_perform, "Requires at least one claimed territory to sacrifice."
-
-
-
-    def can_perform_convert_point(self, teamId):
-        # Primary needs a vulnerable enemy point. Fallback is always possible if a line exists.
-        # Thus, only a line is needed.
-        return len(self.game.get_team_lines(teamId)) > 0, "Requires a line to sacrifice."
-
-    def can_perform_line_retaliation(self, teamId):
-        # Requires a non-critical line to sacrifice a point from.
-        return len(self._get_eligible_phase_shift_lines(teamId)) > 0, "Requires a non-critical line to sacrifice."
-
-    def can_perform_bastion_pulse(self, teamId):
-        return len(self._find_possible_bastion_pulses(teamId)) > 0, "No bastion with enemy lines crossing its perimeter."
-
-    def can_perform_attune_nexus(self, teamId):
-        team_nexuses = self.state.get('runes', {}).get(teamId, {}).get('nexus', [])
-        if not team_nexuses:
-            return False, "Requires an active Nexus Rune."
-        
-        attuned_nexus_pids = {frozenset(an['point_ids']) for an in self.state.get('attuned_nexuses', {}).values()}
-        
-        for nexus in team_nexuses:
-            nexus_pids = frozenset(nexus.get('point_ids', []))
-            if nexus_pids not in attuned_nexus_pids:
-                return True, "" # Found an unattuned nexus. The action logic will find the diagonal.
-        
-        return False, "All active Nexuses are already attuned."
-
-    def can_perform_chain_lightning(self, teamId):
-        team_i_runes = self.state.get('runes', {}).get(teamId, {}).get('i_shape', [])
-        # Check if there's any I-Rune with an internal point that can be sacrificed.
-        # The point must also exist.
-        possible_sacrifices = False
-        for r in team_i_runes:
-            for pid in r.get('internal_points', []):
-                if pid in self.state['points']:
-                    possible_sacrifices = True
-                    break
-            if possible_sacrifices:
-                break
-        return possible_sacrifices, "Requires an I-Rune (Conduit) with a sacrificial internal point."
-
     def _find_heartwood_candidates(self, teamId):
         """Helper to find points suitable to become the center of a Heartwood."""
         if teamId in self.state.get('heartwoods', {}):
@@ -101,22 +30,6 @@ class SacrificeActionsHandler:
             if len(neighbors) >= 5:
                 candidates.append({'center_id': pid, 'branch_ids': list(neighbors)})
         return candidates
-
-    def can_perform_cultivate_heartwood(self, teamId):
-        can_perform = len(self._find_heartwood_candidates(teamId)) > 0
-        return can_perform, "Requires a central point connected to at least 5 other points, and team cannot have an existing Heartwood."
-
-
-
-    def can_perform_build_chronos_spire(self, teamId):
-        # A team can only have one wonder.
-        if any(w['teamId'] == teamId for w in self.state.get('wonders', {}).values()):
-            return False, "Team already has a Wonder."
-        
-        can_perform = bool(self.state.get('runes', {}).get(teamId, {}).get('star', []))
-        return can_perform, "Requires an active Star Rune to build a Wonder."
-
-    # --- End Precondition Checks ---
 
     @property
     def state(self):

@@ -1,3 +1,7 @@
 - **Refactoring & Optimization (Action Efficiency):**
   - Optimized the precondition checks for `add_line` and `parallel_strike` to remove inefficient loops and rely on faster, direct calculations. This improves performance during the action selection phase of a turn.
   - Refactored the `parallel_strike` action implementation to avoid pre-calculating and storing a potentially large list of all valid action combinations. It now finds a valid combination on-the-fly, making it significantly more performant.
+- **Refactoring (Code Organization):**
+  - Centralized all action precondition checks (`can_perform_*` methods) from the various `actions/*.py` files into the main `game_app/action_data.py` file.
+  - Each action in `action_data.py` now has a `precondition` key containing a lambda function that defines its validity.
+  - This refactoring simplifies the action handler files and makes `action_data.py` a more complete single source of truth for action metadata, improving maintainability.

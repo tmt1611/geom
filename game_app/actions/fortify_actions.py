@@ -7,37 +7,6 @@ class FortifyActionsHandler:
     def __init__(self, game):
         self.game = game
 
-    # --- Action Precondition Checks ---
-
-    def can_perform_shield_line(self, teamId):
-        return len(self.game.get_team_lines(teamId)) > 0, "Requires at least one line to shield or overcharge."
-
-    def can_perform_claim_territory(self, teamId):
-        # A rough check to avoid expensive triangle enumeration for the precondition.
-        # The action itself will do the precise check.
-        can_potentially_claim = len(self.game.get_team_point_ids(teamId)) >= 3 and len(self.game.get_team_lines(teamId)) >= 3
-        can_reinforce = any(t['teamId'] == teamId for t in self.state.get('territories', []))
-        can_perform = can_potentially_claim or can_reinforce
-        reason = "" if can_perform else "Requires at least 3 points and 3 lines to claim, or an existing territory to reinforce."
-        return can_perform, reason
-
-    def can_perform_create_anchor(self, teamId):
-        # Action is possible if there is at least one "free" point that is not already an anchor.
-        team_point_ids = self.game.get_team_point_ids(teamId)
-        if not team_point_ids:
-            return False, "Requires at least one point."
-
-        critical_pids = self.game._get_critical_structure_point_ids(teamId)
-        anchor_pids = set(self.state.get('anchors', {}).keys())
-
-        # The articulation point check is removed for this non-destructive action's precondition
-        # to improve performance. The 'critical structure' check is sufficient.
-        has_candidate = any(
-            pid not in critical_pids and pid not in anchor_pids
-            for pid in team_point_ids
-        )
-        return has_candidate, "No available non-critical points to turn into an anchor."
-
     def _find_a_valid_mirror(self, teamId, num_attempts=5):
         """
         Tries to find a valid mirror operation by randomly selecting axes and points.
@@ -90,22 +59,6 @@ class FortifyActionsHandler:
         
         return None
 
-    def can_perform_mirror_structure(self, teamId):
-        # The action can mirror (needs >=3 pts), strengthen (needs >=1 line), or add a line (needs >=2 pts).
-        # The condition simplifies to needing either at least 2 points or at least 1 line.
-        num_points = len(self.game.get_team_point_ids(teamId))
-        num_lines = len(self.game.get_team_lines(teamId))
-        can_perform = num_points >= 2 or num_lines > 0
-        reason = "" if can_perform else "Requires at least 2 points or 1 line."
-        return can_perform, reason
-
-    def can_perform_form_bastion(self, teamId):
-        can_form = len(self._find_possible_bastions(teamId)) > 0
-        can_reinforce = bool(self.game._get_fortified_point_ids().intersection(self.game.get_team_point_ids(teamId)))
-        can_perform = can_form or can_reinforce
-        reason = "" if can_perform else "No valid bastion formation and no fortified points to reinforce."
-        return can_perform, reason
-
     def _find_possible_monoliths_and_fallbacks(self, teamId):
         """Helper to find valid monoliths (tall rectangles) and regular rectangles for fallback reinforcement."""
         team_point_ids = self.game.get_team_point_ids(teamId)
@@ -140,12 +93,6 @@ class FortifyActionsHandler:
         
         return possible_monoliths, fallback_candidates
         return possible_monoliths, fallback_candidates
-
-    def can_perform_form_monolith(self, teamId):
-        # A rough check. The action can fail gracefully if no valid rectangle is found.
-        # It needs at least 4 points for the primary or fallback effect.
-        can_perform = len(self.game.get_team_point_ids(teamId)) >= 4
-        return can_perform, "Requires at least 4 points to form a rectangle."
 
     def _find_possible_purifiers(self, teamId):
         """Helper to find valid pentagonal formations for a Purifier."""
@@ -185,34 +132,6 @@ class FortifyActionsHandler:
                 if all(tuple(sorted(pair)) in existing_lines for pair in side_pairs):
                     possible_purifiers.append({'point_ids': list(p_ids_tuple)})
         return possible_purifiers
-
-    def can_perform_form_purifier(self, teamId):
-        # A rough check. The action can fail gracefully if no valid pentagon is found.
-        can_perform = len(self.game.get_team_point_ids(teamId)) >= 5
-        return can_perform, "Requires at least 5 points to form a pentagon."
-
-
-
-    def can_perform_reposition_point(self, teamId):
-        can_reposition = bool(self.game._find_repositionable_point(teamId))
-        reason = "" if can_reposition else "No free points to reposition."
-        return can_reposition, reason
-
-    def can_perform_rotate_point(self, teamId):
-        can_rotate = bool(self.game._find_repositionable_point(teamId))
-        reason = "" if can_rotate else "No free points to rotate."
-        return can_rotate, reason
-    
-    def can_perform_create_ley_line(self, teamId):
-        # The action is possible as long as an I-Rune exists.
-        # The action logic handles whether to create a new Ley Line or pulse an existing one.
-        has_i_rune = bool(self.state.get('runes', {}).get(teamId, {}).get('i_shape', []))
-        return has_i_rune, "Requires an I-Rune (a line of 3+ points)."
-
-
-
-
-    # --- End Precondition Checks ---
 
     @property
     def state(self):
