@@ -642,16 +642,13 @@ const illustrationDrawers = {
             {x: w*0.3, y: h*0.5},
         ];
         
-        // Draw core as fortified
-        ctx.save();
+        // Draw core as a square, matching the renderer for 'is_bastion_core'
+        const core_size = 15;
         ctx.fillStyle = team1_color;
-        const size = 18;
-        ctx.translate(core.x, core.y);
-        ctx.beginPath();
-        ctx.moveTo(0, -size); ctx.lineTo(size, 0); ctx.lineTo(0, size); ctx.lineTo(-size, 0);
-        ctx.closePath();
-        ctx.fill();
-        ctx.restore();
+        ctx.fillRect(core.x - core_size / 2, core.y - core_size / 2, core_size, core_size);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(core.x - core_size / 2, core.y - core_size / 2, core_size, core_size);
 
         // Draw prongs and lines
         illustrationHelpers.drawPoints(ctx, prongs, team1_color);

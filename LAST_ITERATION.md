@@ -1,11 +1,10 @@
-- **Illustration Review (FIGHT & RUNE actions):** Added new illustrations for `Hull Breach`, `Isolate Point`, and `Gravity Well`, which were previously missing. This completes illustration coverage for all `FIGHT` actions and adds a missing `RUNE` action.
+- **Illustration Review (FORTIFY actions):** Reviewed all `FORTIFY` action illustrations for consistency and clarity. No illustrations were missing.
 - **Illustration Design & Consistency:**
-    - The new illustrations were designed to visually represent their mechanics: `Hull Breach` shows a convex hull converting an enemy, `Isolate Point` shows a debuffing beam, and `Gravity Well` shows a Star-Rune pushing enemies away.
-    - Corrected several illustrations that incorrectly showed a "sacrifice" visual (a red 'X') for non-sacrifice actions:
-        - `Rune: Starlight Cascade`
-        - `Terraform: Form Rift Spire`
-        - `Rune: Cardinal Pulse`
-    - The "push" visual (outward arrows) for `Gravity Well` is now consistent with other push effects like `Shield Pulse`.
-    - The "conversion" visual (halo) for `Hull Breach` is now consistent with `Convert Point`.
-- **Visual Polish:** Improved the symbol for the `Build Wonder` action to look more like a distinct spire rather than a simple triangle.
-- **Checked action coverage:** Confirmed that all `FIGHT` actions now have illustrations. One `RUNE` action (`Gravity Well`) was added.
+    - Updated the illustration for `Fortify: Form Bastion` to use a square for the bastion core, matching the in-game renderer (`is_bastion_core`) and improving visual consistency between the action guide and the live game. This also simplified the drawing code.
+- **Visual Effects Review (FORTIFY, TERRAFORM, SACRIFICE):**
+    - Reviewed visual effects for all actions in these groups to ensure they are present and visually representative.
+    - **Added new effects:**
+        - `Terraform: Create Fissure`: Now shows a jagged energy ray from the controlling Rift Spire, followed by a `growing_wall` effect to form the fissure.
+        - `Sacrifice: Line Retaliation`: Now shows two `attack_ray` projectiles firing from the sacrificed point, matching the action's description and illustration.
+        - `Sacrifice: Scorch Territory`: Now shows a fiery orange `polygon_flash` over the area before it becomes a persistent scorched zone, making the action more visually impactful.
+- **Checked action coverage:** Confirmed all `FORTIFY`, `TERRAFORM`, and `SACRIFICE` actions have corresponding illustrations and have now been reviewed for visual effects.

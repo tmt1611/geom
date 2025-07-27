@@ -510,6 +510,34 @@ const visualEffectsManager = (() => {
                 type: 'point_explosion', x: details.destroyed_point.x, y: details.destroyed_point.y, startTime: Date.now() + 1200, duration: 800
             });
         },
+        'line_retaliation': (details, gameState) => {
+            const p_sac = details.sacrificed_point;
+            const target1 = details.target1;
+            const target2 = details.target2;
+            const teamColor = gameState.teams[p_sac.teamId].color;
+
+            uiState.lastActionHighlights.points.add(details.sacrificed_point.id);
+            if (details.other_endpoint_id) {
+                uiState.lastActionHighlights.points.add(details.other_endpoint_id);
+            }
+
+            uiState.visualEffects.push({
+                type: 'attack_ray',
+                p1: p_sac,
+                p2: target1,
+                startTime: Date.now(),
+                duration: 700,
+                color: teamColor
+            });
+            uiState.visualEffects.push({
+                type: 'attack_ray',
+                p1: p_sac,
+                p2: target2,
+                startTime: Date.now(),
+                duration: 700,
+                color: teamColor
+            });
+        },
         'rune_hourglass_stasis': (details, gameState) => {
             details.rune_points.forEach(pid => uiState.lastActionHighlights.points.add(pid));
             uiState.lastActionHighlights.points.add(details.target_point.id);
@@ -593,6 +621,28 @@ const visualEffectsManager = (() => {
         'build_chronos_spire': (details, gameState) => {
             uiState.visualEffects.push({
                 type: 'point_implosion', x: details.wonder.coords.x, y: details.wonder.coords.y, startTime: Date.now(), duration: 2000, color: `rgba(255, 255, 150, 1)`
+            });
+        },
+        'create_fissure': (details, gameState) => {
+            uiState.lastActionHighlights.structures.add(details.spire_id);
+            uiState.lastActionHighlights.structures.add(details.fissure.id);
+            const spire = gameState.rift_spires[details.spire_id];
+            if (spire) {
+                uiState.visualEffects.push({
+                    type: 'jagged_ray',
+                    p1: spire.coords,
+                    p2: details.fissure.p1,
+                    startTime: Date.now(),
+                    duration: 600,
+                    color: gameState.teams[spire.teamId].color
+                });
+            }
+            uiState.visualEffects.push({
+                type: 'growing_wall',
+                barricade: details.fissure, // growing_wall uses barricade object structure
+                color: 'rgba(50, 50, 50, 0.8)',
+                startTime: Date.now() + 200,
+                duration: 1200
             });
         },
         'form_rift_spire': (details, gameState) => {
@@ -752,7 +802,20 @@ const visualEffectsManager = (() => {
                 color: `rgba(255, 100, 100, 1)`,
                 lineWidth: 2
             });
-        }
+        },
+        'scorch_territory': (details, gameState) => {
+            const points = details.territory.points.map(p => gameState.points[p.id]).filter(Boolean);
+            if (points.length === 3) {
+                 points.forEach(p => uiState.lastActionHighlights.points.add(p.id));
+                 uiState.visualEffects.push({
+                    type: 'polygon_flash',
+                    points: points,
+                    color: 'rgba(255, 80, 0, 0.8)', // Fiery orange
+                    startTime: Date.now(),
+                    duration: 1000,
+                });
+            }
+        },
     });
 
     function processActionVisuals(gameState, uiState, cellSize) {
