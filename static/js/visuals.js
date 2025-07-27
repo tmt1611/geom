@@ -368,11 +368,16 @@ const visualEffectsManager = (() => {
             });
             // Add effects for new points and lines
             details.new_points.forEach((p, i) => {
+                const team = gameState.teams[p.teamId];
+                if (!team) {
+                    console.warn(`Visuals: could not find team with ID ${p.teamId} for mirror_structure point formation.`);
+                    return; // Skip this effect if team is missing
+                }
                 uiState.visualEffects.push({
                     type: 'point_formation',
                     x: p.x,
                     y: p.y,
-                    color: gameState.teams[details.team_id].color,
+                    color: team.color,
                     startTime: Date.now() + i * 100,
                     duration: 600
                 });
